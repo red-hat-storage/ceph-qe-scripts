@@ -1,0 +1,22 @@
+ - Various QE scripts written by QE for Ceph Testing
+   This scripts once tested can be ported to main ceph-qa-scripts git repo
+
+  Scripts here can be in any language (Python/Perl/PHP/Shell etc)
+
+  Assumptions:
+    Script can assume the Ceph Cluster is formed and has to mention
+    the requirement of OSD/Mon/RGW nodes in its header comment
+
+   Example: 
+     # Owner: Name 
+     # Email: EmailId
+     # Script to test the RBD Negative CLI's
+     # This script requires 3 nodes with 2 mons and 2 osd's on each node
+     # This script also needs a client and should be run on client
+     #  Test Description:
+     #   a) Invoke various rbd cli commands with negative options
+     #   b) Verify the cli throws appropriate error message
+     #   c)
+     #  Success: exit code: 0
+     #  Failure: Non Zero Exit or ERROR message in output
+     
