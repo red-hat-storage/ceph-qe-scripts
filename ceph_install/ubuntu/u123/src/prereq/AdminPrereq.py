@@ -8,15 +8,21 @@ class AdminFireWallSettings(object):
 
     def firewall_settings_commands(self):
 
+        print 'in admin firewall'
+
         # format to specifiy the command: " '<command>' "
 
         self.open_80 = " ' sudo iptables -I INPUT 1 -i eh0 -p tcp -s %s --dport 80 -j ACCEPT' " %(self.host.ip)
         self.open_2003 = " 'sudo iptables -I INPUT 1 -i eth0 -p tcp -s %s --dport 2003 -j ACCEPT' " %(self.host.ip)
         self.open_45005_4506 = " 'sudo iptables -I INPUT 1 -i eth0 -m multiport -p tcp -s %s --dports 4505:4506 -j ACCEPT' " %(self.host.ip)
+        self.saveiptables = " 'sudo apt-get install iptables-persistent' "
 
-        return self.open_80, self.open_2003, self.open_45005_4506
+
+        return self.open_80, self.open_2003, self.open_45005_4506, self.saveiptables,
 
     def execute(self):
+
+        print 'in admn execute'
 
         commands = self.firewall_settings_commands()
 
@@ -38,6 +44,8 @@ class DoAdminSettings(object):
         self.admin_nodes = admin_nodes # split will return a list.
 
     def do_settings(self):
+
+        print 'in run admin pre-req'
 
         firewall_settings = AdminFireWallSettings(self.admin_nodes)
         firewall_settings.execute()
