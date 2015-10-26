@@ -26,7 +26,7 @@ class PrepareCeph(object):
         log.info( 'adding inital mons and connecting to calamari' )
 
         self.add_initial_mons_cmd = 'ceph-deploy mon create-initial'
-        self.connect_mon_calamari =  'ceph-deploy calamari connect --master %s %s' %(self.admin_node.ip, ' '.join(self.mon_hostnames))
+        self.connect_mon_calamari =  'ceph-deploy calamari connect  %s' %(' '.join(self.mon_hostnames))
 
         log.debug(self.add_initial_mons_cmd)
         os.system(self.add_initial_mons_cmd)
@@ -38,9 +38,9 @@ class PrepareCeph(object):
 
         log.info('making admin calamari node')
 
-        log.debug('installing cli')
-        self.cli_install = 'ceph-deploy install --no-adjust-repos --cli %s' %(self.admin_node.hostname)
-        log.debug(self.cli_install)
+        #log.debug('installing cli')
+        #self.cli_install = 'ceph-deploy install --no-adjust-repos --cli %s' %(self.admin_node.hostname)
+        #log.debug(self.cli_install)
 
         log.debug('installing ceph-deploy admin')
         self.make_admin_node = 'ceph-deploy admin %s' %(self.admin_node.hostname)
@@ -84,7 +84,7 @@ class PrepareCeph(object):
         self.osd_activate = 'ceph-deploy osd activate %s' %(' '.join(hostname_with_disk))
         log.debug( 'osd activate:  %s'  %self.osd_activate )
 
-        self.connect_osd_calamari = 'ceph-deploy calamari connect --master %s %s' %(self.admin_node.ip, ' '.join(self.osd_hostnames))
+        self.connect_osd_calamari = 'ceph-deploy calamari connect %s' %(' '.join(self.osd_hostnames))
 
         os.system(self.disk_zap_cmd)
         os.system(self.osd_prepare)

@@ -11,18 +11,18 @@ class MakeMachine(object):
 
         # example
 
-        osd1 = Machines('10.8.128.92', 'magna092')
-        osd2 = Machines('10.8.128.64', 'magna064')
-
-        return osd1, osd2
+        osd1 = Machines('10.8.128.67', 'magna067')
+        osd2 = Machines('10.8.128.77', 'magna077')
+        osd3 = Machines('10.8.128.98', 'magna098')
+        return osd1, osd2, osd3
 
     def get_mons(self):
 
         # example
 
-        mon1 = Machines('10.8.128.14', 'magna014')
-        mon2 = Machines('10.8.128.15', 'magna015')
-        mon3 = Machines('10.8.128.16', 'magna016')
+        mon1 = Machines('10.8.128.47', 'magna047')
+        mon2 = Machines('10.8.128.52', 'magna052')
+        mon3 = Machines('10.8.128.58', 'magna058')
 
         return mon1, mon2, mon3
 
@@ -30,8 +30,14 @@ class MakeMachine(object):
 
         # example
 
-        admin_node = Machines('10.8.128.12', 'magna012')
+        admin_node = Machines('10.8.128.33', 'magna033')
         return admin_node
+
+    #def get_rgw(self);
+
+     #   rgw_node = Machines('10.8.128.47','magna047')
+      #  return rgw_node;
+
 
 
 class Marshall(object):
@@ -41,6 +47,7 @@ class Marshall(object):
         self.osdL = machines.get_osds()
         self.monL = machines.get_mons()
         self.admin_nodes = machines.get_admin()
+        #self.rgw_nodes = machines.get_rgw()
         self.username = 'username'  # uesername from inktank
         self.password = 'password'  # password from inktank
 
@@ -62,6 +69,9 @@ class Marshall(object):
         for each_osd in self.osdL:
             log.info('osds: %s, %s' % (each_osd.ip, each_osd.hostname))
 
+        #log.info('rgw: ')
+        #log.info('rgw: %s, %s' % (self.rgw_nodes.ip, self.rgw_nodes.hostname ))
+
         log.info('Configuration: ')
         log.info('username: %s' % self.username)
         log.info('password: %s' % self.password)
@@ -75,6 +85,9 @@ class Marshall(object):
     def execute(self):
 
         try:
+
+                self.set()
+
                 log.debug('executing ssh commands')
 
                 ssh = SSH(self.admin_nodes, self.monL, self.osdL)
@@ -85,9 +98,10 @@ class Marshall(object):
                 os.system('touch ceph.log')
                 os.system('sudo chmod 777 ceph.log')
 
-                self.set()
-
                 if self.run_prerequites:
+
+                    print 'in run prereq'
+
                     log.info('running prerequistes')
                     self.prereq = Prerequisites(self.admin_nodes, self.monL, self.osdL)
                     self.prereq.execute()

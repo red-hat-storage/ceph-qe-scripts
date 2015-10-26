@@ -33,8 +33,8 @@ class Install(object):
             iso_install = ISOInstall(self.username, self.password, self.admin_node, self.mons, self.osds)
             iso_install.execute()
 
-        #prepare_ceph = PrepareCeph(self.admin_node, self.mons, self.osds)
-        #prepare_ceph.execute()
+        prepare_ceph = PrepareCeph(self.admin_node, self.mons, self.osds)
+        prepare_ceph.execute()
 
 
 

@@ -9,9 +9,9 @@ class PrepareISO(object):
 
         # ftp://partners.redhat.com/33a20d04c450dcece12644c03c609f1d/rhceph-1.2.3-2-ubuntu-x86_64-rh.iso
 
-        self.iso = 'rhceph-1.2.3-2-ubuntu-x86_64-rh.iso'
+        self.iso = 'rhceph-1.2.3.2-ubuntu-x86_64-rh.iso'
 
-        self.download_link = 'ftp://partners.redhat.com/33a20d04c450dcece12644c03c609f1d/%s' %(self.iso)
+        self.download_link = 'http://download.eng.bos.redhat.com/rcm-guest/ceph-drops/test-sign/%s' %(self.iso)
 
 
     def download_iso(self):
@@ -36,7 +36,7 @@ class PrepareISO(object):
     def ice_setup(self):
 
         #extracting ICE setup
-        """
+
         log.info('extracting ICE setup')
 
         extract_cmd = 'sudo dpkg -i /mnt/ice-*.deb'
@@ -44,7 +44,6 @@ class PrepareISO(object):
         log.debug(extract_cmd)
 
         os.system(extract_cmd)
-        """
 
         # run ice setup
 
@@ -81,8 +80,6 @@ class ISOInstall(object):
 
         log.info('creating cluster, running "ceph-deploy new" ')
 
-
-
         self.create_cliuster_cmd = 'ceph-deploy new %s'  %(' '.join(self.mon_hostnames))
 
         log.debug(self.create_cliuster_cmd)
@@ -102,7 +99,7 @@ class ISOInstall(object):
         log.debug('ceph install in other nodes')
 
         self.install_repo_in_nodes = 'ceph-deploy install --repo %s %s' % (' '.join(self.mon_hostnames), ' '.join(self.osd_hostnames))
-        log.debug(self.install_in_nodes)
+        log.debug(self.install_repo_in_nodes)
         os.system(self.install_repo_in_nodes)
 
         self.install_in_nodes = 'ceph-deploy install %s %s' % (' '.join(self.mon_hostnames), ' '.join(self.osd_hostnames))
