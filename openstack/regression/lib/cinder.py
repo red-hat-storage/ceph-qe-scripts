@@ -31,6 +31,58 @@ class Cinder(object):
         self.cinder.volumes.attach(volume, server.id, mount)
         return self.cinder.volumes.get(volume.id)
 
+    def create_backup(self, volume, incremental=None):
+        if volume.status == "in-use" or volume.status == "available":
+            name = volume + "-back"
+            self.cinder.backups.create(volume, name=name, incremental=incremental)
+        elif:
+            print "Cannot take backup of volume %s" % volume
+
+    def delete_backup(self, backup):
+        self.cinder.backups.delete(backup)
+
+    def get_backup(self, backup):
+        return self.cinder.backups.get(backup)
+
+    def list_backup(self):
+        backups = self.cinder.backups.list()
+        if backups:
+            return backups
+
+    def create_snapshot(self, volume):
+        if volume.status == "available":
+            snapshot = self.cinder.volume_snapshots.create_snapshot(volume, force=False)
+            return snapshot.id, snapshot.status
+        elif volume.status == "in-use":
+            snapshot = self.cinder.volume_snapshots.create(volume, force=True)
+            return snapshot.id, snapshot.status
+
+    def create_vol_from_snap(self,snapshot, size=1):
+        if snapshot.status == "available":
+            self.cinder.volumes.create(size=size, snapshot_id=snapshot)
+        else:
+            print "Failed to create volume from snap %s" % snapshot
+
+    def delete_snapshot(self, snapshot):
+        self.cinder.volume_snapshots.delete(snapshot)
+
+    def list_snapshot(self):
+        snapshots = self.cinder.volume_snapshots.list()
+        if snapshots:
+            return snapshots
+        else:
+            print "No snapshots available"
+
+
+
+
+
+
+
+
+
+
+
 
 
 
