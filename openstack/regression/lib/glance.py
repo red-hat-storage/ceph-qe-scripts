@@ -42,7 +42,7 @@ class Glance(object):
                 log.error(e)
             image_name = image.name
             log.debug("Image uploaded %s" % image_name)
-            return image
+            return image_name
 
 
 # List images
