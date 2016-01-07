@@ -90,7 +90,6 @@ def exec_test():
         cinder_snap.vol_create('test-volume2', 1)
         cinder_snap.snapshot_create('test-snap2')
         cinder_snap.snap_vol_create('test-snap2-vol', 1)
-        time.sleep(5)
         cinder_snap.delete_vol()
         cinder_snap.snapshot_delete()
 
@@ -106,9 +105,3 @@ def exec_test():
 if __name__ == '__main__':
 
     exec_test()
-
-
-
-
-
-
