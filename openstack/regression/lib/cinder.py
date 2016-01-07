@@ -11,7 +11,7 @@ class CinderReturnStack(object):
         pass
 
 
-class Cinder(object):
+class CinderAuth(object):
 
     def __init__(self):
         self.os_username = os.environ['OS_USERNAME']

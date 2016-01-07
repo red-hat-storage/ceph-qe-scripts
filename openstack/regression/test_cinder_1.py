@@ -1,22 +1,19 @@
 import lib.log as log
-from lib.cinder import Cinder, CinderVolumes
+from lib.cinder import CinderAuth, CinderVolumes
 from lib.test_desc import AddTestInfo
 from utils import wait
 import time
 
 
 class CindeVolumeTest(object):
-    def __init__(self, cinder, add_test_info):
+    def __init__(self, cinder):
         self.timer = wait.Wait()
-        self.cinder_volume = CinderVolumes(cinder)
+        self.cinder_volume = CinderVolumes(cinder.cinder)
         self.volume = None
-
-        self.add_test_info = add_test_info
-
 
     def create_vol(self, name, size):
 
-        self.add_test_info.sub_test_info('1', 'create volume')
+        add_test_info.sub_test_info('1', 'create volume')
 
         init_create_volume = self.cinder_volume.create_volume(name, size)
 
@@ -33,9 +30,11 @@ class CindeVolumeTest(object):
 
         log.info('volume exist status: %s' % volume.volume.status)
 
+        add_test_info.sub_test_completed_info()
+
     def extend_vol(self, extend_size):
 
-        self.add_test_info.sub_test_info('2', 'extend volume')
+        add_test_info.sub_test_info('2', 'extend volume')
 
         old_size = self.volume.size
         new_size = old_size + extend_size
@@ -55,9 +54,11 @@ class CindeVolumeTest(object):
         else:
             raise AssertionError("volume did not extend")
 
+        add_test_info.sub_test_completed_info()
+
     def delete_vol(self, volume_obj=None):
 
-        self.add_test_info.sub_test_info('3', 'delete volume')
+        add_test_info.sub_test_info('3', 'delete volume')
 
         #self.volume = volume_obj
 
@@ -74,6 +75,8 @@ class CindeVolumeTest(object):
         else:
             log.error('volume status: %s' % volume_exists.volume.status)
             raise AssertionError("volume still exists")
+
+        add_test_info.sub_test_completed_info()
 
     def list_all_volumes(self):
 
@@ -96,16 +99,18 @@ class CindeVolumeTest(object):
 
 def exec_test():
 
+    global  add_test_info
+
     add_test_info = AddTestInfo(1, 'Cinder Volume Test')
     try:
 
         add_test_info.started_info()
-        cinder_obj = Cinder()
-        auth = cinder_obj.auth()
+        cinder_auth = CinderAuth()
+        auth = cinder_auth.auth()
 
         assert auth.status, "Authentication Failed"
 
-        cinder_volume = CindeVolumeTest(auth.cinder, add_test_info)
+        cinder_volume = CindeVolumeTest(auth)
 
         #cinder_volume.list_all_volumes()
 
@@ -113,11 +118,11 @@ def exec_test():
         cinder_volume.extend_vol(5)
         cinder_volume.delete_vol()
 
-        add_test_info.status('ok')
+        add_test_info.success_status('ok')
 
     except AssertionError, e:
         log.error(e)
-        add_test_info.status('error')
+        add_test_info.failed_status('error')
 
     add_test_info.completed_info()
 
