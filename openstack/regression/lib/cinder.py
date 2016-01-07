@@ -36,7 +36,7 @@ class CinderAuth(object):
         try:
             cinder = c_client.Client(auth_url=self.os_auth_url, username=self.os_username, api_key=self.os_api_key,
                                      project_id=self.os_tenant, service_type='volumev2')
-            #cinder.volumes.delete()
+            #cinder.volume_snapshots.get()
 
             auth_stack.cinder, auth_stack.status = cinder, True
 
@@ -262,10 +262,9 @@ class CinderSnapshot(object):
         :param volume: object of the volume
         :param snapshot_name: string, name for creating the snapshot
         :return snapshot
-                - snapshot.volume_snapshot  : object of the snapshot
+                - snapshot.volume_snapshot  : object of the snapshot  # rename to snapshot
                 - snapshot.status           : True or False
         """
-
 
         log.info('in lib: create snapshots')
 
@@ -282,7 +281,7 @@ class CinderSnapshot(object):
         log.info('setting force type: %s' % ftype)
 
         try:
-            volume_snapshot = self.cinder.volume_snapshots.create(volume, name=snapshot_name, force=ftype)
+            volume_snapshot = self.cinder.volume_snapshots.create(volume.id, name=snapshot_name, force=ftype)
             snapshot.volume_snapshot = volume_snapshot
             snapshot.status = True
             log.info('volume snapshot creation executed')
@@ -344,6 +343,31 @@ class CinderSnapshot(object):
             log.error(e)
 
         return snapshot_delete
+
+    def get_snapshot(self, snapshot):
+
+        """
+
+        :param snapshot: snapshot object
+        :return:each_snapshot
+                - each_snapshot.volume_snap : snapshot object
+                - each_snapshot.status : True or False
+
+        """
+
+        each_snap = CinderReturnStack()
+        each_snap.snapshot = None
+        try:
+            log.info("get snapshot details")
+            volume_snap = self.cinder.volume_snapshots.get(snapshot.id)
+            each_snap.snapshot = volume_snap
+            each_snap.status = True
+
+        except (c_exceptions.NotFound, c_exceptions.ClientException),  e:
+            log.error(e)
+            each_snap.status = False
+
+        return each_snap
 
     def create_vol_from_snap(self, snapshot, size):
 
