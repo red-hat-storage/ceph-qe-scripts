@@ -1,0 +1,63 @@
+[09/30/2015 - 04:29:51 AM] : INFO: starting message
+[09/30/2015 - 04:29:51 AM] : INFO: Machines Using:
+[09/30/2015 - 04:29:51 AM] : INFO: admin: 10.8.128.13, magna013
+[09/30/2015 - 04:29:51 AM] : INFO: mons:
+[09/30/2015 - 04:29:51 AM] : INFO: mon: 10.8.128.43, magna043
+[09/30/2015 - 04:29:51 AM] : INFO: mon: 10.8.128.44, magna044
+[09/30/2015 - 04:29:51 AM] : INFO: mon: 10.8.128.46, magna046
+[09/30/2015 - 04:29:51 AM] : INFO: osds: 
+[09/30/2015 - 04:29:51 AM] : INFO: osds: 10.8.128.47, magna047
+[09/30/2015 - 04:29:51 AM] : INFO: osds: 10.8.128.52, magna052
+[09/30/2015 - 04:29:51 AM] : INFO: osds: 10.8.128.98, magna098
+[09/30/2015 - 04:29:51 AM] : INFO: Configuration: 
+[09/30/2015 - 04:29:51 AM] : INFO: username: username
+[09/30/2015 - 04:29:51 AM] : INFO: password: password
+[09/30/2015 - 04:29:51 AM] : INFO: CDN Enabled: False
+[09/30/2015 - 04:29:51 AM] : INFO: ISO Enabled: True
+[09/30/2015 - 04:29:51 AM] : DEBUG: executing ssh commands
+[09/30/2015 - 04:29:51 AM] : DEBUG: ssh-keygen
+[09/30/2015 - 04:29:55 AM] : DEBUG: ssh-copy-id magna013 
+[09/30/2015 - 04:29:55 AM] : DEBUG: ssh-copy-id magna043 
+[09/30/2015 - 04:29:55 AM] : DEBUG: ssh-copy-id magna044 
+[09/30/2015 - 04:29:56 AM] : DEBUG: ssh-copy-id magna046 
+[09/30/2015 - 04:29:56 AM] : DEBUG: ssh-copy-id magna047 
+[09/30/2015 - 04:29:56 AM] : DEBUG: ssh-copy-id magna052 
+[09/30/2015 - 04:29:56 AM] : DEBUG: ssh-copy-id magna098 
+[09/30/2015 - 04:29:57 AM] : INFO: ISO enabled
+[09/30/2015 - 04:29:57 AM] : INFO: downloading ceph iso
+[09/30/2015 - 04:29:57 AM] : DEBUG: ftp://partners.redhat.com/33a20d04c450dcece12644c03c609f1d/rhceph-1.2.3-2-ubuntu-x86_64-rh.iso
+[09/30/2015 - 04:30:55 AM] : INFO: mounting ceph iso
+[09/30/2015 - 04:30:55 AM] : DEBUG: sudo mount rhceph-1.2.3-2-ubuntu-x86_64-rh.iso /mnt
+[09/30/2015 - 04:30:55 AM] : INFO: extracting ICE setup
+[09/30/2015 - 04:30:55 AM] : DEBUG: sudo dpkg -i /mnt/ice-*.deb
+[09/30/2015 - 04:30:57 AM] : INFO: running ice setup
+[09/30/2015 - 04:30:57 AM] : DEBUG: sudo ice_setup -d /mnt
+[09/30/2015 - 04:31:31 AM] : INFO: creating cluster, running "ceph-deploy new" 
+[09/30/2015 - 04:31:31 AM] : DEBUG: ceph-deploy new magna043 magna044 magna046
+[09/30/2015 - 04:31:34 AM] : DEBUG: ceph install admin node 
+[09/30/2015 - 04:31:34 AM] : DEBUG: ceph-deploy install magna013
+[09/30/2015 - 04:31:50 AM] : DEBUG: ceph install in other nodes
+[09/30/2015 - 04:31:50 AM] : DEBUG: ceph-deploy install --repo magna043 magna044 magna046 magna047 magna052 magna098
+[09/30/2015 - 04:31:57 AM] : DEBUG: ceph-deploy install magna043 magna044 magna046 magna047 magna052 magna098
+[09/30/2015 - 04:33:37 AM] : INFO: preparing ceph---------------------------------
+[09/30/2015 - 04:33:37 AM] : INFO: current working directory 0
+[09/30/2015 - 04:33:37 AM] : INFO: adding inital mons and connecting to calamari
+[09/30/2015 - 04:33:37 AM] : DEBUG: ceph-deploy mon create-initial
+[09/30/2015 - 04:34:06 AM] : DEBUG: ceph-deploy calamari connect --master 10.8.128.13 magna043 magna044 magna046
+[09/30/2015 - 04:34:31 AM] : INFO: making admin calamari node
+[09/30/2015 - 04:34:31 AM] : DEBUG: installing cli
+[09/30/2015 - 04:34:31 AM] : DEBUG: ceph-deploy install --no-adjust-repos --cli magna013
+[09/30/2015 - 04:34:31 AM] : DEBUG: installing ceph-deploy admin
+[09/30/2015 - 04:34:31 AM] : DEBUG: ceph-deploy admin magna013
+[09/30/2015 - 04:34:32 AM] : INFO: cheking quorum status
+[09/30/2015 - 04:34:32 AM] : DEBUG: sudo ceph quorum_status --format json-pretty
+[09/30/2015 - 04:34:35 AM] : INFO: set permission on admin.keyring
+[09/30/2015 - 04:34:35 AM] : DEBUG: sudo chmod +r /etc/ceph/ceph.client.admin.keyring
+[09/30/2015 - 04:34:35 AM] : INFO: adding osds
+[09/30/2015 - 04:34:35 AM] : DEBUG: disk zap cmd: ceph-deploy disk zap magna047:/dev/sdb  magna047:/dev/sdc  magna047:/dev/sdd magna052:/dev/sdb  magna052:/dev/sdc  magna052:/dev/sdd magna098:/dev/sdb  magna098:/dev/sdc  magna098:/dev/sdd
+[09/30/2015 - 04:34:35 AM] : DEBUG: osd prepare ceph-deploy osd prepare magna047:/dev/sdb  magna047:/dev/sdc  magna047:/dev/sdd magna052:/dev/sdb  magna052:/dev/sdc  magna052:/dev/sdd magna098:/dev/sdb  magna098:/dev/sdc  magna098:/dev/sdd
+[09/30/2015 - 04:34:35 AM] : DEBUG: osd activate:  ceph-deploy osd activate magna047:/dev/sdb  magna047:/dev/sdc  magna047:/dev/sdd magna052:/dev/sdb  magna052:/dev/sdc  magna052:/dev/sdd magna098:/dev/sdb  magna098:/dev/sdc  magna098:/dev/sdd
+[09/30/2015 - 04:39:00 AM] : DEBUG: ceph osd calamari connect
+[09/30/2015 - 04:39:00 AM] : DEBUG: ceph-deploy calamari connect --master 10.8.128.13 magna047 magna052 magna098
+[09/30/2015 - 04:39:26 AM] : INFO: creating pool
+[09/30/2015 - 04:39:26 AM] : DEBUG: sudo ceph osd pool create mypool 512 512 replicated replicated_ruleset
