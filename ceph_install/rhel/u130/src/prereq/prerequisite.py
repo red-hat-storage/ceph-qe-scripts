@@ -23,6 +23,6 @@ class Prerequisites(object):
 
         log.debug('prereq execute functions')
 
-        #self.admin_settings.do_settings()
-       # self.mon_settings.do_settings()
-      #  self.osd_settings.do_settings()
+        self.admin_settings.do_settings()
+        self.mon_settings.do_settings()
+        self.osd_settings.do_settings()
