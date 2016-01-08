@@ -36,7 +36,8 @@ class CinderAuth(object):
         try:
             cinder = c_client.Client(auth_url=self.os_auth_url, username=self.os_username, api_key=self.os_api_key,
                                      project_id=self.os_tenant, service_type='volumev2')
-            #cinder.volume_snapshots.get()
+
+            # cinder.volume_snapshots.get()
 
             auth_stack.cinder, auth_stack.status = cinder, True
 
@@ -350,7 +351,7 @@ class CinderSnapshot(object):
 
         :param snapshot: snapshot object
         :return:each_snapshot
-                - each_snapshot.volume_snap : snapshot object
+                - each_snapshot.snapshot : snapshot object
                 - each_snapshot.status : True or False
 
         """
@@ -369,12 +370,13 @@ class CinderSnapshot(object):
 
         return each_snap
 
-    def create_vol_from_snap(self, snapshot, size):
+    def create_vol_from_snap(self, snapshot, name, size):
 
         """
 
         :param snapshot: object of the snapshot
         :param size: int,
+        :param name: volume name: string
         :return: snapshot_volume
                  - snapshot_volume.status: True or False
         """
@@ -385,7 +387,7 @@ class CinderSnapshot(object):
         snapshot_volume.volume = None
 
         try:
-            volume = self.cinder.volumes.create(size=size, snapshot_id=snapshot)
+            volume = self.cinder.volumes.create(size=size,name=name, snapshot_id=snapshot)
             snapshot_volume.status = True
             snapshot_volume.volume = volume
             log.info('snapshot volume created')
