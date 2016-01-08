@@ -75,15 +75,14 @@ class GlanceActions(object):
         try:
             log.info('initialized image creation')
             img = self.glance.images.create(name=name, disk_format="raw", container_format="bare")
-            glance_image = self.glance.images.upload(img.id, open(fimage, 'rb'))
-            glance_create.image, glance_create.status = glance_image, True
+            self.glance.images.upload(img.id, open(fimage, 'rb'))
+            glance_create.image, glance_create.status = img, True
 
         except gl_exceptions.ClientException as e:
             log.error(e)
             glance_create.image, glance_create.status = None, False
 
         return glance_create
-
 
     def list_images(self):
 
