@@ -56,12 +56,13 @@ class NovaActions(object):
         network = self.nova.networks.findall(label='private')[0]
         self.nics = [{'net-id': network.id}]
 
-    def boot_vm(self, image, name):
+    def boot_vm(self, name, image=None, volume_id=None, **kwargs):
 
         """
 
-        :param image: glance image object
+        :param image: glance image object(if boot from image)
         :param name: string
+        :param volume_id: volume object uuid(if boot from volume)
         :return: nova_boot.vm: vm object
                  nova_boot.status: True or False
 
@@ -71,11 +72,31 @@ class NovaActions(object):
 
         nova_boot = NovaReturnStack()
 
+        boot_kwargs = dict(**kwargs)
+
+        if image:
+            boot_kwargs['image'] = image
+        else:
+            boot_kwargs['volume_id'] = volume_id
+
         try:
             log.info('Initializing vm creating')
-            server = self.nova.servers.create(name=name, image=image, nics=self.nics, availability_zone='nova',
-                                              flavor=self.flavor)
-            nova_boot.server, nova_boot.status = server, True
+
+            if volume_id:
+                log.info('Booting vm from image')
+                bdm = [
+                    {'source_type': 'volume', 'uuid': volume_id, 'destination_type': 'volume',
+                     'boot_index': '0'}
+                ]
+                server = self.nova.servers.create(name=name, image='',
+                                                  block_device_mapping_v2=bdm, nics=self.nics, availability_zone='nova',
+                                                  flavor=self.flavor)
+                nova_boot.server, nova_boot.status = server, True
+            else:
+                log.info('Booting vm from volume')
+                server = self.nova.servers.create(name=name, image=image, nics=self.nics, availability_zone='nova',
+                                                  flavor=self.flavor)
+                nova_boot.server, nova_boot.status = server, True
 
         except nv_exceptions.ClientException, e:
             log.error(e)
@@ -255,7 +276,7 @@ class NovaActions(object):
             log.error(e)
             volume_detach.status = False
 
-        return  volume_detach
+        return volume_detach
 
 
 
