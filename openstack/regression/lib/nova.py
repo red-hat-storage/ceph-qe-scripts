@@ -212,7 +212,50 @@ class NovaActions(object):
 
         return snap_vm
 
+    def attach_volume(self, server, volume, device):
 
+        """
+
+        :param server: vm object
+        :param volume: cinder volume object
+        :param device: string
+        :return: volume_attach
+
+        """
+
+        volume_attach = NovaReturnStack()
+
+        try:
+            log.info("Attaching volume to server")
+            self.nova.volumes.create_server_volume(server, volume, device=device)
+            volume_attach.status = True
+        except (nv_exceptions.ClientException, nv_exceptions.ResourceNotFound), e:
+            log.error(e)
+            volume_attach.status = False
+
+        return volume_attach
+
+    def detach_volume(self, server, volume):
+
+        """
+
+        :param server: vm object
+        :param volume: cinder volume object
+        :return: volume_detach
+
+        """
+
+        volume_detach = NovaReturnStack()
+
+        try:
+            log.info("Detaching volume from server")
+            self.nova.volumes.delete_server_volume(server, volume)
+            volume_detach.status = True
+        except (nv_exceptions.ClientException, nv_exceptions.ResourceNotFound), e:
+            log.error(e)
+            volume_detach.status = False
+
+        return  volume_detach
 
 
 
