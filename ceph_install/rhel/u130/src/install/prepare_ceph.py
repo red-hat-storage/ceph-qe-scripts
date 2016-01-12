@@ -26,7 +26,7 @@ class PrepareCeph(object):
         log.info( 'adding inital mons and connecting to calamari' )
 
         self.add_initial_mons_cmd = 'ceph-deploy mon create-initial'
-        self.connect_mon_calamari =  'ceph-deploy calamari connect --master %s %s' %(self.admin_node.hostname ,' '.join(self.mon_hostnames))
+        self.connect_mon_calamari =  'ceph-deploy calamari connect --master %s %s' %(self.admin_node.ip ,' '.join(self.mon_hostnames))
 
         log.debug(self.add_initial_mons_cmd)
         os.system(self.add_initial_mons_cmd)
@@ -41,14 +41,13 @@ class PrepareCeph(object):
         log.info('making admin calamari node')
 
         log.debug('installing cli')
-        self.cli_install = 'ceph-deploy install --no-adjust-repos --cli %s' %(self.admin_node.hostname)
+        self.cli_install = 'ceph-deploy install --cli %s' %(self.admin_node.hostname)
         log.debug(self.cli_install)
-        os.system(self.cli_install)
 
         log.debug('installing ceph-deploy admin')
         self.make_admin_node = 'ceph-deploy admin %s' %(self.admin_node.hostname)
         log.debug(self.make_admin_node)
-
+        os.system(self.cli_install)
         os.system(self.make_admin_node)
 
     def check_quorum_status(self):
@@ -92,7 +91,7 @@ class PrepareCeph(object):
         self.osd_activate = 'ceph-deploy osd activate %s' %(' '.join(hostname_with_disk))
         log.debug( 'osd activate:  %s'  %self.osd_activate )
 
-        self.connect_osd_calamari = 'ceph-deploy calamari connect --master %s %s' %(self.admin_node.hostname ,' '.join(self.osd_hostnames))
+        self.connect_osd_calamari = 'ceph-deploy calamari connect --master %s %s' %(self.admin_node.ip, ' '.join(self.osd_hostnames))
 
         os.system(self.disk_zap_cmd)
         os.system(self.osd_prepare)
@@ -121,7 +120,6 @@ class PrepareCeph(object):
         self.add_initial_mons()
         self.make_calamari_admin_node()
         self.check_quorum_status()
-        self.adjust_crush_tunables()
         self.add_osds()
         self.create_pool()
 

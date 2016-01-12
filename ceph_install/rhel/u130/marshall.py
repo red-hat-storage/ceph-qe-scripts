@@ -1,7 +1,6 @@
 from src.prereq.prerequisite import Prerequisites
 from utils.utils import Machines, create_ceph_dir, change_dir, ceph_deploy, SSH, change_perms
 from src.install.install import Install
-#from src.install.prepare_ceph import PrepareCeph
 import os
 import utils.log as log
 
@@ -13,10 +12,10 @@ class MakeMachine(object):
         # example
 
         osd1 = Machines('10.8.128.16', 'magna016')
-        osd2 = Machines('10.8.128.21', 'magna021')
-        osd3 = Machines('10.8.128.27', 'magna027')
-        return osd1, osd2, osd3
+        osd2 = Machines('10.8.128.19', 'magna019')
+        osd3 = Machines('10.8.128.21', 'magna021')
 
+        return osd1, osd2, osd3
 
     def get_mons(self):
 
@@ -24,10 +23,7 @@ class MakeMachine(object):
         mon = []
         mon.append(Machines('10.8.128.15', 'magna015'))
 
-        # mon.append(Machines('10.8.128.15', 'magna015')) Example
-
         return mon
-        #mon2, mon3
 
     def get_admin(self):
 
@@ -36,28 +32,40 @@ class MakeMachine(object):
         admin_node = Machines('10.8.128.12', 'magna012')
         return admin_node
 
-    #def get_rgw(self);
-
-     #   rgw_node = Machines('10.8.128.47','magna047')
-      #  return rgw_node;
-
-
 
 class Marshall(object):
 
     def __init__(self):
         machines = MakeMachine()
         self.osdL = machines.get_osds()
-        self.monL =  machines.get_mons()
+        self.monL = machines.get_mons()
         self.admin_nodes = machines.get_admin()
-        #self.rgw_nodes = machines.get_rgw()
         self.username = 'username'  # uesername from inktank
         self.password = 'password'  # password from inktank
 
+        self.creds = {'qa_username': 'qa@redhat.com',   # repace the dictionary values with proper credentials
+                            'qa_password': 'QMdMJ8jvSWUwB6WZ',
+                            'pool_id' : '8a85f9823e3d5e43013e3ddd4e2a0977'}
+        self.iso_link = "https://access.cdn.redhat.com//content/origin/files/sha256/c8/c8e209111ce01955d216ab8e817f32b6a2afd35733d68170e1034411c8440cb3/rhceph-1.3.1-rhel-7-x86_64-dvd.iso?_auth_=1450274672_f430967f03a79addd94634096198d600" #Provide ISO link from cdn.access.redhat.com
+
+
         self.run_prerequites = True  # True or False
 
-        self.cdn_enabled = False   # True or False
-        self.iso_enabled = True   # True or False
+        self.cdn_enabled = True   # True or False
+        self.iso_enabled = False   # True or False
+
+
+        self.repo = {'mon': "rhel-7-server-rhceph-1.3-mon-rpms",
+                     'osd': "rhel-7-server-rhceph-1.3-osd-rpms"
+
+                     }
+
+        self.admin_repo = {'installer' : "rhel-7-server-rhceph-1.3-installer-rpms",
+                           'calamari' : "rhel-7-server-rhceph-1.3-calamari-rpms",
+                           'tools' : "rhel-7-server-rhceph-1.3-tools-rpms"}
+
+        self.pool_id = None
+
 
     def set(self):
 
@@ -72,9 +80,6 @@ class Marshall(object):
         for each_osd in self.osdL:
             log.info('osds: %s, %s' % (each_osd.ip, each_osd.hostname))
 
-        #log.info('rgw: ')
-        #log.info('rgw: %s, %s' % (self.rgw_nodes.ip, self.rgw_nodes.hostname ))
-
         log.info('Configuration: ')
         log.info('username: %s' % self.username)
         log.info('password: %s' % self.password)
@@ -83,14 +88,10 @@ class Marshall(object):
 
         self.install_ceph = Install(self.username,self.password,
                                     self.admin_nodes, self.monL, self.osdL,
-                                    self.cdn_enabled, self.iso_enabled)
+                                    self.cdn_enabled, self.iso_enabled, self.iso_link, self.pool_id, self.admin_repo, self.repo)
 
     def execute(self):
-
         try:
-
-                self.set()
-
                 log.debug('executing ssh commands')
 
                 ssh = SSH(self.admin_nodes, self.monL, self.osdL)
@@ -101,12 +102,12 @@ class Marshall(object):
                 os.system('touch ceph.log')
                 os.system('sudo chmod 777 ceph.log')
 
+                self.set()
+
                 if self.run_prerequites:
-
-                    print 'in run prereq'
-
                     log.info('running prerequistes')
-                    self.prereq = Prerequisites(self.admin_nodes, self.monL, self.osdL)
+                    print 'pre -req enabled'
+                    self.prereq = Prerequisites(self.admin_nodes, self.monL, self.osdL, self.creds)
                     self.prereq.execute()
 
                 self.install_ceph.execute()
