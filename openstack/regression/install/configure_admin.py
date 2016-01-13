@@ -25,7 +25,12 @@ class ConfigureOSPClients(object):
         self.backups_p = backups_pool
         self.vms_p = vms_pools
 
-        self.all_pools = self.volumes_p + self.images_p + self.backups_p + self.vms_p
+        self.all_pools = []
+
+        self.all_pools.append(self.volumes_p)
+        self.all_pools.append(self.images_p)
+        self.all_pools.append(self.backups_p)
+        self.all_pools.append(self.vms_p)
 
         self.exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
         # self.exec_cmd = lambda cmd: cmd
@@ -36,9 +41,10 @@ class ConfigureOSPClients(object):
             # create pools
             for each_pool in self.all_pools:
                 create_pool_cmd = 'sudo ceph osd pool create %s 128' % each_pool
+                #print create_pool_cmd
                 self.exec_cmd(create_pool_cmd)
 
-            copy_conf_file_cmd = 'ssh %s' % self.osp_hostname + 'sudo tee /etc/ceph/ceph.conf </etc/ceph/ceph.conf'
+            copy_conf_file_cmd = 'ssh %s ' % self.osp_hostname + " 'sudo tee /etc/ceph/ceph.conf </etc/ceph/ceph.conf' "
             logging.info(copy_conf_file_cmd)
             self.exec_cmd(copy_conf_file_cmd)
 
@@ -53,7 +59,7 @@ class ConfigureOSPClients(object):
             return True, 0
 
         except subprocess.CalledProcessError as e:
-            error = Bcolors.FAIL + Bcolors.BOLD + e.output + e.returncode + Bcolors.ENDC
+            error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
             print error
             logging.error(error)
             return False, e.returncode
@@ -83,45 +89,45 @@ class ConfigureOSPClients(object):
 
             # adding the client keyring
             create_glance_keyring = "ceph auth get-or-create client.glance | " \
-                                    "ssh %s sudo tee /etc/ceph/ceph.client.glance.keyring" %(self.osp_hostname)
+                                    "ssh %s 'sudo tee /etc/ceph/ceph.client.glance.keyring ' " %(self.osp_hostname)
             logging.info(create_glance_keyring)
             self.exec_cmd(create_glance_keyring)
 
-            change_glance_keyring_perms = "ssh %s sudo chown glance:glance /etc/ceph/ceph.client.glance.keyring" % self.osp_hostname
+            change_glance_keyring_perms = "ssh %s 'sudo chown glance:glance /etc/ceph/ceph.client.glance.keyring' " % self.osp_hostname
             logging.info(change_glance_keyring_perms)
             self.exec_cmd(change_glance_keyring_perms)
 
             create_cinder_keyring = "ceph auth get-or-create client.cinder |" \
-                                    " ssh %s sudo tee /etc/ceph/ceph.client.cinder.keyring" % self.osp_hostname
+                                    " ssh %s ' sudo tee /etc/ceph/ceph.client.cinder.keyring ' " % self.osp_hostname
             logging.info(create_cinder_keyring)
             self.exec_cmd(create_cinder_keyring)
 
-            change_cinder_keyring = "ssh %s sudo chown cinder:cinder /etc/ceph/ceph.client.cinder.keyring" % self.osp_hostname
+            change_cinder_keyring = "ssh %s ' sudo chown cinder:cinder /etc/ceph/ceph.client.cinder.keyring ' " % self.osp_hostname
             logging.info(change_cinder_keyring)
             self.exec_cmd(change_cinder_keyring)
 
             create_cinder_backup = "ceph auth get-or-create client.cinder-backup | " \
-                                   "ssh %s sudo tee /etc/ceph/ceph.client.cinder-backup.keyring" % self.osp_hostname
+                                   "ssh %s ' sudo tee /etc/ceph/ceph.client.cinder-backup.keyring' " % self.osp_hostname
             logging.info(create_cinder_backup)
             self.exec_cmd(create_cinder_backup)
 
-            change_cinder_backup = "ssh %s sudo chown cinder:cinder /etc/ceph/ceph.client.cinder-backup.keyring" % self.osp_hostname
+            change_cinder_backup = "ssh %s ' sudo chown cinder:cinder /etc/ceph/ceph.client.cinder-backup.keyring ' " % self.osp_hostname
             logging.info(change_cinder_backup)
             self.exec_cmd(change_cinder_backup)
 
             create_nova_compute_keyring = "ceph auth get-or-create client.cinder | " \
-                                          "ssh %s sudo tee /etc/ceph/ceph.client.cinder.keyring " % self.osp_hostname
+                                          "ssh %s ' sudo tee /etc/ceph/ceph.client.cinder.keyring ' " % self.osp_hostname
             logging.info(create_nova_compute_keyring)
             self.exec_cmd(create_nova_compute_keyring)
 
-            copy_nova_keyring = "ceph auth get-key client.cinder | ssh %s tee client.cinder.key " % self.osp_hostname
+            copy_nova_keyring = "ceph auth get-key client.cinder | ssh %s 'tee client.cinder.key ' " % self.osp_hostname
             logging.info(copy_nova_keyring)
             self.exec_cmd(copy_nova_keyring)
 
             return True, 0
 
         except subprocess.CalledProcessError as e:
-            error = Bcolors.FAIL + Bcolors.BOLD + e.output + e.returncode + Bcolors.ENDC
+            error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
             print error
             logging.error(error)
             return False, e.returncode
