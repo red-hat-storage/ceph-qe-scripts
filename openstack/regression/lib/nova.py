@@ -83,7 +83,7 @@ class NovaActions(object):
             log.info('Initializing vm creating')
 
             if volume_id:
-                log.info('Booting vm from image')
+                log.info('Booting vm from volume')
                 bdm = [
                     {'source_type': 'volume', 'uuid': volume_id, 'destination_type': 'volume',
                      'boot_index': '0'}
@@ -93,7 +93,7 @@ class NovaActions(object):
                                                   flavor=self.flavor)
                 nova_boot.server, nova_boot.status = server, True
             else:
-                log.info('Booting vm from volume')
+                log.info('Booting vm from image')
                 server = self.nova.servers.create(name=name, image=image, nics=self.nics, availability_zone='nova',
                                                   flavor=self.flavor)
                 nova_boot.server, nova_boot.status = server, True
@@ -147,7 +147,7 @@ class NovaActions(object):
             log.info("Deleting nova instance")
             self.nova.servers.delete(server)
             vm_delete.execute = True
-            log.info('delete volume executed')
+            log.info('delete instance executed')
 
         except (nv_exceptions.ClientException, nv_exceptions.NotFound), e:
             log.error(e)
@@ -170,7 +170,7 @@ class NovaActions(object):
 
         try:
             log.info("Get instance info")
-            vm = self.nova.servers.find(name=server)
+            vm = self.nova.servers.get(server=server)
             vm_info.vm, vm_info.status = vm, True
 
         except (nv_exceptions.ClientException, nv_exceptions.NotFound), e:
@@ -245,11 +245,12 @@ class NovaActions(object):
         """
 
         volume_attach = NovaReturnStack()
+        volume_attach.vol = None
 
         try:
             log.info("Attaching volume to server")
-            self.nova.volumes.create_server_volume(server, volume, device=device)
-            volume_attach.status = True
+            volume = self.nova.volumes.create_server_volume(server, volume, device=device)
+            volume_attach.vol, volume_attach.status = volume, True
         except (nv_exceptions.ClientException, nv_exceptions.ResourceNotFound), e:
             log.error(e)
             volume_attach.status = False
