@@ -86,31 +86,6 @@ class NovaCycle(object):
 
         add_test_info.sub_test_completed_info()
 
-"""
-    def delete_server(self):
-
-        add_test_info.sub_test_info('2', 'delete vm')
-
-        vm_to_delete = self.nova_server.vm_delete(self.vm.vm)
-        assert vm_to_delete.execute, 'VM deletion error'
-        vm_exists = self.nova_server.vm_details(self.vm.vm)
-        self.timer.wait_for_state_change(vm_exists.vm.status, 'ACTIVE')
-
-        log.info('status: %s' % vm_exists.vm.status)
-        time.sleep(10)
-
-        vm_exists = self.nova_server.vm_details(self.vm.vm)
-
-        if not vm_exists.status:
-            log.info('VM deleted')
-        else:
-            log.error('VM status: %s' % vm_exists.vm.status)
-            raise AssertionError("VM still exists")
-
-        add_test_info.sub_test_completed_info()
-"""
-
-
 def exec_test():
 
     global add_test_info
