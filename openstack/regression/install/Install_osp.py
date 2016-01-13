@@ -15,6 +15,7 @@ class Bcolors:
     BOLD = '\033[1m'
 
 
+
 def onscreen(text):
     print "\033[1;36m*%s*\033[1;m" % text
 
@@ -23,27 +24,34 @@ def onscreen(text):
 # step 1
 class InstallOSP(object):
 
-    def __init__(self, pool_id, repos, ):
+    def __init__(self, pool_id, repos, qa_username, qa_password ):
         
         self.pool_id = pool_id
         self.rhel_repos = repos
+        self.user_name = qa_username
+        self.passw = qa_password
+
+        self.exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
     def do_install(self):
 
         # Register to CDN and subscribe to required channels
+        onscreen('Unregistering to CDN')
+        subprocess.call(['sudo','subscription-manager', 'unregister'])
+
         onscreen('Registering to CDN')
-        subprocess.call(['subscription-manager', 'register'])
+        subprocess.call(['sudo','subscription-manager', 'register', '--username=%s' % self.user_name, '--password=%s' % self.passw])
 
         onscreen('Subscribing to RHEL7 channel')
-        subprocess.call(['subscription-manager', 'subscribe', '--auto'])
+        subprocess.call(['sudo','subscription-manager', 'subscribe', '--auto'])
 
         onscreen('Subscribing to pool id=%s' % self.pool_id)
-        subprocess.call(['subscription-manager', 'subscribe', '--pool=%s' % self.pool_id])
-        subprocess.call(['subscription-manager', 'repos', '--disable=*'])
+        subprocess.call(['sudo', 'subscription-manager', 'attach', '--pool=%s' % self.pool_id])
+        subprocess.call(['sudo', 'subscription-manager', 'repos', '--disable=*'])
 
         onscreen('Enabling openstack 7.0 and other dependent repos')
         for each_repo in self.rhel_repos:
-            subprocess.call(['subscription-manager', 'repos', '--enable=%s' % each_repo])
+            subprocess.call(['sudo', 'subscription-manager', 'repos', '--enable=%s' % each_repo])
 
         # Disable NetworkManager
         onscreen('Disabling NetworkManager')
@@ -54,6 +62,61 @@ class InstallOSP(object):
         subprocess.call(['yum', 'install', '-y', 'openstack-packstack'])
         subprocess.call(['packstack', '--allinone'])
 
+    def do_install2(self):
+
+        try:
+            onscreen('Unregistering to CDN')
+            unregister_cmd = 'sudo subscription-manager  unregister'
+            logging.info(unregister_cmd)
+            self.exec_cmd(unregister_cmd)
+
+            onscreen('Registering to CDN')
+            register_cmd = ('sudo subscription-manager register --username=%s --password=%s' % (self.user_name, self.passw))
+            logging.info(register_cmd)
+            self.exec_cmd(register_cmd)
+
+            onscreen('Subscribing to RHEL7 channel')
+            subscribe_cmd = 'sudo subscription-manager subscribe --auto'
+            logging.info(subscribe_cmd)
+            self.exec_cmd(subscribe_cmd)
+
+            onscreen('Subscribing to pool id=%s' % self.pool_id)
+            attach_pool = 'sudo subscription-manager attach --pool=%s' % self.pool_id
+            logging.info(attach_pool)
+            self.exec_cmd(attach_pool)
+
+            onscreen('Disabling Repos')
+            disable_repos = 'sudo subscription-manager repos --disable=*'
+            logging.info(disable_repos)
+            self.exec_cmd(disable_repos)
+
+            onscreen('Enabling openstack 7.0 and other dependent repos')
+            for each_repo in self.rhel_repos:
+                enable_repo = 'sudo subscription-manager repos --enable=%s' % each_repo
+                logging.info(enable_repo)
+                self.exec_cmd(enable_repo)
+
+            onscreen('Disabling NetworkManager')
+            disable_network = 'sudo systemctl disable NetworkManager'
+            logging.info(disable_network)
+            self.exec_cmd(disable_network)
+
+            onscreen('Subscription completed. Packstack installation begins')
+            install_packstack = 'yum install -y openstack-packstack'
+            logging.info(install_packstack)
+            self.exec_cmd(install_packstack)
+
+            packstack_all = 'packstack --allinone'
+            logging.info(packstack_all)
+            self.exec_cmd(packstack_all)
+
+            return True, 0
+
+        except subprocess.CalledProcessError as e:
+            error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
+            print error
+            logging.error(error)
+            return False, e.returncode
 
 if __name__ == '__main__':
 
@@ -61,10 +124,31 @@ if __name__ == '__main__':
 
     parser.add_argument('-pid', "--pool_id", dest = "pid", help= 'Enter the RHEL Pool Id')
     parser.add_argument('-r', '--repo', dest='r', nargs= '*',  help= 'Enter RHEL Ceph RPMS')
+    parser.add_argument('-u',  '--username,', dest='u', help = "Enter QA the Username")
+    parser.add_argument('-p',  '--password', dest='p', help = 'Enter QA Password')
 
     args = parser.parse_args()
 
-    v2 = InstallOSP(args.pid,args.r)
-    v2.do_install()
+    logging.info('pool id: %s' % args.pid)
+    logging.info('rpms : %s' % args.r)
+    logging.info('qa_username : %s' % args.u)
+    logging.info('qa_password : %s' % args.p)
 
-    #v2_install('8a85f9823e3d5e43013e3ddd4e2a0977', 'RHEL-7-server-rpms', 'RHEL-7-server-rh-common-rpms','RHEL-7-server-openstack-7.0-rpms' )
+    try:
+
+        v2 = InstallOSP(args.pid,args.r, args.u, args.p)
+        installed = v2.do_install2()
+
+        assert installed[0], "Installation Failed"
+
+    except AssertionError, e :
+        logging.error(e)
+        logging.error('Installation Failed')
+        print e
+
+
+
+    # pool_id = 8a85f9823e3d5e43013e3ddd4e2a0977
+    # rpms = ['RHEL-7-server-rpms', 'RHEL-7-server-rh-common-rpms', 'RHEL-7-server-openstack-7.0-rpms']
+    # username = qa@redhat.com
+    # password = QMdMJ8jvSWUwB6WZ
