@@ -41,18 +41,23 @@ class ConfigureOSPClients(object):
             # create pools
             for each_pool in self.all_pools:
                 create_pool_cmd = 'sudo ceph osd pool create %s 128' % each_pool
-                #print create_pool_cmd
-                self.exec_cmd(create_pool_cmd)
+                print create_pool_cmd
+                # self.exec_cmd(create_pool_cmd)
+
+            # enable ceph cline in osp node
+            enable_tools = "ssh %s " + self.osp_hostname + " 'sudo subscription-manager repos --enable=rhel-7-server-rhceph-1.3-tools-rpms' "
+            logging.info(enable_tools)
+            self.exec_cmd(enable_tools)
 
             copy_conf_file_cmd = 'ssh %s ' % self.osp_hostname + " 'sudo tee /etc/ceph/ceph.conf </etc/ceph/ceph.conf' "
             logging.info(copy_conf_file_cmd)
             self.exec_cmd(copy_conf_file_cmd)
 
-            install_python_rbd = 'sudo yum install python-rbd -y'
+            install_python_rbd = "ssh %s 'sudo yum install python-rbd -y' " % self.osp_hostname
             logging.info(install_python_rbd)
             self.exec_cmd(install_python_rbd)
 
-            install_ceph = 'sudo yum install ceph -y'
+            install_ceph = "ssh %s 'sudo yum install ceph-common -y' " % self.osp_hostname
             logging.info(install_ceph)
             self.exec_cmd(install_ceph)
 
