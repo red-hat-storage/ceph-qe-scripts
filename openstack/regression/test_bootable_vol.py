@@ -32,7 +32,7 @@ class GlanceCycle(object):
 
     def image_delete(self):
 
-        add_test_info.sub_test_info('8', 'Delete glance image')
+        add_test_info.sub_test_info('6', 'Delete glance image')
 
         image_to_delete = self.glance_image.delete_image(self.img.id)
         assert image_to_delete.execute, 'Image deletion failure'
@@ -57,11 +57,11 @@ class CinderCycle(object):
         self.cinder_vol = CinderVolumes(cinder.cinder)
         self.volume = None
 
-    def vol_create(self, name, size):
+    def vol_create(self, name, size, image):
 
-        add_test_info.sub_test_info('2', 'Create volume')
+        add_test_info.sub_test_info('2', 'Create volume from image')
 
-        init_create_volume = self.cinder_vol.create_volume(name, size)
+        init_create_volume = self.cinder_vol.create_volume(name, size, image_id=image)
         assert init_create_volume.status, "Volume create initialize error"
         log.info('volume name: %s' % init_create_volume.vol.name)
         self.timer.wait_for_state_change(init_create_volume.vol.status, 'creating')
@@ -74,7 +74,7 @@ class CinderCycle(object):
 
     def delete_vol(self):
 
-        add_test_info.sub_test_info('6', 'Delete volume')
+        add_test_info.sub_test_info('5', 'Delete volume')
 
         vol_delete = self.cinder_vol.delete_volume(self.volume)
         assert vol_delete.execute, "volume delete initialize error"
@@ -98,11 +98,11 @@ class NovaCycle(object):
         self.vm = None
         self.attached_volume = None
 
-    def boot_server(self, image, name):
+    def boot_server(self, volume, name):
 
         add_test_info.sub_test_info('3', 'Create VM')
 
-        vm = self.nova_server.boot_vm(image=image, name=name)
+        vm = self.nova_server.boot_vm(name=name, volume_id=volume)
         assert vm.status, 'Vm creation initialization error'
         log.info('server name: %s' % vm.server.name)
         self.timer.wait_for_state_change(vm.server.status, 'BUILD')
@@ -113,35 +113,9 @@ class NovaCycle(object):
 
         add_test_info.sub_test_completed_info()
 
-    def attach_vol(self, volume, device):
-
-        add_test_info.sub_test_info('4', 'Attach volume to VM')
-
-        self.attached_volume = self.nova_server.attach_volume(self.vm.vm.id, volume=volume.id, device=device)
-        time.sleep(10)
-
-        if self.attached_volume:
-            log.debug('volume %s attached to server %s' % (self.attached_volume.vol.volumeId, self.vm.vm.name))
-            log.info('Volume attached to VM successfully')
-        else:
-            log.error('volume attach failed')
-
-        add_test_info.sub_test_completed_info()
-
-    def detach_vol(self, volume):
-
-        add_test_info.sub_test_info('5', 'Detach volume to VM')
-
-        self.nova_server.detach_volume(self.vm.vm.id, volume=volume.id)
-        time.sleep(10)
-        log.debug('volume %s detached from server %s' %(self.attached_volume.vol.volumeId, self.vm.vm.name))
-        log.info('Volume detached successfully')
-
-        add_test_info.sub_test_completed_info()
-
     def delete_server(self):
 
-        add_test_info.sub_test_info('7', 'Delete server')
+        add_test_info.sub_test_info('4', 'Delete server')
         vm_delete = self.nova_server.vm_delete(self.vm.vm.id)
         assert vm_delete.execute, "Server delete initialize error"
 
@@ -184,12 +158,10 @@ def exec_test():
         glance_cycle = GlanceCycle(glance)
         volume_cycle = CinderCycle(cinder)
         image = glance_cycle.image_create(name='testimg')
-        volume = volume_cycle.vol_create('testvol', 2)
-        nova_cycle.boot_server(image=image, name='testvm')
-        nova_cycle.attach_vol(volume, device='/dev/vdc')
-        nova_cycle.detach_vol(volume)
-        volume_cycle.delete_vol()
+        volume = volume_cycle.vol_create('boot-vol', 2, image=image.id)
+        nova_cycle.boot_server(name='testvm', volume=volume.id)
         nova_cycle.delete_server()
+        volume_cycle.delete_vol()
         glance_cycle.image_delete()
 
         add_test_info.success_status('ok')
