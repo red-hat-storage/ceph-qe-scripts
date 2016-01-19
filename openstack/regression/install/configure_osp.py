@@ -57,6 +57,8 @@ class ConfigureNova(object):
 
     def do_config(self):
         # Read the nova config file
+
+        logging.info('Nova config')
         cfg = ConfigParser.ConfigParser()
         cfg.read('/etc/nova/nova.conf')
 
@@ -77,6 +79,8 @@ class ConfigureNova(object):
         with open('/etc/nova/nova.conf', 'w') as configfile:
             cfg.write(configfile)
         configfile.close()
+
+
 
 
 class ConfigureCinder(object):
@@ -132,7 +136,7 @@ def restart_services():
         return True, 0
 
     except subprocess.CalledProcessError as e:
-        error = Bcolors.FAIL + Bcolors.BOLD + e.output + e.returncode + Bcolors.ENDC
+        error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
         print error
         logging.error(error)
         return False, e.returncode
@@ -170,15 +174,25 @@ class ConfigureOSP(object):
             return True, 0
 
         except subprocess.CalledProcessError as e:
-            error = Bcolors.FAIL + Bcolors.BOLD + e.output + e.returncode + Bcolors.ENDC
+            error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
             print error
             logging.error(error)
             return False, e.returncode
 
     def do_config(self):
-        self.cinder_config.do_config()
-        self.nova_config.do_config()
-        self.glance_config.do_config()
+
+        try:
+            self.cinder_config.do_config()
+            self.nova_config.do_config()
+            self.glance_config.do_config()
+
+            return True, 0
+
+        except Exception,e:
+            logging.error("error in configuring")
+            logging.error(e)
+            return False, 1
+
 
 
 if __name__ == '__main__':
@@ -200,11 +214,13 @@ if __name__ == '__main__':
 
         osp_configure = ConfigureOSP(args.vp, args.ip, args.bp, args.vmp, uuid)
 
-        xml_status, ret_code = osp_configure.secret_xml_define()
+        #xml_status, ret_code = osp_configure.secret_xml_define()
 
-        assert xml_status, str(ret_code) + '\nsecret xml config failed '
+        #assert xml_status, str(ret_code) + '\nsecret xml config failed '
 
-        osp_configure.do_config()
+        status = osp_configure.do_config()
+
+        assert status[0], "Configuration Failed"
 
         restart_serv, ret_code = restart_services()
 
