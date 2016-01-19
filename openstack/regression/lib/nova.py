@@ -153,7 +153,7 @@ class NovaActions(object):
             log.error(e)
             vm_delete.execute = False
 
-        return  vm_delete
+        return vm_delete
 
     def vm_details(self, server):
 
@@ -232,6 +232,52 @@ class NovaActions(object):
             snap_vm.status = False
 
         return snap_vm
+
+    def get_snap(self, image):
+
+        """
+
+        :param image: VM snap object
+        :return: snap_info.status: True or False
+                snap_info.snap: VM snap details
+        """
+
+        snap_info = NovaReturnStack()
+        snap_info.snap = None
+
+        try:
+            log.info('Get snap details')
+            snapshot = self.nova.images.get(image=image)
+            snap_info.snap, snap_info.status = snapshot, True
+
+        except (nv_exceptions.ClientException, nv_exceptions.NotFound), e:
+            log.error(e)
+            snap_info.status = False
+
+        return snap_info
+
+    def snap_delete(self, image):
+
+        """
+        :param image: VM snap object
+        :return: delete_snap.execute: True or False
+
+        """
+
+        delete_snap = NovaReturnStack()
+        delete_snap.execute = False
+
+        try:
+            log.info("Deleting VM snap")
+            self.nova.images.delete(image)
+            delete_snap.execute = True
+            log.info('delete snap executed')
+
+        except (nv_exceptions.ClientException, nv_exceptions.NotFound), e:
+            log.error(e)
+            delete_snap.execute = False
+
+        return delete_snap
 
     def attach_volume(self, server, volume, device):
 

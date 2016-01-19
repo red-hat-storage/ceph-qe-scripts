@@ -4,7 +4,7 @@ import glanceclient.v2.client as glclient
 import keystoneclient.exceptions as ks_exceptions
 import glanceclient.common.exceptions as gl_exceptions
 import log
-from utils.image import download_image
+from utils import getimage
 
 
 class GlanceReturnStack(object):
@@ -70,7 +70,7 @@ class GlanceActions(object):
 
         glance_create = GlanceReturnStack()
 
-        fimage = download_image()
+        fimage = getimage.download_image()
 
         try:
             log.info('initialized image creation')
@@ -113,7 +113,7 @@ class GlanceActions(object):
     def get_image(self, image):
 
         """
-        :param image: volume object
+        :param image: glance image object
         :return:each_image
                 - each_image.image : image object
                 - each_image.status : True or False
@@ -150,7 +150,7 @@ class GlanceActions(object):
         try:
             self.glance.images.delete(image)
             image_delete.execute = True
-            log.info('delete volume executed')
+            log.info('delete image executed')
         except (gl_exceptions.NotFound, gl_exceptions.ClientException), e:
             log.error(e)
             image_delete.execute = False
