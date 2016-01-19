@@ -22,6 +22,8 @@ def onscreen(text):
 # Register and install OSP.
 
 # step 1
+
+
 class InstallOSP(object):
 
     def __init__(self, pool_id, repos, qa_username, qa_password ):
@@ -34,35 +36,6 @@ class InstallOSP(object):
         self.exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
     def do_install(self):
-
-        # Register to CDN and subscribe to required channels
-        onscreen('Unregistering to CDN')
-        subprocess.call(['sudo','subscription-manager', 'unregister'])
-
-        onscreen('Registering to CDN')
-        subprocess.call(['sudo','subscription-manager', 'register', '--username=%s' % self.user_name, '--password=%s' % self.passw])
-
-        onscreen('Subscribing to RHEL7 channel')
-        subprocess.call(['sudo','subscription-manager', 'subscribe', '--auto'])
-
-        onscreen('Subscribing to pool id=%s' % self.pool_id)
-        subprocess.call(['sudo', 'subscription-manager', 'attach', '--pool=%s' % self.pool_id])
-        subprocess.call(['sudo', 'subscription-manager', 'repos', '--disable=*'])
-
-        onscreen('Enabling openstack 7.0 and other dependent repos')
-        for each_repo in self.rhel_repos:
-            subprocess.call(['sudo', 'subscription-manager', 'repos', '--enable=%s' % each_repo])
-
-        # Disable NetworkManager
-        onscreen('Disabling NetworkManager')
-        subprocess.call(['systemctl', 'disable', 'NetworkManager'])
-
-        # Install openstack with packstack
-        onscreen('Subscription completed. Packstack installation begins')
-        subprocess.call(['yum', 'install', '-y', 'openstack-packstack'])
-        subprocess.call(['packstack', '--allinone'])
-
-    def do_install2(self):
 
         try:
             onscreen('Unregistering to CDN')
@@ -101,6 +74,11 @@ class InstallOSP(object):
             logging.info(disable_network)
             self.exec_cmd(disable_network)
 
+            onscreen('removing mod ssl')
+            removing_mod_ssl = 'sudo yum remove mod_ssl-* -y'
+            logging.info(removing_mod_ssl)
+            self.exec_cmd(removing_mod_ssl)
+
             onscreen('Subscription completed. Packstack installation begins')
             install_packstack = 'yum install -y openstack-packstack'
             logging.info(install_packstack)
@@ -137,7 +115,7 @@ if __name__ == '__main__':
     try:
 
         v2 = InstallOSP(args.pid,args.r, args.u, args.p)
-        installed = v2.do_install2()
+        installed = v2.do_install()
 
         assert installed[0], "Installation Failed"
 
