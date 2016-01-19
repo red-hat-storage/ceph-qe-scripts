@@ -57,6 +57,8 @@ class ConfigureNova(object):
 
     def do_config(self):
         # Read the nova config file
+
+        logging.info('Nova config')
         cfg = ConfigParser.ConfigParser()
         cfg.read('/etc/nova/nova.conf')
 
@@ -77,6 +79,8 @@ class ConfigureNova(object):
         with open('/etc/nova/nova.conf', 'w') as configfile:
             cfg.write(configfile)
         configfile.close()
+
+
 
 
 class ConfigureCinder(object):
@@ -123,16 +127,22 @@ class ConfigureCinder(object):
 
 def restart_services():
     try:
+
+        logging.info('starting services')
         exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
         exec_cmd('sudo service openstack-glance-api restart')
         exec_cmd('sudo service openstack-nova-compute restart')
         exec_cmd('sudo service openstack-cinder-volume restart')
         exec_cmd('sudo service openstack-cinder-backup restart')
+
+        logging.info('services started')
         return True, 0
 
+
     except subprocess.CalledProcessError as e:
-        error = Bcolors.FAIL + Bcolors.BOLD + e.output + e.returncode + Bcolors.ENDC
+        logging.info('starting services failed')
+        error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
         print error
         logging.error(error)
         return False, e.returncode
@@ -170,15 +180,25 @@ class ConfigureOSP(object):
             return True, 0
 
         except subprocess.CalledProcessError as e:
-            error = Bcolors.FAIL + Bcolors.BOLD + e.output + e.returncode + Bcolors.ENDC
+            error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
             print error
             logging.error(error)
             return False, e.returncode
 
     def do_config(self):
-        self.cinder_config.do_config()
-        self.nova_config.do_config()
-        self.glance_config.do_config()
+
+        try:
+            self.cinder_config.do_config()
+            self.nova_config.do_config()
+            self.glance_config.do_config()
+
+            return True, 0
+
+        except Exception,e:
+            logging.error("error in configuring")
+            logging.error(e)
+            return False, 1
+
 
 
 if __name__ == '__main__':
@@ -204,7 +224,9 @@ if __name__ == '__main__':
 
         assert xml_status, str(ret_code) + '\nsecret xml config failed '
 
-        osp_configure.do_config()
+        status = osp_configure.do_config()
+
+        assert status[0], "Configuration Failed"
 
         restart_serv, ret_code = restart_services()
 

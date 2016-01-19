@@ -37,7 +37,8 @@ class CinderAuth(object):
             cinder = c_client.Client(auth_url=self.os_auth_url, username=self.os_username, api_key=self.os_api_key,
                                      project_id=self.os_tenant, service_type='volumev2')
 
-            # cinder.volume_snapshots.get()
+
+            # cinder.restores.restore()
 
             auth_stack.cinder, auth_stack.status = cinder, True
 
@@ -231,6 +232,30 @@ class CinderBackup(object):
             backups_list.status = False
 
         return backups_list
+
+    def restore_backup(self, backup, volume):
+
+        """
+
+        :param backup: backup object
+        :param volume: volume object
+        :return: restore
+                 - restore.restore.restore_dict: dic of backup id and volume id
+                 - restore.execute: True or False
+        """
+
+        restore = CinderReturnStack()
+        restore.execute = False
+        restore.restore_dict = None
+
+        try:
+            restore_dict = self.cinder.restores.restore(backup.id, volume.id)
+            restore.restore_dict = restore_dict
+            restore.execute = True
+        except (c_exceptions.NotFound, c_exceptions.ClientException), e:
+            log.error(e)
+
+        return restore
 
     def delete_backup(self, backup):
 

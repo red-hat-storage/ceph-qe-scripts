@@ -1,6 +1,5 @@
 import os
 import subprocess
-import log
 
 def create_ceph_dir():
     os.system('cd ~')
@@ -38,13 +37,10 @@ class SSH(object):
         self.ssh_copy_id = 'ssh-copy-id %s ' %hostname
 
         #os.system(self.ssh_cmd)
-        log.debug(self.ssh_copy_id)
         os.system(self.ssh_copy_id)
 
     def execute(self):
-
         self.ssh_key_gen = 'ssh-keygen'
-        log.debug('ssh-keygen')
         os.system(self.ssh_key_gen)
 
         self.ssh_execute(self.admin_node.hostname)
