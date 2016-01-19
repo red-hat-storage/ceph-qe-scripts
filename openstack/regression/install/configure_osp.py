@@ -127,15 +127,21 @@ class ConfigureCinder(object):
 
 def restart_services():
     try:
+
+        logging.info('starting services')
         exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
         exec_cmd('sudo service openstack-glance-api restart')
         exec_cmd('sudo service openstack-nova-compute restart')
         exec_cmd('sudo service openstack-cinder-volume restart')
         exec_cmd('sudo service openstack-cinder-backup restart')
+
+        logging.info('services started')
         return True, 0
 
+
     except subprocess.CalledProcessError as e:
+        logging.info('starting services failed')
         error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
         print error
         logging.error(error)
@@ -214,9 +220,9 @@ if __name__ == '__main__':
 
         osp_configure = ConfigureOSP(args.vp, args.ip, args.bp, args.vmp, uuid)
 
-        #xml_status, ret_code = osp_configure.secret_xml_define()
+        xml_status, ret_code = osp_configure.secret_xml_define()
 
-        #assert xml_status, str(ret_code) + '\nsecret xml config failed '
+        assert xml_status, str(ret_code) + '\nsecret xml config failed '
 
         status = osp_configure.do_config()
 
