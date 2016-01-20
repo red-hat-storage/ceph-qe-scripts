@@ -1,3 +1,8 @@
+"""
+Boot a VM, attach volume to the VM, detach from the VM. Cleanup the VM, volume instances
+"""
+
+
 from lib.nova import NovaAuth, NovaActions
 from lib.glance import GlanceAuth, GlanceActions
 from lib.cinder import CinderAuth, CinderVolumes

@@ -1,3 +1,8 @@
+"""
+Create a VM which is booted from a volume containing image, and cleanup the VM, image and volume instances
+"""
+
+
 from lib.nova import NovaAuth, NovaActions
 from lib.glance import GlanceAuth, GlanceActions
 from lib.cinder import CinderAuth, CinderVolumes
