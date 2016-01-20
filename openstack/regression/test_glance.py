@@ -1,3 +1,7 @@
+"""
+Sample test case. Create glance image
+"""
+
 from lib.glance import GlanceAuth, GlanceActions
 import lib.log as log
 from lib.test_desc import AddTestInfo

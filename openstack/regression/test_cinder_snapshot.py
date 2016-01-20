@@ -1,8 +1,12 @@
+"""
+Create a volume, take a snapshot, create a volume out of snapshot, delete the volumes and the snapshot
+"""
+
 from  lib.cinder import CinderAuth, CinderVolumes, CinderSnapshot
 import lib.log as log
 from lib.test_desc import AddTestInfo
 from utils import wait
-import time
+
 
 class CinderSnapCycle(object):
 
@@ -25,6 +29,7 @@ class CinderSnapCycle(object):
         log.info('Volume exists')
 
         add_test_info.sub_test_completed_info()
+        return self.volume
 
     def snapshot_create(self, name):
 
@@ -46,33 +51,32 @@ class CinderSnapCycle(object):
 
     def create_volume_from_snap(self,name, size):
 
-        add_test_info.sub_test_info('3', "Create snapshot out of volume")
+        add_test_info.sub_test_info('3', "Create volume out of snapshot")
 
         snap_vol = self.cinder_snap.create_vol_from_snap(self.snapshot.id, name=name, size=size)
         assert snap_vol.status, "Volume from snap create initialize error"
         log.info('snapshot volume name: %s' % snap_vol.volume.name)
-
-        time.sleep(10)
-
-        self.timer.wait_for_state_change(snap_vol.status, 'creating')
-        self.snapshot_volume = self.cinder_volume.get_volume(snap_vol.volume)
-        log.debug('status %s' % self.snapshot_volume.volume.status)
+        self.timer.wait_for_state_change(snap_vol.volume.status, 'creating')
+        snapshot_volume = self.cinder_volume.get_volume(snap_vol.volume)
+        self.snapshot_volume = snapshot_volume.volume
+        log.debug('status %s' % self.snapshot_volume.status)
         log.info('Snapshot volume exists')
 
         add_test_info.sub_test_completed_info()
+        return self.snapshot_volume
 
-    def delete_vol(self):
+    def delete_vol(self, volume):
 
-        add_test_info.sub_test_info('4', 'delete snapshot volume')
-        vol_to_delete = self.cinder_volume.delete_volume(self.snapshot_volume.volume)
+        add_test_info.sub_test_info('4', 'delete volume')
+        vol_to_delete = self.cinder_volume.delete_volume(volume=volume)
 
         assert vol_to_delete.execute, "snapshot volume delete initialize error"
 
-        volume_exists = self.cinder_volume.get_volume(self.snapshot_volume.volume)
+        volume_exists = self.cinder_volume.get_volume(volume)
         self.timer.wait_for_state_change(volume_exists.volume.status, 'deleting')
 
         log.info('status: %s' % volume_exists.volume.status)
-        volume_exists = self.cinder_volume.get_volume(self.snapshot_volume.volume)
+        volume_exists = self.cinder_volume.get_volume(volume)
 
         if not volume_exists.status:
             log.info('snapshot volume deleted')
@@ -98,7 +102,7 @@ class CinderSnapCycle(object):
         if not snapshot_exists.status:
             log.info('snapshot deleted')
         else:
-            log.error('snapshot status: %s' % snapshot_exists.snapshot)
+            log.error('snapshot status: %s' % snapshot_exists.snapshot.status)
             raise AssertionError("snapshot still exists")
 
         add_test_info.sub_test_completed_info()
@@ -110,7 +114,7 @@ def exec_test(volume_name, volume_size):
 
     volume_name_from_snapshot = 'vol_' + snapshot_name
 
-    volume_size_from_snapshot = volume_size + 5
+    volume_size_from_snapshot = volume_size + 1
 
     global add_test_info
 
@@ -125,13 +129,14 @@ def exec_test(volume_name, volume_size):
 
         cinder_snap = CinderSnapCycle(auth)
 
-        cinder_snap.vol_create(volume_name, volume_size)
+        source_volume = cinder_snap.vol_create(volume_name, volume_size)
         cinder_snap.snapshot_create(snapshot_name)
 
-        cinder_snap.create_volume_from_snap(volume_name_from_snapshot, volume_size_from_snapshot)
+        snap_volume = cinder_snap.create_volume_from_snap(volume_name_from_snapshot, volume_size_from_snapshot)
 
-        cinder_snap.delete_vol()
+        cinder_snap.delete_vol(snap_volume)
         cinder_snap.snapshot_delete()
+        cinder_snap.delete_vol(source_volume)
 
         add_test_info.success_status('ok')
 
@@ -144,6 +149,6 @@ def exec_test(volume_name, volume_size):
 if __name__ == '__main__':
 
     volume_name = 'test_volume'
-    volume_size = 3
+    volume_size = 1
 
     exec_test(volume_name, volume_size)

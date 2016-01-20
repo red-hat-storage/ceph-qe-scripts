@@ -1,3 +1,8 @@
+"""
+Create VM from an image and clean up the instances
+"""
+
+
 from lib.nova import NovaAuth, NovaActions
 from lib.glance import GlanceAuth, GlanceActions
 import lib.log as log

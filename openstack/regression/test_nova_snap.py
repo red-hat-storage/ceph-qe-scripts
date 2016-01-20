@@ -1,3 +1,8 @@
+"""
+Create a VM, take a snapshot, boot a VM out of the snap. Clean up the image, VM, snapshot instances
+"""
+
+
 from lib.nova import NovaAuth, NovaActions
 from lib.glance import GlanceAuth, GlanceActions
 import lib.log as log

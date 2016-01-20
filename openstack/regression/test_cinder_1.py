@@ -1,11 +1,15 @@
+"""
+Create volume, extend the volume and delete it
+"""
+
+
 import lib.log as log
 from lib.cinder import CinderAuth, CinderVolumes
 from lib.test_desc import AddTestInfo
 from utils import wait
-import time
 
 
-class CindeVolumeTest(object):
+class CinderVolumeTest(object):
     def __init__(self, cinder):
         self.timer = wait.Wait()
         self.cinder_volume = CinderVolumes(cinder.cinder)
@@ -45,7 +49,7 @@ class CindeVolumeTest(object):
         assert extended.execute, "volume extend initialize error"
 
         volume = self.cinder_volume.get_volume(self.volume)
-        self.timer.wait_for_state_change(volume.status, 'extending')
+        self.timer.wait_for_state_change(volume.volume.status, 'extending')
         volume = self.cinder_volume.get_volume(self.volume)
 
         if volume.volume.size == new_size:
@@ -56,18 +60,15 @@ class CindeVolumeTest(object):
 
         add_test_info.sub_test_completed_info()
 
-    def delete_vol(self, volume_obj=None):
+    def delete_vol(self):
 
         add_test_info.sub_test_info('3', 'delete volume')
 
-        #self.volume = volume_obj
-
         vol_delete = self.cinder_volume.delete_volume(self.volume)
 
-        assert vol_delete.execute, "volume delete initlize error"
-
-        time.sleep(5)
-
+        assert vol_delete.execute, "volume delete initialize error"
+        volume_exists = self.cinder_volume.get_volume(self.volume)
+        self.timer.wait_for_state_change(volume_exists.volume.status, 'deleting')
         volume_exists = self.cinder_volume.get_volume(self.volume)
 
         if not volume_exists.status:
@@ -77,24 +78,6 @@ class CindeVolumeTest(object):
             raise AssertionError("volume still exists")
 
         add_test_info.sub_test_completed_info()
-
-    def list_all_volumes(self):
-
-        log.info('listing all volumes')
-
-        volumes_list = self.cinder_volume.list_volumes()
-
-        assert volumes_list.status, "error in listing volumes"
-
-        if not volumes_list.volumes:
-            raise AssertionError("did not get any volumes")
-
-        for each_vol in volumes_list.volumes:
-            log.info('volume name: %s' % each_vol.name)
-            log.info('volume id: %s' % each_vol.id)
-            log.info('volume size %s' % each_vol.size)
-
-            #self.delete_vol(each_vol)
 
 
 def exec_test():
@@ -110,12 +93,10 @@ def exec_test():
 
         assert auth.status, "Authentication Failed"
 
-        cinder_volume = CindeVolumeTest(auth)
-
-        #cinder_volume.list_all_volumes()
+        cinder_volume = CinderVolumeTest(auth)
 
         cinder_volume.create_vol('test-volume1', 2)
-        cinder_volume.extend_vol(5)
+        cinder_volume.extend_vol(2)
         cinder_volume.delete_vol()
 
         add_test_info.success_status('ok')
