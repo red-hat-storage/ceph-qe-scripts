@@ -33,6 +33,8 @@ class ConfigureGlance(object):
         self.images_pool = images_pool
 
     def do_config(self):
+
+        logging.info('configuring glance')
         # Read the glance-api.conf file
         cfg = ConfigParser.ConfigParser()
         cfg.read('/etc/glance/glance-api.conf')
@@ -63,7 +65,7 @@ class ConfigureNova(object):
     def do_config(self):
         # Read the nova config file
 
-        logging.info('Nova config')
+        logging.info('configuring nova')
         cfg = ConfigParser.ConfigParser()
         cfg.read('/etc/nova/nova.conf')
 
@@ -96,6 +98,7 @@ class ConfigureCinder(object):
         self.uuid = uuid
 
     def do_config(self):
+        logging.info('configuring cinder')
         # Read the cinder config file
         config = ConfigParser.ConfigParser()
         config.read('/etc/cinder/cinder.conf')
