@@ -17,13 +17,18 @@ class Bcolors:
     BOLD = '\033[1m'
 
 
+def onscreen(text):
+    print "\033[1;36m*%s*\033[1;m" % text
+
+
 class ConfigureOSPClients(object):
-    def __init__(self, osp_hostname, volumes_pool, images_pool, backups_pool, vms_pools):
+    def __init__(self, ceph_install ,osp_hostname, volumes_pool, images_pool, backups_pool, vms_pools):
         self.osp_hostname = osp_hostname
         self.volumes_p = volumes_pool
         self.images_p = images_pool
         self.backups_p = backups_pool
         self.vms_p = vms_pools
+        self.ceph_install = ceph_install.lower()
 
         self.all_pools = []
 
@@ -38,24 +43,40 @@ class ConfigureOSPClients(object):
     def install_ceph_clients(self):
 
         try:
+
+
             # create pools
             for each_pool in self.all_pools:
                 create_pool_cmd = 'sudo ceph osd pool create %s 128' % each_pool
                 print create_pool_cmd
-                # self.exec_cmd(create_pool_cmd)
+                logging.info(create_pool_cmd)
+                self.exec_cmd(create_pool_cmd)
 
             # enable ceph cline in osp node
             enable_tools = "ssh %s " % self.osp_hostname + " 'sudo subscription-manager repos --enable=rhel-7-server-rhceph-1.3-tools-rpms' "
             logging.info(enable_tools)
             self.exec_cmd(enable_tools)
 
-            install_python_rbd = "ssh %s 'sudo yum install python-rbd -y' " % self.osp_hostname
-            logging.info(install_python_rbd)
-            self.exec_cmd(install_python_rbd)
+            if self.ceph_install == "y":
 
-            install_ceph = "ssh %s 'sudo yum install ceph-common -y' " % self.osp_hostname
-            logging.info(install_ceph)
-            self.exec_cmd(install_ceph)
+                logging.info('ceph installation required')
+
+                logging.info('removing old python rbd')
+                remove_python_rbd = "ssh %s 'sudo yum remove python-rbd -y' " % self.osp_hostname
+                logging.info(remove_python_rbd)
+                self.exec_cmd(remove_python_rbd)
+
+                install_python_rbd = "ssh %s 'sudo yum install python-rbd -y' " % self.osp_hostname
+                logging.info(install_python_rbd)
+                self.exec_cmd(install_python_rbd)
+
+                install_ceph = "ssh %s 'sudo yum install ceph-common -y' " % self.osp_hostname
+                logging.info(install_ceph)
+                self.exec_cmd(install_ceph)
+
+            elif self.ceph_install == 'n':
+                logging.info('skipping ceph installation')
+                pass
 
             mkdir_ceph = "ssh %s " % self.osp_hostname + "'sudo mkdir -p /etc/ceph '"
             logging.info(mkdir_ceph)
@@ -149,6 +170,9 @@ class ConfigureOSPClients(object):
 
 if __name__ == '__main__':
 
+    onscreen('Admin Configuration Started')
+    logging.info('Admin Configuration completed')
+
     parser = argparse.ArgumentParser(description='Configure OSP Admin')
 
     parser.add_argument('-ospn', "--osp_node", dest = "ospn", help= 'Give the OSP hostname, shortname[hostname -s]')
@@ -156,18 +180,22 @@ if __name__ == '__main__':
     parser.add_argument('-ip', '--images_pool', dest='ip', help='Enter pool name for images')
     parser.add_argument('-bp', '--backup_pool', dest='bp', help= 'Enter pool name for backup')
     parser.add_argument('-vmp', '--vms_pool', dest='vmp', help='Enter pool name for vms')
+    parser.add_argument('-ci', '--ceph_install', dest='ci', default= 'n',  help='Enter n or y, "n" - for skip and "y" - install')
+
+
 
     args = parser.parse_args()
 
     logging.info('recieved args: \n'
+                  'ceph installation : %s\n'
                  'osp_hostanme : %s\n'
                  'volumes_pool : %s \n'
                  'images pool : %s \n'
                  'backup_pool : %s \n'
-                 'vms_pool : %s' % (args.ospn, args.vp, args.ip, args.bp, args.vmp))
+                 'vms_pool : %s' % (args.ci, args.ospn, args.vp, args.ip, args.bp, args.vmp))
 
     try:
-        configure = ConfigureOSPClients(args.ospn, args.vp, args.ip, args.bp, args.vmp)
+        configure = ConfigureOSPClients(args.ci, args.ospn, args.vp, args.ip, args.bp, args.vmp)
         installed,ret_code = configure.install_ceph_clients()
 
         assert installed, ret_code
@@ -175,10 +203,13 @@ if __name__ == '__main__':
         configured, err_code = configure.client_authx()
 
         assert configure, err_code
+        logging.info('Admin Configuration completed')
+        onscreen('Admin Configuration completed')
 
     except AssertionError, e:
         logging.error(e)
-        logging.error('confiuguration failed')
+        logging.error('Admin Confiuguration failed')
+        onscreen('Admin Configuration failed')
 
 
 
