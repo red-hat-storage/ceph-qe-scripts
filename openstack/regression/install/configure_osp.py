@@ -4,10 +4,14 @@ import logging
 from subprocess import Popen, PIPE
 import subprocess
 
+# use sudo to run this file
+
 logging.basicConfig(format='%(asctime)s : %(levelname)s: %(message)s',
                     datefmt='[%m/%d/%Y - %I:%M:%S %p]',
                     filename='co.log', level=logging.DEBUG)
 
+def onscreen(text):
+    print "\033[1;36m*%s*\033[1;m" % text
 
 class Bcolors:
     HEADER = '\033[95m'
@@ -34,14 +38,15 @@ class ConfigureGlance(object):
         cfg.read('/etc/glance/glance-api.conf')
 
         # Add the following lines to section "glance_store". This configures glance to use ceph as backend driver
+        cfg.set('glance_store', 'stores', 'glance.store.rbd.Store,')
         cfg.set('glance_store', 'rbd_store_user', 'glance')
+        cfg.set('glance_store', 'default_store', 'rbd')
         cfg.set('glance_store', 'rbd_store_pool', '%s' % self.images_pool)
         cfg.set('glance_store', 'rbd_store_chunk_size', '8')
         cfg.set('glance_store', 'rbd_store_ceph_conf', '/etc/ceph/ceph.conf')
 
         # Add the following lines to enable glance to use ceph copy-on-write cloning of images
         cfg.set('', 'show_image_direct_url', 'True')
-        cfg.set('', 'default_store', 'rbd')
         cfg.set('', 'enable_v2_api', 'True')
 
         # Write to the  config file and close
@@ -203,6 +208,8 @@ class ConfigureOSP(object):
 
 if __name__ == '__main__':
 
+    onscreen('Configuration started')
+
     parser = argparse.ArgumentParser(description='Configure OSP')
 
     parser.add_argument('-vp', '--volumes_pool', dest='vp', help='Enter pool name for volumes')
@@ -231,6 +238,8 @@ if __name__ == '__main__':
         restart_serv, ret_code = restart_services()
 
         assert restart_serv, str(ret_code) + '\nrestarting Services failed '
+
+        onscreen('Configuration Completed')
 
     except AssertionError, e:
         logging.error(e)

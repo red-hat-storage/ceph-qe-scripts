@@ -80,11 +80,11 @@ class InstallOSP(object):
             self.exec_cmd(removing_mod_ssl)
 
             onscreen('Subscription completed. Packstack installation begins')
-            install_packstack = 'yum install -y openstack-packstack'
+            install_packstack = 'sudo yum install -y openstack-packstack'
             logging.info(install_packstack)
             self.exec_cmd(install_packstack)
 
-            packstack_all = 'packstack --allinone'
+            packstack_all = 'sudo packstack --allinone'
             logging.info(packstack_all)
             self.exec_cmd(packstack_all)
 
@@ -118,6 +118,8 @@ if __name__ == '__main__':
         installed = v2.do_install()
 
         assert installed[0], "Installation Failed"
+        onscreen('Installation completed')
+        logging.info('Installation completed')
 
     except AssertionError, e :
         logging.error(e)
@@ -127,6 +129,6 @@ if __name__ == '__main__':
 
 
     # pool_id = 8a85f9823e3d5e43013e3ddd4e2a0977
-    # rpms = ['RHEL-7-server-rpms', 'RHEL-7-server-rh-common-rpms', 'RHEL-7-server-openstack-7.0-rpms']
+    # rpms = ['rhel-7-server-rpms', 'rhel-7-server-rh-common-rpms', 'rhel-7-server-openstack-7.0-rpms']
     # username = qa@redhat.com
     # password = QMdMJ8jvSWUwB6WZ
