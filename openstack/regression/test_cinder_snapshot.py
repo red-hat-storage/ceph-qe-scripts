@@ -108,7 +108,10 @@ class CinderSnapCycle(object):
         add_test_info.sub_test_completed_info()
 
 
-def exec_test(volume_name, volume_size):
+def exec_test():
+
+    volume_name = 'test_volume'
+    volume_size = 1
 
     snapshot_name = 'snap_' + volume_name
 
@@ -148,7 +151,4 @@ def exec_test(volume_name, volume_size):
 
 if __name__ == '__main__':
 
-    volume_name = 'test_volume'
-    volume_size = 1
-
-    exec_test(volume_name, volume_size)
+    exec_test()
