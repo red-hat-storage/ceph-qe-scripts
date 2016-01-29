@@ -292,6 +292,7 @@ class NovaActions(object):
 
         volume_attach = NovaReturnStack()
         volume_attach.vol = None
+        volume_attach.status = False
 
         try:
             log.info("Attaching volume to server")
@@ -299,7 +300,6 @@ class NovaActions(object):
             volume_attach.vol, volume_attach.status = volume, True
         except (nv_exceptions.ClientException, nv_exceptions.ResourceNotFound), e:
             log.error(e)
-            volume_attach.status = False
 
         return volume_attach
 

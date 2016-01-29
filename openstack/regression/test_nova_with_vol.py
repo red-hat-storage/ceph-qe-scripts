@@ -125,11 +125,10 @@ class NovaCycle(object):
         self.attached_volume = self.nova_server.attach_volume(self.vm.vm.id, volume=volume.id, device=device)
         time.sleep(10)
 
-        if self.attached_volume:
-            log.debug('volume %s attached to server %s' % (self.attached_volume.vol.volumeId, self.vm.vm.name))
-            log.info('Volume attached to VM successfully')
-        else:
-            log.error('volume attach failed')
+        assert self.attached_volume.status, "volume attach failed"
+
+        log.debug('volume %s attached to server %s' % (self.attached_volume.vol.id, self.vm.vm.name))
+        log.info('Volume attached to VM successfully')
 
         add_test_info.sub_test_completed_info()
 
@@ -167,7 +166,7 @@ def exec_test():
 
     global add_test_info
 
-    add_test_info = AddTestInfo(1, 'Nova server create test')
+    add_test_info = AddTestInfo(9, 'Nova server create test')
 
     try:
 

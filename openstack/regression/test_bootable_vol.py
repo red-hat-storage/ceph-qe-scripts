@@ -141,7 +141,7 @@ def exec_test():
 
     global add_test_info
 
-    add_test_info = AddTestInfo(1, 'Nova server create test')
+    add_test_info = AddTestInfo(3, 'Nova server create test')
 
     try:
 

@@ -31,7 +31,7 @@ class GlanceCycle(object):
 
 def exec_test():
 
-    add_test_info = AddTestInfo(1, 'Glance image create Test')
+    add_test_info = AddTestInfo(6, 'Glance image create Test')
 
     try:
 
