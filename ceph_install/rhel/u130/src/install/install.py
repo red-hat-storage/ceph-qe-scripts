@@ -6,7 +6,7 @@ from prepare_ceph import PrepareCeph
 
 class Install(object):
 
-    def __init__(self, username, password, admin_node, mons, osds, cdn_install_enabled, iso_install_enabled, iso_link, pool_id, admin_repo , repos):
+    def __init__(self, username, password, admin_node, mons, osds, cdn_install_enabled, iso_install_enabled, iso_link, pool_id, admin_repo , repos, gpg_signing_on):
         self.username = username
         self.password = password
         self.admin_node = admin_node
@@ -21,6 +21,8 @@ class Install(object):
 
         self.cdn_install_enabled = cdn_install_enabled
         self.iso_install_enabled = iso_install_enabled
+
+        self.gpg_signing_on = gpg_signing_on
 
 
     def execute(self):
@@ -39,7 +41,7 @@ class Install(object):
 
             log.info('ISO enabled')
 
-            iso_install = ISOInstall(self.username, self.password, self.admin_node, self.mons, self.osds, self.iso_link)
+            iso_install = ISOInstall(self.username, self.password, self.admin_node, self.mons, self.osds, self.iso_link, self.gpg_signing_on)
             iso_install.execute()
 
             # else code for ISO install pending

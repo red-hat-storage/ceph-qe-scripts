@@ -2,8 +2,9 @@ import os
 import utils.log as log
 
 class PrepareISO(object):
-    def __init__(self, iso_link,):
+    def __init__(self, iso_link, gpg_signing_on):
         self.iso_link = iso_link
+        self.gpg_signing_on = gpg_signing_on
 
         self.iso_name = 'rhceph.iso'
     def download_iso(self):
@@ -44,7 +45,11 @@ class PrepareISO(object):
 
         # run ice setup
 
-        run_ice_setup = 'sudo ice_setup -d /mnt'
+        if self.gpg_signing_on:
+            run_ice_setup = 'sudo ice_setup -d /mnt --no-gpg'
+        else:
+            run_ice_setup = 'sudo ice_setup -d /mnt'
+
         log.info('running ice setup')
         log.debug(run_ice_setup)
 
@@ -54,7 +59,7 @@ class PrepareISO(object):
 
 
 class ISOInstall(object):
-    def __init__(self,username, password, admin_node, mons, osds, iso_link):
+    def __init__(self,username, password, admin_node, mons, osds, iso_link, gpg_signing_on):
 
         self.username = username
         self.passowrd = password
@@ -63,6 +68,7 @@ class ISOInstall(object):
         self.osds = osds
         self.iso_link = iso_link
         self.mon_hostnames = []
+        self.gpg_signing_on = gpg_signing_on
 
         for each_mon in self.mons:
             self.mon_hostnames.append(str(each_mon.hostname))
@@ -111,7 +117,7 @@ class ISOInstall(object):
 
 
     def execute(self):
-        prepare_iso = PrepareISO(self.iso_link)
+        prepare_iso = PrepareISO(self.iso_link, self.gpg_signing_on)
 
         prepare_iso.download_iso()
         prepare_iso.ice_setup()

@@ -3,7 +3,8 @@ import test_nova_snap, test_nova_with_vol
 import lib.log as log
 
 
-def main():
+if __name__ == '__main__':
+
 
     log.info('running all the test cases')
 
