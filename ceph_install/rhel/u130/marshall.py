@@ -3,68 +3,63 @@ from utils.utils import Machines, create_ceph_dir, change_dir, ceph_deploy, SSH,
 from src.install.install import Install
 import os
 import utils.log as log
+import yaml
 
 
-class MakeMachine(object):
 
-    def get_osds(self):
+def make_machines(machines):
 
-        # example
+    machine_list = machines.split(' ')
+    print machine_list
 
-        osd1 = Machines('10.8.128.16', 'magna016')
-        osd2 = Machines('10.8.128.19', 'magna019')
-        osd3 = Machines('10.8.128.21', 'magna021')
+    machines = []
+    for each_machine in machine_list:
+        temp = each_machine.split("-")
+        machines.append(Machines(temp[0], temp[1]))
 
-        return osd1, osd2, osd3
-
-    def get_mons(self):
-
-        # example
-        mon = []
-        mon.append(Machines('10.8.128.15', 'magna015'))
-
-        return mon
-
-    def get_admin(self):
-
-        # example
-
-        admin_node = Machines('10.8.128.12', 'magna012')
-        return admin_node
+    return machines
 
 
 class Marshall(object):
 
-    def __init__(self):
-        machines = MakeMachine()
-        self.osdL = machines.get_osds()
-        self.monL = machines.get_mons()
-        self.admin_nodes = machines.get_admin()
-        self.username = 'username'  # uesername from inktank
-        self.password = 'password'  # password from inktank
+    def __init__(self,doc):
 
-        self.creds = {'qa_username': 'qa@redhat.com',   # repace the dictionary values with proper credentials
-                            'qa_password': 'QMdMJ8jvSWUwB6WZ',
-                            'pool_id' : '8a85f9823e3d5e43013e3ddd4e2a0977'}
-        self.iso_link = "https://access.cdn.redhat.com//content/origin/files/sha256/c8/c8e209111ce01955d216ab8e817f32b6a2afd35733d68170e1034411c8440cb3/rhceph-1.3.1-rhel-7-x86_64-dvd.iso?_auth_=1450274672_f430967f03a79addd94634096198d600" #Provide ISO link from cdn.access.redhat.com
+        t1 = doc['machine']['osd']
+        self.osdL = make_machines(t1)
 
+        t2 = doc['machine']['mon']
+        self.monL = make_machines(t2)
+
+        t3 = doc['machine']['admin']
+        self.admin_nodes = make_machines(t3)
+        self.admin_nodes = self.admin_nodes[0]
+
+        self.username = doc['ceph_config']['cdn_live_username']  # uesername from inktank
+        self.password = doc['ceph_config']['cdn_live_username']  # password from inktank
+
+        self.creds = {'qa_username': doc['ceph_config']['cdn_live_username'],
+                      'qa_password': doc['ceph_config']['cdn_live_password'] ,
+                      'pool_id': doc['ceph_config']['rhel_pool_id']}
+
+        self.iso_link = doc['ceph_config']['iso']
 
         self.run_prerequites = True  # True or False
 
-        self.cdn_enabled = True   # True or False
-        self.iso_enabled = False   # True or False
+        self.cdn_enabled = doc['ceph_config']['cdn_enabled']   # True or False
+        self.iso_enabled = doc['ceph_config']['iso_enabled']   # True or False
 
 
-        self.repo = {'mon': "rhel-7-server-rhceph-1.3-mon-rpms",
-                     'osd': "rhel-7-server-rhceph-1.3-osd-rpms"
-
+        self.repo = {'mon': doc['repos']['mon'],
+                     'osd': doc['repos']['osd']
                      }
 
-        self.admin_repo = {'installer' : "rhel-7-server-rhceph-1.3-installer-rpms",
-                           'calamari' : "rhel-7-server-rhceph-1.3-calamari-rpms",
-                           'tools' : "rhel-7-server-rhceph-1.3-tools-rpms"}
+        self.admin_repo = {'installer': doc['repos']['admin']['installer'],
+                           'calamari': doc['repos']['admin']['calamari'],
+                           'tools': doc['repos']['admin']['tools'] }
 
-        self.pool_id = None
+        self.pool_id = doc['ceph_config']['rhel_pool_id']
+
+        self.gpg_signing_on = doc['ceph_config']['gpg_signing_on']
 
 
     def set(self):
@@ -88,7 +83,7 @@ class Marshall(object):
 
         self.install_ceph = Install(self.username,self.password,
                                     self.admin_nodes, self.monL, self.osdL,
-                                    self.cdn_enabled, self.iso_enabled, self.iso_link, self.pool_id, self.admin_repo, self.repo)
+                                    self.cdn_enabled, self.iso_enabled, self.iso_link, self.pool_id, self.admin_repo, self.repo, self.gpg_signing_on)
 
     def execute(self):
         try:
@@ -118,5 +113,9 @@ class Marshall(object):
 if __name__ == "__main__":
 
     log.info('starting message')
-    marshall = Marshall()
+
+    with open('config.yaml', 'r') as f:
+        doc = yaml.load(f)
+
+    marshall = Marshall(doc)
     marshall.execute()

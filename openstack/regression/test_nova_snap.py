@@ -81,7 +81,7 @@ class NovaCycle(object):
         self.snap = self.nova_server.get_snap(snapshot.snap)
         log.info('VM snap name: %s' % self.snap.snap.name)
         time.sleep(10)
-        self.timer.wait_for_state_change(self.snap.snap.status, 'queued')
+        self.timer.wait_for_state_change(self.snap.snap.status, 'SAVING')
         if self.snap:
             log.info('Snap %s created' % self.snap)
         else:
