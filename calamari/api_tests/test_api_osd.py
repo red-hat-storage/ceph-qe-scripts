@@ -48,8 +48,6 @@ class APIOSDOps(APIOSD):
         log.debug('pretty json response from  api')
         log.debug(pretty_response)
         self.json_osd = json.loads(pretty_response)
-        
-        # with command  # need to report getting 404 error
 
         log.debug('api with command')
         api = self.construct_api() + '/command'
@@ -59,16 +57,17 @@ class APIOSDOps(APIOSD):
         pretty_response2 = json.dumps(response2.json(),indent=2)
         log.debug('pretty json response from  api')
         log.debug(pretty_response2)
-        self.json_osd = json.loads(pretty_response2)
-
-
 
     def get_osd_id(self):
 
             log.debug('api testing with osd id')
             log.debug('****************************************')
 
+            #print self.json_osd
+
             for each_id in self.json_osd:
+
+                #print 'got osd id %s' % each_id['id']
 
                 # get osd_api_id
                 api = self.construct_api() + '/' + str(each_id['id'])
@@ -90,6 +89,8 @@ class APIOSDOps(APIOSD):
         for each_id in self.json_osd:
 
             for each_commmand in self.commands:
+
+                #print 'got osd id: %s ' % each_id['id']
 
                 api = self.construct_api() + '/' + str(each_id['id']) + '/' + 'command'
                 log.debug('api: %s' % api)

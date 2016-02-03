@@ -105,13 +105,13 @@ class ConfigureOSPClients(object):
 
             ceph_auth_pool1 = "ceph auth get-or-create client.cinder mon 'allow r' " \
                               "osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s, " \
-                              "allow rwx pool=%s, allow rx pool=%s' " %(self.volumes_p, self.vms_p, self.images_p)
+                              "allow rwx pool=%s, allow rwx pool=%s' " %(self.volumes_p, self.vms_p, self.images_p)
 
             logging.info(ceph_auth_pool1)
             self.exec_cmd(ceph_auth_pool1)
 
             ceph_auth_pool2 = "ceph auth get-or-create client.glance mon " \
-                              "'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s'" % str(self.images_p)
+                              "'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s, allow rwx pool=%s'" % (self.images_p, self.vms_p)
 
             logging.info(ceph_auth_pool2)
             self.exec_cmd(ceph_auth_pool2)
