@@ -24,7 +24,6 @@ class CalamariToolsRepo(object):
                     self.username, self.password)
 
 
-
         self.get_release_key = "sudo bash -c 'wget -O - https://download.inktank.com/keys/release.asc | apt-key add -' "
 
 

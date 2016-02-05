@@ -1,6 +1,7 @@
 from src.prereq.prerequisite import Prerequisites
 from utils.utils import Machines, create_ceph_dir, change_dir, ceph_deploy, SSH, change_perms
 from src.install.install import Install
+#from src.install.prepare_ceph import PrepareCeph
 import os
 import utils.log as log
 
@@ -11,26 +12,35 @@ class MakeMachine(object):
 
         # example
 
-        osd1 = Machines('x.x.x.63', 'hostname')
-        osd2 = Machines('x.x.x.64', 'hostname')
+        osd1 = Machines('10.8.128.16', 'magna016')
+        osd2 = Machines('10.8.128.21', 'magna021')
+        osd3 = Machines('10.8.128.27', 'magna027')
+        return osd1, osd2, osd3
 
-        return osd1, osd2
 
     def get_mons(self):
 
         # example
+        mon = []
+        mon.append(Machines('10.8.128.15', 'magna015'))
 
-        mon1 = Machines('x.x.x.63', 'hostname')
-        mon2 = Machines('x.x.x.64', 'hostname')
+        # mon.append(Machines('10.8.128.15', 'magna015')) Example
 
-        return mon1,mon2
+        return mon
+        #mon2, mon3
 
     def get_admin(self):
 
         # example
 
-        admin_node = Machines('x.x.x.14', 'hostname')
+        admin_node = Machines('10.8.128.12', 'magna012')
         return admin_node
+
+    #def get_rgw(self);
+
+     #   rgw_node = Machines('10.8.128.47','magna047')
+      #  return rgw_node;
+
 
 
 class Marshall(object):
@@ -38,15 +48,16 @@ class Marshall(object):
     def __init__(self):
         machines = MakeMachine()
         self.osdL = machines.get_osds()
-        self.monL = machines.get_mons()
+        self.monL =  machines.get_mons()
         self.admin_nodes = machines.get_admin()
+        #self.rgw_nodes = machines.get_rgw()
         self.username = 'username'  # uesername from inktank
         self.password = 'password'  # password from inktank
 
         self.run_prerequites = True  # True or False
 
-        self.cdn_enabled = True   # True or False
-        self.iso_enabled = False   # True or False
+        self.cdn_enabled = False   # True or False
+        self.iso_enabled = True   # True or False
 
     def set(self):
 
@@ -61,6 +72,9 @@ class Marshall(object):
         for each_osd in self.osdL:
             log.info('osds: %s, %s' % (each_osd.ip, each_osd.hostname))
 
+        #log.info('rgw: ')
+        #log.info('rgw: %s, %s' % (self.rgw_nodes.ip, self.rgw_nodes.hostname ))
+
         log.info('Configuration: ')
         log.info('username: %s' % self.username)
         log.info('password: %s' % self.password)
@@ -74,6 +88,9 @@ class Marshall(object):
     def execute(self):
 
         try:
+
+                self.set()
+
                 log.debug('executing ssh commands')
 
                 ssh = SSH(self.admin_nodes, self.monL, self.osdL)
@@ -84,9 +101,10 @@ class Marshall(object):
                 os.system('touch ceph.log')
                 os.system('sudo chmod 777 ceph.log')
 
-                self.set()
-
                 if self.run_prerequites:
+
+                    print 'in run prereq'
+
                     log.info('running prerequistes')
                     self.prereq = Prerequisites(self.admin_nodes, self.monL, self.osdL)
                     self.prereq.execute()
@@ -99,5 +117,5 @@ class Marshall(object):
 if __name__ == "__main__":
 
     log.info('starting message')
-    #marshall = Marshall()
-    #marshall.execute()
+    marshall = Marshall()
+    marshall.execute()

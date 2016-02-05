@@ -26,7 +26,12 @@ class Install(object):
                 cdn_install = CDNInstall(self.username, self.password, self.admin_node, self.mons, self.osds, True)
                 cdn_install.execute()
 
-            # else code for ISO install pending
+        if self.iso_install_enabled :
+
+            log.info('ISO enabled')
+
+            iso_install = ISOInstall(self.username, self.password, self.admin_node, self.mons, self.osds)
+            iso_install.execute()
 
         prepare_ceph = PrepareCeph(self.admin_node, self.mons, self.osds)
         prepare_ceph.execute()

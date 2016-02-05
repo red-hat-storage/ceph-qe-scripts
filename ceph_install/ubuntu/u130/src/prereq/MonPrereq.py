@@ -9,8 +9,10 @@ class MonFireWallSettings(object):
 
     def firewall_settings(self):
         self.open_6789 = self.ssh + " 'sudo iptables -I INPUT 1 -i eth0 -p tcp -s %s --dport 6789 -j ACCEPT' " %(self.host.ip)
+        self.saveiptables = " 'sudo apt-get install iptables-persistent' "
         log.debug(self.open_6789)
         os.system(self.open_6789)
+        os.system(self.saveiptables)
 
     def execute(self):
 
@@ -31,12 +33,12 @@ class NTPSettings(object):
     def ntp_settings_commands(self):
 
         # format to specifiy the command: " '<command>' "
-
+        self.install_ntp = " 'sudo apt-get install ntp -y' "
         self.start_srv = " 'sudo service ntp start' "
         self.stop_srv = " 'sudo service ntp status' "
         self.ntp_sync =  " 'ntpq -p' "
 
-        return self.start_srv, self.stop_srv, self.ntp_sync
+        return self.install_ntp, self.start_srv, self.stop_srv, self.ntp_sync
 
     def execute(self):
 

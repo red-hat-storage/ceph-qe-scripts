@@ -19,12 +19,12 @@ class MakeMachine(object):
     def get_mons(self):
 
         # example
+        mon1 = []
+        mon1[0] = Machines('10.8.128.47', 'magna047')
+        # mon2 = Machines('10.8.128.52', 'magna052')
+        # mon3 = Machines('10.8.128.58', 'magna058')
 
-        mon1 = Machines('10.8.128.47', 'magna047')
-        mon2 = Machines('10.8.128.52', 'magna052')
-        mon3 = Machines('10.8.128.58', 'magna058')
-
-        return mon1, mon2, mon3
+        return mon1
 
     def get_admin(self):
 
@@ -32,12 +32,6 @@ class MakeMachine(object):
 
         admin_node = Machines('10.8.128.33', 'magna033')
         return admin_node
-
-    #def get_rgw(self);
-
-     #   rgw_node = Machines('10.8.128.47','magna047')
-      #  return rgw_node;
-
 
 
 class Marshall(object):
@@ -47,7 +41,7 @@ class Marshall(object):
         self.osdL = machines.get_osds()
         self.monL = machines.get_mons()
         self.admin_nodes = machines.get_admin()
-        #self.rgw_nodes = machines.get_rgw()
+
         self.username = 'username'  # uesername from inktank
         self.password = 'password'  # password from inktank
 
