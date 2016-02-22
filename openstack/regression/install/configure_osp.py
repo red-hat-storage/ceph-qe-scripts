@@ -180,7 +180,7 @@ class ConfigureOSP(object):
             self.exec_cmd(cmd)
 
             cmd1 = "sudo virsh secret-set-value --secret %s " \
-                   "--base64 $(cat client.cinder.key) && rm client.cinder.key && rm secret.xml" % self.uuid
+                   "--base64 $(cat /tmp/client.cinder.key) && rm /tmp/client.cinder.key && rm secret.xml" % self.uuid
 
             logging.debug(cmd1)
             self.exec_cmd(cmd1)
@@ -230,9 +230,9 @@ if __name__ == '__main__':
 
         osp_configure = ConfigureOSP(args.vp, args.ip, args.bp, args.vmp, uuid)
 
-        xml_status, ret_code = osp_configure.secret_xml_define()
+        #xml_status, ret_code = osp_configure.secret_xml_define()
 
-        assert xml_status, str(ret_code) + '\nsecret xml config failed '
+        #assert xml_status, str(ret_code) + '\nsecret xml config failed '
 
         status = osp_configure.do_config()
 

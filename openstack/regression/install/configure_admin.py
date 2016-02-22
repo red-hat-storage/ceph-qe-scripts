@@ -1,6 +1,7 @@
 # input:  OSP Server hostname
 import subprocess
 import argparse
+import socket
 import logging
 # step 2
 
@@ -74,22 +75,22 @@ class ConfigureOSPClients(object):
                 logging.info(install_ceph)
                 self.exec_cmd(install_ceph)
 
+                mkdir_ceph = "ssh %s " % self.osp_hostname + "'sudo mkdir -p /etc/ceph '"
+                logging.info(mkdir_ceph)
+                self.exec_cmd(mkdir_ceph)
+
+                scp_conf_file_cmd = 'scp /etc/ceph/ceph.conf %s:' % self.osp_hostname
+                logging.info(scp_conf_file_cmd)
+                self.exec_cmd(scp_conf_file_cmd)
+
+                copy_conf_file_cmd = "ssh %s " % self.osp_hostname + 'sudo cp ceph.conf /etc/ceph/'
+                #copy_conf_file_cmd = 'ssh %s ' % self.osp_hostname + " 'sudo tee /etc/ceph/ceph.conf </etc/ceph/ceph.conf' "
+                logging.info(copy_conf_file_cmd)
+                self.exec_cmd(copy_conf_file_cmd)
+
             elif self.ceph_install == 'n':
                 logging.info('skipping ceph installation')
                 pass
-
-            mkdir_ceph = "ssh %s " % self.osp_hostname + "'sudo mkdir -p /etc/ceph '"
-            logging.info(mkdir_ceph)
-            self.exec_cmd(mkdir_ceph)
-
-            scp_conf_file_cmd = 'scp /etc/ceph/ceph.conf %s:' % self.osp_hostname
-            logging.info(scp_conf_file_cmd)
-            self.exec_cmd(scp_conf_file_cmd)
-
-            copy_conf_file_cmd = "ssh %s " % self.osp_hostname + 'sudo cp ceph.conf /etc/ceph/'
-            #copy_conf_file_cmd = 'ssh %s ' % self.osp_hostname + " 'sudo tee /etc/ceph/ceph.conf </etc/ceph/ceph.conf' "
-            logging.info(copy_conf_file_cmd)
-            self.exec_cmd(copy_conf_file_cmd)
 
             return True, 0
 
@@ -155,7 +156,7 @@ class ConfigureOSPClients(object):
             logging.info(create_nova_compute_keyring)
             self.exec_cmd(create_nova_compute_keyring)
 
-            copy_nova_keyring = "ceph auth get-key client.cinder | ssh %s 'tee client.cinder.key ' " % self.osp_hostname
+            copy_nova_keyring = "ceph auth get-key client.cinder | ssh %s 'tee /tmp/client.cinder.key ' " % self.osp_hostname
             logging.info(copy_nova_keyring)
             self.exec_cmd(copy_nova_keyring)
 
@@ -175,7 +176,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Configure OSP Admin')
 
-    parser.add_argument('-ospn', "--osp_node", dest = "ospn", help= 'Give the OSP hostname, shortname[hostname -s]')
+    parser.add_argument('-ospn', "--osp_node", dest = "ospn", default=socket.gethostname(), help= 'Give the OSP hostname, shortname[hostname -s]')
     parser.add_argument('-vp', '--volumes_pool', dest='vp', help= 'Enter pool name for volumes')
     parser.add_argument('-ip', '--images_pool', dest='ip', help='Enter pool name for images')
     parser.add_argument('-bp', '--backup_pool', dest='bp', help= 'Enter pool name for backup')
