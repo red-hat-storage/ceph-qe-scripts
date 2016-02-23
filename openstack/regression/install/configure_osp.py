@@ -230,9 +230,9 @@ if __name__ == '__main__':
 
         osp_configure = ConfigureOSP(args.vp, args.ip, args.bp, args.vmp, uuid)
 
-        #xml_status, ret_code = osp_configure.secret_xml_define()
+        xml_status, ret_code = osp_configure.secret_xml_define()
 
-        #assert xml_status, str(ret_code) + '\nsecret xml config failed '
+        assert xml_status, str(ret_code) + '\nsecret xml config failed '
 
         status = osp_configure.do_config()
 
