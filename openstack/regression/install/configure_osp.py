@@ -3,6 +3,7 @@ import argparse
 import logging
 from subprocess import Popen, PIPE
 import subprocess
+import sys
 
 # use sudo to run this file
 
@@ -246,3 +247,4 @@ if __name__ == '__main__':
 
     except AssertionError, e:
         logging.error(e)
+        sys.exit(1)

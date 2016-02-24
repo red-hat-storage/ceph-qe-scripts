@@ -2,6 +2,7 @@
 import subprocess
 import argparse
 import logging
+import sys
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s: %(message)s',
                     datefmt='[%m/%d/%Y - %I:%M:%S %p]',
@@ -125,6 +126,7 @@ if __name__ == '__main__':
         logging.error(e)
         logging.error('Installation Failed')
         print e
+        sys.exit(1)
 
 
 

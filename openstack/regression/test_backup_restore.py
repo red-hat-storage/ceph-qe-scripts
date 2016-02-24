@@ -48,9 +48,9 @@ class CindeVolumeTest(object):
         assert vol_to_delete.execute, "snapshot volume delete initialize error"
 
         volume_exists = self.cinder_volume.get_volume(volume)
-        self.timer.wait_for_state_change(volume_exists.volume.status, 'deleting')
+        self.timer.wait_for_state_change(volume_exists.status, 'deleting')
 
-        log.info('status: %s' % volume_exists.volume.status)
+        log.info('status: %s' % volume_exists.status)
         volume_exists = self.cinder_volume.get_volume(volume)
 
         if not volume_exists.status:

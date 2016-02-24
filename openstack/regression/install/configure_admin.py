@@ -3,6 +3,7 @@ import subprocess
 import argparse
 import socket
 import logging
+import sys
 # step 2
 
 
@@ -211,6 +212,7 @@ if __name__ == '__main__':
         logging.error(e)
         logging.error('Admin Confiuguration failed')
         onscreen('Admin Configuration failed')
+        sys.exit(1)
 
 
 
