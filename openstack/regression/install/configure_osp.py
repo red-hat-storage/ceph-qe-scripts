@@ -11,6 +11,9 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s: %(message)s',
                     datefmt='[%m/%d/%Y - %I:%M:%S %p]',
                     filename='co.log', level=logging.DEBUG)
 
+
+
+
 def onscreen(text):
     print "\033[1;36m*%s*\033[1;m" % text
 
@@ -20,6 +23,16 @@ class Bcolors:
     FAIL = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
+
+
+def log_msgs(msgs):
+    logging.info(msgs)
+    print msgs
+    
+    
+def log_errors(msgs):
+    logging.error(msgs)
+    print msgs
 
 
 def uuid_gen():
@@ -35,7 +48,7 @@ class ConfigureGlance(object):
 
     def do_config(self):
 
-        logging.info('configuring glance')
+        log_msgs('configuring glance')
         # Read the glance-api.conf file
         cfg = ConfigParser.ConfigParser()
         cfg.read('/etc/glance/glance-api.conf')
@@ -66,7 +79,7 @@ class ConfigureNova(object):
     def do_config(self):
         # Read the nova config file
 
-        logging.info('configuring nova')
+        log_msgs('configuring nova')
         cfg = ConfigParser.ConfigParser()
         cfg.read('/etc/nova/nova.conf')
 
@@ -99,7 +112,7 @@ class ConfigureCinder(object):
         self.uuid = uuid
 
     def do_config(self):
-        logging.info('configuring cinder')
+        log_msgs('configuring cinder')
         # Read the cinder config file
         config = ConfigParser.ConfigParser()
         config.read('/etc/cinder/cinder.conf')
@@ -137,7 +150,7 @@ class ConfigureCinder(object):
 def restart_services():
     try:
 
-        logging.info('starting services')
+        log_msgs('starting services')
         exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
         exec_cmd('sudo service openstack-glance-api restart')
@@ -145,15 +158,15 @@ def restart_services():
         exec_cmd('sudo service openstack-cinder-volume restart')
         exec_cmd('sudo service openstack-cinder-backup restart')
 
-        logging.info('services started')
+        log_msgs('services started')
         return True, 0
 
 
     except subprocess.CalledProcessError as e:
-        logging.info('starting services failed')
+        log_msgs('starting services failed')
         error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
         print error
-        logging.error(error)
+        log_errors(error)
         return False, e.returncode
 
 
@@ -191,7 +204,7 @@ class ConfigureOSP(object):
         except subprocess.CalledProcessError as e:
             error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
             print error
-            logging.error(error)
+            log_errors(error)
             return False, e.returncode
 
     def do_config(self):
@@ -204,8 +217,8 @@ class ConfigureOSP(object):
             return True, 0
 
         except Exception,e:
-            logging.error("error in configuring")
-            logging.error(e)
+            log_errors("error in configuring")
+            log_errors(e)
             return False, 1
 
 
@@ -227,7 +240,7 @@ if __name__ == '__main__':
 
         uuid = uuid_gen()
 
-        logging.info("uuid generated: %s" % uuid)
+        log_msgs("uuid generated: %s" % uuid)
 
         osp_configure = ConfigureOSP(args.vp, args.ip, args.bp, args.vmp, uuid)
 
@@ -246,5 +259,5 @@ if __name__ == '__main__':
         onscreen('Configuration Completed')
 
     except AssertionError, e:
-        logging.error(e)
+        log_errors(e)
         sys.exit(1)

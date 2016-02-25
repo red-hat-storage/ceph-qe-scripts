@@ -25,6 +25,15 @@ def onscreen(text):
 # step 1
 
 
+def log_msgs(msgs):
+    logging.info(msgs)
+    print msgs
+    
+    
+def log_errors(msgs):
+    logging.error(msgs)
+    print msgs
+
 class InstallOSP(object):
 
     def __init__(self, pool_id, repos, qa_username, qa_password ):
@@ -41,52 +50,52 @@ class InstallOSP(object):
         try:
             onscreen('Unregistering to CDN')
             unregister_cmd = 'sudo subscription-manager  unregister'
-            logging.info(unregister_cmd)
+            log_msgs(unregister_cmd)
             self.exec_cmd(unregister_cmd)
 
             onscreen('Registering to CDN')
             register_cmd = ('sudo subscription-manager register --username=%s --password=%s' % (self.user_name, self.passw))
-            logging.info(register_cmd)
+            log_msgs(register_cmd)
             self.exec_cmd(register_cmd)
 
             onscreen('Subscribing to RHEL7 channel')
             subscribe_cmd = 'sudo subscription-manager subscribe --auto'
-            logging.info(subscribe_cmd)
+            log_msgs(subscribe_cmd)
             self.exec_cmd(subscribe_cmd)
 
             onscreen('Subscribing to pool id=%s' % self.pool_id)
             attach_pool = 'sudo subscription-manager attach --pool=%s' % self.pool_id
-            logging.info(attach_pool)
+            log_msgs(attach_pool)
             self.exec_cmd(attach_pool)
 
             onscreen('Disabling Repos')
             disable_repos = 'sudo subscription-manager repos --disable=*'
-            logging.info(disable_repos)
+            log_msgs(disable_repos)
             self.exec_cmd(disable_repos)
 
             onscreen('Enabling openstack 7.0 and other dependent repos')
             for each_repo in self.rhel_repos:
                 enable_repo = 'sudo subscription-manager repos --enable=%s' % each_repo
-                logging.info(enable_repo)
+                log_msgs(enable_repo)
                 self.exec_cmd(enable_repo)
 
             onscreen('Disabling NetworkManager')
             disable_network = 'sudo systemctl disable NetworkManager'
-            logging.info(disable_network)
+            log_msgs(disable_network)
             self.exec_cmd(disable_network)
 
             onscreen('removing mod ssl')
             removing_mod_ssl = 'sudo yum remove mod_ssl-* -y'
-            logging.info(removing_mod_ssl)
+            log_msgs(removing_mod_ssl)
             self.exec_cmd(removing_mod_ssl)
 
             onscreen('Subscription completed. Packstack installation begins')
             install_packstack = 'sudo yum install -y openstack-packstack'
-            logging.info(install_packstack)
+            log_msgs(install_packstack)
             self.exec_cmd(install_packstack)
 
             packstack_all = 'sudo packstack --allinone'
-            logging.info(packstack_all)
+            log_msgs(packstack_all)
             self.exec_cmd(packstack_all)
 
             return True, 0
@@ -94,7 +103,7 @@ class InstallOSP(object):
         except subprocess.CalledProcessError as e:
             error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
             print error
-            logging.error(error)
+            log_errors(error)
             return False, e.returncode
 
 if __name__ == '__main__':
@@ -108,10 +117,10 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    logging.info('pool id: %s' % args.pid)
-    logging.info('rpms : %s' % args.r)
-    logging.info('qa_username : %s' % args.u)
-    logging.info('qa_password : %s' % args.p)
+    log_msgs('pool id: %s' % args.pid)
+    log_msgs('rpms : %s' % args.r)
+    log_msgs('qa_username : %s' % args.u)
+    log_msgs('qa_password : %s' % args.p)
 
     try:
 
@@ -120,11 +129,11 @@ if __name__ == '__main__':
 
         assert installed[0], "Installation Failed"
         onscreen('Installation completed')
-        logging.info('Installation completed')
+        log_msgs('Installation completed')
 
     except AssertionError, e :
-        logging.error(e)
-        logging.error('Installation Failed')
+        log_errors(e)
+        log_errors('Installation Failed')
         print e
         sys.exit(1)
 

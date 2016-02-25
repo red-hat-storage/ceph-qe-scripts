@@ -7,6 +7,7 @@ import lib.log as log
 from lib.cinder import CinderAuth, CinderVolumes
 from lib.test_desc import AddTestInfo
 from utils import wait
+import sys
 
 
 class CinderVolumeTest(object):
@@ -104,6 +105,7 @@ def exec_test():
     except AssertionError, e:
         log.error(e)
         add_test_info.failed_status('error')
+        sys.exit(1)
 
     add_test_info.completed_info()
 
