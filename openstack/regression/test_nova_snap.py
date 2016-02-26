@@ -7,7 +7,7 @@ from lib.nova import NovaAuth, NovaActions
 from lib.glance import GlanceAuth, GlanceActions
 import lib.log as log
 from lib.test_desc import AddTestInfo
-from utils import wait
+from utils import wait, uuid
 import time
 import sys
 
@@ -148,6 +148,8 @@ class NovaCycle(object):
 
 
 def exec_test():
+
+    uuid.set_env()
 
     global add_test_info
 

@@ -6,8 +6,9 @@
 import lib.log as log
 from lib.cinder import CinderAuth, CinderVolumes, CinderBackup
 from lib.test_desc import AddTestInfo
-from utils import wait
+from utils import wait, uuid
 import sys
+
 
 
 class CindeVolumeTest(object):
@@ -113,6 +114,8 @@ class CindeVolumeTest(object):
 
 def exec_test_1():
 
+    uuid.set_env()
+
     global add_test_info
 
     add_test_info = AddTestInfo(4, 'Restore Backup of the volume to a new volume of the same size')
@@ -153,6 +156,8 @@ def exec_test_1():
 
 
 def exec_test_2():
+
+    uuid.set_env()
 
     global add_test_info
 

@@ -5,7 +5,7 @@ Sample test case. Create glance image
 from lib.glance import GlanceAuth, GlanceActions
 import lib.log as log
 from lib.test_desc import AddTestInfo
-from utils import wait
+from utils import wait, uuid
 import sys
 
 
@@ -31,6 +31,8 @@ class GlanceCycle(object):
 
 
 def exec_test():
+
+    uuid.set_env()
 
     add_test_info = AddTestInfo(6, 'Glance image create Test')
 

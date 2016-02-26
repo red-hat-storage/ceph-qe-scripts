@@ -6,8 +6,10 @@ Create volume, extend the volume and delete it
 import lib.log as log
 from lib.cinder import CinderAuth, CinderVolumes
 from lib.test_desc import AddTestInfo
-from utils import wait
+from utils import wait, uuid
 import sys
+
+
 
 
 class CinderVolumeTest(object):
@@ -83,7 +85,9 @@ class CinderVolumeTest(object):
 
 def exec_test():
 
-    global  add_test_info
+    uuid.set_env()
+
+    global add_test_info
 
     add_test_info = AddTestInfo(1, 'Cinder Volume Test')
     try:
