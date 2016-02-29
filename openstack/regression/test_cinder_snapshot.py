@@ -5,7 +5,9 @@ Create a volume, take a snapshot, create a volume out of snapshot, delete the vo
 from  lib.cinder import CinderAuth, CinderVolumes, CinderSnapshot
 import lib.log as log
 from lib.test_desc import AddTestInfo
-from utils import wait
+from utils import wait, uuid
+import sys
+
 
 
 class CinderSnapCycle(object):
@@ -110,6 +112,8 @@ class CinderSnapCycle(object):
 
 def exec_test():
 
+    uuid.set_env()
+
     volume_name = 'test_volume'
     volume_size = 1
 
@@ -146,6 +150,7 @@ def exec_test():
     except AssertionError, e:
         log.error(e)
         add_test_info.failed_status('error')
+        sys.exit(1)
 
     add_test_info.completed_info()
 

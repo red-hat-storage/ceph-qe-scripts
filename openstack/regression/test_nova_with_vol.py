@@ -8,9 +8,9 @@ from lib.glance import GlanceAuth, GlanceActions
 from lib.cinder import CinderAuth, CinderVolumes
 import lib.log as log
 from lib.test_desc import AddTestInfo
-from utils import wait
+from utils import wait, uuid
 import time
-
+import sys
 
 class GlanceCycle(object):
 
@@ -164,6 +164,8 @@ class NovaCycle(object):
 
 def exec_test():
 
+    uuid.set_env()
+
     global add_test_info
 
     add_test_info = AddTestInfo(9, 'Nova server create test')
@@ -201,6 +203,7 @@ def exec_test():
     except AssertionError, e:
         log.error(e)
         add_test_info.failed_status('error')
+        sys.exit(1)
 
     add_test_info.completed_info()
 

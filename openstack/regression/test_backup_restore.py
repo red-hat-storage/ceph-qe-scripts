@@ -6,7 +6,9 @@
 import lib.log as log
 from lib.cinder import CinderAuth, CinderVolumes, CinderBackup
 from lib.test_desc import AddTestInfo
-from utils import wait
+from utils import wait, uuid
+import sys
+
 
 
 class CindeVolumeTest(object):
@@ -48,9 +50,9 @@ class CindeVolumeTest(object):
         assert vol_to_delete.execute, "snapshot volume delete initialize error"
 
         volume_exists = self.cinder_volume.get_volume(volume)
-        self.timer.wait_for_state_change(volume_exists.volume.status, 'deleting')
+        self.timer.wait_for_state_change(volume_exists.status, 'deleting')
 
-        log.info('status: %s' % volume_exists.volume.status)
+        log.info('status: %s' % volume_exists.status)
         volume_exists = self.cinder_volume.get_volume(volume)
 
         if not volume_exists.status:
@@ -112,6 +114,8 @@ class CindeVolumeTest(object):
 
 def exec_test_1():
 
+    uuid.set_env()
+
     global add_test_info
 
     add_test_info = AddTestInfo(4, 'Restore Backup of the volume to a new volume of the same size')
@@ -146,11 +150,14 @@ def exec_test_1():
     except AssertionError, e:
         log.error(e)
         add_test_info.failed_status('error')
+        sys.exit(1)
 
     add_test_info.completed_info()
 
 
 def exec_test_2():
+
+    uuid.set_env()
 
     global add_test_info
 
@@ -186,6 +193,7 @@ def exec_test_2():
     except AssertionError, e:
         log.error(e)
         add_test_info.failed_status('error')
+        sys.exit(1)
 
     add_test_info.completed_info()
 

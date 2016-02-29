@@ -5,7 +5,8 @@ Sample test case. Create glance image
 from lib.glance import GlanceAuth, GlanceActions
 import lib.log as log
 from lib.test_desc import AddTestInfo
-from utils import wait
+from utils import wait, uuid
+import sys
 
 
 class GlanceCycle(object):
@@ -31,6 +32,8 @@ class GlanceCycle(object):
 
 def exec_test():
 
+    uuid.set_env()
+
     add_test_info = AddTestInfo(6, 'Glance image create Test')
 
     try:
@@ -47,6 +50,7 @@ def exec_test():
     except AssertionError, e:
         log.error(e)
         add_test_info.failed_status('error')
+        sys.exit(1)
 
     add_test_info.completed_info()
 
