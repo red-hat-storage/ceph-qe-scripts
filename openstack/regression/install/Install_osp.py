@@ -110,10 +110,10 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Install OSP')
 
-    parser.add_argument('-pid', "--pool_id", dest = "pid", help= 'Enter the RHEL Pool Id')
-    parser.add_argument('-r', '--repo', dest='r', nargs= '*',  help= 'Enter RHEL Ceph RPMS')
-    parser.add_argument('-u',  '--username,', dest='u', help = "Enter QA the Username")
-    parser.add_argument('-p',  '--password', dest='p', help = 'Enter QA Password')
+    parser.add_argument('-pid', "--pool_id", dest="pid", default="8a85f9823e3d5e43013e3ddd4e2a0977", help='Enter the RHEL Pool Id')
+    parser.add_argument('-r', '--repo', dest='r', nargs='*',  help='Enter RHEL Ceph RPMS')
+    parser.add_argument('-u',  '--username,', dest='u', default="qa@redhat.com",  help="Enter QA the Username")
+    parser.add_argument('-p',  '--password', dest='p', default="a85xH8a5w8EaZbdS",  help='Enter QA Password')
 
     args = parser.parse_args()
 
@@ -137,9 +137,3 @@ if __name__ == '__main__':
         print e
         sys.exit(1)
 
-
-
-    # pool_id = 8a85f9823e3d5e43013e3ddd4e2a0977
-    # rpms = ['rhel-7-server-rpms', 'rhel-7-server-rh-common-rpms', 'rhel-7-server-openstack-7.0-rpms']
-    # username = qa@redhat.com
-    # password = QMdMJ8jvSWUwB6WZ
