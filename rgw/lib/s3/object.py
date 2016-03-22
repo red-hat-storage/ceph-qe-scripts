@@ -130,3 +130,58 @@ class UploadContentsFromString(object):
                                     'msgs': e}
 
         return string_exists_status
+
+
+class UploadContentsFromFile(object):
+
+    def __init__(self, key):
+        self.key = key
+
+    def upload(self, filename):
+
+        """
+
+        :param filename: filename i.e along with location
+        :return: dictionary, args:
+                                1. status: True for successful upload or False for failed upload,
+                                2. msgs : error messages
+
+        """
+
+        try:
+            self.key.set_contents_from_filename(filename)
+
+            upload_status = {'status': True}
+
+        except exception.BotoClientError, e:
+            log.error(e)
+
+            upload_status = {'status': True,
+                             'msgs': e}
+
+        return upload_status
+
+    def download(self, filename):
+
+        """
+
+        :param filename: mention the filename which will be used to get the contents from s3 to this file.
+                can be different from the original filename
+
+        :return: dictionary, args:
+                                1. status: True for successful download or False for failed download,
+                                2. msgs : error messages
+        """
+
+        try:
+            self.key.get_contents_to_filename(filename)
+
+            download_status = {'status': True}
+
+        except exception.BotoClientError, e:
+            log.error(e)
+
+            download_status = {'status': False,
+                               'msgs': e}
+
+        return download_status
