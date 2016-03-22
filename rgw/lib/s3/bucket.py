@@ -1,5 +1,3 @@
-from boto.s3.connection import S3Connection
-import boto.s3.connection
 import boto.exception as exception
 import utils.log as log
 from utils.utils import Attribs
@@ -67,7 +65,6 @@ class Bucket(object):
 
 
 class DeleteBucket(object):
-
     def __init__(self, connection):
         self.connection = connection
 
@@ -85,9 +82,9 @@ class DeleteBucket(object):
         try:
             bucket_contents = bucket.list()
 
-            check_for_empty_stack = {'contents':  bucket_contents}
+            check_for_empty_stack = {'contents': bucket_contents}
 
-        except (exception.S3ResponseError, exception.AWSConnectionError),e :
+        except (exception.S3ResponseError, exception.AWSConnectionError), e:
             log.error(e)
             check_for_empty_stack = {'contents': [],
                                      'msgs': e}
@@ -120,30 +117,29 @@ class DeleteBucket(object):
 
 
 def list_all_buckets(connection):
+    """
 
-        """
+    :param connection: AWS authentication connection
+    :return: list_buckets_stack (dictionay):
+                args:
+                    1.attribs: list of all buckets or None
+                    2. msgs: error messages
+    """
 
-        :param connection: AWS authentication connection
-        :return: list_buckets_stack (dictionay):
-                    args:
-                        1.attribs: list of all buckets or None
-                        2. msgs: error messages
-        """
+    attribs = Attribs()
 
-        attribs = Attribs()
+    try:
 
-        try:
+        all_buckets = connection.get_all_buckets()
+        attribs.all_buckets = all_buckets
 
-            all_buckets = connection.get_all_buckets()
-            attribs.all_buckets = all_buckets
+        list_buckets_stack = {'attribs': attribs}
 
-            list_buckets_stack = {'attribs': attribs}
+    except (exception.S3ResponseError, exception.AWSConnectionError), e:
+        log.error(e)
 
-        except (exception.S3ResponseError, exception.AWSConnectionError),e :
-            log.error(e)
+        list_buckets_stack = {'attribs': None,
+                              'msgs': e
+                              }
 
-            list_buckets_stack = {'attribs': None,
-                                  'msgs': e
-                                  }
-
-        return list_buckets_stack
+    return list_buckets_stack
