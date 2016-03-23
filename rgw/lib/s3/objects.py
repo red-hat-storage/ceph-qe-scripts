@@ -5,15 +5,25 @@ from boto.s3.key import Key
 
 class KeyOp(object):
     def __init__(self, bucket):
+
+        log.debug('class: %s' % self.__class__.__name__)
+
         self.bucket = bucket
 
     def create(self, key_name):
+
+        log.debug('function: %s' % self.create.__name__)
+
+        log.info('creating key %s' % key_name)
 
         """
 
         :param key_name: string
         :return: key object or None
         """
+
+        log.info('create key %s' % key_name)
+
         try:
             k = Key(self.bucket)
             k.key = key_name
@@ -23,6 +33,10 @@ class KeyOp(object):
             return None
 
     def get(self, key_name):
+
+        log.debug('function: %s' % self.get.__name__)
+
+        log.info('in get key: %s' % key_name)
 
         """
 
@@ -38,6 +52,10 @@ class KeyOp(object):
             return None
 
     def delete(self, key_name):
+
+        log.debug('function: %s' % self.delete.__name__)
+
+        log.debug('in delete key %s:' % key_name)
 
         """
 
@@ -59,6 +77,10 @@ class KeyOp(object):
 
     def multidelete_keys(self, keys_list):
 
+        log.debug('function: %s' % self.multidelete_keys.__name__)
+
+        log.info('in mutiple keys delete %s' % keys_list)
+
         """
 
         :param keys_list: list of key names
@@ -78,9 +100,33 @@ class KeyOp(object):
 
 class UploadContentsFromString(object):
     def __init__(self, key):
+
+        log.debug('class: %s' % self.__class__.__name__)
+
         self.key = key
 
+    def set_metadata(self, **metadata):
+
+        log.debug('function: %s' % self.set_metadata.__name__)
+
+        log.info('setting metadata %s' % metadata)
+
+        metadata_name = metadata.keys()[0]
+        metadata_value = metadata.values()[0]
+
+        try:
+            self.key.set_metadata(metadata_name, metadata_value)
+            return True
+
+        except exception.BotoClientError, e:
+            log.error(e)
+            return False
+
     def upload(self, string_val):
+
+        log.debug('function: %s' % self.upload.__name__)
+
+        log.info('upload of string %s' % string_val)
 
         """
 
@@ -105,6 +151,10 @@ class UploadContentsFromString(object):
         return upload_status
 
     def check_contents(self):
+
+        log.debug('function: %s' % self.check_contents.__name__)
+
+        log.info('checking contents or getting the string val')
 
         """
 
@@ -135,9 +185,33 @@ class UploadContentsFromString(object):
 class UploadContentsFromFile(object):
 
     def __init__(self, key):
+
+        log.debug('class: %s' % self.__class__.__name__)
+
         self.key = key
 
+    def set_metadata(self, **metadata):
+
+        log.debug('function: %s' % self.set_metadata.__name__)
+
+        log.info('setting metadata %s' % metadata)
+
+        metadata_name = metadata.keys()[0]
+        metadata_value = metadata.values()[0]
+
+        try:
+            self.key.set_metadata(metadata_name, metadata_value)
+            return True
+
+        except exception.BotoClientError, e:
+            log.error(e)
+            return False
+
     def upload(self, filename):
+
+        log.debug('function: %s' % self.upload.__name__)
+
+        log.info('upload of file: %s' % filename)
 
         """
 
@@ -163,9 +237,15 @@ class UploadContentsFromFile(object):
 
     def download(self, filename):
 
+        log.debug('function: %s' % self.download.__name__)
+
+        log.info('getting the contents of file %s:' % self.key)
+
+        log.info('download or get the file to filename: %s' % filename)
+
         """
 
-        :param filename: mention the filename which will be used to get the contents from s3 to this file.
+        :param: filename: mention the filename which will be used to get the contents from s3 to this file.
                 can be different from the original filename
 
         :return: dictionary, args:
