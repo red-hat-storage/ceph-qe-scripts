@@ -25,8 +25,6 @@ class Authenticate(object):
             auth_stack = {'status': True,
                           'conn': conn}
 
-            log.info('connection successful')
-
         except (boto.s3.connection.HostRequiredError, exception.AWSConnectionError), e:
 
             log.error('connection failed')

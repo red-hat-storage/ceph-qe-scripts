@@ -1,7 +1,7 @@
-from lib.s3.rgw import InitializeRGW
-import lib.s3.rgw as rgw
+from lib.s3.rgw import RGW
 import utils.log as log
 import sys
+from lib.s3.objects import KeyOp, UploadContentsFromString, UploadContentsFromFile
 
 
 def sample_test1():
@@ -9,7 +9,7 @@ def sample_test1():
     try:
 
         log.info('starting init of RGW instace. trying to authenticate')
-        init_rgw = InitializeRGW('access_key', 'secret_key')
+        init_rgw = RGW('access_key', 'secret_key')
 
         bucky = init_rgw.bucket.create('rakesh')
 
@@ -17,12 +17,12 @@ def sample_test1():
 
         rakesh_bucket = bucky['bucket']
 
-        key_op = rgw.KeyOp(rakesh_bucket)
+        key_op = KeyOp(rakesh_bucket)
 
         left_key = key_op.create('left')
         assert left_key['status'], "key creation failed"
 
-        upload_from_file = rgw.UploadContentsFromFile(left_key)
+        upload_from_file = UploadContentsFromFile(left_key)
 
         uploaded_file = upload_from_file.upload('rakesh.jpg')
         assert uploaded_file['status'], "upload of key %s failed" % uploaded_file
@@ -37,4 +37,3 @@ def sample_test1():
 if __name__ == '__main__':
 
     sample_test1()
-

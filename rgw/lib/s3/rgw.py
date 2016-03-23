@@ -5,7 +5,7 @@ import utils.log as log
 import objects, bucket
 
 
-class InitializeRGW(object):
+class RGW(object):
 
     def __init__(self, access_key, secret_key):
 
@@ -18,6 +18,10 @@ class InitializeRGW(object):
         connection = connection['conn']
 
         self.bucket = Bucket(connection)
+
+
+
+
 
 
 

@@ -30,7 +30,7 @@ class Bucket(object):
             create_bucket_stack = {'status': True,
                                    'bucket': bucket}
 
-        except (exception.AWSConnectionError, exception.S3CreateError), e:
+        except (exception.AWSConnectionError, exception.S3ResponseError, exception.S3CreateError), e:
             log.error(e)
             create_bucket_stack = {'status': False,
                                    'msgs': e}
