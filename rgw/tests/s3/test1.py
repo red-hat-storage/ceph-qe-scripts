@@ -1,7 +1,8 @@
 from lib.s3.rgw import RGW
 import utils.log as log
 import sys
-from lib.s3.objects import KeyOp, UploadContentsFromString, UploadContentsFromFile
+from lib.s3.objects import KeyOp, PutContentsFromFile
+import utils.utils as utils
 
 
 def sample_test1():
@@ -22,9 +23,11 @@ def sample_test1():
         left_key = key_op.create('left')
         assert left_key['status'], "key creation failed"
 
-        upload_from_file = UploadContentsFromFile(left_key)
+        upload_from_file = PutContentsFromFile(left_key)
 
-        uploaded_file = upload_from_file.upload('rakesh.jpg')
+        random_file = utils.create_file('keysRansome', 50)
+
+        uploaded_file = upload_from_file.put(random_file)
         assert uploaded_file['status'], "upload of key %s failed" % uploaded_file
 
         sys.exit(0)

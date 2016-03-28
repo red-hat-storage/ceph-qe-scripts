@@ -98,7 +98,7 @@ class KeyOp(object):
             return None
 
 
-class UploadContentsFromString(object):
+class PutContentsFromString(object):
     def __init__(self, key):
 
         log.debug('class: %s' % self.__class__.__name__)
@@ -122,9 +122,9 @@ class UploadContentsFromString(object):
             log.error(e)
             return False
 
-    def upload(self, string_val):
+    def put(self, string_val):
 
-        log.debug('function: %s' % self.upload.__name__)
+        log.debug('function: %s' % self.put.__name__)
 
         log.info('upload of string %s' % string_val)
 
@@ -182,7 +182,7 @@ class UploadContentsFromString(object):
         return string_exists_status
 
 
-class UploadContentsFromFile(object):
+class PutContentsFromFile(object):
 
     def __init__(self, key):
 
@@ -207,9 +207,9 @@ class UploadContentsFromFile(object):
             log.error(e)
             return False
 
-    def upload(self, filename):
+    def put(self, filename):
 
-        log.debug('function: %s' % self.upload.__name__)
+        log.debug('function: %s' % self.put.__name__)
 
         log.info('upload of file: %s' % filename)
 
@@ -235,9 +235,9 @@ class UploadContentsFromFile(object):
 
         return upload_status
 
-    def download(self, filename):
+    def get(self, filename):
 
-        log.debug('function: %s' % self.download.__name__)
+        log.debug('function: %s' % self.get.__name__)
 
         log.info('getting the contents of file %s:' % self.key)
 
