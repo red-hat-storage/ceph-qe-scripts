@@ -1,6 +1,8 @@
 import boto.exception as exception
 import utils.log as log
 from boto.s3.key import Key
+import math, os
+from filechunkio import FileChunkIO
 
 
 class KeyOp(object):
@@ -265,3 +267,49 @@ class PutContentsFromFile(object):
                                'msgs': e}
 
         return download_status
+
+
+class MultipartPut(object):
+
+    def __init__(self, bucket):
+
+        log.debug('class: %s' % self.__class__.__name__)
+
+        self.bucket = bucket
+
+    def put(self, filename, chunk_size):
+
+        try:
+
+            file_size = os.stat(filename).st_size
+
+            mp = self.bucket.initiate_multipart_upload(os.path.basename(filename))
+
+            chunk_count = int(math.ceil(filename / float(chunk_size)))
+
+            # Send the file parts, using FileChunkIO to create a file-like object
+            # that points to a certain byte range within the original file. We
+            # set bytes to never exceed the original file size
+
+            for i in range(chunk_count):
+
+                offset = chunk_size * i
+                bytes = min(chunk_size, file_size - offset)
+                with FileChunkIO(filename, 'r', offset=offset, bytes=bytes) as fp:
+                    mp.upload_part_from_file(fp, part_num=i + 1)
+
+            # Finish the upload
+
+            mp.complete_upload()
+
+            upload_status = {'status': True}
+
+        except exception.BotoClientError, e:
+
+            log.error(e)
+
+            upload_status = {'status': False,
+                             'msg': e}
+
+        return upload_status
+

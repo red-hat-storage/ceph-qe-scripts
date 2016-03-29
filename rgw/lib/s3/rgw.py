@@ -20,12 +20,12 @@ class RGW(object):
 
         self.bucket = Bucket(connection)
 
-    def create_bucket_with_keys(self, bucket_create_nos,
-                                object_create_nos,
-                                **object_size):
+    def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, **object_size):
 
         min_object_size = object_size['min']
         max_object_size = object_size['max']
+
+        self.buckets_created = []
 
         log.info('no of buckets to create: %s' % bucket_create_nos)
         log.info('no of obejcts in a bucket to create %s' % object_create_nos)
@@ -44,6 +44,8 @@ class RGW(object):
                 raise AssertionError
 
             log.info('bucket created')
+
+            self.buckets_created.append(bucket_name)
 
             if object_create_nos > 0:
 
@@ -85,3 +87,42 @@ class RGW(object):
                     key_on_rgw_node = key_op.get(key_name)
 
                     log.info('key on RGW %s\n' % key_on_rgw_node)
+
+    def delete_bucket_with_keys(self):
+
+        log.info('deleted buckets with keys')
+
+        for bucket_name in self.buckets_created:
+
+            log.info('ops on bucket name: %s' % bucket_name)
+
+            bucket = self.bucket.get(bucket_name)
+
+            all_keys_in_bucket = bucket['bucket'].list()
+
+            if all_keys_in_bucket:
+
+                log.info('got all keys in bucket: %s' % all_keys_in_bucket)
+
+                key_op = KeyOp(bucket['bucket'])
+
+                log.info('delete of all keys')
+
+                keys_deleted = key_op.multidelete_keys(all_keys_in_bucket)
+
+                if keys_deleted is None:
+                    log.error('key not deleted')
+                    raise AssertionError
+
+                log.info('all keys deleted')
+
+                log.info('delete of bucket')
+
+                bucket_deleted = self.bucket.delete(bucket_name)
+
+                if not bucket_deleted['status']:
+                    log.error('bucket not deleted')
+                    raise AssertionError
+
+                log.info('bucket deleted')
+
