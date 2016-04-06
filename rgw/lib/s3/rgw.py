@@ -1,12 +1,12 @@
 from auth import Authenticate
 from bucket import Bucket
-from objects import KeyOp, PutContentsFromFile, PutContentsFromString
+from objects import KeyOp, PutContentsFromFile, PutContentsFromString, MultipartPut
 import utils.log as log
 import utils.utils as utils
 from random import randint
 
 
-class RGW(object):
+class BaseOp(object):
 
     def __init__(self, access_key, secret_key):
 
@@ -20,7 +20,14 @@ class RGW(object):
 
         self.bucket = Bucket(connection)
 
-    def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, **object_size):
+
+class RGW(BaseOp):
+
+    def __init__(self, access_key, secret_key):
+
+        super(RGW, self).__init__(access_key, secret_key)
+
+    def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, multipart_upload = False, **object_size):
 
         min_object_size = object_size['min']
         max_object_size = object_size['max']
@@ -30,11 +37,11 @@ class RGW(object):
         log.info('no of buckets to create: %s' % bucket_create_nos)
         log.info('no of obejcts in a bucket to create %s' % object_create_nos)
 
-        for bucket in range(bucket_create_nos):
+        for bucket_no in range(bucket_create_nos):
 
-            log.debug('iter: %s' % bucket)
+            log.debug('iter: %s' % bucket_no)
 
-            bucket_name = str('buckey') + "." + str(bucket)
+            bucket_name = str('buckey') + "." + str(bucket_no)
 
             log.info('bucket_name: %s' % bucket_name)
 
@@ -58,6 +65,12 @@ class RGW(object):
 
                     log.info('key name to create %s' % key_name)
 
+                    size = randint(min_object_size, max_object_size)
+
+                    log.info('size of the file to create %s' % size)
+
+                    random_file, md5 = utils.create_file(key_name, size)
+
                     key_op = KeyOp(bucket_created['bucket'])
 
                     key_created = key_op.create(key_name)
@@ -68,12 +81,6 @@ class RGW(object):
                     log.info('key created')
 
                     put_file = PutContentsFromFile(key_created)
-
-                    size = randint(min_object_size, max_object_size)
-
-                    log.info('size of the file to create %s' % size)
-
-                    random_file, md5 = utils.create_file(key_name, size)
 
                     log.info('\nrandom filename created :%s\n md5 of the file: %s' % (random_file, md5))
 
@@ -126,3 +133,26 @@ class RGW(object):
 
                 log.info('bucket deleted')
 
+    def multipart_upload(self, size, bucket_name):
+
+        bucket_created = self.bucket.create(bucket_name)
+
+        if not bucket_created['status']:
+            raise AssertionError
+
+        log.info('bucket created')
+
+        log.info('multpart upload enabled')
+
+        multipart = MultipartPut(bucket_created['bucket'])
+
+        log.info('size of the file to create %s' % size)
+
+        key_name = bucket_name + "." + "mpFile"
+
+        file_created, md5 = utils.create_file(key_name, size)
+
+        put = multipart.put(filename=file_created, chunk_size=size / 10)
+
+        if not put['status']:
+            raise AssertionError

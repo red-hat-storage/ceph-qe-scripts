@@ -3,6 +3,9 @@ import utils.log as log
 from boto.s3.key import Key
 import math, os
 from filechunkio import FileChunkIO
+from utils.utils import  JsonOps
+import utils.utils as utils
+import glob
 
 
 class KeyOp(object):
@@ -271,19 +274,92 @@ class PutContentsFromFile(object):
 
 class MultipartPut(object):
 
-    def __init__(self, bucket):
+    def __init__(self, bucket, json_file):
 
         log.debug('class: %s' % self.__class__.__name__)
 
         self.bucket = bucket
+        self.split_files_list = []
+        self.json_ops = JsonOps(json_file)
 
-    def put(self, filename, chunk_size):
+        if not os.path.exists(json_file):
+
+            log.info('no json file found, so fresh multipart upload')
+            self.json_ops.total_parts_count = 0
+            self.json_ops.remaining_file_parts = []
+
+            self.json_ops.create_update_json_file()
+
+    def put(self, filename, chunk_size=5):
 
         try:
 
             file_size = os.stat(filename).st_size
+            file_path = os.path.dirname(filename)
 
             mp = self.bucket.initiate_multipart_upload(os.path.basename(filename))
+
+            log.info('loading the json data')
+            self.json_ops.refresh_json_data()
+
+            if self.json_ops.total_parts_count == 0:
+
+                log.info('got filename: %s\ngot filepath: %s' % (filename, file_path)
+                         )
+
+                log.info('fresh multipart upload')
+
+                utils.split_file(filename)
+
+                self.split_files_list = sorted(glob.glob(file_path + '/' + 'x*'))
+
+                log.info('split files list: %s' % self.split_files_list)
+
+                self.json_ops.total_parts_count = len(self.split_files_list)
+
+                log.info('total file parts %s' % self.json_ops.total_parts_count)
+
+                remaining_file_parts = []
+
+                for each_file in self.split_files_list:
+                    remaining_file_parts.append((each_file,
+                                                 (self.split_files_list.index(each_file) + 1)
+                                                 )
+                                                )
+
+                log.info('remainig file parts structure :%s' % remaining_file_parts)
+
+                self.json_ops.remaining_file_parts = remaining_file_parts
+                self.json_ops.create_update_json_file()
+
+            self.json_ops.refresh_json_data()
+
+            remaining_file_parts = self.json_ops.remaining_file_parts
+
+            remaining_file_parts_copy = remaining_file_parts
+
+            for each_file_part in remaining_file_parts:
+
+                log.info('file part to upload: %s\nfile part number: %s' % (each_file_part[0], each_file_part[1]))
+
+                mp.upload_part_from_file(os.path.basename(each_file_part[0]), each_file_part[1])
+
+                remaining_file_parts_copy.remove(each_file_part)
+                self.json_ops.remaining_file_parts = remaining_file_parts_copy
+
+                log.info('updating json file')
+                self.json_ops.create_update_json_file()
+
+            mp.complete_upload()
+            log.info('multpart complete')
+
+            upload_status = {'status': True}
+
+            """
+
+            # the following code is better than splitting the file,
+            # but commenting this for now and going ahead with splting the files
+
 
             chunk_count = int(math.ceil(filename / float(chunk_size)))
 
@@ -300,9 +376,7 @@ class MultipartPut(object):
 
             # Finish the upload
 
-            mp.complete_upload()
-
-            upload_status = {'status': True}
+            """
 
         except exception.BotoClientError, e:
 
