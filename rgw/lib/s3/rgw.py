@@ -4,6 +4,7 @@ from objects import KeyOp, PutContentsFromFile, PutContentsFromString, Multipart
 import utils.log as log
 import utils.utils as utils
 from random import randint
+import os
 
 
 class BaseOp(object):
@@ -27,7 +28,7 @@ class RGW(BaseOp):
 
         super(RGW, self).__init__(access_key, secret_key)
 
-    def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, multipart_upload = False, **object_size):
+    def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, **object_size):
 
         min_object_size = object_size['min']
         max_object_size = object_size['max']
@@ -133,26 +134,52 @@ class RGW(BaseOp):
 
                 log.info('bucket deleted')
 
-    def multipart_upload(self, size, bucket_name):
 
-        bucket_created = self.bucket.create(bucket_name)
+class RGWMultpart(BaseOp):
 
-        if not bucket_created['status']:
-            raise AssertionError
+    def __init__(self, access_key, secret_key):
 
-        log.info('bucket created')
+        super(RGWMultpart, self).__init__(access_key, secret_key)
 
-        log.info('multpart upload enabled')
+        self.set_cancel_upload = False
 
-        multipart = MultipartPut(bucket_created['bucket'])
+        self.break_upload_at_part_no = 0
 
-        log.info('size of the file to create %s' % size)
+    def upload(self, size, bucket_name):
 
-        key_name = bucket_name + "." + "mpFile"
+            bucket_created = self.bucket.create(bucket_name)
 
-        file_created, md5 = utils.create_file(key_name, size)
+            if not bucket_created['status']:
+                raise AssertionError
 
-        put = multipart.put(filename=file_created, chunk_size=size / 10)
+            log.info('bucket created')
 
-        if not put['status']:
-            raise AssertionError
+            log.info('multpart upload enabled')
+
+            log.info('size of the file to create %s' % size)
+
+            key_name = bucket_name + "." + "mpFile"
+
+            filename, md5 = utils.create_file(key_name, size)
+
+            json_file = os.path.join(os.path.dirname(filename), "_json.json")
+
+            multipart = MultipartPut(bucket_created['bucket'], filename, json_file)
+
+            multipart.break_at_part_no = self.break_upload_at_part_no
+
+            multipart.iniate_multipart()
+            put = multipart.put()
+
+            if not put['status']:
+                raise AssertionError
+
+            if not self.set_cancel_upload:
+
+                if not multipart.complete_multipart():
+                    raise AssertionError
+
+            else:
+
+                if not multipart.cancel_multpart():
+                    raise AssertionError

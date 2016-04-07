@@ -274,13 +274,15 @@ class PutContentsFromFile(object):
 
 class MultipartPut(object):
 
-    def __init__(self, bucket, json_file):
+    def __init__(self, bucket, filename, json_file ):
 
         log.debug('class: %s' % self.__class__.__name__)
 
         self.bucket = bucket
         self.split_files_list = []
         self.json_ops = JsonOps(json_file)
+
+        self.filename = filename
 
         if not os.path.exists(json_file):
 
@@ -289,15 +291,51 @@ class MultipartPut(object):
             self.json_ops.remaining_file_parts = []
 
             self.json_ops.create_update_json_file()
+            self.mp = None
 
-    def put(self, filename, chunk_size=5):
+            self.break_at_part_no = 0
+
+    def iniate_multipart(self):
 
         try:
 
+            log.info('initaiting multipart upload')
+            self.mp = self.bucket.initiate_multipart_upload(os.path.basename(self.filename))
+
+        except exception.BotoClientError, e:
+            log.error(e)
+            return False
+
+    def complete_multipart(self):
+
+        try:
+
+            log.info('completing multipart upload')
+            self.mp.mp.complete_upload()
+
+        except exception.BotoClientError, e:
+            log.error(e)
+            return False
+
+    def cancel_multpart(self):
+
+        try:
+
+            log.info('cancelling multipart upload')
+            self.mp.cancel_upload()
+
+        except exception.BotoClientError, e:
+            log.error(e)
+            return False
+
+    def put(self):
+
+        try:
+
+            filename = self.filename
+
             file_size = os.stat(filename).st_size
             file_path = os.path.dirname(filename)
-
-            mp = self.bucket.initiate_multipart_upload(os.path.basename(filename))
 
             log.info('loading the json data')
             self.json_ops.refresh_json_data()
@@ -340,18 +378,20 @@ class MultipartPut(object):
 
             for each_file_part in remaining_file_parts:
 
-                log.info('file part to upload: %s\nfile part number: %s' % (each_file_part[0], each_file_part[1]))
+                if self.break_at_part_no != 0 and self.break_at_part_no == int(each_file_part[1]):
 
-                mp.upload_part_from_file(os.path.basename(each_file_part[0]), each_file_part[1])
+                    log.info('upload stopped at partno : %s' % each_file_part[1])
+                    break
+
+                log.info('file part to upload: %s\nfile part number: %s' % (each_file_part[0], int(each_file_part[1])))
+
+                self.mp.upload_part_from_file(os.path.basename(each_file_part[0]), each_file_part[1])
 
                 remaining_file_parts_copy.remove(each_file_part)
                 self.json_ops.remaining_file_parts = remaining_file_parts_copy
 
                 log.info('updating json file')
                 self.json_ops.create_update_json_file()
-
-            mp.complete_upload()
-            log.info('multpart complete')
 
             upload_status = {'status': True}
 

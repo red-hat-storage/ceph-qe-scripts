@@ -13,16 +13,18 @@ def get_md5(file_path):
 
 def create_file(fname, size):
 
+    # give the size in mega bytes.
+
     file_size = 1024 * 1024 * size
 
     with open(fname, 'wb') as f:
         f.truncate(file_size)
 
-    path = os.path.abspath(fname)
+    fname_with_path = os.path.abspath(fname)
 
     md5 = get_md5(fname)
 
-    return path, md5
+    return fname_with_path, md5
 
 
 def split_file(fname, size_to_split=5):
@@ -67,3 +69,8 @@ class JsonOps(object):
 
         self.total_parts_count = json_data['total_parts']
         self.remaining_file_parts = json_data['remaining_parts']
+
+
+
+def break_connection():
+    pass
