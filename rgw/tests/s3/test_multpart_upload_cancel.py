@@ -12,12 +12,25 @@ def test_exec():
 
     try:
 
+        break_part_no = 145
+        size = 3000
+        bucket_name = 'think.batman'
+
         test_info.started_info()
-
         rgw = RGWMultpart('2D6OA0XPW2WEY4LZND4T', '58onUujPfEJGmC8VVM9BHGq9SkC9vyeRZYAGp8AD')
-        rgw.set_cancel_multipart = True
+        rgw.break_upload_at_part_no = break_part_no
 
-        rgw.upload(3000, 'third_large_bucket')
+        rgw.upload(size, bucket_name)
+
+        log.info('----------------------------')
+
+        log.info('starting from part no: %s' % break_part_no)
+
+        log.info('----------------------------')
+
+        rgw.break_upload_at_part_no = 0
+        rgw.upload(size, bucket_name)
+
 
         test_info.success_status('test completed')
 

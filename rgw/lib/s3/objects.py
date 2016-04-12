@@ -295,17 +295,6 @@ class MultipartPut(object):
 
         try:
 
-            """
-                if not os.path.exists(json_file):
-                    # or (os.path.exists(json_file and not self.json_ops.remaining_file_parts) :
-
-                    log.info('no json file found, so fresh multipart upload')
-                    self.json_ops.total_parts_count = 0
-                    self.json_ops.remaining_file_parts = []
-
-                    self.json_ops.create_update_json_file()
-            """
-
             self.json_ops = JsonOps(json_file)
 
             log.info('initaiting multipart upload')
@@ -415,20 +404,21 @@ class MultipartPut(object):
                 for part in self.mp:
                     log.info('%s: %s' % (part.part_number, part.size))
 
-                upload_status = {}
+                if self.break_at_part_no == 0:
 
-                if self.cancel_multpart:
-                    log.info('cancelling upload')
+                    # if self.cancel_multpart:
+                    #     log.info('cancelling upload')
+                    #
+                    #     self.mp.cancel_upload()
+                    #
+                    #     if not self.mp:
+                    #         upload_status = {'status': False}
+                    #
 
-                    self.mp.cancel_upload()
-
-                    if not self.mp:
-                        upload_status = {'status': False}
-
-                else:
                     log.info('completing upload')
                     self.mp.complete_upload()
-                    upload_status = {'status': True}
+
+                upload_status = {'status': True}
 
                 """
 

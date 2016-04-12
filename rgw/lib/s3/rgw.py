@@ -150,15 +150,21 @@ class RGWMultpart(BaseOp):
 
     def upload(self, size, bucket_name):
 
-            log.info('bucket created')
-
-            log.info('multpart upload enabled')
-
-            log.info('size of the file to create %s' % size)
-
             key_name = bucket_name + "." + "mpFile"
 
-            filename, md5 = utils.create_file(key_name, size)
+            if not os.path.exists(key_name):
+
+                log.info('size of the file to create %s' % size)
+
+                log.info('file does not exists, so creating the file')
+
+                filename, md5 = utils.create_file(key_name, size)
+
+            else:
+
+                log.info('file exists')
+                filename = os.path.abspath(key_name)
+                md5 = utils.get_md5(filename)
 
             log.info('got filename %s' % filename)
 
@@ -171,6 +177,8 @@ class RGWMultpart(BaseOp):
             bucket = self.connection['conn'].lookup(bucket_name)
 
             if bucket is None:
+
+                log.info('bucket does not exists, so creating the bucket')
 
                 bucket_created = self.bucket.create(bucket_name)
                 bucket = bucket_created['bucket']

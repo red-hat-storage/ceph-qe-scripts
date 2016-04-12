@@ -16,7 +16,7 @@ def test_exec():
 
         rgw = RGWMultpart('2D6OA0XPW2WEY4LZND4T', '58onUujPfEJGmC8VVM9BHGq9SkC9vyeRZYAGp8AD')
 
-        rgw.upload(3000, 'rakesh_large_bucket')
+        rgw.upload(3000, 'bigbasket')
 
         test_info.success_status('test completed')
 
