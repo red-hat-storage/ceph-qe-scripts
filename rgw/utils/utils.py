@@ -44,13 +44,18 @@ class JsonOps(object):
 
     def __init__(self, fname):
         self.fname = fname
-
+        self.mp_id = None
+        self.key_name = None
         self.total_parts_count = 0
         self.remaining_file_parts = []
 
     def create_json_data(self):
 
-        json_data = {'total_parts': self.total_parts_count,
+        log.info('creating json data')
+
+        json_data = {'mp_id' : self.mp_id,
+                     'key_name' : self.key_name,
+                     'total_parts': self.total_parts_count,
                      'remaining_parts': self.remaining_file_parts
                      }
 
@@ -58,18 +63,24 @@ class JsonOps(object):
 
     def create_update_json_file(self):
 
+        log.debug('creating_updating json file')
+
         json_data = self.create_json_data()
 
         with open(self.fname, "w") as fp:
             json.dump(json_data, fp, indent=4)
 
     def refresh_json_data(self):
+
+        log.info('loading / refreshing json file')
+
         with open(self.fname) as fp:
             json_data = json.load(fp)
 
         self.total_parts_count = json_data['total_parts']
         self.remaining_file_parts = json_data['remaining_parts']
-
+        self.key_name = json_data['key_name']
+        self.mp_id = json_data['mp_id']
 
 
 def break_connection():

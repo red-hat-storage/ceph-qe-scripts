@@ -1,8 +1,9 @@
 import boto.exception as exception
 import utils.log as log
 from boto.s3.key import Key
+import boto
 import math, os
-from filechunkio import FileChunkIO
+#from filechunkio import FileChunkIO
 from utils.utils import  JsonOps
 import utils.utils as utils
 import glob
@@ -26,8 +27,6 @@ class KeyOp(object):
         :param key_name: string
         :return: key object or None
         """
-
-        log.info('create key %s' % key_name)
 
         try:
             k = Key(self.bucket)
@@ -228,6 +227,7 @@ class PutContentsFromFile(object):
         """
 
         try:
+
             self.key.set_contents_from_filename(filename)
 
             upload_status = {'status': True}
@@ -274,84 +274,57 @@ class PutContentsFromFile(object):
 
 class MultipartPut(object):
 
-    def __init__(self, bucket, filename, json_file ):
+    def __init__(self, bucket, filename):
 
         log.debug('class: %s' % self.__class__.__name__)
 
         self.bucket = bucket
         self.split_files_list = []
-        self.json_ops = JsonOps(json_file)
 
         self.filename = filename
 
-        if not os.path.exists(json_file):
+        self.json_ops = None
 
-            log.info('no json file found, so fresh multipart upload')
-            self.json_ops.total_parts_count = 0
-            self.json_ops.remaining_file_parts = []
+        self.cancel_multpart = False
 
-            self.json_ops.create_update_json_file()
-            self.mp = None
+        self.mp = None
 
-            self.break_at_part_no = 0
+        self.break_at_part_no = 0
 
-    def iniate_multipart(self):
+    def iniate_multipart(self, json_file):
 
         try:
+
+            """
+                if not os.path.exists(json_file):
+                    # or (os.path.exists(json_file and not self.json_ops.remaining_file_parts) :
+
+                    log.info('no json file found, so fresh multipart upload')
+                    self.json_ops.total_parts_count = 0
+                    self.json_ops.remaining_file_parts = []
+
+                    self.json_ops.create_update_json_file()
+            """
+
+            self.json_ops = JsonOps(json_file)
 
             log.info('initaiting multipart upload')
-            self.mp = self.bucket.initiate_multipart_upload(os.path.basename(self.filename))
 
-        except exception.BotoClientError, e:
-            log.error(e)
-            return False
+            file_path = os.path.dirname(self.filename)
 
-    def complete_multipart(self):
+            key_name = os.path.basename(self.filename)
 
-        try:
-
-            log.info('completing multipart upload')
-            self.mp.mp.complete_upload()
-
-        except exception.BotoClientError, e:
-            log.error(e)
-            return False
-
-    def cancel_multpart(self):
-
-        try:
-
-            log.info('cancelling multipart upload')
-            self.mp.cancel_upload()
-
-        except exception.BotoClientError, e:
-            log.error(e)
-            return False
-
-    def put(self):
-
-        try:
-
-            filename = self.filename
-
-            file_size = os.stat(filename).st_size
-            file_path = os.path.dirname(filename)
-
-            log.info('loading the json data')
-            self.json_ops.refresh_json_data()
-
-            if self.json_ops.total_parts_count == 0:
-
-                log.info('got filename: %s\ngot filepath: %s' % (filename, file_path)
-                         )
+            if not os.path.exists(json_file):
 
                 log.info('fresh multipart upload')
 
-                utils.split_file(filename)
+                log.info('got filename: %s\ngot filepath: %s' % (self.filename, file_path))
+
+                utils.split_file(self.filename)
 
                 self.split_files_list = sorted(glob.glob(file_path + '/' + 'x*'))
 
-                log.info('split files list: %s' % self.split_files_list)
+                # log.info('split files list: %s' % self.split_files_list)
 
                 self.json_ops.total_parts_count = len(self.split_files_list)
 
@@ -365,65 +338,127 @@ class MultipartPut(object):
                                                  )
                                                 )
 
-                log.info('remainig file parts structure :%s' % remaining_file_parts)
+                # log.info('remainig file parts structure :%s' % remaining_file_parts)
 
                 self.json_ops.remaining_file_parts = remaining_file_parts
+
+                self.mp = self.bucket.initiate_multipart_upload(key_name)
+
+                self.json_ops.mp_id = self.mp.id
+                self.json_ops.key_name = self.mp.key_name
+
+                log.info('multipart_id :%s' % self.mp.id)
+                log.info('key_name %s' % self.mp.key_name)
+
                 self.json_ops.create_update_json_file()
 
-            self.json_ops.refresh_json_data()
+            else:
+                log.info('not fresh mulitpart')
 
-            remaining_file_parts = self.json_ops.remaining_file_parts
+                self.json_ops.refresh_json_data()
 
-            remaining_file_parts_copy = remaining_file_parts
+                self.mp = boto.s3.multipart.MultiPartUpload(self.bucket)
+                self.mp.key_name = self.json_ops.key_name
+                self.mp.id = self.json_ops.mp_id
 
-            for each_file_part in remaining_file_parts:
-
-                if self.break_at_part_no != 0 and self.break_at_part_no == int(each_file_part[1]):
-
-                    log.info('upload stopped at partno : %s' % each_file_part[1])
-                    break
-
-                log.info('file part to upload: %s\nfile part number: %s' % (each_file_part[0], int(each_file_part[1])))
-
-                self.mp.upload_part_from_file(os.path.basename(each_file_part[0]), each_file_part[1])
-
-                remaining_file_parts_copy.remove(each_file_part)
-                self.json_ops.remaining_file_parts = remaining_file_parts_copy
-
-                log.info('updating json file')
-                self.json_ops.create_update_json_file()
-
-            upload_status = {'status': True}
-
-            """
-
-            # the following code is better than splitting the file,
-            # but commenting this for now and going ahead with splting the files
-
-
-            chunk_count = int(math.ceil(filename / float(chunk_size)))
-
-            # Send the file parts, using FileChunkIO to create a file-like object
-            # that points to a certain byte range within the original file. We
-            # set bytes to never exceed the original file size
-
-            for i in range(chunk_count):
-
-                offset = chunk_size * i
-                bytes = min(chunk_size, file_size - offset)
-                with FileChunkIO(filename, 'r', offset=offset, bytes=bytes) as fp:
-                    mp.upload_part_from_file(fp, part_num=i + 1)
-
-            # Finish the upload
-
-            """
+                log.info('multipart_id :%s' % self.mp.id)
+                log.info('key_name %s' % self.mp.key_name)
 
         except exception.BotoClientError, e:
-
             log.error(e)
+            return False
 
-            upload_status = {'status': False,
-                             'msg': e}
+    def put(self):
 
-        return upload_status
+            try:
+
+                log.info('loading the json data')
+                self.json_ops.refresh_json_data()
+
+                self.json_ops.refresh_json_data()
+
+                log.debug('remaining parts assigning')
+
+                log.debug('making a copy of remaining parts')
+
+                remaining_file_parts_copy = list(self.json_ops.remaining_file_parts)
+
+                log.debug('starting the loop')
+
+                for each_file_part in self.json_ops.remaining_file_parts:
+
+                    log.info('file part to upload: %s\nfile part number: %s' % (each_file_part[0], int(each_file_part[1])))
+
+                    log.info('entering iteration')
+
+                    if self.break_at_part_no != 0 and self.break_at_part_no == int(each_file_part[1]):
+
+                        log.info('upload stopped at partno : %s' % each_file_part[1])
+                        break
+
+                    fp = open(each_file_part[0], 'rb')
+
+                    self.mp.upload_part_from_file(fp, int(each_file_part[1]))
+
+                    fp.close()
+
+                    log.info('part of file uploaded')
+
+                    remaining_file_parts_copy.remove(each_file_part)
+                    self.json_ops.remaining_file_parts = remaining_file_parts_copy
+
+                    log.info('updating json file')
+                    self.json_ops.create_update_json_file()
+
+                log.info('printing all the uploaded parts')
+
+                for part in self.mp:
+                    log.info('%s: %s' % (part.part_number, part.size))
+
+                upload_status = {}
+
+                if self.cancel_multpart:
+                    log.info('cancelling upload')
+
+                    self.mp.cancel_upload()
+
+                    if not self.mp:
+                        upload_status = {'status': False}
+
+                else:
+                    log.info('completing upload')
+                    self.mp.complete_upload()
+                    upload_status = {'status': True}
+
+                """
+
+                # the following code is better than splitting the file,
+                # but commenting this for now and going ahead with splting the files
+
+
+                chunk_count = int(math.ceil(filename / float(chunk_size)))
+
+                # Send the file parts, using FileChunkIO to create a file-like object
+                # that points to a certain byte range within the original file. We
+                # set bytes to never exceed the original file size
+
+                for i in range(chunk_count):
+
+                    offset = chunk_size * i
+                    bytes = min(chunk_size, file_size - offset)
+                    with FileChunkIO(filename, 'r', offset=offset, bytes=bytes) as fp:
+                        mp.upload_part_from_file(fp, part_num=i + 1)
+
+                # Finish the upload
+
+                """
+
+            except exception.BotoClientError, e:
+
+                log.error(e)
+
+                upload_status = {'status': False,
+                                 'msg': e}
+
+            return upload_status
 

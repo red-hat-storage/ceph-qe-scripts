@@ -14,10 +14,11 @@ class BaseOp(object):
         log.debug('class: %s' % self.__class__.__name__)
 
         auth = Authenticate(access_key, secret_key)
-        connection = auth.do_auth()
 
-        assert connection['status']
-        connection = connection['conn']
+        self.connection = auth.do_auth()
+
+        assert self.connection['status']
+        connection = self.connection['conn']
 
         self.bucket = Bucket(connection)
 
@@ -30,8 +31,7 @@ class RGW(BaseOp):
 
     def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, **object_size):
 
-        min_object_size = object_size['min']
-        max_object_size = object_size['max']
+
 
         self.buckets_created = []
 
@@ -56,6 +56,9 @@ class RGW(BaseOp):
             self.buckets_created.append(bucket_name)
 
             if object_create_nos > 0:
+
+                min_object_size = object_size['min']
+                max_object_size = object_size['max']
 
                 log.info('objects min size: %s' % min_object_size)
                 log.info('objects max size: %s' % max_object_size)
@@ -141,16 +144,11 @@ class RGWMultpart(BaseOp):
 
         super(RGWMultpart, self).__init__(access_key, secret_key)
 
-        self.set_cancel_upload = False
+        self.set_cancel_multipart = False
 
         self.break_upload_at_part_no = 0
 
     def upload(self, size, bucket_name):
-
-            bucket_created = self.bucket.create(bucket_name)
-
-            if not bucket_created['status']:
-                raise AssertionError
 
             log.info('bucket created')
 
@@ -162,24 +160,34 @@ class RGWMultpart(BaseOp):
 
             filename, md5 = utils.create_file(key_name, size)
 
-            json_file = os.path.join(os.path.dirname(filename), "_json.json")
+            log.info('got filename %s' % filename)
 
-            multipart = MultipartPut(bucket_created['bucket'], filename, json_file)
+            log.debug('got file dirname %s' % os.path.dirname(filename))
+
+            json_file = os.path.join(os.path.dirname(filename), os.path.basename(filename) + ".json")
+
+            log.info('json_file_name %s' % json_file)
+
+            bucket = self.connection['conn'].lookup(bucket_name)
+
+            if bucket is None:
+
+                bucket_created = self.bucket.create(bucket_name)
+                bucket = bucket_created['bucket']
+
+                if not bucket_created['status']:
+                    raise AssertionError
+
+            multipart = MultipartPut(bucket, filename)
 
             multipart.break_at_part_no = self.break_upload_at_part_no
+            multipart.cancel_multpart = self.set_cancel_multipart
 
-            multipart.iniate_multipart()
+            multipart.iniate_multipart(json_file)
             put = multipart.put()
+
+            print put['status']
 
             if not put['status']:
                 raise AssertionError
 
-            if not self.set_cancel_upload:
-
-                if not multipart.complete_multipart():
-                    raise AssertionError
-
-            else:
-
-                if not multipart.cancel_multpart():
-                    raise AssertionError

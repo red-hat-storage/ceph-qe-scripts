@@ -1,3 +1,5 @@
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 from lib.s3.rgw import RGW
 import utils.log as log
 import sys
@@ -12,7 +14,7 @@ def test_exec():
 
         test_info.started_info()
 
-        rgw = RGW('secrete_key', 'access_key')
+        rgw = RGW('2D6OA0XPW2WEY4LZND4T', '58onUujPfEJGmC8VVM9BHGq9SkC9vyeRZYAGp8AD')
 
         rgw.create_bucket_with_keys(100, 30, **{'min': 5, 'max': 20})
         rgw.delete_bucket_with_keys()

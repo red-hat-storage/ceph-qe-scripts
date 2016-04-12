@@ -1,3 +1,5 @@
+import os, sys
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 from lib.s3.rgw import RGWMultpart
 import utils.log as log
 import sys
@@ -12,10 +14,10 @@ def test_exec():
 
         test_info.started_info()
 
-        rgw = RGWMultpart('secrete_key', 'access_key')
-        rgw.set_cancel_upload = True
+        rgw = RGWMultpart('2D6OA0XPW2WEY4LZND4T', '58onUujPfEJGmC8VVM9BHGq9SkC9vyeRZYAGp8AD')
+        rgw.set_cancel_multipart = True
 
-        rgw.upload(3000, 'large_bucket')
+        rgw.upload(3000, 'third_large_bucket')
 
         test_info.success_status('test completed')
 
