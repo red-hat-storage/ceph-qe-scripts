@@ -7,6 +7,7 @@ import math, os
 from utils.utils import  JsonOps
 import utils.utils as utils
 import glob
+from json_ops import JKeys
 
 
 class KeyOp(object):
@@ -32,6 +33,7 @@ class KeyOp(object):
             k = Key(self.bucket)
             k.key = key_name
             return k
+
         except exception.BotoClientError, e:
             log.error(e)
             return None
@@ -188,10 +190,12 @@ class PutContentsFromString(object):
 
 class PutContentsFromFile(object):
 
-    def __init__(self, key):
+    def __init__(self, key, json_file):
 
         log.debug('class: %s' % self.__class__.__name__)
 
+        self.json_file = json_file
+        self.jkey = JKeys(self.json_file)
         self.key = key
 
     def set_metadata(self, **metadata):
@@ -205,6 +209,7 @@ class PutContentsFromFile(object):
 
         try:
             self.key.set_metadata(metadata_name, metadata_value)
+
             return True
 
         except exception.BotoClientError, e:
@@ -229,6 +234,12 @@ class PutContentsFromFile(object):
         try:
 
             self.key.set_contents_from_filename(filename)
+
+            key_details = {'key_name': self.key.key,
+                           'size': os.stat(filename).st_size,
+                           'md5': utils.get_md5(filename)}
+
+            self.jkey.add(self.key.bucket.name, **key_details)
 
             upload_status = {'status': True}
 

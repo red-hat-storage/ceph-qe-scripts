@@ -8,7 +8,7 @@ from utils.test_desc import AddTestInfo
 
 def test_exec():
 
-    test_info = AddTestInfo('Multi Part Upload and cancel after upload')
+    test_info = AddTestInfo('MultiPart Upload and cancel after upload')
 
     try:
 
@@ -30,7 +30,6 @@ def test_exec():
 
         rgw.break_upload_at_part_no = 0
         rgw.upload(size, bucket_name)
-
 
         test_info.success_status('test completed')
 

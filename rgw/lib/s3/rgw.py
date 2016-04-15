@@ -9,29 +9,31 @@ import os
 
 class BaseOp(object):
 
-    def __init__(self, access_key, secret_key):
+    def __init__(self, access_key, secret_key, user_id):
 
         log.debug('class: %s' % self.__class__.__name__)
 
-        auth = Authenticate(access_key, secret_key)
+        self.user_id = user_id
+
+        auth = Authenticate(access_key, secret_key, self.user_id)
 
         self.connection = auth.do_auth()
 
         assert self.connection['status']
         connection = self.connection['conn']
 
-        self.bucket = Bucket(connection)
+        self.json_file = self.user_id + ".json"
+
+        self.bucket = Bucket(connection, self.json_file)
 
 
 class RGW(BaseOp):
 
-    def __init__(self, access_key, secret_key):
+    def __init__(self, access_key, secret_key, user_id):
 
-        super(RGW, self).__init__(access_key, secret_key)
+        super(RGW, self).__init__(access_key, secret_key, user_id)
 
     def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, **object_size):
-
-
 
         self.buckets_created = []
 
@@ -42,7 +44,7 @@ class RGW(BaseOp):
 
             log.debug('iter: %s' % bucket_no)
 
-            bucket_name = str('buckey') + "." + str(bucket_no)
+            bucket_name = self.user_id + "." + str('bucky') + "." + str(bucket_no)
 
             log.info('bucket_name: %s' % bucket_name)
 
@@ -84,7 +86,7 @@ class RGW(BaseOp):
 
                     log.info('key created')
 
-                    put_file = PutContentsFromFile(key_created)
+                    put_file = PutContentsFromFile(key_created, self.json_file)
 
                     log.info('\nrandom filename created :%s\n md5 of the file: %s' % (random_file, md5))
 
@@ -140,15 +142,17 @@ class RGW(BaseOp):
 
 class RGWMultpart(BaseOp):
 
-    def __init__(self, access_key, secret_key):
+    def __init__(self, access_key, secret_key, user_id):
 
-        super(RGWMultpart, self).__init__(access_key, secret_key)
+        super(RGWMultpart, self).__init__(access_key, secret_key, user_id)
 
         self.set_cancel_multipart = False
 
         self.break_upload_at_part_no = 0
 
     def upload(self, size, bucket_name):
+
+            bucket_name = self.user_id + "." + bucket_name
 
             key_name = bucket_name + "." + "mpFile"
 

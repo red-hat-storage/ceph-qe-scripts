@@ -1,10 +1,15 @@
 import boto.exception as exception
 import utils.log as log
+from json_ops import JBucket
 
 
 class Bucket(object):
-    def __init__(self, connection):
+    def __init__(self, connection, json_file):
         self.connection = connection
+
+        self.json_file = json_file
+
+        self.add_bucket_to_json = JBucket(self.json_file)
 
         log.debug('class: %s' % self.__class__.__name__)
 
@@ -25,13 +30,16 @@ class Bucket(object):
         """
 
         try:
+
             bucket = self.connection.create_bucket(bucket_name)
 
             create_bucket_stack = {'status': True,
                                    'bucket': bucket}
 
+            self.add_bucket_to_json.add(bucket_name)
+
         except (exception.AWSConnectionError, exception.BotoClientError, exception.S3ResponseError,
-                exception.S3CreateError), e:
+                exception.S3CreateError, IOError), e:
             log.error(e)
             create_bucket_stack = {'status': False,
                                    'msgs': e}

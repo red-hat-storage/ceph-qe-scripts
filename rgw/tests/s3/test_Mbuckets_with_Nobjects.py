@@ -4,6 +4,7 @@ from lib.s3.rgw import RGW
 import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
+from lib.admin import RGWAdminOps
 
 
 def test_exec():
@@ -12,11 +13,18 @@ def test_exec():
 
     try:
 
+        user_id = 'flash'
+        displayname = 'barry allen'
+
         test_info.started_info()
 
-        rgw = RGW('2D6OA0XPW2WEY4LZND4T', '58onUujPfEJGmC8VVM9BHGq9SkC9vyeRZYAGp8AD')
+        admin_ops = RGWAdminOps()
 
-        rgw.create_bucket_with_keys(100, 30, **{'min': 5, 'max': 20})
+        user_details = admin_ops.create_admin_user(user_id, displayname)
+
+        rgw = RGW(user_details['access_key'], user_details['secret_key'], user_details['user_id'])
+
+        rgw.create_bucket_with_keys(2000, 200, **{'min': 5, 'max': 20})
 
         test_info.success_status('test completed')
 
