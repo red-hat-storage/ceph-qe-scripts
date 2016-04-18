@@ -139,6 +139,40 @@ class RGW(BaseOp):
 
                 log.info('bucket deleted')
 
+    def download_objects(self):
+
+        download_dir = "Download"
+
+        if not os.path.exists(download_dir):
+            os.makedirs(download_dir)
+
+        for bucket_name in self.buckets_created:
+            log.info('ops on bucket name: %s' % bucket_name)
+
+            bucket_dir = download_dir + "." + bucket_name
+
+            if not os.path.exists(bucket_dir):
+                os.makedirs(bucket_dir)
+
+            bucket = self.bucket.get(bucket_name)
+
+            all_keys_in_bucket = bucket['bucket'].list()
+
+            for each_key in all_keys_in_bucket:
+
+                get_contents = PutContentsFromFile(each_key, self.json_file)
+
+                filename = bucket_dir + "." + each_key.key
+
+                download = get_contents.get(filename)
+
+                if not download['status']:
+                    log.error(download['msgs'])
+                    raise AssertionError
+
+                else:
+                    log.info('download complete')
+
 
 class RGWMultpart(BaseOp):
 
@@ -202,4 +236,40 @@ class RGWMultpart(BaseOp):
 
             if not put['status']:
                 raise AssertionError
+
+    def download(self, bucket_name):
+
+        # wip code
+
+        download_dir = "Mp.Download"
+
+        if not os.path.exists(download_dir):
+            os.makedirs(download_dir)
+
+        bucket_dir = download_dir + "." + bucket_name
+
+        if not os.path.exists(bucket_dir):
+            os.makedirs(bucket_dir)
+
+        bucket = self.bucket.get(bucket_name)
+
+        all_keys_in_bucket = bucket['bucket'].list()
+
+        for each_key in all_keys_in_bucket:
+
+            contents = PutContentsFromFile(each_key, self.json_file)
+
+            filename = bucket_dir + "." + each_key.key
+
+            download = contents.get(filename)
+
+            if not download['status']:
+                log.error(download['msgs'])
+                raise AssertionError
+
+            else:
+                log.info('download complete')
+
+
+
 

@@ -2,9 +2,10 @@ import boto.exception as exception
 import utils.log as log
 from boto.s3.key import Key
 import boto
-import math, os
-#from filechunkio import FileChunkIO
-from utils.utils import  JsonOps
+# import math
+import os
+# from filechunkio import FileChunkIO
+from lib.s3.json_ops import JMulpipart
 import utils.utils as utils
 import glob
 from json_ops import JKeys
@@ -272,6 +273,24 @@ class PutContentsFromFile(object):
         try:
             self.key.get_contents_to_filename(filename)
 
+            md5_on_s3 = self.key.etag
+            md5_local = utils.get_md5(filename)
+
+            if md5_on_s3 == md5_local:
+                md5_match = "match"
+
+            else :
+                md5_match = "no match"
+
+            key_details = {'key_name': os.path.basename(filename),
+                           'size': os.stat(filename).st_size,
+                           'md5_local': md5_local,
+                           'md5_on_s3': md5_on_s3,
+                           'md5_match': md5_match
+                           }
+
+            self.jkey.add(self.key.bucket.name, **key_details)
+
             download_status = {'status': True}
 
         except exception.BotoClientError, e:
@@ -306,7 +325,7 @@ class MultipartPut(object):
 
         try:
 
-            self.json_ops = JsonOps(json_file)
+            self.json_ops = JMulpipart(json_file)
 
             log.info('initaiting multipart upload')
 
@@ -327,6 +346,7 @@ class MultipartPut(object):
                 # log.info('split files list: %s' % self.split_files_list)
 
                 self.json_ops.total_parts_count = len(self.split_files_list)
+                self.json_ops.bucket_name = self.bucket.name
 
                 log.info('total file parts %s' % self.json_ops.total_parts_count)
 
@@ -379,7 +399,7 @@ class MultipartPut(object):
 
                 log.debug('remaining parts assigning')
 
-                log.debug('making a copy of remaining parts')
+                log.debug('making a copy of list of remaining parts')
 
                 remaining_file_parts_copy = list(self.json_ops.remaining_file_parts)
 
@@ -462,4 +482,6 @@ class MultipartPut(object):
                                  'msg': e}
 
             return upload_status
+
+
 

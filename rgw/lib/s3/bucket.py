@@ -66,6 +66,8 @@ class Bucket(object):
         try:
             bucket = self.connection.get_bucket(bucket_name)
 
+            self.add_bucket_to_json.add(bucket_name)
+
             get_bucket_stack = {'status': True,
                                 'bucket': bucket}
 
