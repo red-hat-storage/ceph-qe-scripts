@@ -13,8 +13,8 @@ def test_exec():
 
     try:
 
-        user_id = 'flash'
-        displayname = 'barry allen'
+        user_id = 'flash3'
+        displayname = 'barry allen3'
 
         test_info.started_info()
 
@@ -24,7 +24,8 @@ def test_exec():
 
         rgw = RGW(user_details['access_key'], user_details['secret_key'], user_details['user_id'])
 
-        rgw.create_bucket_with_keys(2000, 200, **{'min': 5, 'max': 20})
+        rgw.create_bucket_with_keys(2, 4, **{'min': 5, 'max': 20})
+        rgw.download_objects()
 
         test_info.success_status('test completed')
 

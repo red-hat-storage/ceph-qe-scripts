@@ -13,8 +13,8 @@ def test_exec():
 
     try:
 
-        user_id = 'macin21'
-        displayname = 'macin-star21'
+        user_id = 'macin22'
+        displayname = 'macin-star22'
 
         test_info.started_info()
 

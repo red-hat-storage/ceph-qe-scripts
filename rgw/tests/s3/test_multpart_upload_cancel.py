@@ -4,6 +4,7 @@ from lib.s3.rgw import RGWMultpart
 import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
+from lib.admin import RGWAdminOps
 
 
 def test_exec():
@@ -12,12 +13,21 @@ def test_exec():
 
     try:
 
-        break_part_no = 145
-        size = 3000
-        bucket_name = 'think.batman'
-
         test_info.started_info()
-        rgw = RGWMultpart('2D6OA0XPW2WEY4LZND4T', '58onUujPfEJGmC8VVM9BHGq9SkC9vyeRZYAGp8AD')
+
+        break_part_no = 145
+        size = 5000
+        bucket_name = 'think.batman8'
+
+        user_id = 'kidflash8'
+        displayname = 'west jr8'
+
+        admin_ops = RGWAdminOps()
+
+        user_details = admin_ops.create_admin_user(user_id, displayname)
+
+        rgw = RGWMultpart(user_details['access_key'], user_details['secret_key'], user_details['user_id'])
+
         rgw.break_upload_at_part_no = break_part_no
 
         rgw.upload(size, bucket_name)
@@ -30,6 +40,8 @@ def test_exec():
 
         rgw.break_upload_at_part_no = 0
         rgw.upload(size, bucket_name)
+
+        rgw.download()
 
         test_info.success_status('test completed')
 

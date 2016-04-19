@@ -4,19 +4,28 @@ from lib.s3.rgw import RGWMultpart
 import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
-
+from lib.admin import RGWAdminOps
 
 def test_exec():
 
     test_info = AddTestInfo('Multi Part Upload')
 
     try:
+        test_info.started_info()
+
+        user_id = 'arrow1'
+        displayname = 'oliver queen'
 
         test_info.started_info()
 
-        rgw = RGWMultpart('2D6OA0XPW2WEY4LZND4T', '58onUujPfEJGmC8VVM9BHGq9SkC9vyeRZYAGp8AD')
+        admin_ops = RGWAdminOps()
 
-        rgw.upload(3000, 'bigbasket')
+        user_details = admin_ops.create_admin_user(user_id, displayname)
+
+        rgw = RGWMultpart(user_details['access_key'], user_details['secret_key'], user_details['user_id'])
+
+        rgw.upload(3000, 'bigbasket22')
+        rgw.download('bigbasket22')
 
         test_info.success_status('test completed')
 

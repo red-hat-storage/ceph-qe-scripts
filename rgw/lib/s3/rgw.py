@@ -22,9 +22,10 @@ class BaseOp(object):
         assert self.connection['status']
         connection = self.connection['conn']
 
-        self.json_file = self.user_id + ".json"
+        self.json_file_upload = self.connection['upload_json_file']
+        self.json_file_download = self.connection['download_json_file']
 
-        self.bucket = Bucket(connection, self.json_file)
+        self.bucket = Bucket(connection)
 
 
 class RGW(BaseOp):
@@ -32,6 +33,8 @@ class RGW(BaseOp):
     def __init__(self, access_key, secret_key, user_id):
 
         super(RGW, self).__init__(access_key, secret_key, user_id)
+
+        self.buckets_created = None
 
     def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, **object_size):
 
@@ -48,7 +51,7 @@ class RGW(BaseOp):
 
             log.info('bucket_name: %s' % bucket_name)
 
-            bucket_created = self.bucket.create(bucket_name)
+            bucket_created = self.bucket.create(bucket_name, self.json_file_upload)
 
             if not bucket_created['status']:
                 raise AssertionError
@@ -86,7 +89,7 @@ class RGW(BaseOp):
 
                     log.info('key created')
 
-                    put_file = PutContentsFromFile(key_created, self.json_file)
+                    put_file = PutContentsFromFile(key_created, self.json_file_upload)
 
                     log.info('\nrandom filename created :%s\n md5 of the file: %s' % (random_file, md5))
 
@@ -154,13 +157,13 @@ class RGW(BaseOp):
             if not os.path.exists(bucket_dir):
                 os.makedirs(bucket_dir)
 
-            bucket = self.bucket.get(bucket_name)
+            bucket = self.bucket.get(bucket_name, self.json_file_download)
 
             all_keys_in_bucket = bucket['bucket'].list()
 
             for each_key in all_keys_in_bucket:
 
-                get_contents = PutContentsFromFile(each_key, self.json_file)
+                get_contents = PutContentsFromFile(each_key, self.json_file_download)
 
                 filename = bucket_dir + "." + each_key.key
 
@@ -184,11 +187,13 @@ class RGWMultpart(BaseOp):
 
         self.break_upload_at_part_no = 0
 
+        self.bucket_name = None
+
     def upload(self, size, bucket_name):
 
-            bucket_name = self.user_id + "." + bucket_name
+            self.bucket_name = self.user_id + "." + bucket_name
 
-            key_name = bucket_name + "." + "mpFile"
+            key_name = self.bucket_name + "." + "mpFile"
 
             if not os.path.exists(key_name):
 
@@ -212,13 +217,13 @@ class RGWMultpart(BaseOp):
 
             log.info('json_file_name %s' % json_file)
 
-            bucket = self.connection['conn'].lookup(bucket_name)
+            bucket = self.connection['conn'].lookup(self.bucket_name)
 
             if bucket is None:
 
                 log.info('bucket does not exists, so creating the bucket')
 
-                bucket_created = self.bucket.create(bucket_name)
+                bucket_created = self.bucket.create(self.bucket_name, self.json_file_upload)
                 bucket = bucket_created['bucket']
 
                 if not bucket_created['status']:
@@ -237,27 +242,34 @@ class RGWMultpart(BaseOp):
             if not put['status']:
                 raise AssertionError
 
-    def download(self, bucket_name):
+    def download(self):
 
         # wip code
 
         download_dir = "Mp.Download"
 
+        print self.bucket_name
+
         if not os.path.exists(download_dir):
             os.makedirs(download_dir)
 
-        bucket_dir = download_dir + "." + bucket_name
+        bucket_dir = download_dir + "." + self.bucket_name
 
         if not os.path.exists(bucket_dir):
             os.makedirs(bucket_dir)
 
-        bucket = self.bucket.get(bucket_name)
+        bucket = self.bucket.get(self.bucket_name, self.json_file_download)
+
+        log.debug(bucket)
+
+        if not bucket['status']:
+            raise AssertionError
 
         all_keys_in_bucket = bucket['bucket'].list()
 
         for each_key in all_keys_in_bucket:
 
-            contents = PutContentsFromFile(each_key, self.json_file)
+            contents = PutContentsFromFile(each_key, self.json_file_download)
 
             filename = bucket_dir + "." + each_key.key
 

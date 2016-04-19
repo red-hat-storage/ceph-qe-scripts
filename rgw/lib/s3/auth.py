@@ -19,11 +19,12 @@ class Authenticate(object):
         self.port = 7280
         self.is_secure = False
         self.user_id = user_id
-        self.json_file = self.user_id + ".json"
+        self.json_file_upload = self.user_id + "." + "upload" + "." + "json"
+        self.json_file_download = self.user_id + "." + "download" + "." + "json"
 
-    def dump_to_json(self):
+    def dump_to_json_upload(self):
 
-        if not os.path.exists(self.json_file):
+        if not os.path.exists(self.json_file_upload):
 
             log.info('json file does not exists')
 
@@ -33,7 +34,23 @@ class Authenticate(object):
                     'buckets': {}
                     }
 
-            with open(self.json_file, "w") as fp:
+            with open(self.json_file_upload, "w") as fp:
+                json.dump(data, fp, indent=4)
+
+            fp.close()
+
+    def dump_to_json_download(self):
+
+        if not os.path.exists(self.json_file_download):
+            log.info('json file does not exists')
+
+            data = {'access_key': self.access_key,
+                    'secret_key': self.secret_key,
+                    'user_id': self.user_id,
+                    'buckets': {}
+                    }
+
+            with open(self.json_file_download, "w") as fp:
                 json.dump(data, fp, indent=4)
 
             fp.close()
@@ -46,7 +63,8 @@ class Authenticate(object):
             log.info('got the credentials')
             # conn = S3Connection(self.ak, self.sk)
 
-            self.dump_to_json()
+            self.dump_to_json_upload()
+            self.dump_to_json_download()
 
             conn = boto.connect_s3(
                 aws_access_key_id=self.access_key,
@@ -60,7 +78,8 @@ class Authenticate(object):
 
             auth_stack = {'status': True,
                           'conn': conn,
-                          'josn_file': self.json_file}
+                          'upload_json_file': self.json_file_upload,
+                          'download_json_file': self.json_file_download}
 
         except (boto.s3.connection.HostRequiredError, exception.AWSConnectionError, Exception), e:
 

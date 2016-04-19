@@ -4,16 +4,12 @@ from json_ops import JBucket
 
 
 class Bucket(object):
-    def __init__(self, connection, json_file):
+    def __init__(self, connection):
         self.connection = connection
-
-        self.json_file = json_file
-
-        self.add_bucket_to_json = JBucket(self.json_file)
 
         log.debug('class: %s' % self.__class__.__name__)
 
-    def create(self, bucket_name):
+    def create(self, bucket_name, json_file):
 
         log.debug('function: %s' % self.create.__name__)
 
@@ -31,12 +27,14 @@ class Bucket(object):
 
         try:
 
+            add_bucket_to_json = JBucket(json_file)
+
             bucket = self.connection.create_bucket(bucket_name)
 
             create_bucket_stack = {'status': True,
                                    'bucket': bucket}
 
-            self.add_bucket_to_json.add(bucket_name)
+            add_bucket_to_json.add(bucket_name)
 
         except (exception.AWSConnectionError, exception.BotoClientError, exception.S3ResponseError,
                 exception.S3CreateError, IOError), e:
@@ -46,7 +44,7 @@ class Bucket(object):
 
         return create_bucket_stack
 
-    def get(self, bucket_name):
+    def get(self, bucket_name, json_file):
 
         log.debug('function: %s' % self.get.__name__)
 
@@ -64,9 +62,11 @@ class Bucket(object):
         """
 
         try:
+
             bucket = self.connection.get_bucket(bucket_name)
 
-            self.add_bucket_to_json.add(bucket_name)
+            add_bucket_to_json = JBucket(json_file)
+            add_bucket_to_json.add(bucket_name)
 
             get_bucket_stack = {'status': True,
                                 'bucket': bucket}
