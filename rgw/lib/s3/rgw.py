@@ -321,7 +321,12 @@ class RGWMultpart(BaseOp):
                     log.info('download complete')
 
 
-class RGWConfig(object):
+class Config(object):
+    def __init__(self):
+        pass
+
+
+class RGWConfig():
 
     def __init__(self):
 

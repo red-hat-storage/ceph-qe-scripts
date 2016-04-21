@@ -1,26 +1,5 @@
-import json
 import utils.log as log
-
-
-class JsonFileOps(object):
-
-    def __init__(self, filename):
-
-        self.fname = filename
-
-    def get_data(self):
-
-        with open(self.fname) as fp:
-            json_data = json.load(fp)
-        fp.close()
-
-        return json_data
-
-    def add_data(self, data):
-
-        with open(self.fname, "w") as fp:
-            json.dump(data, fp, indent=4)
-        fp.close()
+from utils.utils import JsonFileOps
 
 
 class JBucket(JsonFileOps):

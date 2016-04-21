@@ -3,7 +3,6 @@ import hashlib
 import subprocess
 import log
 import json
-import glob
 
 
 def get_md5(file_path):
@@ -40,5 +39,22 @@ def split_file(fname, size_to_split=5):
         return False
 
 
-def break_connection():
-    pass
+class JsonFileOps(object):
+
+    def __init__(self, filename):
+
+        self.fname = filename
+
+    def get_data(self):
+
+        with open(self.fname) as fp:
+            json_data = json.load(fp)
+        fp.close()
+
+        return json_data
+
+    def add_data(self, data):
+
+        with open(self.fname, "w") as fp:
+            json.dump(data, fp, indent=4)
+        fp.close()

@@ -10,7 +10,7 @@ from utils.test_desc import AddTestInfo
 
 def test_exec():
 
-    test_info = AddTestInfo('multipart Upload with cancel and download')
+    test_info = AddTestInfo('multipart Upload and download')
 
     try:
 
@@ -21,7 +21,6 @@ def test_exec():
         config.user_count = 1
         config.bucket_count = 10
         config.objects_size_range = {'min': 5, 'max': 15}
-        config.break_at_part_no = 150
 
         # test case starts
 
@@ -35,13 +34,6 @@ def test_exec():
 
             rgw = RGWMultpart(each_user)
 
-            rgw.break_upload_at_part_no = config.break_at_part_no
-            rgw.upload(config.bucket_count, **config.objects_size_range)
-
-            log.info('starting at part no: %s' % config.break_at_part_no)
-            log.info('--------------------------------------------------')
-
-            rgw.break_upload_at_part_no = 0
             rgw.upload(config.bucket_count, **config.objects_size_range)
             rgw.download()
 

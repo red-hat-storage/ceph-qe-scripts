@@ -35,7 +35,7 @@ class KeyOp(object):
             k.key = key_name
             return k
 
-        except exception.BotoClientError, e:
+        except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
             return None
 
@@ -54,7 +54,7 @@ class KeyOp(object):
             key = self.bucket.get_key(key_name)
             return key
 
-        except exception.BotoClientError, e:
+        except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
             return None
 
@@ -78,7 +78,7 @@ class KeyOp(object):
             key_deleted = self.bucket.delete_key(key_name)
             return key_deleted
 
-        except exception.BotoClientError, e:
+        except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
             return None
 
@@ -100,7 +100,7 @@ class KeyOp(object):
 
             return keys_deleted
 
-        except exception.BotoClientError, e:
+        except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
             return None
 
@@ -213,7 +213,7 @@ class PutContentsFromFile(object):
 
             return True
 
-        except exception.BotoClientError, e:
+        except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
             return False
 
@@ -244,7 +244,7 @@ class PutContentsFromFile(object):
 
             upload_status = {'status': True}
 
-        except exception.BotoClientError, e:
+        except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
 
             upload_status = {'status': True,
@@ -293,7 +293,7 @@ class PutContentsFromFile(object):
 
             download_status = {'status': True}
 
-        except exception.BotoClientError, e:
+        except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
 
             download_status = {'status': False,
@@ -384,7 +384,7 @@ class MultipartPut(object):
                 log.info('multipart_id :%s' % self.mp.id)
                 log.info('key_name %s' % self.mp.key_name)
 
-        except exception.BotoClientError, e:
+        except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
             return False
 
@@ -474,7 +474,7 @@ class MultipartPut(object):
 
                 """
 
-            except exception.BotoClientError, e:
+            except (exception.BotoClientError, exception.S3ResponseError), e:
 
                 log.error(e)
 

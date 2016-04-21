@@ -1,28 +1,41 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
-from lib.s3.rgw import RGWConfig
+from lib.s3.rgw import RGW
+import lib.s3.rgw as rgw_lib
 import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
+from lib.s3.rgw import Config
 
 
 def test_exec():
 
-    test_info = AddTestInfo('crate m buckets, n objects and delete')
+    test_info = AddTestInfo('create m buckets, n objects and delete')
 
     try:
 
+        # configuration
+
+        config = Config()
+
+        config.user_count = 1
+        config.bucket_count = 10
+        config.objects_count = 4
+        config.objects_size_range = {'min': 5, 'max': 15}
+
+        # test case starts
+
         test_info.started_info()
 
-        rgw = RGWConfig()
+        all_user_details = rgw_lib.create_users(config.user_count)
 
-        rgw.user_count = 1
-        rgw.bucket_count = 10
-        rgw.objects_count = 4
-        rgw.objects_size_range = {'min': 5, 'max': 15}
-        rgw.del_objects = True
+        for each_user in all_user_details:
 
-        rgw.exec_test()
+            rgw = RGW(each_user)
+
+            rgw.create_bucket_with_keys(config.bucket_count, config.objects_count, **config.objects_size_range)
+
+            rgw.delete_bucket_with_keys()
 
         test_info.success_status('test completed')
 
@@ -30,9 +43,10 @@ def test_exec():
 
     except AssertionError, e:
         log.error(e)
-        test_info.failed_status('test faield: %s' % e)
+        test_info.failed_status('test failed: %s' % e)
         sys.exit(1)
 
 
 if __name__ == '__main__':
+
     test_exec()
