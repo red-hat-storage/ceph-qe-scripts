@@ -318,7 +318,7 @@ class MultipartPut(object):
         self.cancel_multpart = False
 
         self.mp = None
-
+        self.md5 = None
         self.break_at_part_no = 0
 
     def iniate_multipart(self, json_file):

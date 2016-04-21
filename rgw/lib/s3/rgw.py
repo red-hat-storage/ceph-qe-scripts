@@ -5,17 +5,36 @@ import utils.log as log
 import utils.utils as utils
 from random import randint
 import os
+import names
+from lib.admin import RGWAdminOps
+
+
+def create_users(no_of_users_to_create):
+
+    admin_ops = RGWAdminOps()
+
+    all_users_details = []
+
+    for i in range(no_of_users_to_create):
+
+        user_details = admin_ops.create_admin_user(names.get_first_name().lower(), names.get_full_name().lower())
+
+        all_users_details.append(user_details)
+
+    return all_users_details
 
 
 class BaseOp(object):
 
-    def __init__(self, access_key, secret_key, user_id):
+    def __init__(self, user_details):
 
         log.debug('class: %s' % self.__class__.__name__)
 
-        self.user_id = user_id
+        self.user_id = user_details['user_id']
+        self.access_key = user_details['access_key']
+        self.secret_key = user_details['secret_key']
 
-        auth = Authenticate(access_key, secret_key, self.user_id)
+        auth = Authenticate(self.access_key, self.secret_key, self.user_id)
 
         self.connection = auth.do_auth()
 
@@ -30,9 +49,9 @@ class BaseOp(object):
 
 class RGW(BaseOp):
 
-    def __init__(self, access_key, secret_key, user_id):
+    def __init__(self, user_details):
 
-        super(RGW, self).__init__(access_key, secret_key, user_id)
+        super(RGW, self).__init__(user_details)
 
         self.buckets_created = None
 
@@ -179,9 +198,9 @@ class RGW(BaseOp):
 
 class RGWMultpart(BaseOp):
 
-    def __init__(self, access_key, secret_key, user_id):
+    def __init__(self, user_details):
 
-        super(RGWMultpart, self).__init__(access_key, secret_key, user_id)
+        super(RGWMultpart, self).__init__(user_details)
 
         self.set_cancel_multipart = False
 
@@ -189,13 +208,30 @@ class RGWMultpart(BaseOp):
 
         self.bucket_name = None
 
-    def upload(self, size, bucket_name):
+        self.buckets_created = None
 
-            self.bucket_name = self.user_id + "." + bucket_name
+    def upload(self, bucket_create_nos, **object_size):
+
+        self.buckets_created = []
+
+        log.info('no of buckets to create: %s' % bucket_create_nos)
+
+        min_object_size = object_size['min']
+        max_object_size = object_size['max']
+
+        for bucket_no in range(bucket_create_nos):
+
+            log.debug('iter: %s' % bucket_no)
+
+            self.bucket_name = self.user_id + "." + str('bucky') + "." + str(bucket_no)
+
+            log.info('bucket_name: %s' % self.bucket_name)
 
             key_name = self.bucket_name + "." + "mpFile"
 
             if not os.path.exists(key_name):
+
+                size = randint(min_object_size, max_object_size)
 
                 log.info('size of the file to create %s' % size)
 
@@ -229,6 +265,8 @@ class RGWMultpart(BaseOp):
                 if not bucket_created['status']:
                     raise AssertionError
 
+                self.buckets_created.append(self.bucket_name)
+
             multipart = MultipartPut(bucket, filename)
 
             multipart.break_at_part_no = self.break_upload_at_part_no
@@ -244,44 +282,100 @@ class RGWMultpart(BaseOp):
 
     def download(self):
 
-        # wip code
-
         download_dir = "Mp.Download"
 
-        print self.bucket_name
+        for bucket_created in self.buckets_created:
 
-        if not os.path.exists(download_dir):
-            os.makedirs(download_dir)
+            print self.bucket_name
 
-        bucket_dir = download_dir + "." + self.bucket_name
+            if not os.path.exists(download_dir):
+                os.makedirs(download_dir)
 
-        if not os.path.exists(bucket_dir):
-            os.makedirs(bucket_dir)
+            bucket_dir = download_dir + "." + self.bucket_name
 
-        bucket = self.bucket.get(self.bucket_name, self.json_file_download)
+            if not os.path.exists(bucket_dir):
+                os.makedirs(bucket_dir)
 
-        log.debug(bucket)
+            bucket = self.bucket.get(bucket_created, self.json_file_download)
 
-        if not bucket['status']:
-            raise AssertionError
+            log.debug(bucket)
 
-        all_keys_in_bucket = bucket['bucket'].list()
-
-        for each_key in all_keys_in_bucket:
-
-            contents = PutContentsFromFile(each_key, self.json_file_download)
-
-            filename = bucket_dir + "." + each_key.key
-
-            download = contents.get(filename)
-
-            if not download['status']:
-                log.error(download['msgs'])
+            if not bucket['status']:
                 raise AssertionError
 
-            else:
-                log.info('download complete')
+            all_keys_in_bucket = bucket['bucket'].list()
+
+            for each_key in all_keys_in_bucket:
+
+                contents = PutContentsFromFile(each_key, self.json_file_download)
+
+                filename = bucket_dir + "." + each_key.key
+
+                download = contents.get(filename)
+
+                if not download['status']:
+                    log.error(download['msgs'])
+                    raise AssertionError
+
+                else:
+                    log.info('download complete')
 
 
+class RGWConfig(object):
+
+    def __init__(self):
+
+        self.user_count = None
+
+        self.multipart_upload = False
+        self.multipart_download = False
+        self.multipart_break_part = 0
+
+        self.bucket_count = None
+        self.objects_count = 0
+
+        self.objects_size_range = {'min': None, 'max': None}
+
+        self.download = False
+
+        self.del_objects = False
+
+    def exec_test(self):
+
+        all_user_details = create_users(self.user_count)
+
+        if self.multipart_upload:
+
+            log.info('multipart upload enabled')
+
+            for each_user in all_user_details:
+
+                rgw = RGWMultpart(each_user)
+
+                rgw.break_upload_at_part_no = self.multipart_break_part
+                rgw.upload(self.bucket_count, **self.objects_size_range)
+
+                if self.multipart_download:
+                    rgw.download()
+
+                if self.multipart_break_part != 0:
+
+                    log.info('starting the mp upload from part: %s' % self.multipart_break_part)
+
+                    rgw.break_upload_at_part_no = 0
+                    rgw.upload(self.bucket_count, **self.objects_size_range)
 
 
+        else:
+
+            for each_user in all_user_details:
+
+                rgw = RGW(each_user)
+
+                rgw.create_bucket_with_keys(self.bucket_count, self.objects_count, **self.objects_size_range)
+
+                if self.download:
+                    rgw.download_objects()
+
+                if self.del_objects:
+                    rgw.delete_bucket_with_keys()

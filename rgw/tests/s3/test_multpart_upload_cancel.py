@@ -1,47 +1,28 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
-from lib.s3.rgw import RGWMultpart
+from lib.s3.rgw import RGWConfig
 import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
-from lib.admin import RGWAdminOps
 
 
 def test_exec():
 
-    test_info = AddTestInfo('MultiPart Upload and cancel after upload')
+    test_info = AddTestInfo('Multipart upload ')
 
     try:
 
         test_info.started_info()
 
-        break_part_no = 145
-        size = 5000
-        bucket_name = 'think.batman8'
+        rgw = RGWConfig()
 
-        user_id = 'kidflash8'
-        displayname = 'west jr8'
+        rgw.user_count = 1
+        rgw.bucket_count = 1
+        rgw.objects_size_range = {'min': 500, 'max': 1500}
+        rgw.multipart_upload = True
+        rgw.multipart_break_part = 150
 
-        admin_ops = RGWAdminOps()
-
-        user_details = admin_ops.create_admin_user(user_id, displayname)
-
-        rgw = RGWMultpart(user_details['access_key'], user_details['secret_key'], user_details['user_id'])
-
-        rgw.break_upload_at_part_no = break_part_no
-
-        rgw.upload(size, bucket_name)
-
-        log.info('----------------------------')
-
-        log.info('starting from part no: %s' % break_part_no)
-
-        log.info('----------------------------')
-
-        rgw.break_upload_at_part_no = 0
-        rgw.upload(size, bucket_name)
-
-        rgw.download()
+        rgw.exec_test()
 
         test_info.success_status('test completed')
 

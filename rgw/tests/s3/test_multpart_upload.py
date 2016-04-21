@@ -1,31 +1,27 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
-from lib.s3.rgw import RGWMultpart
+from lib.s3.rgw import RGWConfig
 import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
-from lib.admin import RGWAdminOps
+
 
 def test_exec():
 
-    test_info = AddTestInfo('Multi Part Upload')
+    test_info = AddTestInfo('Multipart upload ')
 
     try:
-        test_info.started_info()
-
-        user_id = 'arrow1'
-        displayname = 'oliver queen'
 
         test_info.started_info()
 
-        admin_ops = RGWAdminOps()
+        rgw = RGWConfig()
 
-        user_details = admin_ops.create_admin_user(user_id, displayname)
+        rgw.user_count = 2
+        rgw.bucket_count = 2
+        rgw.objects_size_range = {'min': 500, 'max': 1500}
+        rgw.multipart_upload = True
 
-        rgw = RGWMultpart(user_details['access_key'], user_details['secret_key'], user_details['user_id'])
-
-        rgw.upload(3000, 'bigbasket22')
-        rgw.download('bigbasket22')
+        rgw.exec_test()
 
         test_info.success_status('test completed')
 
@@ -33,7 +29,7 @@ def test_exec():
 
     except AssertionError, e:
         log.error(e)
-        test_info.failed_status('test failed: %s' % e)
+        test_info.failed_status('test faield: %s' % e)
         sys.exit(1)
 
 

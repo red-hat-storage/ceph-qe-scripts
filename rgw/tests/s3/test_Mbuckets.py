@@ -1,10 +1,11 @@
-import os, sys
-sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
-from lib.s3.rgw import RGW
-import utils.log as log
+import os
 import sys
+
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
+
+from lib.s3.rgw import RGWConfig
+import utils.log as log
 from utils.test_desc import AddTestInfo
-from lib.admin import RGWAdminOps
 
 
 def test_exec():
@@ -13,18 +14,14 @@ def test_exec():
 
     try:
 
-        user_id = 'macin22'
-        displayname = 'macin-star22'
-
         test_info.started_info()
 
-        admin_ops = RGWAdminOps()
+        rgw = RGWConfig()
 
-        user_details = admin_ops.create_admin_user(user_id, displayname)
+        rgw.user_count = 2
+        rgw.bucket_count = 10
 
-        rgw = RGW(user_details['access_key'], user_details['secret_key'], user_details['user_id'])
-
-        rgw.create_bucket_with_keys(2, 0)
+        rgw.exec_test()
 
         test_info.success_status('test completed')
 

@@ -1,31 +1,27 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
-from lib.s3.rgw import RGW
+from lib.s3.rgw import RGWConfig
 import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
-from lib.admin import RGWAdminOps
 
 
 def test_exec():
 
-    test_info = AddTestInfo('crate m buckets with n objects')
+    test_info = AddTestInfo('crate m buckets, n objects')
 
     try:
 
-        user_id = 'flash3'
-        displayname = 'barry allen3'
-
         test_info.started_info()
 
-        admin_ops = RGWAdminOps()
+        rgw = RGWConfig()
 
-        user_details = admin_ops.create_admin_user(user_id, displayname)
+        rgw.user_count = 1
+        rgw.bucket_count = 10
+        rgw.objects_count = 4
+        rgw.objects_size_range = {'min': 5, 'max': 15}
 
-        rgw = RGW(user_details['access_key'], user_details['secret_key'], user_details['user_id'])
-
-        rgw.create_bucket_with_keys(2, 4, **{'min': 5, 'max': 20})
-        rgw.download_objects()
+        rgw.exec_test()
 
         test_info.success_status('test completed')
 
