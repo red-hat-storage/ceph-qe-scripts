@@ -93,7 +93,7 @@ class RGW(BaseOp):
 
                     log.info('key name to create %s' % key_name)
 
-                    size = randint(min_object_size, max_object_size)
+                    size = utils.get_file_size(min_object_size, max_object_size)
 
                     log.info('size of the file to create %s' % size)
 
@@ -231,7 +231,7 @@ class RGWMultpart(BaseOp):
 
             if not os.path.exists(key_name):
 
-                size = randint(min_object_size, max_object_size)
+                size = utils.get_file_size(min_object_size, max_object_size)
 
                 log.info('size of the file to create %s' % size)
 
@@ -286,7 +286,7 @@ class RGWMultpart(BaseOp):
 
         for bucket_created in self.buckets_created:
 
-            print self.bucket_name
+            print '------------------>', self.bucket_name
 
             if not os.path.exists(download_dir):
                 os.makedirs(download_dir)

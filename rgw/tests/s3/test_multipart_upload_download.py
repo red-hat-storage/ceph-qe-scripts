@@ -1,4 +1,5 @@
 import os, sys
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 from lib.s3.rgw import Config
 from lib.s3.rgw import RGWMultpart
@@ -9,7 +10,6 @@ from utils.test_desc import AddTestInfo
 
 
 def test_exec():
-
     test_info = AddTestInfo('multipart Upload and download')
 
     try:
@@ -18,9 +18,9 @@ def test_exec():
 
         config = Config()
 
-        config.user_count = 1
-        config.bucket_count = 10
-        config.objects_size_range = {'min': 5, 'max': 15}
+        config.user_count = 2
+        config.bucket_count = 2
+        config.objects_size_range = {'min': 500, 'max': 800}
 
         # test case starts
 
@@ -31,7 +31,6 @@ def test_exec():
         log.info('multipart upload enabled')
 
         for each_user in all_user_details:
-
             rgw = RGWMultpart(each_user)
 
             rgw.upload(config.bucket_count, **config.objects_size_range)

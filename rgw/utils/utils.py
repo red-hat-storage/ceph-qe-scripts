@@ -3,11 +3,19 @@ import hashlib
 import subprocess
 import log
 import json
+from random import randint
 
 
 def get_md5(file_path):
 
     return hashlib.md5(open(file_path, 'rb').read()).hexdigest()
+
+
+def get_file_size(min, max):
+
+    size = lambda x: x if x % 5 == 0 else size(randint(min, max))
+
+    return size(randint(min, max))
 
 
 def create_file(fname, size):
