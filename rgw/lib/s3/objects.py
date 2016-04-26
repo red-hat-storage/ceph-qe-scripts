@@ -58,7 +58,7 @@ class KeyOp(object):
             log.error(e)
             return None
 
-    def delete(self, key_name):
+    def delete(self, key_name, version_id = None):
 
         log.debug('function: %s' % self.delete.__name__)
 
@@ -75,7 +75,7 @@ class KeyOp(object):
 
         try:
 
-            key_deleted = self.bucket.delete_key(key_name)
+            key_deleted = self.bucket.delete_key(key_name, version_id=version_id)
             return key_deleted
 
         except (exception.BotoClientError, exception.S3ResponseError), e:

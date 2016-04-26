@@ -33,7 +33,7 @@ def test_exec():
 
             rgw = RGW(each_user)
 
-            rgw.create_bucket_with_keys(config.bucket_count, config.objects_count, **config.objects_size_range)
+            rgw.create_bucket_with_keys(config)
 
             rgw.download_objects()
 

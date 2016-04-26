@@ -32,7 +32,7 @@ def test_exec():
 
             rgw = RGW(each_user)
 
-            rgw.create_bucket_with_keys(config.bucket_count, config.objects_count)
+            rgw.create_bucket_with_keys(config)
 
         test_info.success_status('test completed')
 

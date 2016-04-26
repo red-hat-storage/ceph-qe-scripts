@@ -31,7 +31,7 @@ def create_file(fname, size):
 
     md5 = get_md5(fname)
 
-    return fname_with_path, md5
+    return fname_with_path
 
 
 def split_file(fname, size_to_split=5):

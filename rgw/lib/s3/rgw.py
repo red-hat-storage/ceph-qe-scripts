@@ -1,12 +1,12 @@
 from auth import Authenticate
 from bucket import Bucket
-from objects import KeyOp, PutContentsFromFile, PutContentsFromString, MultipartPut
+from objects import KeyOp, PutContentsFromFile, MultipartPut
 import utils.log as log
 import utils.utils as utils
-from random import randint
 import os
 import names
 from lib.admin import RGWAdminOps
+import random
 
 
 def create_users(no_of_users_to_create):
@@ -53,33 +53,50 @@ class RGW(BaseOp):
 
         super(RGW, self).__init__(user_details)
 
-        self.buckets_created = None
-
-    def create_bucket_with_keys(self, bucket_create_nos, object_create_nos, **object_size):
-
         self.buckets_created = []
+        self.keys_put = []
+
+        self.enable_versioning = False
+        self.version_count = 0
+        self.move_version = False
+
+    def create_bucket_with_keys(self, config):
+
+        bucket_create_nos = config.objects_count
+        object_create_nos = config.objects_count
 
         log.info('no of buckets to create: %s' % bucket_create_nos)
         log.info('no of obejcts in a bucket to create %s' % object_create_nos)
 
-        for bucket_no in range(bucket_create_nos):
+        if self.buckets_created is None:
 
-            log.debug('iter: %s' % bucket_no)
+            for bucket_no in range(bucket_create_nos):
 
-            bucket_name = self.user_id + "." + str('bucky') + "." + str(bucket_no)
+                log.debug('iter: %s' % bucket_no)
 
-            log.info('bucket_name: %s' % bucket_name)
+                bucket_name = self.user_id + "." + str('bucky') + "." + str(bucket_no)
 
-            bucket_created = self.bucket.create(bucket_name, self.json_file_upload)
+                log.info('bucket_name: %s' % bucket_name)
 
-            if not bucket_created['status']:
-                raise AssertionError
+                bucket_created = self.bucket.create(bucket_name, self.json_file_upload)
 
-            log.info('bucket created')
+                if self.enable_versioning:
+                    self.bucket.enable_disable_versioning(True, bucket_created['bucket'])
 
-            self.buckets_created.append(bucket_name)
+                if not bucket_created['status']:
+                    raise AssertionError
+
+                log.info('bucket created')
+
+                self.buckets_created.append(bucket_name)
+
+        for bucket_name in self.buckets_created:
+
+            bucket_created = self.bucket.get(bucket_name)
 
             if object_create_nos > 0:
+
+                object_size = config.objects_size_range
 
                 min_object_size = object_size['min']
                 max_object_size = object_size['max']
@@ -97,7 +114,7 @@ class RGW(BaseOp):
 
                     log.info('size of the file to create %s' % size)
 
-                    random_file, md5 = utils.create_file(key_name, size)
+                    random_file = utils.create_file(key_name, size)
 
                     key_op = KeyOp(bucket_created['bucket'])
 
@@ -110,18 +127,64 @@ class RGW(BaseOp):
 
                     put_file = PutContentsFromFile(key_created, self.json_file_upload)
 
-                    log.info('\nrandom filename created :%s\n md5 of the file: %s' % (random_file, md5))
+                    self.keys_put.append(key_name)
 
-                    put = put_file.put(random_file)
+                    if self.enable_versioning:
 
-                    if not put['status']:
-                        raise AssertionError
+                        log.info('creating versions of the key')
+
+                        keys_with_version = [key_name + ".version." + str(i) for i in range(self.version_count)]
+
+                        log.info('version_key_names %s:\n' % keys_with_version)
+
+                        create_files = lambda x: utils.create_file(x, size)
+
+                        files_with_version = map(create_files, keys_with_version)
+
+                        for each_version in files_with_version:
+
+                            put = put_file.put(each_version)
+
+                            if not put['status']:
+                                raise AssertionError
+
+                    else:
+
+                        put = put_file.put(random_file)
+
+                        if not put['status']:
+                            raise AssertionError
 
                     log.info('put of the file completed')
 
-                    key_on_rgw_node = key_op.get(key_name)
+                    if self.move_version:
 
-                    log.info('key on RGW %s\n' % key_on_rgw_node)
+                        # reverting to a random version.
+
+                        versions = list(bucket_created['bucket'].list_versions(key_created))
+
+                        self.version_ids = [k.version_id for k in versions]
+
+                        bucket_created['bucket'].copy_key(key_created.name, bucket_name, key_created.name,
+                                                          src_version_id=random.choice(self.version_ids))
+
+    def delete_key_version(self):
+
+        for bucket_name in self.buckets_created:
+
+            bucket = self.bucket.get(bucket_name)
+
+            for each_key in self.keys_put:
+
+                key_op = KeyOp(bucket)
+
+                key_name = key_op.get(each_key)
+
+                del_keys = lambda x: key_op.delete(key_name, version_id=x)
+
+                versions_deleted = map(del_keys, self.version_ids)
+
+                log.info('versions deleted %s' % versions_deleted)
 
     def delete_bucket_with_keys(self):
 
@@ -210,7 +273,10 @@ class RGWMultpart(BaseOp):
 
         self.buckets_created = None
 
-    def upload(self, bucket_create_nos, **object_size):
+    def upload(self, config):
+
+        bucket_create_nos = config.objects_count
+        object_size = config.objects_size_range
 
         self.buckets_created = []
 
@@ -237,7 +303,7 @@ class RGWMultpart(BaseOp):
 
                 log.info('file does not exists, so creating the file')
 
-                filename, md5 = utils.create_file(key_name, size)
+                filename = utils.create_file(key_name, size)
 
             else:
 

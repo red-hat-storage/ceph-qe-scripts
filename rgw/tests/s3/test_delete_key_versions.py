@@ -1,29 +1,23 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
-from lib.s3.rgw import RGW
-import lib.s3.rgw as rgw_lib
 import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
 from lib.s3.rgw import Config
+from lib.s3.rgw import RGW
+import lib.s3.rgw as rgw_lib
 
 
 def test_exec():
 
-    test_info = AddTestInfo('create m buckets, n objects and delete')
+    test_info = AddTestInfo('enable versioning on a bucket and upload '
+                            'keys and its versions and delete its versions')
 
     try:
 
-        # configuration
-
         config = Config()
-
         config.user_count = 1
-        config.bucket_count = 10
-        config.objects_count = 4
-        config.objects_size_range = {'min': 5, 'max': 15}
-
-        # test case starts
+        config.objects_count = 1
 
         test_info.started_info()
 
@@ -32,10 +26,12 @@ def test_exec():
         for each_user in all_user_details:
 
             rgw = RGW(each_user)
+            rgw.enable_versioning = True
+            rgw.version_count = 5
 
             rgw.create_bucket_with_keys(config)
+            rgw.delete_key_version()
 
-            rgw.delete_bucket_with_keys()
 
         test_info.success_status('test completed')
 
@@ -43,7 +39,6 @@ def test_exec():
 
     except AssertionError, e:
         log.error(e)
-        test_info.failed_status('test failed: %s' % e)
         sys.exit(1)
 
 

@@ -34,7 +34,7 @@ def test_exec():
 
             rgw = RGWMultpart(each_user)
 
-            rgw.upload(config.bucket_count, **config.objects_size_range)
+            rgw.upload(config)
 
         test_info.success_status('test completed')
 

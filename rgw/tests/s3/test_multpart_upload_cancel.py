@@ -36,13 +36,13 @@ def test_exec():
             rgw = RGWMultpart(each_user)
 
             rgw.break_upload_at_part_no = config.break_at_part_no
-            rgw.upload(config.bucket_count, **config.objects_size_range)
+            rgw.upload(config)
 
             log.info('starting at part no: %s' % config.break_at_part_no)
             log.info('--------------------------------------------------')
 
             rgw.break_upload_at_part_no = 0
-            rgw.upload(config.bucket_count, **config.objects_size_range)
+            rgw.upload(config)
             rgw.download()
 
         test_info.success_status('test completed')

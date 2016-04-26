@@ -27,12 +27,12 @@ class Bucket(object):
 
         try:
 
-            add_bucket_to_json = JBucket(json_file)
-
             bucket = self.connection.create_bucket(bucket_name)
 
             create_bucket_stack = {'status': True,
                                    'bucket': bucket}
+
+            add_bucket_to_json = JBucket(json_file)
 
             add_bucket_to_json.add(bucket_name)
 
@@ -44,7 +44,7 @@ class Bucket(object):
 
         return create_bucket_stack
 
-    def get(self, bucket_name, json_file):
+    def get(self, bucket_name, json_file=None):
 
         log.debug('function: %s' % self.get.__name__)
 
@@ -65,8 +65,9 @@ class Bucket(object):
 
             bucket = self.connection.get_bucket(bucket_name)
 
-            add_bucket_to_json = JBucket(json_file)
-            add_bucket_to_json.add(bucket_name)
+            if json_file is not None:
+                add_bucket_to_json = JBucket(json_file)
+                add_bucket_to_json.add(bucket_name)
 
             get_bucket_stack = {'status': True,
                                 'bucket': bucket}
@@ -107,6 +108,19 @@ class Bucket(object):
                                    'msgs': e}
 
         return delete_bucket_stack
+
+    def enable_disable_versioning(self, enabled, bucket):
+
+        try:
+
+            bucket.enable_versioning(enabled)
+
+            return True
+
+        except (exception.S3ResponseError, exception.BotoClientError) as e:
+            log.error(e)
+
+            return False
 
 
 def check_if_bucket_empty(bucket):
