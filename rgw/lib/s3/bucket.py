@@ -1,5 +1,6 @@
 import boto.exception as exception
 import utils.log as log
+from json_ops import JBucket
 
 
 class Bucket(object):
@@ -8,7 +9,7 @@ class Bucket(object):
 
         log.debug('class: %s' % self.__class__.__name__)
 
-    def create(self, bucket_name):
+    def create(self, bucket_name, json_file):
 
         log.debug('function: %s' % self.create.__name__)
 
@@ -25,19 +26,25 @@ class Bucket(object):
         """
 
         try:
+
             bucket = self.connection.create_bucket(bucket_name)
 
             create_bucket_stack = {'status': True,
                                    'bucket': bucket}
 
-        except (exception.AWSConnectionError, exception.S3ResponseError, exception.S3CreateError), e:
+            add_bucket_to_json = JBucket(json_file)
+
+            add_bucket_to_json.add(bucket_name)
+
+        except (exception.AWSConnectionError, exception.BotoClientError, exception.S3ResponseError,
+                exception.S3CreateError, IOError), e:
             log.error(e)
             create_bucket_stack = {'status': False,
                                    'msgs': e}
 
         return create_bucket_stack
 
-    def get(self, bucket_name):
+    def get(self, bucket_name, json_file=None):
 
         log.debug('function: %s' % self.get.__name__)
 
@@ -55,7 +62,12 @@ class Bucket(object):
         """
 
         try:
+
             bucket = self.connection.get_bucket(bucket_name)
+
+            if json_file is not None:
+                add_bucket_to_json = JBucket(json_file)
+                add_bucket_to_json.add(bucket_name)
 
             get_bucket_stack = {'status': True,
                                 'bucket': bucket}
@@ -96,6 +108,19 @@ class Bucket(object):
                                    'msgs': e}
 
         return delete_bucket_stack
+
+    def enable_disable_versioning(self, enabled, bucket):
+
+        try:
+
+            bucket.enable_versioning(enabled)
+
+            return True
+
+        except (exception.S3ResponseError, exception.BotoClientError) as e:
+            log.error(e)
+
+            return False
 
 
 def check_if_bucket_empty(bucket):
