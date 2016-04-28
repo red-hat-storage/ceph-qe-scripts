@@ -19,7 +19,7 @@ def test_exec():
         config = Config()
 
         config.user_count = 1
-        config.bucket_count = 10
+        config.bucket_count = 3
         config.objects_count = 4
         config.objects_size_range = {'min': 5, 'max': 15}
 
@@ -45,7 +45,6 @@ def test_exec():
         log.error(e)
         test_info.failed_status('test failed: %s' % e)
         sys.exit(1)
-
 
 
 if __name__ == '__main__':

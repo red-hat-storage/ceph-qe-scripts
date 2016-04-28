@@ -10,13 +10,15 @@ import lib.s3.rgw as rgw_lib
 
 def test_exec():
 
-    test_info = AddTestInfo('enable versioning on a bucket and upload keys and its versions and revert to once of the version')
+    test_info = AddTestInfo('enable versioning on a bucket and upload keys and '
+                            'its versions and revert to once of the version')
 
     try:
 
         config = Config()
         config.user_count = 1
         config.objects_count = 1
+        config.objects_size_range = {'min': 5, 'max': 15}
 
         test_info.started_info()
 

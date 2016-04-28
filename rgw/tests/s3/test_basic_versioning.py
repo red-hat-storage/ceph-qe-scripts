@@ -17,6 +17,7 @@ def test_exec():
         config = Config()
         config.user_count = 1
         config.objects_count = 1
+        config.objects_size_range = {'min': 5, 'max': 15}
 
         test_info.started_info()
 

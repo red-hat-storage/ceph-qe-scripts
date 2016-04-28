@@ -26,7 +26,7 @@ class Authenticate(object):
 
         if not os.path.exists(self.json_file_upload):
 
-            log.info('json file does not exists')
+            log.info('json file does not exists, so creating one ')
 
             data = {'access_key': self.access_key,
                     'secret_key': self.secret_key,
@@ -42,7 +42,7 @@ class Authenticate(object):
     def dump_to_json_download(self):
 
         if not os.path.exists(self.json_file_download):
-            log.info('json file does not exists')
+            log.info('json file does not exists,so creating one ')
 
             data = {'access_key': self.access_key,
                     'secret_key': self.secret_key,

@@ -68,7 +68,7 @@ class RGW(BaseOp):
         log.info('no of buckets to create: %s' % bucket_create_nos)
         log.info('no of obejcts in a bucket to create %s' % object_create_nos)
 
-        if self.buckets_created is None:
+        if not self.buckets_created:
 
             for bucket_no in range(bucket_create_nos):
 
@@ -148,6 +148,20 @@ class RGW(BaseOp):
                             if not put['status']:
                                 raise AssertionError
 
+                        versions = list(bucket_created['bucket'].list_versions(key_created))
+
+                        log.info('listing all version')
+                        self.version_ids = [k.version_id for k in versions]
+                        # log.info("\n".join(self.version_ids))
+                        log.info(self.version_ids)
+
+                        if self.move_version:
+
+                            # reverting to a random version.
+
+                            bucket_created['bucket'].copy_key(key_created.name, bucket_name, key_created.name,
+                                                              src_version_id=random.choice(self.version_ids))
+
                     else:
 
                         put = put_file.put(random_file)
@@ -157,16 +171,7 @@ class RGW(BaseOp):
 
                     log.info('put of the file completed')
 
-                    if self.move_version:
 
-                        # reverting to a random version.
-
-                        versions = list(bucket_created['bucket'].list_versions(key_created))
-
-                        self.version_ids = [k.version_id for k in versions]
-
-                        bucket_created['bucket'].copy_key(key_created.name, bucket_name, key_created.name,
-                                                          src_version_id=random.choice(self.version_ids))
 
     def delete_key_version(self):
 
