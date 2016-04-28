@@ -113,7 +113,7 @@ class Bucket(object):
 
         try:
 
-            bucket.enable_versioning(enabled)
+            bucket.configure_versioning(enabled)
 
             return True
 

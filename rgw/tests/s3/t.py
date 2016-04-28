@@ -6,46 +6,43 @@ from boto.s3.key import Key
 
 from random import randint
 
-access_key = 'W21H8020LFKYOGMDIQSO'
-secret_key = 'OYhR8MhVEYMPqJvXnDntGDERxueNDMG5lnCs9XNo'
-#objname = sys.argv[2]
-#bucket_name = sys.argv[1]
-#filename = '/tmp/big.dat'
+access_key = '1J6482QP2Z0MF2QMEA5K'
+secret_key = '0y9Rgzz7rBmp4VAzVVqrlEyaKOpw6POCiAuuMzjZ'
+# objname = sys.argv[2]
+# bucket_name = sys.argv[1]
+# filename = '/tmp/big.dat'
+
 
 conn = boto.connect_s3(
-    aws_access_key_id = access_key,
-    aws_secret_access_key = secret_key,
-    host = 'magna079',
-    port = 7280,
+    aws_access_key_id=access_key,
+    aws_secret_access_key=secret_key,
+    host='magna079',
+    port=7280,
     is_secure=False,
-    calling_format = boto.s3.connection.OrdinaryCallingFormat(),
-    )
+    calling_format=boto.s3.connection.OrdinaryCallingFormat(),
+)
 
+bu = conn.lookup('christy.bucky.0')
+# bu.configure_versioning(True)
 
-bu = conn.lookup('bbuck1')
-#bu.configure_versioning(True)
-
-#k = Key(bu)
-#k.key = 'my_fle.pdf'
-#k.set_contents_from_filename('1.pdf')
-#k.set_contents_from_filename('2.pdf')
+# k = Key(bu)
+# k.key = 'my_fle.pdf'
+# k.set_contents_from_filename('1.pdf')
+# k.set_contents_from_filename('2.pdf')
 
 # versions = list(bu.list_versions('my_fle.pdf'))
 # print [k.version_id for k in versions]
 
-bu.delete_key('my_fle.pdf')
+# bu.delete_key('my_fle.pdf')
 
+# print '---------->deleing key'
 
-print '---------->deleing key'
-
-versions = list(bu.list_versions('my_fle.pdf'))
+versions = list(bu.list_versions('key.0'))
 keys = [k.version_id for k in versions]
 
 keys_lenght = len(keys)
 print '------------>keys_lenght: %s' % keys_lenght
 print "\n".join(keys)
-
-
 
 # all = conn.get_all_buckets()
 #
@@ -69,38 +66,39 @@ print "\n".join(keys)
 #     print '--------------'
 
 
-"""
-mp = boto.s3.multipart.MultiPartUpload(b)
-
-#mp = b.initiate_multipart_upload('testmpupload2')
-
-fp = open('xaa', 'rb')
-
-mp.upload_part_from_file(fp, 1)
-
-fp.close()
-
-fp = open('xab', 'rb')
-
-mp.upload_part_from_file(fp, 2)
-
-fp.close()
-
-fp = open('xac', 'rb')
-
-mp.upload_part_from_file(fp, 3)
-
-fp.close()
-
-fp = open('xad', 'rb')
-
-mp.upload_part_from_file(fp, 4)
-
-fp.close()
-
-for part in mp:
-    print part.part_number, part.size
-
-mp.complete_upload()
-
-"""
+# mp = boto.s3.multipart.MultiPartUpload(bu)
+# # mp = b.initiate_multipart_upload('testmpupload2')
+#
+# fp = open('xaa', 'rb')
+#
+# mp.upload_part_from_file(fp, 1)
+#
+# fp.close()
+#
+# fp = open('xab', 'rb')
+#
+# mp.upload_part_from_file(fp, 2)
+#
+# fp.close()
+#
+# fp = open('xac', 'rb')
+#
+# mp.upload_part_from_file(fp, 3)
+#
+# fp.close()
+#
+# fp = open('xad', 'rb')
+#
+# mp.upload_part_from_file(fp, 4)
+#
+# fp.close()
+#
+# for part in mp:
+#     print part.part_number, part.size
+#
+# mp.complete_upload()
+#
+# mp.upload_part_from_file(fp, 5)
+# fp.close()
+#
+# fp.close()
