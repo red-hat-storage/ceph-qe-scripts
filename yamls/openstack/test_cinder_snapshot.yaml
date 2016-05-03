@@ -12,4 +12,3 @@ tasks:
       - sudo cp ceph-qe-scripts/openstack/osp_cleanup.sh .
       - sudo sh osp_cleanup.sh
       - sudo rm -rf osp_cleanup.sh
-- interactive:
