@@ -7,6 +7,20 @@ import requests
 log = logging.getLogger(__name__)
 
 
+class PoolDefinition(object):
+    def __init__(self):
+        self.name = None
+        self.size = None
+        self.pg_num = None
+        self.crush_ruleset = None
+        self.min_size = None
+        self.crash_replay_interval = None
+        self.pgp_num = None
+        self.hashpspool = None
+        self.quota_max_objects = None
+        self.quota_max_bytes = None
+
+
 class AuthenticatedHttpClient(requests.Session):
     """
     Client for the calamari REST API, principally exists to do
@@ -67,12 +81,17 @@ class AuthenticatedHttpClient(requests.Session):
             'password': self._password
         })
         response.raise_for_status()
+
         # XSRF token rotates on login
-        self.headers['X-XSRF-TOKEN'] = response.cookies['XSRF-TOKEN']
+        # self.headers['X-XSRF-TOKEN'] = response.cookies['XSRF-TOKEN']
 
         # Check we're allowed in now.
-        response = self.get("cluster", verify=False)
-        response.raise_for_status()
+
+        # response = self.get("cluster", verify=False)
+        # response.raise_for_status()
+        print 'csrf_token: ' , response.cookies['XSRF-TOKEN']
+        return response.cookies['XSRF-TOKEN']
+
 
 if __name__ == "__main__":
 
@@ -81,9 +100,11 @@ if __name__ == "__main__":
 
 
     p = argparse.ArgumentParser()
-    p.add_argument('-u', '--uri', default='http://mira035/api/v1/')
+
+    p.add_argument('-u', '--uri', default='https://10.8.128.41:8002/api/v2/')
     p.add_argument('--user', default='admin')
-    p.add_argument('--pass', dest='password', default='admin')
+    p.add_argument('--pass', dest='password', default='admin123')
+
     #p.add_argument('-u', '--uri', default='http://10.8.128.28/api/v2/cluster/6a7be8bd-84d0-4e4f-b06a-32b78a3133a6')
     args, remainder = p.parse_known_args()
 

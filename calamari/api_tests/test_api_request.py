@@ -33,7 +33,7 @@ class APIRequestOps(APIRequest):
 
         api = self.construct_api()
         log.info('api testing with fsid')
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -52,7 +52,7 @@ class APIRequestOps(APIRequest):
                 log.debug('pool with id %s' % str(each_id['id']))
                 log.debug('api: %s' % api)
 
-                response = self.auth.request('GET', api)
+                response = self.auth.request('GET', api, verify=False)
                 response.raise_for_status()
                 log.debug('response: \n %s' % response.json())
 
@@ -71,7 +71,7 @@ class APIRequestOpsNoFsid(APIRequest):
 
         api = self.construct_api_non_clusterId()
         log.debug('api_testing without fsid')
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -89,7 +89,7 @@ class APIRequestOpsNoFsid(APIRequest):
                 log.debug('request with id %s' % str(each_id['id']))
                 log.debug('api: %s' % api)
 
-                response = self.auth.request('GET', api)
+                response = self.auth.request('GET', api, verify=False)
                 response.raise_for_status()
                 log.debug('response: \n %s' % response.json())
 
@@ -107,7 +107,7 @@ class APIRequestOpsNoFsid(APIRequest):
                     log.debug('request with id %s' % str(each_id['id']))
                     log.debug('api: %s' % api_with_state)
 
-                    response2 = self.auth.request('GET', api_with_state)
+                    response2 = self.auth.request('GET', api_with_state, verify=False)
                     response2.raise_for_status()
                     log.debug('response: \n %s' % response2.json())
 

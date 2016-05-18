@@ -1,4 +1,4 @@
-import log
+from libs import log
 
 
 class AddTestInfo(object):
@@ -10,7 +10,7 @@ class AddTestInfo(object):
     def started_info(self):
 
         log.info('\n========================================================================================================= \ntest details'
-                 '\n---------\ntest_id:%s\ntest_name:%s\n=============================' %(self.id, self.name))
+                 '\n---------\ntest_id:%s\ntest_name:%s\n=============================' % (self.id, self.name))
 
         print '---------------------------'
         print 'test_started:%s' % self.name

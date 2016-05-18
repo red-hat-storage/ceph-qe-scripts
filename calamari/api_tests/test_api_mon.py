@@ -27,7 +27,7 @@ class APIMonOps(APIMon):
     def get_mon(self):
 
         api = self.construct_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -46,7 +46,7 @@ class APIMonOps(APIMon):
                 log.debug('mon with name %s' % str(each_id['name']))
                 log.debug('api: %s' % api)
 
-                response = self.auth.request('GET', api)
+                response = self.auth.request('GET', api, verify=False)
                 response.raise_for_status()
                 log.debug('response: \n %s' % response.json())
 
@@ -59,7 +59,7 @@ class APIMonOps(APIMon):
 
                 log.debug('api: %s' % mon_id_api)
 
-                mon_status_response = self.auth.request('GET', mon_id_api)
+                mon_status_response = self.auth.request('GET', mon_id_api, verify=False)
                 mon_status_response.raise_for_status()
                 log.debug('response: \n %s' % mon_status_response.json())
 

@@ -1,113 +1,196 @@
-from libs.pool import Pool, PoolDefinition
-from libs.request import Request
-import config
+import libs.log as log
+from libs.http_client import HTTPRequest
 from utils.test_desc import AddTestInfo
-import utils.log as log
 from utils.utils import check_request_id
+from libs.request import APIRequest
+import traceback
+import json
+from config import MakeMachines
 
 
-class PoolOps(object):
-    def __init__(self, **kwargs):
-        self.pool = Pool(**kwargs)
-        self.request = Request(**config_data)
-
-    def create_pool(self, part_pool_name):
-
-        pool_definition = PoolDefinition()
-        
-        pool_definition.name = 'pool_' + str(part_pool_name)
-        pool_definition.size = 3
-        pool_definition.pg_num = 64
-        pool_definition.crush_ruleset = 0
-        pool_definition.min_size = 2
-        pool_definition.crash_replay_interval = 0
-        pool_definition.pg_num = 64
-        pool_definition.hashpspool = True
-        pool_definition.quota_max_objects = 0
-        pool_definition.quota_max_bytes = 0
-
-        log.debug('pool definition complete')
-        
-        content = self.pool.create(pool_definition.__dict__)
-
-        assert content, 'pool create failed'
-
-        log.debug('pool created')
-
-        pool_created = check_request_id(self.request, content['request_id'])
-
-        if pool_created:
-            log.info('pool created')
-
-        pools = self.pool.get()
-
-        my_pool = None
-
-        for pool in pools:
-            if pool_definition.name == pool['name']:
-                log.debug('got matching pool')
-                my_pool = pool
-                log.debug(my_pool)
-                break
-
-        # asserts if my_pool is none,
-        assert my_pool is not None, ("did not find any pool with the name %s" % pool_definition.name )
-
-        return my_pool
-
-    def edit_pool(self, pool_id):
+class PoolDefinition(object):
+    def __init__(self):
         pass
 
-    def cancel_pool_creation(self):
-        t = self.request.cancel_request('d88d268d-fcf7-48f0-9da1-e93b023ac93c')
-        print t
 
-    def delete_pool(self, pool_id):
+class Test(object):
 
-        content = self.pool.delete(pool_id)
-        assert content, 'delete pool failed'
+    def __init__(self, **config):
 
-        pool_deleted = check_request_id(self.request, content['request_id'])
+        self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
 
-        if pool_deleted:
-            log.info('pool deleted')
+        assert self.http_request.login(), "login failed"
 
-        return content
+        assert self.http_request.getfsid(), "failed to get fsid"
+
+        self.api_request = APIRequest(self.http_request)
+
+        self.pool_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/pool"
+
+        self.pool_name = 'pool_' + "api_testing"
+        self.pool = None
+
+    def get_pool(self):
+
+        try:
+
+            url = self.pool_url
+
+            response = self.http_request.get(url)
+
+            pretty_response = json.dumps(response.json(), indent=2)
+            pools = json.loads(pretty_response)
+
+            my_pool = None
+
+            for pool in pools:
+                if self.pool_name == pool['name']:
+                    log.debug('got matching pool')
+                    my_pool = pool
+                    log.debug(my_pool)
+                    break
+
+            # asserts if my_pool is none,
+            assert my_pool is not None, ("did not find any pool with the name %s" % self.pool_name)
+
+            self.pool = my_pool
+
+
+        except Exception:
+            log.error('error %s:' % traceback.format_exc())
+
+    def create_pool(self):
+
+        # testing post operation
+
+        try:
+
+            url = self.pool_url
+
+            pool_definition = PoolDefinition()
+
+            pool_definition.name = self.pool_name
+            pool_definition.size = 3
+            pool_definition.pg_num = 64
+            pool_definition.crush_ruleset = 0
+            pool_definition.min_size = 2
+            pool_definition.crash_replay_interval = 0
+            pool_definition.pg_num = 64
+            pool_definition.hashpspool = True
+            pool_definition.quota_max_objects = 0
+            pool_definition.quota_max_bytes = 0
+
+            log.debug('pool definition complete')
+
+            response = self.http_request.post(url, pool_definition.__dict__)
+
+            response.raise_for_status()
+
+            log.info(response.content)
+
+            pretty_response = json.dumps(response.json(), indent=2)
+            cleaned_response = json.loads(pretty_response)
+
+            pool_created = check_request_id(self.api_request, cleaned_response['request_id'])
+
+            if pool_created:
+                log.info('pool created')
+
+        except Exception:
+            log.error('\n%s' % traceback.format_exc())
+            raise AssertionError
+
+    def edit_pool(self):
+
+        try:
+
+            self.get_pool()
+
+            url = self.pool_url + "/" +str(self.pool['id'])
+
+            pool_definition = PoolDefinition()
+
+            pool_definition.name = self.pool_name + "_renamed"
+
+            self.pool_name = pool_definition.name
+
+            response = self.http_request.patch(url, pool_definition.__dict__)
+
+            response.raise_for_status()
+
+            log.info(response.content)
+
+            pretty_response = json.dumps(response.json(), indent=2)
+            cleaned_response = json.loads(pretty_response)
+
+            pool_created = check_request_id(self.api_request, cleaned_response['request_id'])
+
+            if pool_created:
+                log.info('pool patched')
+
+            response = self.http_request.get(url)
+            pretty_response = json.dumps(response.json(), indent=2)
+            self.pool = json.loads(pretty_response)
+
+        except Exception:
+            log.error('\n%s' % traceback.format_exc())
+            raise AssertionError
+
+    def delete_pool(self):
+
+        try:
+
+            url = self.pool_url + "/" + str(self.pool['id'])
+
+            response = self.http_request.delete(url)
+
+            response.raise_for_status()
+
+            log.info(response.content)
+
+            pretty_response = json.dumps(response.json(), indent=2)
+            cleaned_response = json.loads(pretty_response)
+
+            pool_created = check_request_id(self.api_request, cleaned_response['request_id'])
+
+            if pool_created:
+                log.info('pool deleted')
+
+        except Exception:
+            log.error('\n%s' % traceback.format_exc())
+            raise AssertionError
 
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(1, 'Pool testing')
+    add_test_info = AddTestInfo(4, '\n api/v2/cluster/<fsid>/crush_node \n'
+                                   'api/v2/cluster/<fsid>/crush_node/<node_id>')
     add_test_info.started_info()
 
-    no_of_pools = 5
+    try:
+        pool_ops = Test(**config_data)
 
-    for i in range(no_of_pools):
+        pool_ops.create_pool()
 
-        print 'iteration no %s' % (i+1)
+        pool_ops.edit_pool()
 
-        log.info('---------------------iteration no %s-----------------' %(i+1))
+        pool_ops.delete_pool()
 
-        try:
-            pool_ops = PoolOps(**config_data)
-            pool_details = pool_ops.create_pool(str(i))
-            log.debug('got created pool details\n%s' % pool_details)
+        add_test_info.status('test ok')
 
-            pool_ops.delete_pool(pool_details['id'])
-            add_test_info.status('test ok')
-
-        except AssertionError, e:
-            log.error(e)
-            add_test_info.status('test error')
+    except AssertionError, e:
+        log.error(e)
+        add_test_info.status('test error')
 
     add_test_info.completed_info()
 
 
 if __name__ == '__main__':
-    config_data = config.get_config()
 
-    if not config_data['auth']:
-        log.error('auth failed')
+    machines_config = MakeMachines()
 
-    else:
-        exec_test(config_data)
+    calamari_config = machines_config.calamari()
+    mons = machines_config.mon()
+    osds = machines_config.osd()
+
+    exec_test(calamari_config)

@@ -27,7 +27,7 @@ class APICrushMapOps(APICrushMap):
     def get_crush_map(self):
 
         api = self.construct_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         log.info('\n%s' %response.json())
 

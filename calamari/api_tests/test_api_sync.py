@@ -28,7 +28,7 @@ class APISyncObjectOps(APISyncObject):
     def get_sync_object(self):
 
         api = self.construct_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -42,15 +42,19 @@ class APISyncObjectOps(APISyncObject):
 
             for each_type in self.json_resp:
                 api = self.construct_api() + '/' + str(each_type)
-                log.debug('with id %s' % str(each_type))
-                log.debug('api: %s' % api)
 
-                response = self.auth.request('GET', api)
-                response.raise_for_status()
-                log.debug('response: \n %s' % response.json())
+                if each_type == 'mds_map':
+                    pass
+                else:
+                    log.debug('with id %s' % str(each_type))
+                    log.debug('api: %s' % api)
 
-                pretty_response = json.dumps(response.json(), indent=2)
-                log.debug('pretty json response \n %s' % pretty_response)
+                    response = self.auth.request('GET', api, verify=False)
+                    response.raise_for_status()
+                    log.debug('response: \n %s' % response.json())
+
+                    pretty_response = json.dumps(response.json(), indent=2)
+                    log.debug('pretty json response \n %s' % pretty_response)
 
 
     def put(self):
