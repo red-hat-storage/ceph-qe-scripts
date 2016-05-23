@@ -14,11 +14,11 @@ class Test(object):
 
         self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
 
-        logged_in = self.http_request.login()
-
         assert self.http_request.login(), "login failed"
 
         assert self.http_request.getfsid(), "failed to get fsid"
+
+        self.api_request = APIRequest(self.http_request)
 
         self.osd_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/osd"
 
@@ -32,6 +32,8 @@ class Test(object):
             url = self.osd_url
 
             response = self.http_request.get(url)
+            log.info(response.content)
+
             response.raise_for_status()
 
             pretty_response = json.dumps(response.json(), indent=2)
@@ -61,9 +63,9 @@ class Test(object):
 
                 response = self.http_request.patch(url, data)
 
-                response.raise_for_status()
-
                 log.info(response.content)
+
+                response.raise_for_status()
 
                 pretty_response = json.dumps(response.json(), indent=2)
                 cleaned_response = json.loads(pretty_response)
@@ -87,12 +89,12 @@ class Test(object):
             url = self.osd_url + "/command"
 
             response = self.http_request.get(url)
+
+            log.info(response.content)
             response.raise_for_status()
 
             # pretty_response = json.dumps(response.json(), indent=2)
             # osd_commands = json.loads(pretty_response)
-
-            log.info(response.content)
 
             self.osd_commands = response.content
 
@@ -115,6 +117,8 @@ class Test(object):
                 url = self.osd_url +  "/" + str(id) + "/command"
 
                 response = self.http_request.get(url)
+
+                log.info(response.content)
                 response.raise_for_status()
 
                 pretty_response = json.dumps(response.json(), indent=2)
@@ -147,6 +151,8 @@ class Test(object):
                     data = {'verify': False}
 
                     response = self.http_request.post(url2, data)
+                    log.info(response.content)
+
                     response.raise_for_status()
 
                     pretty_response = json.dumps(response.json(), indent=2)
@@ -166,10 +172,10 @@ class Test(object):
 def exec_test(config_data):
 
     add_test_info = AddTestInfo(6, '\naapi/v2/cluster/<fsid>/osd \n'
-                                   '\napi/v2/cluster/<fsid>/osd/<osd_id> \n'
-                                   '\napi/v2/cluster/<fsid>/osd /command \n'
-                                   '\napi/v2/cluster/<fsid>/osd/<osd_id>/command \n'
-                                   '\napi/v2/cluster/<fsid>/osd/<osd_id>/command/<command>  \n')
+                                   'api/v2/cluster/<fsid>/osd/<osd_id> \n'
+                                   'api/v2/cluster/<fsid>/osd /command \n'
+                                   'api/v2/cluster/<fsid>/osd/<osd_id>/command \n'
+                                   'api/v2/cluster/<fsid>/osd/<osd_id>/command/<command>  \n')
     add_test_info.started_info()
 
     try:
@@ -187,9 +193,9 @@ def exec_test(config_data):
 
         # part 1 ends
 
-        osd_ops.get_commands()
-        osd_ops.get_osd_command()
-        osd_ops.post_commands_to_osd()
+        # osd_ops.get_commands()
+        # osd_ops.get_osd_command()
+        # osd_ops.post_commands_to_osd()
 
         # part 2 ends
 

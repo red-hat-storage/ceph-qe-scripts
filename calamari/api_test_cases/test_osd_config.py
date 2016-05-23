@@ -26,11 +26,11 @@ class Test(object):
 
         self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
 
-        logged_in = self.http_request.login()
-
         assert self.http_request.login(), "login failed"
 
         assert self.http_request.getfsid(), "failed to get fsid"
+
+        self.api_request = APIRequest(self.http_request)
 
         self.osd_config_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/osd_config"
 

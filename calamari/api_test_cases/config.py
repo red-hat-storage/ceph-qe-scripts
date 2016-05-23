@@ -7,14 +7,14 @@ class MakeMachines(object):
         pass
 
     def osd(self):
-        osd1 = Machines('10.8.128.70', 'magna070')
-        osd2 = Machines('10.8.128.72', 'magna072')
-        osd3 = Machines('10.8.128.79', 'magna079')
+        osd1 = Machines('10.8.128.41', 'magna041')
+        osd2 = Machines('10.8.128.45', 'magna045')
+        osd3 = Machines('10.8.128.61', 'magna061')
 
         return osd1, osd2, osd3
 
     def mon(self):
-        mon1 = Machines('10.8.128.70', 'magna070')
+        mon1 = Machines('10.8.128.41', 'magna041')
 
         return mon1
 
@@ -22,5 +22,5 @@ class MakeMachines(object):
 
         return dict(username='admin',
                     password='admin123',
-                    ip='10.8.128.70',
+                    ip='10.8.128.41',
                     port='8002')

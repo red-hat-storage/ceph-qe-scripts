@@ -9,24 +9,31 @@ from config import MakeMachines
 
 
 crush_rule_defination = {
-        "name": None,     # string
-        "ruleset": None,  # 1 or 0
-        "type": None,     # replicated
+        "name": "my_new-api2",
+        "ruleset": 0,
         "min_size": 1,
         "max_size": 10,
         "steps": [
             {
-                "item_name": "default",
-                "item": -1,
-                "op": "take"
-            },
-            {
+                "op": "take",
+                "type": "null",
                 "num": 0,
-                "type": "host",
-                "op": "chooseleaf_firstn"
+                "item_name": "default",
+                "item": -1
             },
             {
-                "op": "emit"
+                "op": "chooseleaf_firstn",
+                "type": "host",
+                "num": 0,
+                "item_name": "null",
+                "item": "-1",
+            },
+            {
+                "op": "emit",
+                "type": "null",
+                "num": 0,
+                "item_name": "null",
+                "item": -1
             }
         ]
     }
@@ -38,11 +45,11 @@ class Test(object):
 
         self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
 
-        logged_in = self.http_request.login()
-
         assert self.http_request.login(), "login failed"
 
         assert self.http_request.getfsid(), "failed to get fsid"
+
+        self.api_request = APIRequest(self.http_request)
 
         self.crush_rule_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/crush_rule"
 
@@ -86,10 +93,6 @@ class Test(object):
 
             url = self.crush_rule_url
 
-            crush_rule_defination['name'] = self.rule_name
-            crush_rule_defination['ruleset'] = 1
-            crush_rule_defination['type'] = 'replicated'
-
             log.debug('definition complete')
 
             log.info(crush_rule_defination)
@@ -118,17 +121,19 @@ class Test(object):
 
             # self.get_cursh_rule()
 
-            url = self.crush_rule_url + "/" +str(2)
+            url = self.crush_rule_url + "/" +str(0)
 
-            data = {'name': self.rule_name + '_renamed'}
+            # data = {"name": "my_new_rule"}
 
-            print data
+            data = crush_rule_defination
+
+            log.info('data to patch\n %s' % data)
 
             response = self.http_request.patch(url, data)
 
-            response.raise_for_status()
-
             log.info(response.content)
+
+            response.raise_for_status()
 
             pretty_response = json.dumps(response.json(), indent=2)
             cleaned_response = json.loads(pretty_response)

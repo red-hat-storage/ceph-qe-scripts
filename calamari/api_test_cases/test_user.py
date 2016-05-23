@@ -60,10 +60,9 @@ class Test(object):
             log.debug(data)
 
             response = self.http_request.post(url, data)
+            log.info(response.content)
 
             response.raise_for_status()
-
-            log.info(response.content)
 
             pretty_response = json.dumps(response.json(), indent=2)
             cleaned_response = json.loads(pretty_response)
@@ -84,9 +83,9 @@ class Test(object):
 
             response = self.http_request.patch(url, data)
 
-            response.raise_for_status()
-
             log.info(response.content)
+
+            response.raise_for_status()
 
             pretty_response = json.dumps(response.json(), indent=2)
             cleaned_response = json.loads(pretty_response)
@@ -105,9 +104,9 @@ class Test(object):
 
             response = self.http_request.delete(url)
 
-            response.raise_for_status()
-
             log.info(response.content)
+
+            response.raise_for_status()
 
             pretty_response = json.dumps(response.json(), indent=2)
             cleaned_response = json.loads(pretty_response)
