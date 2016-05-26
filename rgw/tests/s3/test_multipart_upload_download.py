@@ -18,8 +18,8 @@ def test_exec():
 
         config = Config()
 
-        config.user_count = 2
-        config.bucket_count = 2
+        config.user_count = 1
+        config.bucket_count = 1
         config.objects_size_range = {'min': 500, 'max': 800}
 
         # test case starts

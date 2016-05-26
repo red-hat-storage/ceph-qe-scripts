@@ -62,7 +62,7 @@ class RGW(BaseOp):
 
     def create_bucket_with_keys(self, config):
 
-        bucket_create_nos = config.objects_count
+        bucket_create_nos = config.bucket_count
         object_create_nos = config.objects_count
 
         log.info('no of buckets to create: %s' % bucket_create_nos)
@@ -280,7 +280,7 @@ class RGWMultpart(BaseOp):
 
     def upload(self, config):
 
-        bucket_create_nos = config.objects_count
+        bucket_create_nos = config.bucket_count
         object_size = config.objects_size_range
 
         self.buckets_created = []
