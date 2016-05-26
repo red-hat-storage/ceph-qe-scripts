@@ -2,7 +2,7 @@ import os
 import logging
 
 LOG_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-LOG_FILENAME = os.path.join(LOG_PATH, 'rgw.log')
+LOG_FILENAME = os.path.join(LOG_PATH, '/tmp/rgw.log')
 
 if os.path.exists(LOG_FILENAME): os.unlink(LOG_FILENAME)
 
