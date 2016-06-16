@@ -1,0 +1,26 @@
+roles:
+- - mon.a
+  - osd.0
+  - osd.1
+  - osd.2
+  - mds.a
+- - mon.b
+  - osd.3
+  - osd.4
+  - osd.5
+- - client.0
+- - client.1
+- - client.2
+- - clinet.3
+- - client.4
+- - cleint.5
+- - cleint.6
+- - cleint.7
+tasks:
+- install:
+- ceph:
+- ceph-fuse:
+- workunit:
+    clients:
+      all:
+        - suites/fsstress.sh
