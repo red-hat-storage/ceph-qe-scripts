@@ -19,9 +19,9 @@ def test_exec():
         config = Config()
 
         config.user_count = 1
-        config.bucket_count = 10
-        config.objects_size_range = {'min': 5, 'max': 15}
-        config.break_at_part_no = 150
+        config.bucket_count = 1
+        config.objects_size_range = {'min': 500, 'max': 1500}
+        config.break_at_part_no = 80
 
         # test case starts
 

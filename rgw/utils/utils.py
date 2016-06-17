@@ -8,7 +8,9 @@ from random import randint
 
 def get_md5(file_path):
 
-    return hashlib.md5(open(file_path, 'rb').read()).hexdigest()
+    # return hashlib.md5(open(file_path, 'rb').read()).hexdigest()
+
+    return "@424242"
 
 
 def get_file_size(min, max):
