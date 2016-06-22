@@ -9,26 +9,29 @@ class MakeMachines(object):
         pass
 
     def osd(self):
-        osd1 = Machines('10.8.128.70', 'magna070')
-        osd2 = Machines('10.8.128.72', 'magna072')
-        osd3 = Machines('10.8.128.79', 'magna079')
+        osd1 = Machines('10.8.128.77', 'magna077')
+        osd2 = Machines('10.8.128.52', 'magna052')
+        osd3 = Machines('10.8.128.80', 'magna080')
 
         return osd1, osd2, osd3
 
     def mon(self):
-        mon1 = Machines('10.8.128.70', 'magna070')
 
-        return mon1
+        mon1 = Machines('10.8.128.77', 'magna077')
+        mon2 = Machines('10.8.128.52', 'magna052')
+        mon3 = Machines('10.8.128.80', 'magna080')
+
+        return mon1, mon2, mon3
 
     def admin(self):
-        admin_node = Machines('10.8.128.70', 'magna070')
+        admin_node = Machines('10.8.128.77', 'magna077')
 
         return admin_node
 
     def calamari(self):
-        username = 'admin'
-        password = 'admin123'
-        uri = 'https://10.8.128.70:8002/api/v2/'
+        username = 'test1'
+        password = 'ceph123'
+        uri = 'https://10.8.128.77:8002/api/v2/'
 
         return uri, username, password
 
@@ -39,7 +42,7 @@ def get_config():
 
     username = 'admin'
     password = 'admin123'
-    uri = 'https://10.8.128.70:8002/api/v2/'
+    uri = 'https://10.8.128.63:8002/api/v2/'
 
     make_machines = MakeMachines()
 

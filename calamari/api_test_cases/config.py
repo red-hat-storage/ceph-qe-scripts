@@ -22,5 +22,5 @@ class MakeMachines(object):
 
         return dict(username='admin',
                     password='admin123',
-                    ip='10.8.128.41',
+                    ip='10.8.128.63',
                     port='8002')

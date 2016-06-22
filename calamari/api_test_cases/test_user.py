@@ -125,7 +125,7 @@ class Test(object):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(7, '\n api/v2/user \n'
+    add_test_info = AddTestInfo(16, '\n api/v2/user \n'
                                    'api/v2/user/<pk>')
     add_test_info.started_info()
 

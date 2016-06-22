@@ -19,30 +19,24 @@ class Test(object):
 
         self.api_request = APIRequest(self.http_request)
 
-        self.cli_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/cli"
+        self.config_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/" + "config"
 
-    def cli_commands(self, command):
-
-        # testing post operation
+    def get_config(self, url):
 
         try:
 
-            log.info('post for commands: %s' % command)
-
-            url = self.cli_url
-
-            data = {'command': command}
-
-            response = self.http_request.post(url, data)
-
-            response.raise_for_status()
+            response = self.http_request.get(url)
 
             log.info(response.content)
+
+            response.raise_for_status()
 
             pretty_response = json.dumps(response.json(), indent=2)
             cleaned_response = json.loads(pretty_response)
 
-            log.debug(cleaned_response)
+            log.debug(pretty_response)
+
+            return cleaned_response
 
         except Exception:
             log.error('\n%s' % traceback.format_exc())
@@ -51,17 +45,20 @@ class Test(object):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(1, 'api/v2/cluster/<fsid>/cli')
+    add_test_info = AddTestInfo(2, '\napi/v2/cluster/fsid/config \n'
+                                   'api/v2/cluster/fsid/config/<key>')
     add_test_info.started_info()
 
     try:
         test = Test(**config_data)
 
-        test.cli_commands(command=['ceph', 'osd', 'tree'])
+        cleaned_response = test.get_config(test.config_url)
 
-        test.cli_commands(command='ceph -s')
+        keys = [key['key'] for key in cleaned_response]
 
-        test.cli_commands(command='ceph osd dump')
+        get = lambda x: test.get_config(test.config_url + "/" + str(x))
+
+        map(get, keys)
 
         add_test_info.status('test ok')
 
@@ -73,6 +70,7 @@ def exec_test(config_data):
 
 
 if __name__ == '__main__':
+
     machines_config = MakeMachines()
 
     calamari_config = machines_config.calamari()

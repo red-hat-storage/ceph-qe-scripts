@@ -82,6 +82,8 @@ class Test(object):
 
             log.debug('pool definition complete')
 
+            log.info('json data \n%s:' % pool_definition.__dict__)
+
             response = self.http_request.post(url, pool_definition.__dict__)
 
             response.raise_for_status()
@@ -163,8 +165,8 @@ class Test(object):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(4, '\n api/v2/cluster/<fsid>/crush_node \n'
-                                   'api/v2/cluster/<fsid>/crush_node/<node_id>')
+    add_test_info = AddTestInfo(11, '\n api/v2/cluster/<fsid>/pool \n'
+                                   'api/v2/cluster/<fsid>/pool/<pool_id>')
     add_test_info.started_info()
 
     try:

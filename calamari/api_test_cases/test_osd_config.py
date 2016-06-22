@@ -78,7 +78,7 @@ class Test(object):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(5, '\napi/v2/cluster/<fsid>/osd_config \n' )
+    add_test_info = AddTestInfo(10, '\napi/v2/cluster/<fsid>/osd_config \n' )
     add_test_info.started_info()
 
     try:

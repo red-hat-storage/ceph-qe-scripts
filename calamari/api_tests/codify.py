@@ -30,7 +30,7 @@ if __name__ == '__main__':
     else:
         # call test_cases
 
-        test_api_cli.exec_test(config_data)                     # test_id:0
+        # test_api_cli.exec_test(config_data)                     # test_id:0
         test_api_config.exec_test(config_data)                  # test_id:1
         test_api_crush_map.exec_test(config_data)               # test_id:2
         test_api_crush_node.exec_test(config_data)              # test_id:3

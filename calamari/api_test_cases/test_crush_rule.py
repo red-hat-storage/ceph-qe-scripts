@@ -7,36 +7,50 @@ import traceback
 import json
 from config import MakeMachines
 
-
-crush_rule_defination = {
-        "name": "my_new-api2",
+crush_rule_edition = {
+        "name": "replicated_ruleset-TEST",
         "ruleset": 0,
         "min_size": 1,
         "max_size": 10,
         "steps": [
             {
-                "op": "take",
-                "type": "null",
-                "num": 0,
                 "item_name": "default",
-                "item": -1
+                "item": -1,
+                "op": "take"
             },
             {
-                "op": "chooseleaf_firstn",
+                "num": 0,
                 "type": "host",
-                "num": 0,
-                "item_name": "null",
-                "item": "-1",
+                "op": "chooseleaf_firstn"
             },
             {
-                "op": "emit",
-                "type": "null",
-                "num": 0,
-                "item_name": "null",
-                "item": -1
-            }
-        ]
+                "op": "emit"
+            }]
+
     }
+
+crush_rule_defination = {
+    "name": "replicated_ruleset-TEST-new-2",
+    "ruleset": 0,
+    "type": "replicated",
+    "min_size": 1,
+    "max_size": 10,
+    "steps": [
+        {
+            "item_name": "default",
+            "item": -1,
+            "op": "take"
+        },
+        {
+            "num": 0,
+            "type": "host",
+            "op": "chooseleaf_firstn"
+        },
+        {
+            "op": "emit"
+        }
+    ]
+}
 
 
 class Test(object):
@@ -53,7 +67,7 @@ class Test(object):
 
         self.crush_rule_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/crush_rule"
 
-        self.rule_name = 'rule_' + "api_testing"
+        # self.rule_name = 'rule_' + "api_testing"
         self.crush_rule = None
 
     def get_cursh_rule(self):
@@ -63,9 +77,16 @@ class Test(object):
             url = self.crush_rule_url
 
             response = self.http_request.get(url)
+            log.info(response.content)
 
-            pretty_response = json.dumps(response.json(), indent=2)
-            rules = json.loads(pretty_response)
+            response.raise_for_status()
+
+            # pretty_response = json.dumps(response.content.json(), indent=2)
+            # rules = json.loads(pretty_response)
+
+            # log.info('Got all rules :\n' % rules)
+
+            """
 
             my_rule = None
 
@@ -81,11 +102,13 @@ class Test(object):
 
             self.crush_rule = my_rule
 
+            """
+
         except Exception:
             log.error('error: \n%s' % traceback.format_exc())
             raise AssertionError
 
-    def create_crush_rule(self):
+    def create_crush_rule(self, data):
 
         # testing post operation
 
@@ -93,15 +116,15 @@ class Test(object):
 
             url = self.crush_rule_url
 
-            log.debug('definition complete')
+            log.debug('creating crush rule')
 
-            log.info(crush_rule_defination)
+            log.info(data)
 
-            response = self.http_request.post(url, crush_rule_defination)
-
-            response.raise_for_status()
+            response = self.http_request.post(url, data)
 
             log.info(response.content)
+
+            response.raise_for_status()
 
             pretty_response = json.dumps(response.json(), indent=2)
             cleaned_response = json.loads(pretty_response)
@@ -115,7 +138,7 @@ class Test(object):
             log.error('\n%s' % traceback.format_exc())
             raise AssertionError
 
-    def edit_crush_rule(self):
+    def edit_crush_rule(self, data):
 
         try:
 
@@ -125,7 +148,7 @@ class Test(object):
 
             # data = {"name": "my_new_rule"}
 
-            data = crush_rule_defination
+            # data = crush_rule_defination
 
             log.info('data to patch\n %s' % data)
 
@@ -183,13 +206,21 @@ def exec_test(config_data):
     add_test_info.started_info()
 
     try:
-        pool_ops = Test(**config_data)
+        crush_rule = Test(**config_data)
 
-        # pool_ops.create_crush_rule()
+        crush_rule.get_cursh_rule()
 
-        pool_ops.edit_crush_rule()
+        data = json.dumps(crush_rule_defination)
 
-        pool_ops.delete_crush_rule()
+        log.debug('json data: \n %s' % data)
+
+        crush_rule.create_crush_rule(data)
+
+        # crush_rule.edit_crush_rule(crush_rule_edition)
+
+        # pool_ops.delete_crush_rule()
+
+        crush_rule.get_cursh_rule()
 
         add_test_info.status('test ok')
 

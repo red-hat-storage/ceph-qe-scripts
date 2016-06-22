@@ -171,7 +171,7 @@ class Test(object):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(6, '\naapi/v2/cluster/<fsid>/osd \n'
+    add_test_info = AddTestInfo(9, '\naapi/v2/cluster/<fsid>/osd \n'
                                    'api/v2/cluster/<fsid>/osd/<osd_id> \n'
                                    'api/v2/cluster/<fsid>/osd /command \n'
                                    'api/v2/cluster/<fsid>/osd/<osd_id>/command \n'

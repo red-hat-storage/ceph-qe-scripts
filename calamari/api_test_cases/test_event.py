@@ -19,30 +19,30 @@ class Test(object):
 
         self.api_request = APIRequest(self.http_request)
 
-        self.cli_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/cli"
+        self.event_url = self.http_request.base_url + "event"
 
-    def cli_commands(self, command):
+        self.cluster_event_url = self.http_request.base_url + "cluster/" + str(self.http_request.fsid) + "/event"
 
-        # testing post operation
+        self.server_event_url = self.http_request.base_url + "server"
+
+        self.severity = ['INFO', 'WARNING', 'ERROR', 'RECOVERY']
+
+    def get_event(self, url):
 
         try:
 
-            log.info('post for commands: %s' % command)
-
-            url = self.cli_url
-
-            data = {'command': command}
-
-            response = self.http_request.post(url, data)
-
-            response.raise_for_status()
+            response = self.http_request.get(url)
 
             log.info(response.content)
+
+            response.raise_for_status()
 
             pretty_response = json.dumps(response.json(), indent=2)
             cleaned_response = json.loads(pretty_response)
 
             log.debug(cleaned_response)
+
+            return cleaned_response
 
         except Exception:
             log.error('\n%s' % traceback.format_exc())
@@ -51,17 +51,25 @@ class Test(object):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(1, 'api/v2/cluster/<fsid>/cli')
+    add_test_info = AddTestInfo(5, '\napi/v2/event\n'
+                                    'api/v2/cluster/<fsid>/event\n'
+                                    'api/v2/server/<fqdn>/event\n')
     add_test_info.started_info()
 
     try:
         test = Test(**config_data)
 
-        test.cli_commands(command=['ceph', 'osd', 'tree'])
+        test.get_event(test.event_url)
+        [test.get_event(test.event_url + '?severity=' + x) for x in test.severity]
 
-        test.cli_commands(command='ceph -s')
+        test.get_event(test.cluster_event_url)
+        [test.get_event(test.cluster_event_url + '?severity=' + x) for x in test.severity]
 
-        test.cli_commands(command='ceph osd dump')
+        cleaned_response = test.get_event(test.server_event_url)
+        servers = [server['fqdn'] for server in cleaned_response]
+        [test.get_event(test.server_event_url + "/" + server) for server in servers]
+        for server in servers:
+            [test.get_event(test.server_event_url + "/" + server + '?severity=' + x) for x in test.severity]
 
         add_test_info.status('test ok')
 
@@ -73,6 +81,7 @@ def exec_test(config_data):
 
 
 if __name__ == '__main__':
+
     machines_config = MakeMachines()
 
     calamari_config = machines_config.calamari()
@@ -80,5 +89,4 @@ if __name__ == '__main__':
     osds = machines_config.osd()
 
     exec_test(calamari_config)
-
 
