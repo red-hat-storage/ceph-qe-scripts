@@ -19,13 +19,14 @@ class Test(object):
 
         self.api_request = APIRequest(self.http_request)
 
-        self.url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/crush_map"
+        self.url = self.http_request.base_url + "cluster/" + str(self.http_request.fsid) + "/crush_rule_set"
 
-    def get_crush_map(self, url):
+    def get_crush_rule_set(self, url):
 
         try:
 
             response = self.http_request.get(url)
+
             log.info(response.content)
 
             response.raise_for_status()
@@ -44,14 +45,13 @@ class Test(object):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(3, 'api/v2/cluster/<fsid>/crush_map')
+    add_test_info = AddTestInfo(18, '\napi/v2/cluster/<fsid>/crush_rule_set\n')
     add_test_info.started_info()
 
     try:
+
         test = Test(**config_data)
-
-        test.get_crush_map(test.url)
-
+        test.get_crush_rule_set(test.url)
         add_test_info.status('test ok')
 
     except AssertionError, e:
@@ -70,5 +70,4 @@ if __name__ == '__main__':
     osds = machines_config.osd()
 
     exec_test(calamari_config)
-
 
