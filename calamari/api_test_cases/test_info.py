@@ -1,45 +1,16 @@
 import libs.log as log
-from libs.http_client import HTTPRequest
 from utils.test_desc import AddTestInfo
-from libs.request import APIRequest
-import traceback
-import json
 from config import MakeMachines
+from http_ops import Initialize
 
 
-class Test(object):
+class Test(Initialize):
 
     def __init__(self, **config):
 
-        self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
-
-        assert self.http_request.login(), "login failed"
-
-        assert self.http_request.getfsid(), "failed to get fsid"
-
-        self.api_request = APIRequest(self.http_request)
+        super(Test, self).__init__(**config)
 
         self.url = self.http_request.base_url + "info"
-
-    def get_info(self, url):
-
-        # testing post operation
-
-        try:
-            response = self.http_request.get(url)
-
-            log.info(response.content)
-
-            response.raise_for_status()
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            log.debug(cleaned_response)
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
 
 
 def exec_test(config_data):
@@ -50,7 +21,7 @@ def exec_test(config_data):
     try:
         test = Test(**config_data)
 
-        test.get_info(test.url)
+        test.get(test.url)
 
         add_test_info.status('test ok')
 

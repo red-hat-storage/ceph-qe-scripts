@@ -58,3 +58,16 @@ def check_request_id(api_request, request_id):
         check_request_id(api_request, request_id)
 
 
+def clean_response(response):
+
+    log.info(response.content)
+
+    response.raise_for_status()
+
+    pretty_response = json.dumps(response.json(), indent=2)
+
+    cleaned_response = json.loads(pretty_response)
+
+    log.info("\n%s" % pretty_response)
+
+    return cleaned_response

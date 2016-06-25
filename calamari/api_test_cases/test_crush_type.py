@@ -5,33 +5,29 @@ from http_ops import Initialize
 
 
 class Test(Initialize):
-
     def __init__(self, **config):
-
         super(Test, self).__init__(**config)
 
         assert self.http_request.getfsid(), "failed to get fsid"
 
-        self.url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/" + "mon"
+        self.config_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/crush_type"
 
 
 def exec_test(config_data):
-    add_test_info = AddTestInfo(8, '\napi/v2/cluster/<fsid>/mon\n'
-                                   'api/v2/cluster/<fsid>/mon/<mon_id>\n'
-                                   'api/v2/cluster/<fsid>/mon/<mon_id>/status\n')
-
+    add_test_info = AddTestInfo(18, '\napi/v2/cluster/fsid/crush_type \n'
+                                    'api/v2/cluster/fsid/crush_type/<type_id>')
     add_test_info.started_info()
 
     try:
         test = Test(**config_data)
 
-        cleaned_response = test.get(test.url)
+        cleaned_response = test.get(test.config_url)
 
-        mon_ids = [mon['name'] for mon in cleaned_response]
+        keys = [key['id'] for key in cleaned_response]
 
-        [test.get(test.url + '/' + mon_id) for mon_id in mon_ids]
+        get = lambda x: test.get(test.config_url + "/" + str(x))
 
-        [test.get(test.url + '/' + mon_id + "/status") for mon_id in mon_ids]
+        map(get, keys)
 
         add_test_info.status('test ok')
 
@@ -43,7 +39,6 @@ def exec_test(config_data):
 
 
 if __name__ == '__main__':
-
     machines_config = MakeMachines()
 
     calamari_config = machines_config.calamari()
@@ -51,4 +46,3 @@ if __name__ == '__main__':
     osds = machines_config.osd()
 
     exec_test(calamari_config)
-

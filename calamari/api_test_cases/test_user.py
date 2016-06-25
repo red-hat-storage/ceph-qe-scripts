@@ -1,10 +1,10 @@
 import libs.log as log
-from libs.http_client import HTTPRequest
 from utils.test_desc import AddTestInfo
-import traceback
-import json
 from config import MakeMachines
+from libs.http_client import HTTPRequest
 import names
+from utils.utils import clean_response
+import traceback
 
 
 class UserCreationDefination(object):
@@ -12,127 +12,33 @@ class UserCreationDefination(object):
         pass
 
 
-class Test(object):
+class Test(HTTPRequest):
 
     def __init__(self, **config):
 
-        self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
+        super(Test, self).__init__(**config)
 
-        assert self.http_request.login(), "login failed"
+        assert self.login(), "login failed"
 
-        # assert self.http_request.getfsid(), "failed to get fsid"
-
-        self.user_url = self.http_request.base_url + "user"
-
-        self.users = None
-
-        self.user_ids = None
-
-    def get_users(self):
-
-        try:
-
-            url = self.user_url
-
-            response = self.http_request.get(url)
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_content = json.loads(pretty_response)
-
-            self.users = cleaned_content
-
-            self.user_ids = [int(uid['id']) for uid in self.users]
-
-        except Exception:
-            log.error('error: \n%s' % traceback.format_exc())
-            raise AssertionError
-
-    def create_user(self, data):
-
-        # testing post operation
-
-        try:
-
-            url = self.user_url
-
-            log.debug('definition complete')
-
-            log.debug(data)
-
-            response = self.http_request.post(url, data)
-            log.info(response.content)
-
-            response.raise_for_status()
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            log.info(cleaned_response)
-
-            return cleaned_response['id']
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
-
-    def edit_user(self, id, data):
-
-        try:
-
-            url = self.user_url + "/" +str(id)
-
-            response = self.http_request.patch(url, data)
-
-            log.info(response.content)
-
-            response.raise_for_status()
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            log.info(cleaned_response)
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
-
-    def delete_user(self, id):
-
-        try:
-
-            url = self.user_url + "/" + str(id)
-
-            response = self.http_request.delete(url)
-
-            log.info(response.content)
-
-            response.raise_for_status()
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            log.info(cleaned_response)
-
-            # deleted = check_request_id(self.api_request, cleaned_response['request_id'])
-
-            # if deleted:
-            #    log.info('deleted')
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
+        self.user_url = self.base_url + "user"
 
 
 def exec_test(config_data):
 
     add_test_info = AddTestInfo(16, '\n api/v2/user \n'
-                                   'api/v2/user/<pk>')
+                                    'api/v2/user/<pk>')
     add_test_info.started_info()
 
     try:
         test = Test(**config_data)
 
-        test.get_users()
+        # --------------- get users --------------
+
+        response = test.get(test.user_url)
+
+        clean_response(response)
+
+        # --------------- create new users --------------
 
         new_user = UserCreationDefination()
 
@@ -140,29 +46,53 @@ def exec_test(config_data):
         new_user.email = 'bob@calamari.com'
         new_user.password = 'mybob@1234'
 
-        uid = test.create_user(new_user.__dict__)
+        log.info('new username: %s' % new_user.username)
 
-        config_data['username'] = new_user.username
-        config_data['password'] = new_user.password
+        response = test.post(test.user_url, new_user.__dict__)
 
-        logged_out = test.http_request.logout()
+        new_user_created = clean_response(response)
+
+        new_uid = new_user_created['id']
+
+        logged_out = test.logout()
 
         assert logged_out, "logout failed"
 
-        test2 = Test(**config_data)
+        # ------------- edit the user details by logging back as the new user ---------------
+
+        new_config_data = config_data.copy()
+
+        new_config_data['username'] = new_user.username
+        new_config_data['password'] = new_user.password
+
+        test2 = Test(**new_config_data)
 
         edit = UserCreationDefination()
 
         edit.email = 'mybob@calamari.com'
 
-        test2.edit_user(uid, edit.__dict__)
+        response = test2.patch(test.user_url + "/" + str(new_uid), edit.__dict__)
 
-        test2.delete_user(uid)
+        clean_response(response)
+
+        test2.logout()
+
+        # --------------- delete the created user ---------------
+
+        test3 = Test(**config_data)
+
+        response = test3.delete(test3.user_url + "/" + str(new_uid))
+
+        clean_response(response)
+
+        response = test3.get(test2.user_url)
+
+        clean_response(response)
 
         add_test_info.status('test ok')
 
-    except AssertionError, e:
-        log.error(e)
+    except Exception:
+        log.error('\n%s' % traceback.format_exc())
         add_test_info.status('test error')
 
     add_test_info.completed_info()

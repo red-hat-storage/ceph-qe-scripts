@@ -1,11 +1,7 @@
 import libs.log as log
-from libs.http_client import HTTPRequest
 from utils.test_desc import AddTestInfo
-from utils.utils import check_request_id
-from libs.request import APIRequest
-import traceback
-import json
 from config import MakeMachines
+from http_ops import Initialize
 
 crush_rule_edition = {
         "name": "replicated_ruleset-TEST",
@@ -53,150 +49,15 @@ crush_rule_defination = {
 }
 
 
-class Test(object):
+class Test(Initialize):
 
     def __init__(self, **config):
 
-        self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
-
-        assert self.http_request.login(), "login failed"
+        super(Test, self).__init__(**config)
 
         assert self.http_request.getfsid(), "failed to get fsid"
 
-        self.api_request = APIRequest(self.http_request)
-
         self.crush_rule_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/crush_rule"
-
-        # self.rule_name = 'rule_' + "api_testing"
-        self.crush_rule = None
-
-    def get_cursh_rule(self):
-
-        try:
-
-            url = self.crush_rule_url
-
-            response = self.http_request.get(url)
-            log.info(response.content)
-
-            response.raise_for_status()
-
-            # pretty_response = json.dumps(response.content.json(), indent=2)
-            # rules = json.loads(pretty_response)
-
-            # log.info('Got all rules :\n' % rules)
-
-            """
-
-            my_rule = None
-
-            for rule in rules:
-                if self.rule_name == rule['name']:
-                    log.debug('matched')
-                    my_rule = my_rule
-                    log.debug(my_rule)
-                    break
-
-            # asserts if my_rule is none,
-            assert my_rule is not None, ("did not find any with name %s" % self.rule_name)
-
-            self.crush_rule = my_rule
-
-            """
-
-        except Exception:
-            log.error('error: \n%s' % traceback.format_exc())
-            raise AssertionError
-
-    def create_crush_rule(self, data):
-
-        # testing post operation
-
-        try:
-
-            url = self.crush_rule_url
-
-            log.debug('creating crush rule')
-
-            log.info(data)
-
-            response = self.http_request.post(url, data)
-
-            log.info(response.content)
-
-            response.raise_for_status()
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            created = check_request_id(self.api_request, cleaned_response['request_id'])
-
-            if created:
-                log.info('created')
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
-
-    def edit_crush_rule(self, data):
-
-        try:
-
-            # self.get_cursh_rule()
-
-            url = self.crush_rule_url + "/" +str(0)
-
-            # data = {"name": "my_new_rule"}
-
-            # data = crush_rule_defination
-
-            log.info('data to patch\n %s' % data)
-
-            response = self.http_request.patch(url, data)
-
-            log.info(response.content)
-
-            response.raise_for_status()
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            patched = check_request_id(self.api_request, cleaned_response['request_id'])
-
-            if patched:
-                log.info('patched')
-
-            response = self.http_request.get(url)
-            pretty_response = json.dumps(response.json(), indent=2)
-            self.crush_rule = json.loads(pretty_response)
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
-
-    def delete_crush_rule(self):
-
-        try:
-
-            url = self.crush_rule_url + "/" + str(self.crush_rule['id'])
-
-            response = self.http_request.delete(url)
-
-            response.raise_for_status()
-
-            log.info(response.content)
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            deleted = check_request_id(self.api_request, cleaned_response['request_id'])
-
-            if deleted:
-                log.info('deleted')
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
 
 
 def exec_test(config_data):
@@ -206,21 +67,37 @@ def exec_test(config_data):
     add_test_info.started_info()
 
     try:
-        crush_rule = Test(**config_data)
+        test = Test(**config_data)
 
-        crush_rule.get_cursh_rule()
+        test.get(test.crush_rule_url)
 
-        data = json.dumps(crush_rule_defination)
+        crush_rule_name = 'rule_' + "api_testing"
 
-        log.debug('json data: \n %s' % data)
+        crush_rule_defination['name'] = crush_rule_name
 
-        crush_rule.create_crush_rule(data)
+        log.debug('json data: \n %s' % crush_rule_defination)
 
-        # crush_rule.edit_crush_rule(crush_rule_edition)
+        test.post(test.crush_rule_url, crush_rule_defination)
 
-        # pool_ops.delete_crush_rule()
+        crush_rules = test.get(test.crush_rule_url)
 
-        crush_rule.get_cursh_rule()
+        my_rule = None
+
+        for rule in crush_rules:
+            if crush_rule_name == rule['name']:
+                log.debug('matched')
+                my_rule = rule
+                log.debug(my_rule)
+                break
+
+        # my_rule = [rule for rule in crush_rules if crush_rule_name == rule['name']]
+
+        # asserts if my_rule is none,
+        assert my_rule is not None, ("did not find any with name %s" % crush_rule_name)
+
+        test.patch(test.crush_rule_url + "/" + str(my_rule['id']), crush_rule_edition)
+
+        test.get(test.crush_rule_url)
 
         add_test_info.status('test ok')
 

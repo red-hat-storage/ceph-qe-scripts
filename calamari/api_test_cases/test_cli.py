@@ -1,52 +1,18 @@
 import libs.log as log
-from libs.http_client import HTTPRequest
 from utils.test_desc import AddTestInfo
-from libs.request import APIRequest
-import traceback
-import json
 from config import MakeMachines
+from http_ops import Initialize
 
 
-class Test(object):
+class Test(Initialize):
 
     def __init__(self, **config):
 
-        self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
-
-        assert self.http_request.login(), "login failed"
+        super(Test, self).__init__(**config)
 
         assert self.http_request.getfsid(), "failed to get fsid"
 
-        self.api_request = APIRequest(self.http_request)
-
         self.cli_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/cli"
-
-    def cli_commands(self, command):
-
-        # testing post operation
-
-        try:
-
-            log.info('post for commands: %s' % command)
-
-            url = self.cli_url
-
-            data = {'command': command}
-
-            response = self.http_request.post(url, data)
-
-            response.raise_for_status()
-
-            log.info(response.content)
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            log.debug(cleaned_response)
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
 
 
 def exec_test(config_data):
@@ -55,13 +21,23 @@ def exec_test(config_data):
     add_test_info.started_info()
 
     try:
+
         test = Test(**config_data)
 
-        test.cli_commands(command=['ceph', 'osd', 'tree'])
+        commands = ['ceph osd tree',
+                    ['ceph', '-s'],
+                    ["ceph", "osd", "dump"]
+                    ]
 
-        test.cli_commands(command='ceph -s')
+        data_to_post = map(lambda x: {'command': x}, commands)
 
-        test.cli_commands(command='ceph osd dump')
+        results = [test.post(test.cli_url, each_data, request_api=False) for each_data in data_to_post]
+
+        failed = [(command, result) for result, command in zip(results, commands)
+                  if result['status'] != 0 and result['err'] != ""]
+
+        if failed:
+            raise AssertionError(failed)
 
         add_test_info.status('test ok')
 
@@ -80,5 +56,3 @@ if __name__ == '__main__':
     osds = machines_config.osd()
 
     exec_test(calamari_config)
-
-

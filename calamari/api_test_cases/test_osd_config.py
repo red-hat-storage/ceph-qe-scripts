@@ -1,11 +1,7 @@
 import libs.log as log
-from libs.http_client import HTTPRequest
 from utils.test_desc import AddTestInfo
-from utils.utils import check_request_id
-from libs.request import APIRequest
-import traceback
-import json
 from config import MakeMachines
+from http_ops import Initialize
 
 OSD_Config = {
     "pause": False,
@@ -20,60 +16,15 @@ OSD_Config = {
 }
 
 
-class Test(object):
+class Test(Initialize):
 
     def __init__(self, **config):
 
-        self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
-
-        assert self.http_request.login(), "login failed"
+        super(Test, self).__init__(**config)
 
         assert self.http_request.getfsid(), "failed to get fsid"
 
-        self.api_request = APIRequest(self.http_request)
-
         self.osd_config_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/osd_config"
-
-        self.osd_config = None
-
-    def get_osd_config(self):
-
-        url = self.osd_config_url
-
-        response = self.http_request.get(url)
-
-        pretty_response = json.dumps(response.json(), indent=2)
-        osd_config = json.loads(pretty_response)
-
-        self.osd_config = osd_config
-
-    def edit_osd_config(self, data):
-
-        try:
-
-            url = self.osd_config_url
-
-            response = self.http_request.patch(url, data)
-
-            response.raise_for_status()
-
-            log.info(response.content)
-
-            pretty_response = json.dumps(response.json(), indent=2)
-            cleaned_response = json.loads(pretty_response)
-
-            patched = check_request_id(self.api_request, cleaned_response['request_id'])
-
-            if patched:
-                log.info('patched')
-
-            response = self.http_request.get(url)
-            pretty_response = json.dumps(response.json(), indent=2)
-            self.osd_config = json.loads(pretty_response)
-
-        except Exception:
-            log.error('\n%s' % traceback.format_exc())
-            raise AssertionError
 
 
 def exec_test(config_data):
@@ -82,18 +33,25 @@ def exec_test(config_data):
     add_test_info.started_info()
 
     try:
+
         config_ops = Test(**config_data)
 
-        data = {'nodeep-scrub': True,
-                "nobackfill": True}
+        config_ops.get(config_ops.osd_config_url)
 
-        config_ops.edit_osd_config(data)
+        patch = lambda data: config_ops.patch(config_ops.osd_config_url, data)
 
-        data = {'nodeep-scrub': False,
-                "nobackfill": False,
-                'noscrub': False}
+        data1 = {'nodeep-scrub': True,
+                 "nobackfill": True}
 
-        config_ops.edit_osd_config(data)
+        patch(data1)
+
+        data2 = {'nodeep-scrub': False,
+                 "nobackfill": False,
+                 'noscrub': False}
+
+        patch(data2)
+
+        config_ops.get(config_ops.osd_config_url)
 
         add_test_info.status('test ok')
 

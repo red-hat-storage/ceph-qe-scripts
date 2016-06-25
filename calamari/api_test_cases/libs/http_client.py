@@ -125,21 +125,4 @@ class HTTPRequest(AuthenticateClient):
         return response
 
 
-""""
-
-if __name__ == '__main__':
-
-    config = dict(username='admin',
-                    password='admin123',
-                    ip='10.8.128.70',
-                    port='8002')
-
-    client = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
-
-    client.login()
-
-    client.logout()
-
-"""
-
 
