@@ -1,10 +1,10 @@
 import libs.log as log
 from utils.test_desc import AddTestInfo
-from config import MakeMachines
 from libs.http_client import HTTPRequest
 import names
-from utils.utils import clean_response
+from utils.utils import clean_response, get_calamari_config
 import traceback
+import argparse
 
 
 class UserCreationDefination(object):
@@ -89,21 +89,24 @@ def exec_test(config_data):
 
         clean_response(response)
 
-        add_test_info.status('test ok')
+        add_test_info.success('test ok')
 
     except Exception:
         log.error('\n%s' % traceback.format_exc())
-        add_test_info.status('test error')
+        add_test_info.failed('test error')
 
-    add_test_info.completed_info()
+    return add_test_info.completed_info()
 
 
 if __name__ == '__main__':
 
-    machines_config = MakeMachines()
+    parser = argparse.ArgumentParser(description='Calamari API Automation')
 
-    calamari_config = machines_config.calamari()
-    mons = machines_config.mon()
-    osds = machines_config.osd()
+    parser.add_argument('-c', dest="config", default='config.yaml',
+                        help='calamari config file: yaml file')
+
+    args = parser.parse_args()
+
+    calamari_config = get_calamari_config(args.config)
 
     exec_test(calamari_config)

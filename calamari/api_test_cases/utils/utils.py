@@ -2,7 +2,7 @@ import json
 import time
 
 from libs import log
-
+import yaml
 
 class Machines(object):
     def __init__(self, ip, hostname):
@@ -55,7 +55,7 @@ def check_request_id(api_request, request_id):
     else:
         time.sleep(10)
         log.debug('entered recursive mode')
-        check_request_id(api_request, request_id)
+        return check_request_id(api_request, request_id)
 
 
 def clean_response(response):
@@ -71,3 +71,23 @@ def clean_response(response):
     log.info("\n%s" % pretty_response)
 
     return cleaned_response
+
+
+def get_calamari_config(yaml_file):
+
+    with open(yaml_file, 'r') as f:
+        doc = yaml.load(f)
+
+    http = doc['calamari']['http']
+    ip = doc['calamari']['ip']
+    port = doc['calamari']['port']
+    username = doc['calamari']['username']
+    password = doc['calamari']['password']
+
+    return dict(username=username,
+                password=password,
+                ip=ip,
+                port=port,
+                http=http)
+
+

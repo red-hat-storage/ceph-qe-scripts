@@ -5,10 +5,10 @@ import json
 
 class AuthenticateClient(object):
 
-    def __init__(self, ip, port, username, password):
+    def __init__(self, http, ip, port, username, password):
 
         self.client = requests.session()
-        self.base_url = 'https://%s:%s/api/v2/' % (ip, port)
+        self.base_url = '%s://%s:%s/api/v2/' % (http, ip, port)
         self.token = None
         self.headers = None
         self.fsid = None
@@ -80,8 +80,8 @@ class AuthenticateClient(object):
 
 class HTTPRequest(AuthenticateClient):
 
-    def __init__(self, ip, port, username, password):
-        super(HTTPRequest, self).__init__(ip, port, username, password)
+    def __init__(self, http, ip, port, username, password):
+        super(HTTPRequest, self).__init__(http, ip, port, username, password)
 
     def get(self, url):
 

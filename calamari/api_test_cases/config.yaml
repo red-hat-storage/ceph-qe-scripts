@@ -1,0 +1,7 @@
+# sample Configuration 
+calamari:
+  http: https
+  ip: 10.8.128.63
+  port: 8002
+  username: admin
+  password: admin123

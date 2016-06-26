@@ -1,7 +1,8 @@
 import libs.log as log
 from utils.test_desc import AddTestInfo
-from config import MakeMachines
 from http_ops import Initialize
+import argparse
+from utils.utils import get_calamari_config
 
 
 class Test(Initialize):
@@ -9,8 +10,6 @@ class Test(Initialize):
     def __init__(self, **config):
 
         super(Test, self).__init__(**config)
-
-        assert self.http_request.getfsid(), "failed to get fsid"
 
         self.osd_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/osd"
 
@@ -39,13 +38,13 @@ def exec_test(config_data):
 
         patch(data2)
 
-        add_test_info.status('test ok')
+        add_test_info.success('test ok')
 
     except AssertionError, e:
         log.error(e)
-        add_test_info.status('test error')
+        add_test_info.failed('test error')
 
-    add_test_info.completed_info()
+    return add_test_info.completed_info()
 
 
 def exec_test2(config_data):
@@ -71,22 +70,25 @@ def exec_test2(config_data):
         [osd_ops.post(osd_ops.osd_url + "/" + str(osd_id) + "/" + "command" + "/" + command, data)
          for osd_id in osd_ids for command in commands]
 
-        add_test_info.status('test ok')
+        add_test_info.success('test ok')
 
     except AssertionError, e:
         log.error(e)
-        add_test_info.status('test error')
+        add_test_info.failed('test error')
 
-    add_test_info.completed_info()
+    return add_test_info.completed_info()
 
 
 if __name__ == '__main__':
-    machines_config = MakeMachines()
 
-    calamari_config = machines_config.calamari()
-    mons = machines_config.mon()
-    osds = machines_config.osd()
+    parser = argparse.ArgumentParser(description='Calamari API Automation')
+
+    parser.add_argument('-c', dest="config", default='config.yaml',
+                        help='calamari config file: yaml file')
+
+    args = parser.parse_args()
+
+    calamari_config = get_calamari_config(args.config)
 
     exec_test(calamari_config)
-
-    # exec_test2(calamari_config)
+    exec_test2(calamari_config)

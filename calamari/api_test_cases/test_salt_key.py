@@ -1,7 +1,8 @@
 import libs.log as log
 from utils.test_desc import AddTestInfo
-from config import MakeMachines
 from http_ops import Initialize
+from utils.utils import get_calamari_config
+import argparse
 
 
 class Test(Initialize):
@@ -30,22 +31,24 @@ def exec_test(config_data):
 
         map(get_minion_id, ids)
 
-        add_test_info.status('test ok')
+        add_test_info.success('test ok')
 
     except AssertionError, e:
         log.error(e)
-        add_test_info.status('test error')
+        add_test_info.failed('test error')
 
-    add_test_info.completed_info()
+    return add_test_info.completed_info()
 
 
 if __name__ == '__main__':
 
-    machines_config = MakeMachines()
+    parser = argparse.ArgumentParser(description='Calamari API Automation')
 
-    calamari_config = machines_config.calamari()
-    mons = machines_config.mon()
-    osds = machines_config.osd()
+    parser.add_argument('-c', dest="config", default='config.yaml',
+                        help='calamari config file: yaml file')
+
+    args = parser.parse_args()
+
+    calamari_config = get_calamari_config(args.config)
 
     exec_test(calamari_config)
-

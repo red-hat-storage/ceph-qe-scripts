@@ -9,7 +9,7 @@ class Initialize(object):
 
     def __init__(self, **config):
 
-        self.http_request = HTTPRequest(config['ip'], config['port'], config['username'], config['password'])
+        self.http_request = HTTPRequest(config['http'], config['ip'], config['port'], config['username'], config['password'])
 
         assert self.http_request.login(), "login failed"
 
@@ -42,7 +42,8 @@ class Initialize(object):
             cleaned_response = clean_response(response)
 
             if request_api:
-                checked = check_request_id(self.api_request, cleaned_response['request_id'])
+
+                check_request_id(self.api_request, cleaned_response['request_id'])
 
             return cleaned_response
 
@@ -61,7 +62,7 @@ class Initialize(object):
             cleaned_response = clean_response(response)
 
             if request_api:
-                checked = check_request_id(self.api_request, cleaned_response['request_id'])
+                check_request_id(self.api_request, cleaned_response['request_id'])
 
             return cleaned_response
 
@@ -78,7 +79,7 @@ class Initialize(object):
             cleaned_response = clean_response(response)
 
             if request_api:
-                checked = check_request_id(self.api_request, cleaned_response['request_id'])
+                check_request_id(self.api_request, cleaned_response['request_id'])
 
             return cleaned_response
 
