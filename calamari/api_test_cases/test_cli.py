@@ -44,14 +44,14 @@ def exec_test(config_data):
         log.error(e)
         add_test_info.failed('test error')
 
-    return add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Calamari API Automation')
 
-    parser.add_argument('-c', dest="config", default='config.yaml',
+    parser.add_argument('-c', dest="config", default='config2.yaml',
                         help='calamari config file: yaml file')
 
     args = parser.parse_args()

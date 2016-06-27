@@ -1,7 +1,7 @@
-# sample Configuration 
 calamari:
   http: https
-  ip: 10.8.128.63
+  ip: <ip address>
   port: 8002
-  username: admin
-  password: admin123
+  username: <username>
+  password: <password>
+  log_copy_location: /tmp/logs

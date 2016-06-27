@@ -83,11 +83,13 @@ def get_calamari_config(yaml_file):
     port = doc['calamari']['port']
     username = doc['calamari']['username']
     password = doc['calamari']['password']
+    log_copy_location = doc['calamari']['log_copy_location']
 
     return dict(username=username,
                 password=password,
                 ip=ip,
                 port=port,
-                http=http)
+                http=http,
+                log_copy_location=log_copy_location)
 
 

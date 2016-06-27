@@ -18,7 +18,7 @@ class Test(Initialize):
 
 
 def exec_test(config_data):
-    add_test_info = AddTestInfo(11, '\n api/v2/cluster/<fsid>/pool \n'
+    add_test_info = AddTestInfo(13, '\napi/v2/cluster/<fsid>/pool \n'
                                     'api/v2/cluster/<fsid>/pool/<pool_id>')
     add_test_info.started_info()
 
@@ -83,7 +83,7 @@ def exec_test(config_data):
         log.error(e)
         add_test_info.failed('test error')
 
-    return add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 if __name__ == '__main__':

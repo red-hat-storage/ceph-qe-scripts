@@ -16,7 +16,7 @@ class Test(Initialize):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(6, 'api/v2/info')
+    add_test_info = AddTestInfo(8, 'api/v2/info')
     add_test_info.started_info()
 
     try:
@@ -30,7 +30,7 @@ def exec_test(config_data):
         log.error(e)
         add_test_info.failed('test error')
 
-    return add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 if __name__ == '__main__':

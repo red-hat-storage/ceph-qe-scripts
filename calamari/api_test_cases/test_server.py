@@ -6,9 +6,7 @@ import argparse
 
 
 class Test(Initialize):
-
     def __init__(self, **config):
-
         super(Test, self).__init__(**config)
 
         assert self.http_request.getfsid(), "failed to get fsid"
@@ -19,9 +17,8 @@ class Test(Initialize):
 
 
 def exec_test1(config_data):
-
-    add_test_info = AddTestInfo(13, '\napi/v2/cluster/<fsid>/server\n'
-                                    '\napi/v2/cluster/<fsid>/server/<fqdn>\n')
+    add_test_info = AddTestInfo(15.1, '\napi/v2/cluster/<fsid>/server\n'
+                                      '\napi/v2/cluster/<fsid>/server/<fqdn>\n')
 
     add_test_info.started_info()
 
@@ -42,14 +39,13 @@ def exec_test1(config_data):
         log.error(e)
         add_test_info.failed('test error')
 
-    return add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 def exec_test2(config_data):
-
-    add_test_info = AddTestInfo(14, '\napi/v2/server'
-                                    'api/v2/server/<fqdn>\n'
-                                    'api/v2/server/<fqdn>/grains')
+    add_test_info = AddTestInfo(15.2, '\napi/v2/server'
+                                      'api/v2/server/<fqdn>\n'
+                                      'api/v2/server/<fqdn>/grains')
 
     add_test_info.started_info()
 
@@ -74,11 +70,10 @@ def exec_test2(config_data):
         log.error(e)
         add_test_info.failed('test error')
 
-    return add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 if __name__ == '__main__':
-
     parser = argparse.ArgumentParser(description='Calamari API Automation')
 
     parser.add_argument('-c', dest="config", default='config.yaml',
@@ -90,4 +85,3 @@ if __name__ == '__main__':
 
     exec_test1(calamari_config)
     exec_test2(calamari_config)
-

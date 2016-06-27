@@ -13,7 +13,7 @@ class Test(Initialize):
 
 
 def exec_test(config_data):
-    add_test_info = AddTestInfo(18, '\napi/v2/cluster/fsid/crush_type \n'
+    add_test_info = AddTestInfo(6, '\napi/v2/cluster/fsid/crush_type \n'
                                     'api/v2/cluster/fsid/crush_type/<type_id>')
     add_test_info.started_info()
 
@@ -34,7 +34,7 @@ def exec_test(config_data):
         log.error(e)
         add_test_info.failed('test error')
 
-    return  add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 if __name__ == '__main__':

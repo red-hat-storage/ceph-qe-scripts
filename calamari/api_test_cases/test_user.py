@@ -16,7 +16,7 @@ class Test(HTTPRequest):
 
     def __init__(self, **config):
 
-        super(Test, self).__init__(**config)
+        super(Test, self).__init__(config['http'], config['ip'], config['port'], config['username'], config['password'])
 
         assert self.login(), "login failed"
 
@@ -25,7 +25,7 @@ class Test(HTTPRequest):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(16, '\n api/v2/user \n'
+    add_test_info = AddTestInfo(17, '\napi/v2/user\n'
                                     'api/v2/user/<pk>')
     add_test_info.started_info()
 
@@ -95,7 +95,7 @@ def exec_test(config_data):
         log.error('\n%s' % traceback.format_exc())
         add_test_info.failed('test error')
 
-    return add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 if __name__ == '__main__':

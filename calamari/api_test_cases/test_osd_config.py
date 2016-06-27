@@ -28,7 +28,7 @@ class Test(Initialize):
 
 def exec_test(config_data):
 
-    add_test_info = AddTestInfo(10, '\napi/v2/cluster/<fsid>/osd_config \n' )
+    add_test_info = AddTestInfo(12, '\napi/v2/cluster/<fsid>/osd_config \n' )
     add_test_info.started_info()
 
     try:
@@ -58,7 +58,7 @@ def exec_test(config_data):
         log.error(e)
         add_test_info.failed('test error')
 
-    return add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 if __name__ == '__main__':
