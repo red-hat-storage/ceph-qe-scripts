@@ -27,7 +27,7 @@ class APIPoolOps(APIPool):
     def get_pool(self):
 
         api = self.construct_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -47,7 +47,7 @@ class APIPoolOps(APIPool):
                 log.debug('pool with id %s' % str(each_id['id']))
                 log.debug('api: %s' % api)
 
-                response = self.auth.request('GET', api)
+                response = self.auth.request('GET', api, verify=False)
                 response.raise_for_status()
                 log.debug('response: \n %s' % response.json())
 

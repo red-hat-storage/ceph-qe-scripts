@@ -27,7 +27,7 @@ class APIConfigOps(APIConfig):
     def get_config(self):
 
         api = self.construct_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from config api')
@@ -44,7 +44,7 @@ class APIConfigOps(APIConfig):
                 log.debug('config with key %s' % each_key['key'])
                 log.debug('api: %s' % api)
 
-                response = self.auth.request('GET', api)
+                response = self.auth.request('GET', api, verify=False)
                 response.raise_for_status()
 
                 log.debug('response: \n %s' % response.json())

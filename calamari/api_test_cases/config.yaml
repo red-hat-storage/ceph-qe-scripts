@@ -1,0 +1,7 @@
+calamari:
+  http: https
+  ip: <ip address>
+  port: 8002
+  username: <username>
+  password: <password>
+  log_copy_location: /tmp/logs

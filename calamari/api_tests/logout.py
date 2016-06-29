@@ -13,7 +13,7 @@ class Logout(object):
 
     def do_logout(self):
 
-        response = self.auth.request('GET', self.api)
+        response = self.auth.request('GET', self.api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         utils.log.debug('pretty json response from api')

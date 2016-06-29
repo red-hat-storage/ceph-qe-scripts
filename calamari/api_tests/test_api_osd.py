@@ -30,7 +30,7 @@ class APIOSDOps(APIOSD):
     def osd_config(self):
 
         api = self.base_api + self.fsid + '/osd_config'
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -42,7 +42,7 @@ class APIOSDOps(APIOSD):
         log.info('api osd command')
         api = self.construct_api()
         log.info(api)
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -52,7 +52,7 @@ class APIOSDOps(APIOSD):
         log.debug('api with command')
         api = self.construct_api() + '/command'
         log.debug(api)
-        response2 = self.auth.request('GET', api)
+        response2 = self.auth.request('GET', api, verify=False)
         response2.raise_for_status()
         pretty_response2 = json.dumps(response2.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -74,7 +74,7 @@ class APIOSDOps(APIOSD):
                 log.debug('osd with id %s' % str(each_id['id']))
                 log.debug('api: %s' % api)
 
-                response = self.auth.request('GET', api)
+                response = self.auth.request('GET', api, verify=False)
                 response.raise_for_status()
                 log.debug('response: \n %s' % response.json())
 
@@ -95,7 +95,7 @@ class APIOSDOps(APIOSD):
                 api = self.construct_api() + '/' + str(each_id['id']) + '/' + 'command'
                 log.debug('api: %s' % api)
 
-                response = self.auth.request('GET', api)
+                response = self.auth.request('GET', api, verify=False)
                 response.raise_for_status()
                 log.debug('response: \n %s' % response.json())
 
@@ -106,7 +106,7 @@ class APIOSDOps(APIOSD):
                 log.debug('osd with command %s' % each_commmand )
                 log.debug('api: %s' % with_command_api)
 
-                response2 = self.auth.request('GET', with_command_api)
+                response2 = self.auth.request('GET', with_command_api, verify=False)
                 response2.raise_for_status()
                 log.debug('response: \n %s' % response2.json())
 

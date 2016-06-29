@@ -1,21 +1,40 @@
-from libs.pool import Pool, PoolDefinition
-from libs.request import Request
-import config
+import libs.log as log
 from utils.test_desc import AddTestInfo
-import utils.log as log
-from utils.utils import check_request_id
+from http_ops import Initialize
+from utils.utils import get_calamari_config
+import argparse
 
 
-class PoolOps(object):
-    def __init__(self, **kwargs):
-        self.pool = Pool(**kwargs)
-        self.request = Request(**config_data)
+class PoolDefination(object):
+    def __init__(self):
+        pass
 
-    def create_pool(self, part_pool_name):
 
-        pool_definition = PoolDefinition()
-        
-        pool_definition.name = 'pool_' + str(part_pool_name)
+class Test(Initialize):
+    def __init__(self, **config):
+        super(Test, self).__init__(**config)
+
+        self.pool_url = self.http_request.base_url + "cluster" + "/" + str(self.http_request.fsid) + "/pool"
+
+
+def exec_test(config_data):
+    add_test_info = AddTestInfo(13, '\napi/v2/cluster/<fsid>/pool \n'
+                                    'api/v2/cluster/<fsid>/pool/<pool_id>')
+    add_test_info.started_info()
+
+    try:
+
+        pool_name = 'pool_' + "api_testing1"
+
+        pool_ops = Test(**config_data)
+
+        pool_ops.get(pool_ops.pool_url)
+
+        # ------------ creating pool --------------
+
+        pool_definition = PoolDefination()
+
+        pool_definition.name = pool_name
         pool_definition.size = 3
         pool_definition.pg_num = 64
         pool_definition.crush_ruleset = 0
@@ -27,19 +46,14 @@ class PoolOps(object):
         pool_definition.quota_max_bytes = 0
 
         log.debug('pool definition complete')
-        
-        content = self.pool.create(pool_definition.__dict__)
 
-        assert content, 'pool create failed'
+        log.info('json data \n%s:' % pool_definition.__dict__)
 
-        log.debug('pool created')
+        pool_ops.post(pool_ops.pool_url, pool_definition.__dict__)
 
-        pool_created = check_request_id(self.request, content['request_id'])
+        # ------------- editing pool ------------
 
-        if pool_created:
-            log.info('pool created')
-
-        pools = self.pool.get()
+        pools = pool_ops.get(pool_ops.pool_url)
 
         my_pool = None
 
@@ -51,63 +65,36 @@ class PoolOps(object):
                 break
 
         # asserts if my_pool is none,
-        assert my_pool is not None, ("did not find any pool with the name %s" % pool_definition.name )
+        assert my_pool is not None, ("did not find any pool with the name %s" % pool_definition.name)
 
-        return my_pool
+        pool_editing = PoolDefination()
 
-    def edit_pool(self, pool_id):
-        pass
+        pool_editing.name = pool_name + "_renamed"
 
-    def cancel_pool_creation(self):
-        t = self.request.cancel_request('d88d268d-fcf7-48f0-9da1-e93b023ac93c')
-        print t
+        pool_ops.patch(pool_ops.pool_url + "/" + str(my_pool['id']), pool_editing.__dict__)
 
-    def delete_pool(self, pool_id):
+        # ---------------- deleting pool ---------------
 
-        content = self.pool.delete(pool_id)
-        assert content, 'delete pool failed'
+        pool_ops.delete(pool_ops.pool_url + "/" + str(my_pool['id']))
 
-        pool_deleted = check_request_id(self.request, content['request_id'])
+        add_test_info.success('test ok')
 
-        if pool_deleted:
-            log.info('pool deleted')
+    except AssertionError, e:
+        log.error(e)
+        add_test_info.failed('test error')
 
-        return content
-
-
-def exec_test(config_data):
-
-    add_test_info = AddTestInfo(1, 'Pool testing')
-    add_test_info.started_info()
-
-    no_of_pools = 5
-
-    for i in range(no_of_pools):
-
-        print 'iteration no %s' % (i+1)
-
-        log.info('---------------------iteration no %s-----------------' %(i+1))
-
-        try:
-            pool_ops = PoolOps(**config_data)
-            pool_details = pool_ops.create_pool(str(i))
-            log.debug('got created pool details\n%s' % pool_details)
-
-            pool_ops.delete_pool(pool_details['id'])
-            add_test_info.status('test ok')
-
-        except AssertionError, e:
-            log.error(e)
-            add_test_info.status('test error')
-
-    add_test_info.completed_info()
+    return add_test_info.completed_info(config_data['log_copy_location'])
 
 
 if __name__ == '__main__':
-    config_data = config.get_config()
 
-    if not config_data['auth']:
-        log.error('auth failed')
+    parser = argparse.ArgumentParser(description='Calamari API Automation')
 
-    else:
-        exec_test(config_data)
+    parser.add_argument('-c', dest="config", default='config.yaml',
+                        help='calamari config file: yaml file')
+
+    args = parser.parse_args()
+
+    calamari_config = get_calamari_config(args.config)
+
+    exec_test(calamari_config)

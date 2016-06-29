@@ -33,7 +33,7 @@ class APILogsOps(APILogs):
         log.debug('-----------cluster log api---------')
 
         api = self.construct_cluster_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         log.info('\n%s' %response.json())
 
@@ -46,7 +46,7 @@ class APILogsOps(APILogs):
         log.debug('--------------server logs api-----------')
 
         api = self.contruct_server_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         log.info('\n%s' %response.json())
 
@@ -58,7 +58,7 @@ class APILogsOps(APILogs):
         for each_server in response.json():
             log.debug('---------------got server------------- %s' % each_server['fqdn'])
             server_log_api = api + '/' + each_server['fqdn'] + '/' + 'log'
-            server_log_path = self.auth.request('GET', server_log_api)
+            server_log_path = self.auth.request('GET', server_log_api, verify=False)
             server_log_path.raise_for_status()
             server_log_path_json = server_log_path.json()
 
@@ -69,7 +69,7 @@ class APILogsOps(APILogs):
                 if path not in skip:
                     server_log = server_log_api + '/' + path
                     log.debug('log for:%s' % server_log)
-                    logs = self.auth.request('GET', server_log)
+                    logs = self.auth.request('GET', server_log, verify=False)
                     logs.raise_for_status()
                     logs.json()
                     #log.debug(logs)
@@ -77,7 +77,7 @@ class APILogsOps(APILogs):
             log.debug('Server with grains api')
             server_grains_api = api + '/' + each_server['fqdn'] + '/' + 'grains'
             log.debug(server_grains_api)
-            server_grains = self.auth.request('GET', server_grains_api)
+            server_grains = self.auth.request('GET', server_grains_api, verify=False)
             server_grains.raise_for_status()
             server_grains_json = server_grains.json()
             #log.debug('pretty json response\n%s' % server_grains_json)

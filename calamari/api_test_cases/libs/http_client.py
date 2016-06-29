@@ -1,92 +1,128 @@
-#!/usr/bin/env python
-
-import json
-import logging
 import requests
+import log
+import json
 
-log = logging.getLogger(__name__)
 
+class AuthenticateClient(object):
 
-class AuthenticatedHttpClient(requests.Session):
-    """
-    Client for the calamari REST API, principally exists to do
-    authentication, but also helpfully prefixes
-    URLs in requests with the API base URL and JSONizes
-    POST data.
-    """
-    def __init__(self, api_url, username, password):
-        super(AuthenticatedHttpClient, self).__init__()
-        self._username = username
-        self._password = password
-        self._api_url = api_url
-        self.headers = {
-            'Content-type': "application/json; charset=UTF-8"
-        }
+    def __init__(self, http, ip, port, username, password):
 
-    @property
-    def prefix(self):
-        return self._api_url
+        self.client = requests.session()
+        self.base_url = '%s://%s:%s/api/v2/' % (http, ip, port)
+        self.token = None
+        self.headers = None
+        self.fsid = None
 
-    def request(self, method, url, **kwargs):
-        url = self._api_url + url
-        response = super(AuthenticatedHttpClient, self).request(method, url, **kwargs)
-        if response.status_code >= 400:
-            # For the benefit of test logs
-            #print "%s: %s" % (response.status_code, response.content)
-            log.error("%s: %s" % (response.status_code, response.content))
-        return response
+        self.username = username
+        self.password = password
 
-    def post(self, url, data=None, **kwargs):
-        if isinstance(data, dict):
-            data = json.dumps(data)
-        return super(AuthenticatedHttpClient, self).post(url, data, **kwargs)
+    def getfsid(self):
 
-    def patch(self, url, data=None, **kwargs):
-        if isinstance(data, dict) or isinstance(data, list):
-            data = json.dumps(data)
-        return super(AuthenticatedHttpClient, self).patch(url, data, **kwargs)
+        try:
 
-    def delete(self, url, data=None, **kwargs):
-        if isinstance(data, dict):
-            data = json.dumps(data)
-        return super(AuthenticatedHttpClient, self).delete(url, data=data, **kwargs)
+            url = self.base_url + 'cluster'
+
+            response = self.client.get(url, verify=False)
+
+            response.raise_for_status()
+
+            log.info(response.content)
+
+            pretty_cluster_details = json.dumps(response.json(), indent=2)
+            pretty_cluster_json = json.loads(pretty_cluster_details)[0]
+
+            self.fsid = pretty_cluster_json['id']
+
+            return True
+        except Exception, e:
+            log.error(e)
+            return False
 
     def login(self):
-        """
-        Authenticate with the Django auth system as
-        it is exposed in the Calamari REST API.
-        """
-        log.info("Logging in as %s" % self._username)
-        response = self.get("auth/login/")
-        response.raise_for_status()
-        self.headers['X-XSRF-TOKEN'] = response.cookies['XSRF-TOKEN']
 
-        response = self.post("auth/login/", {
-            'next': "/",
-            'username': self._username,
-            'password': self._password
-        })
-        response.raise_for_status()
-        # XSRF token rotates on login
-        self.headers['X-XSRF-TOKEN'] = response.cookies['XSRF-TOKEN']
+        try:
+            url = self.base_url + 'auth/login/'
 
-        # Check we're allowed in now.
-        response = self.get("cluster")
-        response.raise_for_status()
+            log.info('login_url: %s' % url)
 
-if __name__ == "__main__":
+            login_data = {'username': self.username, 'password': self.password, 'next': '/'}
+            response = self.client.post(url, login_data, verify=False)
 
-    import argparse
-    import yaml
+            response.raise_for_status()
+
+            self.token = response.cookies['XSRF-TOKEN']
+            self.headers = {'X-XSRF-TOKEN': self.token}
+
+            return True
+
+        except Exception, e:
+            log.error(e)
+            return False
+
+    def logout(self):
+
+            try:
+                url = self.base_url + 'auth/logout'
+                self.headers['Referer'] = url
+
+                log.info('logout_url: %s' % url)
+
+                response = self.client.post(url, verify=False, headers=dict(self.headers))
+
+                response.raise_for_status()
+
+                return True
+
+            except Exception, e:
+                log.error(e)
+                return False
 
 
-    p = argparse.ArgumentParser()
-    p.add_argument('-u', '--uri', default='http://mira035/api/v1/')
-    p.add_argument('--user', default='admin')
-    p.add_argument('--pass', dest='password', default='admin')
-    #p.add_argument('-u', '--uri', default='http://10.8.128.28/api/v2/cluster/6a7be8bd-84d0-4e4f-b06a-32b78a3133a6')
-    args, remainder = p.parse_known_args()
+class HTTPRequest(AuthenticateClient):
+
+    def __init__(self, http, ip, port, username, password):
+        super(HTTPRequest, self).__init__(http, ip, port, username, password)
+
+    def get(self, url):
+
+        log.info('url to get: %s' % url)
+
+        response = self.client.get(url, verify=False)
+
+        return response
+
+    def post(self, url, data):
+
+        log.info('url to post: %s' % url)
+
+        self.headers['Referer'] = url
+
+        response = self.client.post(url, data=data, verify=False,
+                                    headers=self.headers)
+
+        return response
+
+    def patch(self, url, data):
+
+        log.info('url to patch: %s' % url)
+
+        self.headers['Referer'] = url
+
+        response = self.client.patch(url, data, verify=False,
+                                     headers=self.headers)
+
+        return response
+
+    def delete(self, url):
+
+        log.info('url to delete: %s' % url)
+
+        self.headers['Referer'] = url
+
+        response = self.client.delete(url, verify=False,
+                                      headers=self.headers)
+
+        return response
 
 
-    c = AuthenticatedHttpClient(args.uri, args.user, args.password)
-    c.login()
+

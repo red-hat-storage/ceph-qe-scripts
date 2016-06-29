@@ -29,7 +29,7 @@ class APIEventOps(APIEvent):
         log.info('api event testing')
 
         api = self.construct_event_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -40,7 +40,7 @@ class APIEventOps(APIEvent):
             log.info('severity api check with event')
             severity_api = api + '?severity=' + i
             log.debug(severity_api)
-            response2 = self.auth.request('GET', severity_api)
+            response2 = self.auth.request('GET', severity_api, verify=False)
             response2.raise_for_status()
             pretty_response = json.dumps(response.json(),indent=2)
             log.debug('pretty json response from  api')
@@ -66,7 +66,7 @@ class APIClusterEventOps(APIEvent):
         log.info('api event with cluster id testing')
 
         api = self.construct_cluster_event_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -78,7 +78,7 @@ class APIClusterEventOps(APIEvent):
             log.info('severity api check, event with cluster')
             severity_api = api + '?severity=' + i
             log.debug(severity_api)
-            response2 = self.auth.request('GET', severity_api)
+            response2 = self.auth.request('GET', severity_api, verify=False)
             response2.raise_for_status()
             pretty_response = json.dumps(response.json(),indent=2)
             log.debug('pretty json response from  api')
@@ -101,7 +101,7 @@ class APIServerEventOps(APIEvent):
     def get_server(self):
 
         api = self.construct_server_event_api()
-        response = self.auth.request('GET', api)
+        response = self.auth.request('GET', api, verify=False)
         response.raise_for_status()
         pretty_response = json.dumps(response.json(),indent=2)
         log.debug('pretty json response from  api')
@@ -134,7 +134,7 @@ class APIServerEventOps(APIEvent):
                 log.info('severity api check, event with server')
                 severity_api = api + '?severity=' + i
                 log.debug(severity_api)
-                response2 = self.auth.request('GET', severity_api)
+                response2 = self.auth.request('GET', severity_api, verify=False)
                 response2.raise_for_status()
                 pretty_response = json.dumps(response.json(),indent=2)
                 log.debug('pretty json response from  api')
