@@ -37,6 +37,6 @@ if __name__ == '__main__':
         )
     )
 
-    with open('../config.yaml', 'w') as outfile:
+    with open('config.yaml', 'w') as outfile:
         outfile.write(yaml.dump(data, default_flow_style=False))
 
