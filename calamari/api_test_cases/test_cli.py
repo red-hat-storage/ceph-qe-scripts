@@ -51,7 +51,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Calamari API Automation')
 
-    parser.add_argument('-c', dest="config", default='config2.yaml',
+    parser.add_argument('-c', dest="config", default='config.yaml',
                         help='calamari config file: yaml file')
 
     args = parser.parse_args()
