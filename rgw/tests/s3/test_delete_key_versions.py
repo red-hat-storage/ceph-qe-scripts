@@ -17,6 +17,7 @@ def test_exec():
 
         config = Config()
         config.user_count = 1
+        config.bucket_count = 1
         config.objects_count = 1
         config.objects_size_range = {'min': 5, 'max': 15}
 
@@ -32,7 +33,6 @@ def test_exec():
 
             rgw.create_bucket_with_keys(config)
             rgw.delete_key_version()
-
 
         test_info.success_status('test completed')
 

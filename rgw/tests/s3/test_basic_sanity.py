@@ -19,7 +19,7 @@ def test_exec():
         config = Config()
 
         config.user_count = 1
-        config.bucket_count = 3
+        config.bucket_count = 1
         config.objects_count = 4
         config.objects_size_range = {'min': 5, 'max': 15}
 
