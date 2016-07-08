@@ -9,14 +9,14 @@ import json
 
 class Authenticate(object):
 
-    def __init__(self, access_key, secret_key, user_id):
+    def __init__(self, access_key, secret_key, user_id, port):
 
         log.debug('class: %s' % self.__class__.__name__)
 
         self.access_key = access_key
         self.secret_key = secret_key
         self.hostname = socket.gethostname()
-        self.port = 8080
+        self.port = int(port)
         self.is_secure = False
         self.user_id = user_id
         self.json_file_upload = self.user_id + "." + "upload" + "." + "json"

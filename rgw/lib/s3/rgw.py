@@ -33,8 +33,9 @@ class BaseOp(object):
         self.user_id = user_details['user_id']
         self.access_key = user_details['access_key']
         self.secret_key = user_details['secret_key']
+        self.port = user_details['port']
 
-        auth = Authenticate(self.access_key, self.secret_key, self.user_id)
+        auth = Authenticate(self.access_key, self.secret_key, self.user_id, self.port)
 
         self.connection = auth.do_auth()
 
