@@ -6,22 +6,15 @@ from utils.test_desc import AddTestInfo
 from lib.s3.rgw import Config
 from lib.s3.rgw import RGW
 import lib.s3.rgw as rgw_lib
+import argparse
+import yaml
 
 
-def test_exec():
+def test_exec(config):
 
     test_info = AddTestInfo('create m buckets, n objects and download')
 
     try:
-
-        # configuration
-
-        config = Config()
-
-        config.user_count = 1
-        config.bucket_count = 3
-        config.objects_count = 4
-        config.objects_size_range = {'min': 5, 'max': 15}
 
         # test case starts
 
@@ -30,6 +23,8 @@ def test_exec():
         all_user_details = rgw_lib.create_users(config.user_count)
 
         for each_user in all_user_details:
+
+            each_user['port'] = config.port
 
             rgw = RGW(each_user)
 
@@ -49,4 +44,36 @@ def test_exec():
 
 if __name__ == '__main__':
 
-    test_exec()
+    parser = argparse.ArgumentParser(description='RGW Automation')
+
+    parser.add_argument('-c', dest="config", default='yamls/config.yaml',
+                        help='RGW Test yaml configuration')
+
+    parser.add_argument('-p', dest="port", default='8080',
+                        help='port number where RGW is running')
+
+    args = parser.parse_args()
+
+    yaml_file = args.config
+
+    with open(yaml_file, 'r') as f:
+        doc = yaml.load(f)
+
+    config = Config()
+
+    config.user_count = doc['config']['user_count']
+    config.bucket_count = doc['config']['bucket_count']
+    config.objects_count = doc['config']['objects_count']
+    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
+                                 'max': doc['config']['objects_size_range']['max']}
+
+    config.port = args.port
+
+    log.info('user_count:%s\n'
+             'bucket_count: %s\n'
+             'objects_count: %s\n'
+             'objects_size_range: %s\n'
+             'port: %s' % (
+                 config.user_count, config.bucket_count, config.objects_count, config.objects_size_range, config.port))
+
+    test_exec(config)

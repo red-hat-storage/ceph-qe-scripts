@@ -6,8 +6,8 @@ from boto.s3.key import Key
 
 from random import randint
 
-access_key = '1J6482QP2Z0MF2QMEA5K'
-secret_key = '0y9Rgzz7rBmp4VAzVVqrlEyaKOpw6POCiAuuMzjZ'
+access_key = '13CACFFAJ02B3271MVX8'
+secret_key = 'Ko7jua64ehEUx8zpot2P0w1IkLeZaifz09Mt532Q'
 # objname = sys.argv[2]
 # bucket_name = sys.argv[1]
 # filename = '/tmp/big.dat'
@@ -16,13 +16,13 @@ secret_key = '0y9Rgzz7rBmp4VAzVVqrlEyaKOpw6POCiAuuMzjZ'
 conn = boto.connect_s3(
     aws_access_key_id=access_key,
     aws_secret_access_key=secret_key,
-    host='magna079',
-    port=7280,
+    host='magna118',
+    port=8080,
     is_secure=False,
     calling_format=boto.s3.connection.OrdinaryCallingFormat(),
 )
 
-bu = conn.lookup('christy.bucky.0')
+# bu = conn.lookup('sue.bucky.0')
 # bu.configure_versioning(True)
 
 # k = Key(bu)
@@ -36,34 +36,41 @@ bu = conn.lookup('christy.bucky.0')
 # bu.delete_key('my_fle.pdf')
 
 # print '---------->deleing key'
-
-versions = list(bu.list_versions('key.0'))
-keys = [k.version_id for k in versions]
-
-keys_lenght = len(keys)
-print '------------>keys_lenght: %s' % keys_lenght
-print "\n".join(keys)
+#
+# versions = list(bu.list_versions('key.0'))
+# keys = [k.version_id for k in versions]
+#
+# keys_lenght = len(keys)
+# print '------------>keys_lenght: %s' % keys_lenght
+# print "\n".join(keys)
 
 # all = conn.get_all_buckets()
 #
 # for i in all:
 #     print i
 
-# b = conn.lookup('think.batman')
-#
-#
-# all_keys = b.get_all_keys()
-#
-# for key in all_keys:
-#     print '--------------'
-#     print 'name: %s' % key.name
-#     print 'size: %s' % key.size
-#     print 'etag: %s' % key.etag
-#     print 'md5: %s' % key.md5
-#     print 'downloading file'
-#     key.get_contents_to_filename('downloaded.mpFile')
-#
-#     print '--------------'
+b = conn.lookup('bernadette.bucky.0')
+
+
+all_keys = b.get_all_keys()
+
+for key in all_keys:
+    print '--------------'
+    print 'name: %s' % key.name
+    print 'version_id %s' % key.version_id
+    print 'size: %s' % key.size
+    print 'etag: %s' % key.etag
+    print 'md5: %s' % key.md5
+    # print 'downloading file'
+    # key.get_contents_to_filename('downloaded.mpFile')
+
+    print '--------------'
+
+    versions = list(b.list_versions(key.name))
+    v = [k.version_id for k in versions]
+
+    for i in v:
+        print i
 
 
 # mp = boto.s3.multipart.MultiPartUpload(bu)

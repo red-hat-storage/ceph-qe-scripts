@@ -58,7 +58,7 @@ class KeyOp(object):
             log.error(e)
             return None
 
-    def delete(self, key_name, version_id = None):
+    def delete(self, key_name, version_id=None):
 
         log.debug('function: %s' % self.delete.__name__)
 
@@ -76,6 +76,8 @@ class KeyOp(object):
         try:
 
             key_deleted = self.bucket.delete_key(key_name, version_id=version_id)
+            log.info('key_name: %s' % key_name)
+            log.info('version_id: %s' % version_id)
             return key_deleted
 
         except (exception.BotoClientError, exception.S3ResponseError), e:
@@ -273,7 +275,7 @@ class PutContentsFromFile(object):
         try:
             self.key.get_contents_to_filename(filename)
 
-            md5_on_s3 = self.key.etag
+            md5_on_s3 = self.key.etag.replace('"', '')
             md5_local = utils.get_md5(filename)
 
             if md5_on_s3 == md5_local:
@@ -282,7 +284,8 @@ class PutContentsFromFile(object):
             else :
                 md5_match = "no match"
 
-            key_details = {'key_name': os.path.basename(filename),
+            key_details = {'key_name_local': os.path.basename(filename),
+                           'key_name_os_s3': self.key.name,
                            'size': os.stat(filename).st_size,
                            'md5_local': md5_local,
                            'md5_on_s3': md5_on_s3,

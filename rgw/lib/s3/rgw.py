@@ -33,8 +33,9 @@ class BaseOp(object):
         self.user_id = user_details['user_id']
         self.access_key = user_details['access_key']
         self.secret_key = user_details['secret_key']
+        self.port = user_details['port']
 
-        auth = Authenticate(self.access_key, self.secret_key, self.user_id)
+        auth = Authenticate(self.access_key, self.secret_key, self.user_id, self.port)
 
         self.connection = auth.do_auth()
 
@@ -58,6 +59,7 @@ class RGW(BaseOp):
 
         self.enable_versioning = False
         self.version_count = 0
+        self.version_ids = None
         self.move_version = False
 
     def create_bucket_with_keys(self, config):
@@ -80,8 +82,7 @@ class RGW(BaseOp):
 
                 bucket_created = self.bucket.create(bucket_name, self.json_file_upload)
 
-                if self.enable_versioning:
-                    self.bucket.enable_disable_versioning(True, bucket_created['bucket'])
+                self.bucket.enable_disable_versioning(self.enable_versioning, bucket_created['bucket'])
 
                 if not bucket_created['status']:
                     raise AssertionError
@@ -93,6 +94,7 @@ class RGW(BaseOp):
         for bucket_name in self.buckets_created:
 
             bucket_created = self.bucket.get(bucket_name)
+            self.bucket.enable_disable_versioning(self.enable_versioning, bucket_created['bucket'])
 
             if object_create_nos > 0:
 
@@ -137,9 +139,7 @@ class RGW(BaseOp):
 
                         log.info('version_key_names %s:\n' % keys_with_version)
 
-                        create_files = lambda x: utils.create_file(x, size)
-
-                        files_with_version = map(create_files, keys_with_version)
+                        files_with_version = map(lambda x: utils.create_file(x, size), keys_with_version)
 
                         for each_version in files_with_version:
 
@@ -148,12 +148,14 @@ class RGW(BaseOp):
                             if not put['status']:
                                 raise AssertionError
 
-                        versions = list(bucket_created['bucket'].list_versions(key_created))
+                        current_key_version_id = key_created.version_id
+                        log.info('current_key_version_id: %s' % current_key_version_id)
 
+                        versions = list(bucket_created['bucket'].list_versions(key_created.name))
                         log.info('listing all version')
-                        self.version_ids = [k.version_id for k in versions]
-                        # log.info("\n".join(self.version_ids))
-                        log.info(self.version_ids)
+                        version_details = [{'key': k.name, 'version_id': k.version_id} for k in versions]
+                        self.version_ids = [i['version_id'] for i in version_details]
+                        map(log.info, version_details)
 
                         if self.move_version:
 
@@ -161,6 +163,16 @@ class RGW(BaseOp):
 
                             bucket_created['bucket'].copy_key(key_created.name, bucket_name, key_created.name,
                                                               src_version_id=random.choice(self.version_ids))
+
+                            versions = list(bucket_created['bucket'].list_versions(key_created.name))
+
+                            log.info('listing all version')
+                            version_details = [{'key': k.name, 'version_id': k.version_id} for k in versions]
+                            self.version_ids = [i['version_id'] for i in version_details]
+                            map(log.info, version_details)
+
+                        current_key_version_id = key_created.version_id
+                        log.info('current_key_version_id after moving version: %s' % current_key_version_id)
 
                     else:
 
@@ -171,13 +183,12 @@ class RGW(BaseOp):
 
                     log.info('put of the file completed')
 
-
-
     def delete_key_version(self):
 
         for bucket_name in self.buckets_created:
 
             bucket = self.bucket.get(bucket_name)
+            bucket = bucket['bucket']
 
             for each_key in self.keys_put:
 
@@ -185,11 +196,9 @@ class RGW(BaseOp):
 
                 key_name = key_op.get(each_key)
 
-                del_keys = lambda x: key_op.delete(key_name, version_id=x)
+                del_key_version = lambda x: key_op.delete(key_name, version_id=x)
 
-                versions_deleted = map(del_keys, self.version_ids)
-
-                log.info('versions deleted %s' % versions_deleted)
+                map(del_key_version, self.version_ids)
 
     def delete_bucket_with_keys(self):
 
@@ -231,7 +240,7 @@ class RGW(BaseOp):
 
     def download_objects(self):
 
-        download_dir = "Download"
+        download_dir = os.path.join(os.getcwd(), "Download")
 
         if not os.path.exists(download_dir):
             os.makedirs(download_dir)
@@ -239,7 +248,7 @@ class RGW(BaseOp):
         for bucket_name in self.buckets_created:
             log.info('ops on bucket name: %s' % bucket_name)
 
-            bucket_dir = download_dir + "." + bucket_name
+            bucket_dir = os.path.join(download_dir, bucket_name)
 
             if not os.path.exists(bucket_dir):
                 os.makedirs(bucket_dir)
@@ -252,7 +261,7 @@ class RGW(BaseOp):
 
                 get_contents = PutContentsFromFile(each_key, self.json_file_download)
 
-                filename = bucket_dir + "." + each_key.key
+                filename = os.path.join(bucket_dir, each_key.key)
 
                 download = get_contents.get(filename)
 
@@ -353,7 +362,7 @@ class RGWMultpart(BaseOp):
 
     def download(self):
 
-        download_dir = "Mp.Download"
+        download_dir = os.path.join(os.getcwd(),"Mp.Download")
 
         for bucket_created in self.buckets_created:
 
@@ -362,7 +371,7 @@ class RGWMultpart(BaseOp):
             if not os.path.exists(download_dir):
                 os.makedirs(download_dir)
 
-            bucket_dir = download_dir + "." + self.bucket_name
+            bucket_dir = os.path.join(download_dir, self.bucket_name)
 
             if not os.path.exists(bucket_dir):
                 os.makedirs(bucket_dir)
@@ -380,7 +389,7 @@ class RGWMultpart(BaseOp):
 
                 contents = PutContentsFromFile(each_key, self.json_file_download)
 
-                filename = bucket_dir + "." + each_key.key
+                filename = os.path.join(bucket_dir, each_key.key)
 
                 download = contents.get(filename)
 

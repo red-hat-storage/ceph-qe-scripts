@@ -115,6 +115,10 @@ class Bucket(object):
 
             bucket.configure_versioning(enabled)
 
+            versioning_status = bucket.get_versioning_status()
+
+            log.info(versioning_status)
+
             return True
 
         except (exception.S3ResponseError, exception.BotoClientError) as e:
