@@ -5,9 +5,10 @@ from json_ops import JBucket
 
 class Bucket(object):
     def __init__(self, connection):
-        self.connection = connection
 
         log.debug('class: %s' % self.__class__.__name__)
+
+        self.connection = connection
 
     def create(self, bucket_name, json_file):
 
@@ -125,6 +126,71 @@ class Bucket(object):
             log.error(e)
 
             return False
+
+    def set_user_grant(self, bucket, grants):
+
+
+        """
+
+        :param acls:
+
+        send acls in form of {'permission' : <permission type>, 'user_id' : canonical_user_id, 'recursive' :  bool }
+        persmission type : (READ, WRITE, READ_ACP, WRITE_ACP, FULL_CONTROL)
+
+        :param bucket: buckect object
+
+        """
+
+        if grants is not None:
+
+            try:
+
+                log.debug('setting grants %s' % grants)
+
+                bucket.add_user_grant(permission=grants['permission'], user_id=grants['user_id'],
+                                      recursive=grants['recursive'])
+
+                acp = bucket.get_acl()
+                for grant in acp.acl.grants:
+                    log.info('grants set: %s on %s' % (grant.permission, grant.id))
+
+                return True
+            except (exception.S3ResponseError, exception.BotoClientError) as e:
+
+                log.error(e)
+
+                return False
+        else:
+            log.info('not setting any acls')
+
+    def set_acls(self, bucket, acls):
+
+        """
+
+        :param bucket: bucket objects
+        :param acls: canned acls : private, public-read, public-read-write, authenticated-read
+        :return:
+        """
+        if acls is not None:
+
+            try:
+
+                log.info('got acl: %s' % acls)
+                bucket.set_acl(acls)
+
+                acp = bucket.get_acl()
+                for grant in acp.acl.grants:
+                    log.info('canned acls set: %s on %s' % (grant.permission, grant.id))
+
+                return True
+            except (exception.S3ResponseError, exception.BotoClientError) as e:
+
+                log.error(e)
+
+            return False
+
+        else:
+            log.info('not setting any acls')
 
 
 def check_if_bucket_empty(bucket):

@@ -23,11 +23,9 @@ def test_exec(config):
 
         for each_user in all_user_details:
 
-            each_user['port'] = config.port
+            rgw = RGW(config, each_user)
 
-            rgw = RGW(each_user)
-
-            rgw.create_bucket_with_keys(config)
+            rgw.initiate_buckets()
 
         test_info.success_status('test completed')
 
@@ -60,14 +58,13 @@ if __name__ == '__main__':
 
     config.user_count = doc['config']['user_count']
     config.bucket_count = doc['config']['bucket_count']
-    config.objects_count = doc['config']['objects_count']
-
+    config.objects_size_range = 0
+    config.objects_count = 0
     config.port = args.port
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
-             'objects_count: %s\n'
              'port: %s\n' % (
-                 config.user_count, config.bucket_count, config.objects_count, config.port))
+                 config.user_count, config.bucket_count, config.port))
 
     test_exec(config)

@@ -19,6 +19,8 @@ class RGWAdminOps(object):
 
             v_as_json = json.loads(v)
 
+            # log.info(v_as_json)
+
             user_details = {}
 
             user_details['user_id'] = v_as_json['user_id']

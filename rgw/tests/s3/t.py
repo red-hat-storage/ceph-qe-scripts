@@ -3,15 +3,15 @@ import boto
 import boto.s3.connection
 import sys
 from boto.s3.key import Key
-
 from random import randint
 
-access_key = '13CACFFAJ02B3271MVX8'
-secret_key = 'Ko7jua64ehEUx8zpot2P0w1IkLeZaifz09Mt532Q'
-# objname = sys.argv[2]
-# bucket_name = sys.argv[1]
-# filename = '/tmp/big.dat'
 
+u1_bucket = 'sandy2.bucky.0'
+u2_bucket = 'margaret2.bucky.0'
+
+
+access_key = 'ORQ0E8NCG6G19D46KJA4'
+secret_key = 'c02xYBMXUrcPETCtTZOTXBO24dATp8naiF4GrZsF'
 
 conn = boto.connect_s3(
     aws_access_key_id=access_key,
@@ -22,90 +22,69 @@ conn = boto.connect_s3(
     calling_format=boto.s3.connection.OrdinaryCallingFormat(),
 )
 
-# bu = conn.lookup('sue.bucky.0')
-# bu.configure_versioning(True)
+access_key2 = 'E7P4AFVG7ML4FS880QDW'
+secret_key2 = 'KX45ecyo9hdxub7JhfrwgiNz6MOdKD29B9WPoTj7'
 
-# k = Key(bu)
-# k.key = 'my_fle.pdf'
-# k.set_contents_from_filename('1.pdf')
-# k.set_contents_from_filename('2.pdf')
-
-# versions = list(bu.list_versions('my_fle.pdf'))
-# print [k.version_id for k in versions]
-
-# bu.delete_key('my_fle.pdf')
-
-# print '---------->deleing key'
-#
-# versions = list(bu.list_versions('key.0'))
-# keys = [k.version_id for k in versions]
-#
-# keys_lenght = len(keys)
-# print '------------>keys_lenght: %s' % keys_lenght
-# print "\n".join(keys)
-
-# all = conn.get_all_buckets()
-#
-# for i in all:
-#     print i
-
-b = conn.lookup('bernadette.bucky.0')
+conn2 = boto.connect_s3(
+    aws_access_key_id=access_key2,
+    aws_secret_access_key=secret_key2,
+    host='magna118',
+    port=8080,
+    is_secure=False,
+    calling_format=boto.s3.connection.OrdinaryCallingFormat(),
+)
 
 
-all_keys = b.get_all_keys()
+can_id = conn2.get_canonical_user_id()
+print can_id
+
+bu = conn.get_bucket(u1_bucket)
+
+
+acp = bu.get_acl()
+
+for grant in acp.acl.grants:
+    print grant.permission, grant.id
+
+
+all_keys = bu.get_all_keys()
+
 
 for key in all_keys:
-    print '--------------'
+    print 'all keys 1--------------'
     print 'name: %s' % key.name
     print 'version_id %s' % key.version_id
     print 'size: %s' % key.size
     print 'etag: %s' % key.etag
     print 'md5: %s' % key.md5
-    # print 'downloading file'
-    # key.get_contents_to_filename('downloaded.mpFile')
 
     print '--------------'
 
-    versions = list(b.list_versions(key.name))
-    v = [k.version_id for k in versions]
 
-    for i in v:
-        print i
+bu2 = conn.get_bucket(u2_bucket)
+
+acp2 = bu2.get_acl()
+
+for grant in acp2.acl.grants:
+    print grant.permission, grant.id
+
+print 'copying the objects from u1 to u2'
+
+for each in all_keys:
+    bu2.copy_key(each.key, bu.name, each.key)
+
+all_keys2 = bu2.get_all_keys()
+
+for key in all_keys2:
+    print 'all keys 2--------------'
+    print 'name: %s' % key.name
+    print 'version_id %s' % key.version_id
+    print 'size: %s' % key.size
+    print 'etag: %s' % key.etag
+    print 'md5: %s' % key.md5
+
+    print '--------------'
 
 
-# mp = boto.s3.multipart.MultiPartUpload(bu)
-# # mp = b.initiate_multipart_upload('testmpupload2')
-#
-# fp = open('xaa', 'rb')
-#
-# mp.upload_part_from_file(fp, 1)
-#
-# fp.close()
-#
-# fp = open('xab', 'rb')
-#
-# mp.upload_part_from_file(fp, 2)
-#
-# fp.close()
-#
-# fp = open('xac', 'rb')
-#
-# mp.upload_part_from_file(fp, 3)
-#
-# fp.close()
-#
-# fp = open('xad', 'rb')
-#
-# mp.upload_part_from_file(fp, 4)
-#
-# fp.close()
-#
-# for part in mp:
-#     print part.part_number, part.size
-#
-# mp.complete_upload()
-#
-# mp.upload_part_from_file(fp, 5)
-# fp.close()
-#
-# fp.close()
+
+

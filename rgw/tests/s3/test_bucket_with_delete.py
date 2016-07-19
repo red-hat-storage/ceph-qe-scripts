@@ -24,9 +24,10 @@ def test_exec(config):
 
         for each_user in all_user_details:
 
-            rgw = RGW(each_user)
+            rgw = RGW(config, each_user)
 
-            rgw.create_bucket_with_keys(config)
+            buckets = rgw.initiate_buckets()
+            rgw.create_keys(buckets)
 
             rgw.delete_bucket_with_keys()
 

@@ -21,12 +21,12 @@ def test_exec(config):
         all_user_details = rgw_lib.create_users(config.user_count)
 
         for each_user in all_user_details:
-            each_user['port'] = config.port
 
-            rgw = RGW(each_user)
-            rgw.enable_versioning = True
+            rgw = RGW(config, each_user)
             rgw.version_count = config.version_count
-            rgw.create_bucket_with_keys(config)
+            rgw.enable_versioning = True
+            buckets = rgw.initiate_buckets()
+            rgw.create_keys(buckets)
 
         test_info.success_status('test completed')
 
