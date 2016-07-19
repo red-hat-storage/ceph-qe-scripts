@@ -208,10 +208,10 @@ class RGW(BaseOp):
                     map(log.info, version_details)
 
                     if self.move_version:
-                        # reverting to a random version.
+                        log.info('reverting to a random version.')
 
-                        bucket_created['bucket'].copy_key(key_created.name, bucket_created, key_created.name,
-                                                          src_version_id=random.choice(self.version_ids))
+                        bucket_created.copy_key(key_created.name, bucket_created.name, key_created.name,
+                                                src_version_id=random.choice(self.version_ids))
 
                         versions = list(bucket_created.list_versions(key_created.name))
 
