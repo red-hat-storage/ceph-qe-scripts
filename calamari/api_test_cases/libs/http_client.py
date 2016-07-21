@@ -6,7 +6,7 @@ import json
 class AuthenticateClient(object):
 
     def __init__(self, http, ip, port, username, password):
-
+        requests.packages.urllib3.disable_warnings()
         self.client = requests.session()
         self.base_url = '%s://%s:%s/api/v2/' % (http, ip, port)
         self.token = None
