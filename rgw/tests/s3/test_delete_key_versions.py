@@ -23,13 +23,13 @@ def test_exec(config):
 
         for each_user in all_user_details:
 
-            each_user['port'] = config.port
-
-            rgw = RGW(each_user)
+            rgw = RGW(config, each_user)
+            rgw.version_count = config.version_count
             rgw.enable_versioning = True
             rgw.version_count = 5
 
-            rgw.create_bucket_with_keys(config)
+            buckets = rgw.initiate_buckets()
+            rgw.create_keys(buckets)
             rgw.delete_key_version()
 
         test_info.success_status('test completed')
@@ -37,7 +37,9 @@ def test_exec(config):
         sys.exit(0)
 
     except AssertionError, e:
+
         log.error(e)
+        test_info.failed_status('test failed: %s' % e)
         sys.exit(1)
 
 

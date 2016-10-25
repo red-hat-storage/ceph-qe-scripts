@@ -12,7 +12,7 @@ import yaml
 
 def test_exec(config):
 
-    test_info = AddTestInfo('create m buckets, n objects and download')
+    test_info = AddTestInfo('create m buckets, n keys and download')
 
     try:
 
@@ -24,13 +24,10 @@ def test_exec(config):
 
         for each_user in all_user_details:
 
-            each_user['port'] = config.port
-
-            rgw = RGW(each_user)
-
-            rgw.create_bucket_with_keys(config)
-
-            rgw.download_objects()
+            rgw = RGW(config, each_user)
+            buckets = rgw.initiate_buckets()
+            rgw.create_keys(buckets)
+            rgw.download_keys()
 
         test_info.success_status('test completed')
 

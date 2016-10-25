@@ -249,7 +249,7 @@ class PutContentsFromFile(object):
         except (exception.BotoClientError, exception.S3ResponseError), e:
             log.error(e)
 
-            upload_status = {'status': True,
+            upload_status = {'status': False,
                              'msgs': e}
 
         return upload_status
