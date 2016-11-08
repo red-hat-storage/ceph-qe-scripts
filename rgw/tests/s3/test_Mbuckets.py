@@ -25,7 +25,7 @@ def test_exec(config):
 
             rgw = RGW(config, each_user)
 
-            rgw.initiate_buckets()
+            assert rgw.initiate_buckets()
 
         test_info.success_status('test completed')
 
