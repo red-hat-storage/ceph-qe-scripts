@@ -7,6 +7,7 @@ import os
 import names
 from lib.admin import RGWAdminOps
 import random
+import string
 
 
 def create_users(no_of_users_to_create):
@@ -15,8 +16,10 @@ def create_users(no_of_users_to_create):
     all_users_details = []
 
     for i in range(no_of_users_to_create):
-        user_details = admin_ops.create_admin_user(names.get_first_name().lower() + str(.2),
-                                                   names.get_full_name().lower())
+        user_details = admin_ops.create_admin_user(
+            names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." +
+            str(random.randint(1, 1000)) + ".",
+            names.get_full_name().lower())
 
         all_users_details.append(user_details)
 
