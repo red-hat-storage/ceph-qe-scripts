@@ -4,7 +4,7 @@ import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
 from lib.s3.rgw import Config
-from lib.s3.rgw import RGW
+from lib.s3.rgw import ObjectOps
 import lib.s3.rgw as rgw_lib
 import yaml
 import argparse
@@ -13,7 +13,7 @@ import argparse
 def test_exec(config):
 
     test_info = AddTestInfo('enable versioning on a bucket and upload keys and '
-                            'its versions and revert to once of the version')
+                            'its versions and revert to one of the version')
 
     try:
 
@@ -23,12 +23,13 @@ def test_exec(config):
 
         for each_user in all_user_details:
 
-            rgw = RGW(config, each_user)
+            rgw = ObjectOps(config, each_user)
             rgw.enable_versioning = True
             rgw.version_count = config.version_count
             rgw.move_version = True
-            buckets = rgw.initiate_buckets()
-            rgw.create_keys(buckets)
+            buckets = rgw.create_bucket()
+            rgw.set_bucket_properties()
+            rgw.upload(buckets)
 
         test_info.success_status('test completed')
 
@@ -66,15 +67,12 @@ if __name__ == '__main__':
 
     config.version_count = doc['config']['version_count']
 
-    config.port = args.port
-
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
              'objects_count: %s\n'
              'objects_size_range: %s\n'
-             'port: %s\n'
              'version count %s' % (
-                 config.user_count, config.bucket_count, config.objects_count, config.objects_size_range, config.port,
+                 config.user_count, config.bucket_count, config.objects_count, config.objects_size_range,
                  config.version_count))
 
     test_exec(config)

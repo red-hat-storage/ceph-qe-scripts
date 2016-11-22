@@ -4,6 +4,25 @@ import subprocess
 import log
 import json
 from random import randint
+import ConfigParser
+
+
+def exec_shell_cmd(command):
+
+    try:
+
+        print('executing command: %s' % command)
+
+        variable = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+        v = variable.stdout.read()
+        return True, v
+
+
+    except subprocess.CalledProcessError as e:
+        print('command failed')
+        error = e.output + " " + str(e.returncode)
+        print(error)
+        return False, error
 
 
 def get_md5(file_path):
@@ -49,22 +68,118 @@ def split_file(fname, size_to_split=5):
         return False
 
 
-class JsonFileOps(object):
+class FileOps(object):
 
-    def __init__(self, filename):
-
+    def __init__(self, filename, type):
+        self.type = type
         self.fname = filename
 
     def get_data(self):
 
+        data = None
+
         with open(self.fname) as fp:
-            json_data = json.load(fp)
+
+            if self.type == 'json':
+                data = json.load(fp)
+
+            if self.type == 'txt' or self.type == 'ceph.conf' :
+                raw_data = fp.readlines()
+                tmp = lambda x: x.rstrip('\n')
+                data = map(tmp, raw_data)
+
         fp.close()
 
-        return json_data
+        return data
 
     def add_data(self, data):
 
         with open(self.fname, "w") as fp:
-            json.dump(data, fp, indent=4)
+
+            if self.type == 'json' :
+
+                json.dump(data, fp, indent=4)
+
+            if self.type == 'txt':
+                fp.write(data)
+
+            if self.type == 'ceph.conf':
+                data.write(fp)
+
         fp.close()
+
+
+class ConfigParse(object):
+
+    def __init__(self, fname):
+
+        self.fname = fname
+        self.cfg = ConfigParser.ConfigParser()
+        self.cfg.read(fname)
+
+    def set(self, section, option, value =None):
+
+        self.cfg.set(section, option, value)
+
+        return self.cfg
+
+    def add_section(self, section):
+
+        try:
+            self.cfg.add_section(section)
+            return self.cfg
+        except ConfigParser.DuplicateSectionError, e :
+            log.info('section already exists: %s' % e)
+            return self.cfg
+
+def make_copy_of_file(f1, f2):
+
+    """
+    copy f1 to f2 location
+
+    """
+
+    cmd = 'sudo cp %s %s' % (f1, f2)
+    executed_status = exec_shell_cmd(cmd)
+
+    if not executed_status[0]:
+        return executed_status
+    else:
+        return os.path.abspath(f2)
+
+
+class RGWService(object):
+
+    def __init__(self):
+        pass
+
+    def restart(self):
+
+        executed = exec_shell_cmd('sudo systemctl restart ceph-radosgw.target')
+
+        return executed[0]
+
+    def stop(self):
+
+        executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
+
+        return executed[0]
+
+    def start(self):
+
+        executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
+
+        return executed[0]
+
+
+def get_radosgw_port_no():
+
+    op = exec_shell_cmd('sudo netstat -nltp | grep radosgw')
+
+    x = op[1].split(" ")
+
+    port = [i for i in x if ':' in i][0].split(':')[1]
+
+    log.info('radosgw is running in port: %s' % port)
+
+    return port
