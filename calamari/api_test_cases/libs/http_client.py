@@ -1,6 +1,7 @@
 import requests
 import log
 import json
+import socket
 
 
 class AuthenticateClient(object):
@@ -8,7 +9,7 @@ class AuthenticateClient(object):
     def __init__(self, http, ip, port, username, password):
         requests.packages.urllib3.disable_warnings()
         self.client = requests.session()
-        self.base_url = '%s://%s:%s/api/v2/' % (http, ip, port)
+        self.base_url = '%s://%s:%s/api/v2/' % (http, socket.gethostbyname(socket.getfqdn()), port)
         self.token = None
         self.headers = None
         self.fsid = None

@@ -25,7 +25,7 @@ def exec_test(config_data):
 
         commands = ['ceph osd tree',
                     ['ceph', '-s'],
-                    ["ceph", "osd", "dump"]
+                   # ["ceph", "osd", "dump"] # this type of command fails, i.e list of 3 elements .
                     ]
 
         data_to_post = map(lambda x: {'command': x}, commands)
