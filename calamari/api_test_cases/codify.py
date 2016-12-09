@@ -31,8 +31,8 @@ if __name__ == '__main__':
         test_crush_rule_set.exec_test(calamari_config),  # test id  5
         test_crush_type.exec_test(calamari_config),  # test id  6
         test_event.exec_test(calamari_config),  # test id  7
-        test_log.exec_test(calamari_config),  # test id  8
-        # test_mon.exec_test(calamari_config),  # test id  9
+        test_mon.exec_test(calamari_config),  # test id  8
+        # test_log.exec_test(calamari_config),  # test id  9
         test_info.exec_test(calamari_config),  # test id  10
         # test_osd.exec_test(calamari_config),  # test id  11.1
         test_osd.exec_test2(calamari_config),  # test id  11.2
