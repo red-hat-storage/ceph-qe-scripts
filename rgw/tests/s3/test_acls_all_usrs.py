@@ -4,7 +4,7 @@ import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
 from lib.s3.rgw import Config
-from lib.s3.rgw import RGW
+from lib.s3.rgw import ObjectOps
 import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
@@ -29,11 +29,11 @@ def test_exec_read(config):
 
         all_user_details.pop(0)
 
-        u1 = RGW(config, user1)
+        u1 = ObjectOps(config, user1)
 
         for each_user in all_user_details:
 
-            u2 = RGW(config, each_user)
+            u2 = ObjectOps(config, each_user)
 
             u2_canonical_id = u2.canonical_id
 
@@ -42,23 +42,23 @@ def test_exec_read(config):
             grants['user_id'] = u2_canonical_id
 
             u1.grants = None
-
-            u1.initiate_buckets()
+            u1.create_bucket()
+            u1.set_bucket_properties()
             u2.bucket_names = u1.bucket_names
             u2.buckets_created = u1.buckets_created
 
             u2.grants = None
-            u2.initiate_buckets()
+            u2.set_bucket_properties()
 
             # set permissions and read
 
             u1.grants = grants
-            u1.initiate_buckets()
+            u1.set_bucket_properties()
             u2.bucket_names = u1.bucket_names
             u2.buckets_created = u1.buckets_created
 
             u2.grants = None
-            u2.initiate_buckets()
+            u2.set_bucket_properties()
 
         test_info.success_status('test completed')
 
@@ -81,7 +81,7 @@ def test_exec_write(config):
         all_user_details = rgw_lib.create_users(config.user_count)
 
         user1 = all_user_details[0]
-        u1 = RGW(config, user1)
+        u1 = ObjectOps(config, user1)
         log.info('user1: %s' % user1)
 
         all_user_details.pop(0)
@@ -92,7 +92,7 @@ def test_exec_write(config):
 
             log.info('user2: %s' % each_user)
 
-            u2 = RGW(config, each_user)
+            u2 = ObjectOps(config, each_user)
 
             u2_canonical_id = u2.canonical_id
 
@@ -106,8 +106,8 @@ def test_exec_write(config):
             grants['user_id'] = u2_canonical_id
 
             u1.grants = grants
-
-            u1.initiate_buckets()
+            u1.create_bucket()
+            u1.set_bucket_properties()
             u2.bucket_names = u1.bucket_names
             u2.buckets_created = u1.buckets_created
 
@@ -115,8 +115,8 @@ def test_exec_write(config):
             u2.json_file_download = u1.json_file_download
 
             u2.grants = None
-            buckets = u2.initiate_buckets()
-            key_created = u2.create_keys(buckets)
+            buckets = u2.set_bucket_properties()
+            key_created = u2.upload(buckets)
             if not key_created:
                 log.info('no write permission set and hence failing to create object')
 
@@ -127,13 +127,13 @@ def test_exec_write(config):
 
             grants = {'permission': 'WRITE', 'user_id': u2_canonical_id, 'recursive': True}
             u1.grants = grants
-            u1.initiate_buckets()
+            u1.set_bucket_properties()
             u2.bucket_names = u1.bucket_names
             u2.buckets_created = u1.buckets_created
 
             u2.grants = None
-            buckets = u2.initiate_buckets()
-            key_created = u2.create_keys(buckets, object_base_name=str(u2.canonical_id) + ".key")
+            buckets = u2.set_bucket_properties()
+            key_created = u2.upload(buckets, object_base_name=str(u2.canonical_id) + ".key")
             if key_created:
                 log.info('object created after permission set')
 
@@ -169,14 +169,13 @@ if __name__ == '__main__':
     config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                  'max': doc['config']['objects_size_range']['max']}
 
-    config.port = args.port
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
              'objects_count: %s\n'
              'objects_size_range: %s\n'
-             'port: %s' % (
-              config.user_count, config.bucket_count, config.objects_count, config.objects_size_range, config.port))
+             % (
+              config.user_count, config.bucket_count, config.objects_count, config.objects_size_range))
 
     test_exec_read(config)
     test_exec_write(config)

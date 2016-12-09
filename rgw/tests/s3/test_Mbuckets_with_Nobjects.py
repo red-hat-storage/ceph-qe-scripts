@@ -1,8 +1,12 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 from lib.s3.rgw import Config
+from lib.rgw_config_opts import AddToCephConf, ConfigOpts
+from lib.admin import QuotaMgmt
+from utils.utils import RGWService
 import utils.log as log
-from lib.s3.rgw import RGW
+import socket
+from lib.s3.rgw import ObjectOps
 import sys
 from utils.test_desc import AddTestInfo
 import lib.s3.rgw as rgw_lib
@@ -16,18 +20,31 @@ def test_exec(config):
 
     try:
 
-        # test case starts
-
         test_info.started_info()
+
+        rgw_service = RGWService()
+        quota_mgmt = QuotaMgmt()
+        test_config = AddToCephConf()
+
+        if config.shards:
+            test_config.set_to_ceph_conf('global', ConfigOpts.rgw_override_bucket_index_max_shards, config.shards)
+
+            rgw_service.restart()
+
+            no_of_shards_for_each_bucket = int(config.shards) * int(config.bucket_count)
 
         all_user_details = rgw_lib.create_users(config.user_count)
 
         for each_user in all_user_details:
 
-            rgw = RGW(config, each_user)
+            if config.max_objects:
+                quota_mgmt.set_bucket_quota(each_user['user_id'], config.max_objects)
+                quota_mgmt.enable_bucket_quota(each_user['user_id'])
 
-            buckets = rgw.initiate_buckets()
-            rgw.create_keys(buckets)
+            rgw = ObjectOps(config, each_user)
+
+            buckets = rgw.create_bucket()
+            rgw.upload(buckets)
 
         test_info.success_status('test completed')
 
@@ -46,8 +63,8 @@ if __name__ == '__main__':
     parser.add_argument('-c', dest="config", default='yamls/config.yaml',
                         help='RGW Test yaml configuration')
 
-    parser.add_argument('-p', dest="port", default='8080',
-                        help='port number where RGW is running')
+    # parser.add_argument('-p', dest="port", default='8080',
+    #                  help='port number where RGW is running')
 
     args = parser.parse_args()
 
@@ -64,13 +81,18 @@ if __name__ == '__main__':
     config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                  'max': doc['config']['objects_size_range']['max']}
 
-    config.port = args.port
+    config.shards = doc['config']['shards']
+    config.max_objects = doc['config']['max_objects']
+
+    print 'shard value: %s' % config.shards
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
              'objects_count: %s\n'
              'objects_size_range: %s\n'
-             'port: %s\n'
-             % (config.user_count, config.bucket_count, config.objects_count, config.objects_size_range, config.port))
+             'shards: %s\n'
+             'max_objects: %s\n'
+             % (config.user_count, config.bucket_count, config.objects_count, config.objects_size_range, config.shards,
+                config.max_objects))
 
     test_exec(config)

@@ -2,7 +2,6 @@ import boto.exception as exception
 import utils.log as log
 from json_ops import JBucket
 
-
 class Bucket(object):
     def __init__(self, connection):
 
@@ -110,7 +109,7 @@ class Bucket(object):
 
         return delete_bucket_stack
 
-    def enable_disable_versioning(self, enabled, bucket):
+    def enable_disable_versioning(self, bucket, enabled):
 
         try:
 
@@ -251,3 +250,7 @@ def list_all_buckets(connection):
                               }
 
     return list_buckets_stack
+
+
+
+

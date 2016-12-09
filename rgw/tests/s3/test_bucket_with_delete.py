@@ -1,6 +1,6 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
-from lib.s3.rgw import RGW
+from lib.s3.rgw import ObjectOps
 import lib.s3.rgw as rgw_lib
 import utils.log as log
 import sys
@@ -24,12 +24,13 @@ def test_exec(config):
 
         for each_user in all_user_details:
 
-            rgw = RGW(config, each_user)
+            rgw = ObjectOps(config, each_user)
 
-            buckets = rgw.initiate_buckets()
-            rgw.create_keys(buckets)
+            buckets = rgw.create_bucket()
+            rgw.upload(buckets)
 
-            rgw.delete_bucket_with_keys()
+            rgw.delete_keys()
+            rgw.delete_bucket()
 
         test_info.success_status('test completed')
 
@@ -66,13 +67,12 @@ if __name__ == '__main__':
     config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                  'max': doc['config']['objects_size_range']['max']}
 
-    config.port = args.port
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
              'objects_count: %s\n'
              'objects_size_range: %s\n'
-             'port: %s' % (
-                 config.user_count, config.bucket_count, config.objects_count, config.objects_size_range, config.port))
+             % (
+                 config.user_count, config.bucket_count, config.objects_count, config.objects_size_range))
 
     test_exec(config)

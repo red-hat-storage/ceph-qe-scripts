@@ -1,9 +1,10 @@
 import subprocess
 import utils.log as log
+import utils.utils as utils
 import json
 
 
-class RGWAdminOps(object):
+class UserMgmt(object):
 
     def __init__(self):
 
@@ -36,3 +37,33 @@ class RGWAdminOps(object):
             error = e.output + str(e.returncode)
             log.error(error)
             return False
+
+
+class QuotaMgmt(object):
+
+    def __init__(self):
+        self.exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+
+    def set_bucket_quota(self, uid, max_objects):
+
+        cmd = 'radosgw-admin quota set --uid=%s --quota-scope=bucket --max-objects=%s' % (uid, max_objects)
+
+        status = utils.exec_shell_cmd(cmd)
+
+        if not status[0]:
+            raise AssertionError, status[1]
+
+        log.info('quota set complete')
+
+    def enable_bucket_quota(self, uid):
+
+        cmd = 'radosgw-admin quota enable --quota-scope=bucket --uid=%s' % uid
+
+        status = utils.exec_shell_cmd(cmd)
+
+        if not status[0]:
+            raise AssertionError, status[1]
+
+        log.info('quota set complete')
+
+

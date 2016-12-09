@@ -49,18 +49,18 @@ class AddTestInfo(object):
         log.info('\n======================================================================\n'
                  '**********  %s  *********' % status)
 
-        print Bcolors.FAIL + 'test status %s' % status + Bcolors.ENDC
+        print Bcolors.FAIL + 'status: %s ' % status + Bcolors.ENDC
 
     def success_status(self, status):
 
         log.info('\n======================================================================\n'
                  '**********  %s  *********' % status)
 
-        print Bcolors.OKGREEN + 'test status %s' % status + Bcolors.ENDC
+        print Bcolors.OKGREEN + 'status: %s ' % status + Bcolors.ENDC
 
     def completed_info(self):
         log.info("======================================================\nTest Completed\n======="
                  "==================================================================================================")
 
-        print Bcolors.HEADER + 'test completed' + Bcolors.ENDC
+        print Bcolors.HEADER + 'completed' + Bcolors.ENDC
         print '---------------------------'
