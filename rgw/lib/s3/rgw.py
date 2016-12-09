@@ -5,13 +5,13 @@ import utils.log as log
 import utils.utils as utils
 import os
 import names
-from lib.admin import RGWAdminOps
+from lib.admin import UserMgmt
 import random
 import string
 
 
 def create_users(no_of_users_to_create):
-    admin_ops = RGWAdminOps()
+    admin_ops = UserMgmt()
 
     all_users_details = []
 
@@ -33,13 +33,13 @@ class BaseOp(object):
         self.user_id = user_details['user_id']
         self.access_key = user_details['access_key']
         self.secret_key = user_details['secret_key']
-        self.port = user_details['port']
+        # self.port = user_details['port']
 
-        auth = Authenticate(self.access_key, self.secret_key, self.user_id, self.port)
+        auth = Authenticate(self.access_key, self.secret_key, self.user_id)
 
         self.connection = auth.do_auth()
 
-        assert self.connection['status']
+        assert self.connection['status'], self.connection['msgs']
         connection = self.connection['conn']
 
         self.canonical_id = connection.get_canonical_user_id()
@@ -50,15 +50,14 @@ class BaseOp(object):
         self.bucket_ops = Bucket(connection)
 
 
-class RGW(BaseOp):
+class BucketOps(BaseOp):
+
     def __init__(self, config, user_details):
+        # user_details['port'] = config.port
 
-        user_details['port'] = config.port
-
-        super(RGW, self).__init__(user_details)
+        super(BucketOps, self).__init__(user_details)
 
         self.buckets_created = []
-        self.keys_put = []
 
         self.enable_versioning = False
         self.version_count = None
@@ -67,16 +66,12 @@ class RGW(BaseOp):
         self.grants = None
         self.acls = None
 
-        self.bucket_create_nos = config.bucket_count
-        self.objects_count = config.objects_count
-        self.objects_size_range = config.objects_size_range
         self.bucket_names = []
+        self.bucket_create_nos = config.bucket_count
 
-    def initiate_buckets(self):
+    def create_bucket(self):
 
-        log.info('no of buckets to create: %s' % self.bucket_create_nos)
-
-        if not self.buckets_created:
+            log.info('no of buckets to create: %s' % self.bucket_create_nos)
 
             log.info('buckets_creating......')
 
@@ -93,57 +88,86 @@ class RGW(BaseOp):
                 bucket_created = self.bucket_ops.create(bucket_name, self.json_file_upload)
 
                 if not bucket_created['status']:
-                    return bucket_created['status']
+                    raise AssertionError, bucket_created['msgs']
 
                 print 'created bucket'
                 print bucket_created
 
                 self.buckets_created.append(bucket_created['bucket'])
 
-                if self.grants is not None:
-                    self.bucket_ops.set_user_grant(bucket_created['bucket'], self.grants)
-
-                if self.version_count is not None:
-                    self.bucket_ops.enable_disable_versioning(self.enable_versioning, bucket_created['bucket'])
-
-                if not bucket_created['status']:
-                    raise AssertionError
-
-                if self.acls is not None:
-                    self.bucket_ops.set_acls(bucket_created['bucket'], self.acls)
-
                 log.info('bucket created')
 
-        else:
+            return self.buckets_created
 
-            log.info('getting buckets from already created bucket names')
+    def get_bucket(self):
 
-            tmp = []
+        log.info('getting buckets from already created bucket names')
 
-            for bucket_name in self.bucket_names:
+        tmp = []
 
-                print '-----------%s' % bucket_name
+        for bucket_name in self.bucket_names:
 
-                bucket = self.bucket_ops.get(bucket_name)
+            print '-----------%s' % bucket_name
 
-                if bucket['status']:
-                    tmp.append(bucket['bucket'])
+            bucket = self.bucket_ops.get(bucket_name)
 
-                    if self.version_count is not None:
-                        self.bucket_ops.enable_disable_versioning(self.enable_versioning, bucket['bucket'])
-                    if self.grants is not None:
-                        self.bucket_ops.set_user_grant(bucket['bucket'], self.grants)
-                    if self.acls is not None:
-                        self.bucket_ops.set_acls(bucket['bucket'], self.acls)
+            if bucket['status']:
+                tmp.append(bucket['bucket'])
 
-                elif not bucket['status']:
-                    return bucket['status']
+            elif not bucket['status']:
+                raise AssertionError, bucket['msgs']
 
-            self.buckets_created = tmp
+        self.buckets_created = tmp
 
         return self.buckets_created
 
-    def create_keys(self, buckets_created, object_base_name='key'):
+    def delete_bucket(self):
+
+        for bucket_name in self.bucket_names:
+
+            bucket_deleted = self.bucket_ops.delete(bucket_name)
+
+            if not bucket_deleted['status']:
+                raise AssertionError, bucket_deleted['msgs']
+
+            log.info('bucket deleted')
+
+    def set_bucket_properties(self):
+
+        if not self.buckets_created:
+            assert "No buckets created"
+
+        for bucket in self.buckets_created:
+
+            if self.grants is not None:
+                self.bucket_ops.set_user_grant(bucket, self.grants)
+
+            if self.version_count is not None:
+                self.bucket_ops.enable_disable_versioning(bucket, self.enable_versioning)
+
+            if self.acls is not None:
+                self.bucket_ops.set_acls(bucket, self.acls)
+
+        return self.buckets_created
+
+
+class ObjectOps(BucketOps):
+    def __init__(self, config, user_details):
+
+        super(ObjectOps, self).__init__(config, user_details)
+
+        self.keys_put = []
+        self.version_count = None
+        self.version_ids = None
+        self.move_version = False
+
+        self.objects_count = config.objects_count
+        self.objects_size_range = config.objects_size_range
+
+        self.set_cancel_multipart = False
+        self.break_upload_at_part_no = 0
+
+    def upload(self, buckets_created, object_base_name='key'):
 
         object_create_nos = self.objects_count
 
@@ -176,7 +200,7 @@ class RGW(BaseOp):
                 key_created = key_op.create(key_name)
 
                 if key_created is None:
-                    raise AssertionError
+                    raise AssertionError, "key name creation failed"
 
                 log.info('key created')
 
@@ -199,7 +223,7 @@ class RGW(BaseOp):
                         put = put_file.put(each_version)
 
                         if not put['status']:
-                            raise AssertionError
+                            raise AssertionError, put['msgs']
 
                     current_key_version_id = key_created.version_id
                     log.info('current_key_version_id: %s' % current_key_version_id)
@@ -237,6 +261,57 @@ class RGW(BaseOp):
                     else:
                         self.keys_put.append(key_name)
 
+    def multipart_upload(self, buckets_created):
+
+        object_size = self.objects_size_range
+
+        min_object_size = object_size['min']
+        max_object_size = object_size['max']
+
+        for bucket in buckets_created:
+
+            for object_count in range(self.objects_count):
+
+                key_name = bucket.name + "." + str(object_count) + ".key" + ".mpFile"
+
+                if not os.path.exists(key_name):
+
+                    size = utils.get_file_size(min_object_size, max_object_size)
+
+                    log.info('size of the file to create %s' % size)
+
+                    log.info('file does not exists, so creating the file')
+
+                    filename = utils.create_file(key_name, size)
+
+                else:
+
+                    log.info('file exists')
+                    filename = os.path.abspath(key_name)
+                    md5 = utils.get_md5(filename)
+
+                log.info('got filename %s' % filename)
+
+                log.debug('got file dirname %s' % os.path.dirname(filename))
+
+                json_file = os.path.join(os.path.dirname(filename), os.path.basename(filename) + ".json")
+
+                log.info('json_file_name %s' % json_file)
+
+                multipart = MultipartPut(bucket, filename)
+
+                multipart.break_at_part_no = self.break_upload_at_part_no
+                multipart.cancel_multpart = self.set_cancel_multipart
+
+                multipart.iniate_multipart(json_file)
+
+                put = multipart.put()
+
+                print put['status']
+
+                if not put['status']:
+                    raise AssertionError, put['msgs']
+
     def delete_key_version(self):
 
         for bucket_name in self.bucket_names:
@@ -252,7 +327,7 @@ class RGW(BaseOp):
 
                 map(del_key_version, self.version_ids)
 
-    def delete_bucket_with_keys(self, delete_bucket=True):
+    def delete_keys(self, delete_bucket=True):
 
         log.info('deleted buckets with keys')
 
@@ -279,18 +354,6 @@ class RGW(BaseOp):
                     raise AssertionError
 
                 log.info('all keys deleted')
-
-                log.info('delete of bucket')
-
-                if delete_bucket:
-
-                    bucket_deleted = self.bucket_ops.delete(bucket_name)
-
-                    if not bucket_deleted['status']:
-                        log.error('bucket not deleted')
-                        raise AssertionError
-
-                    log.info('bucket deleted')
 
     def download_keys(self):
 
@@ -322,134 +385,6 @@ class RGW(BaseOp):
                 if not download['status']:
                     log.error(download['msgs'])
                     raise AssertionError
-
-                else:
-                    log.info('download complete')
-
-
-class RGWMultpart(BaseOp):
-    def __init__(self, user_details):
-
-        super(RGWMultpart, self).__init__(user_details)
-
-        self.set_cancel_multipart = False
-
-        self.break_upload_at_part_no = 0
-
-        self.bucket_name = None
-
-        self.buckets_created = None
-
-    def upload(self, config):
-
-        bucket_create_nos = config.bucket_count
-        object_size = config.objects_size_range
-
-        self.buckets_created = []
-
-        log.info('no of buckets to create: %s' % bucket_create_nos)
-
-        min_object_size = object_size['min']
-        max_object_size = object_size['max']
-
-        for bucket_no in range(bucket_create_nos):
-
-            log.debug('iter: %s' % bucket_no)
-
-            self.bucket_name = self.user_id + "." + str('bucky') + "." + str(bucket_no)
-
-            log.info('bucket_name: %s' % self.bucket_name)
-
-            key_name = self.bucket_name + "." + "mpFile"
-
-            if not os.path.exists(key_name):
-
-                size = utils.get_file_size(min_object_size, max_object_size)
-
-                log.info('size of the file to create %s' % size)
-
-                log.info('file does not exists, so creating the file')
-
-                filename = utils.create_file(key_name, size)
-
-            else:
-
-                log.info('file exists')
-                filename = os.path.abspath(key_name)
-                md5 = utils.get_md5(filename)
-
-            log.info('got filename %s' % filename)
-
-            log.debug('got file dirname %s' % os.path.dirname(filename))
-
-            json_file = os.path.join(os.path.dirname(filename), os.path.basename(filename) + ".json")
-
-            log.info('json_file_name %s' % json_file)
-
-            bucket = self.connection['conn'].lookup(self.bucket_name)
-
-            if bucket is None:
-
-                log.info('bucket does not exists, so creating the bucket')
-
-                bucket_created = self.bucket_ops.create(self.bucket_name, self.json_file_upload)
-                bucket = bucket_created['bucket']
-
-                if not bucket_created['status']:
-                    raise AssertionError
-
-                self.buckets_created.append(self.bucket_name)
-
-            multipart = MultipartPut(bucket, filename)
-
-            multipart.break_at_part_no = self.break_upload_at_part_no
-            multipart.cancel_multpart = self.set_cancel_multipart
-
-            multipart.iniate_multipart(json_file)
-            put = multipart.put()
-
-            print put['status']
-
-            if not put['status']:
-                raise AssertionError
-
-    def download(self):
-
-        download_dir = os.path.join(os.getcwd(), "Mp.Download")
-
-        for bucket_created in self.buckets_created:
-
-            print '------------------>', self.bucket_name
-
-            if not os.path.exists(download_dir):
-                os.makedirs(download_dir)
-
-            bucket_dir = os.path.join(download_dir, self.bucket_name)
-
-            if not os.path.exists(bucket_dir):
-                os.makedirs(bucket_dir)
-
-            bucket = self.bucket_ops.get(bucket_created, self.json_file_download)
-
-            log.debug(bucket)
-
-            if not bucket['status']:
-                raise AssertionError
-
-            all_keys_in_bucket = bucket['bucket'].list()
-
-            for each_key in all_keys_in_bucket:
-
-                contents = PutContentsFromFile(each_key, self.json_file_download)
-
-                filename = os.path.join(bucket_dir, each_key.key)
-
-                download = contents.get(filename)
-
-                if not download['status']:
-                    log.error(download['msgs'])
-                    raise AssertionError
-
                 else:
                     log.info('download complete')
 

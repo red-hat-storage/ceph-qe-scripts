@@ -4,7 +4,7 @@ import utils.log as log
 import sys
 from utils.test_desc import AddTestInfo
 from lib.s3.rgw import Config
-from lib.s3.rgw import RGW
+from lib.s3.rgw import ObjectOps
 import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
@@ -29,15 +29,16 @@ def test_exec_read(config):
         user2 = all_user_details[1]
         log.info('user2: %s' % user2)
 
-        u1 = RGW(config, user1)
-        u2 = RGW(config, user2)
+        u1 = ObjectOps(config, user1)
+        u2 = ObjectOps(config, user2)
 
         u1_grants = {'permission': 'READ', 'user_id': u2.canonical_id, 'recursive': True}
         u2_grants = {'permission': 'FULL_CONTROL', 'user_id': u1.canonical_id, 'recursive': True}
 
         u1.grants = u1_grants
-        u1_buckets = u1.initiate_buckets()
-        u1.create_keys(u1_buckets, object_base_name=u1.canonical_id + '.key')
+        u1.create_bucket()
+        u1_buckets = u1.set_bucket_properties()
+        u1.upload(u1_buckets, object_base_name=u1.canonical_id + '.key')
 
         all_keys = u1_buckets[0].get_all_keys()
 
@@ -46,9 +47,10 @@ def test_exec_read(config):
             log.info('name: %s' % key.name)
 
         u2.grants = u2_grants
-        u2_buckets = u2.initiate_buckets()
+        u2.create_bucket()
+        u2_buckets = u2.set_bucket_properties()
 
-        bu2 = u1.connection['conn'].get_bucket(u2_buckets[0])
+        bu2 = u1.connection['conn'].get_bucket(u2_buckets[0].name)
 
         log.info('copying the objects from u1 to u2')
 
@@ -64,7 +66,7 @@ def test_exec_read(config):
         log.info('verifying copied objects--------')
 
         u2.grants = None
-        u2_buckets = u2.initiate_buckets()
+        u2_buckets = u2.set_bucket_properties()
 
         all_keys3 = u2_buckets[0].get_all_keys()
 
@@ -105,13 +107,12 @@ if __name__ == '__main__':
     config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                  'max': doc['config']['objects_size_range']['max']}
 
-    config.port = args.port
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
              'objects_count: %s\n'
              'objects_size_range: %s\n'
-             'port: %s' % (
-              config.user_count, config.bucket_count, config.objects_count, config.objects_size_range, config.port))
+              % (
+              config.user_count, config.bucket_count, config.objects_count, config.objects_size_range))
 
     test_exec_read(config)

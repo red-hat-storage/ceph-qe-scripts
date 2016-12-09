@@ -2,7 +2,7 @@ import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 from lib.s3.rgw import Config
-from lib.s3.rgw import RGWMultpart
+from lib.s3.rgw import ObjectOps
 import lib.s3.rgw as rgw_lib
 import utils.log as log
 import sys
@@ -24,13 +24,14 @@ def test_exec(config):
         log.info('multipart upload enabled')
 
         for each_user in all_user_details:
+            config.objects_count = 1
 
-            each_user['port'] = config.port
+            rgw = ObjectOps(config, each_user)
+            buckets = rgw.create_bucket()
 
-            rgw = RGWMultpart(each_user)
-
-            rgw.upload(config)
-            rgw.download()
+            rgw.break_upload_at_part_no = config.break_at_part_no
+            rgw.multipart_upload(buckets)
+            rgw.download_keys()
 
         test_info.success_status('test completed')
 
@@ -66,12 +67,10 @@ if __name__ == '__main__':
     config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                  'max': doc['config']['objects_size_range']['max']}
 
-    config.port = args.port
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
-             'port: %s\n'
              'object_min_size: %s\n'
-             % (config.user_count, config.bucket_count, config.port, config.objects_size_range))
+             % (config.user_count, config.bucket_count, config.objects_size_range))
 
     test_exec(config)

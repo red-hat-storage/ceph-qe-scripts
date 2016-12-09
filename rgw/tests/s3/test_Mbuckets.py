@@ -4,7 +4,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 import lib.s3.rgw as rgw_lib
 from lib.s3.rgw import Config
 import utils.log as log
-from lib.s3.rgw import RGW
+from lib.s3.rgw import ObjectOps
 from utils.test_desc import AddTestInfo
 import argparse
 import yaml
@@ -23,9 +23,9 @@ def test_exec(config):
 
         for each_user in all_user_details:
 
-            rgw = RGW(config, each_user)
+            rgw = ObjectOps(config, each_user)
 
-            assert rgw.initiate_buckets()
+            assert rgw.create_bucket()
 
         test_info.success_status('test completed')
 

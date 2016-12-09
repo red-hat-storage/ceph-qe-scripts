@@ -1,13 +1,14 @@
 import utils.log as log
-from utils.utils import JsonFileOps
+from utils.utils import FileOps
 
 
-class JBucket(JsonFileOps):
+class JBucket(FileOps):
 
     def __init__(self, fname):
 
         self.fname = fname
-        super(JBucket, self).__init__(self.fname)
+        self.type = 'json'
+        super(JBucket, self).__init__(self.fname, self.type)
 
     def add(self, bucket_name):
 
@@ -24,13 +25,14 @@ class JBucket(JsonFileOps):
         return bucket_name
 
 
-class JKeys(JsonFileOps):
+class JKeys(FileOps):
 
     def __init__(self, fname):
 
         self.fname = fname
+        self.type = 'json'
 
-        super(JKeys, self).__init__(self.fname)
+        super(JKeys, self).__init__(self.fname, self.type)
 
     def add(self, bucket_name, **new_key):
 
@@ -43,9 +45,10 @@ class JKeys(JsonFileOps):
         self.add_data(json_data)
 
 
-class JMulpipart(JsonFileOps):
+class JMulpipart(FileOps):
 
     def __init__(self, fname):
+        self.type = 'json'
         self.fname = fname
         self.mp_id = None
         self.key_name = None
@@ -53,7 +56,7 @@ class JMulpipart(JsonFileOps):
         self.bucket_name = None
         self.remaining_file_parts = []
 
-        super(JMulpipart, self).__init__(self.fname)
+        super(JMulpipart, self).__init__(self.fname, self.type)
 
     def create_json_data(self):
 
