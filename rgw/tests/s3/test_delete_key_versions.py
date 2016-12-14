@@ -69,14 +69,12 @@ if __name__ == '__main__':
 
     config.version_count = doc['config']['version_count']
 
-
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
              'objects_count: %s\n'
              'objects_size_range: %s\n'
-             'port: %s\n'
              'version count %s' % (
-                 config.user_count, config.bucket_count, config.objects_count, config.objects_size_range, config.port,
+                 config.user_count, config.bucket_count, config.objects_count, config.objects_size_range,
                  config.version_count))
 
     test_exec(config)
