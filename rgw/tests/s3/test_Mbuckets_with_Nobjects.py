@@ -81,10 +81,18 @@ if __name__ == '__main__':
     config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                  'max': doc['config']['objects_size_range']['max']}
 
-    config.shards = doc['config']['shards']
-    config.max_objects = doc['config']['max_objects']
+    config.shards = None
+    config.max_objects = None
 
-    print 'shard value: %s' % config.shards
+    for k, v in doc.iteritems():
+
+        if 'shards' in v:
+            config.shards = doc['config']['shards']
+            print 'shard value: %s' % config.shards
+
+        if 'max_objects' in v :
+            config.max_objects = doc['config']['max_objects']
+
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
