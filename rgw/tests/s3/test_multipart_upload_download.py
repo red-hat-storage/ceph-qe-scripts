@@ -29,7 +29,6 @@ def test_exec(config):
             rgw = ObjectOps(config, each_user)
             buckets = rgw.create_bucket()
 
-            rgw.break_upload_at_part_no = config.break_at_part_no
             rgw.multipart_upload(buckets)
             rgw.download_keys()
 
