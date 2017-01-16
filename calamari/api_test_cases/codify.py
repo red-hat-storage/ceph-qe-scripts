@@ -21,7 +21,7 @@ if __name__ == '__main__':
 
     # sleep for few seconds in case calamri and supervisor services are restarted
 
-    time.sleep(50)
+    time.sleep(20)
 
     tests = [
         test_cli.exec_test(calamari_config),  # test id  1
