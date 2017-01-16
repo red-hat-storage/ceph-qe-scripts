@@ -37,7 +37,7 @@ echo LOG_PATH = ${LOG}
 [ -z $IP ] && IP=localhost
 [ -z $PORT ] && PORT=8002
 [ -z $UNAME ] && UNAME=admin
-[ -z $PASSWD ] && PASSWD=admin
+[ -z $PASSWD ] && PASSWD=admin123
 [ -z $LOG ] && LOG="/tmp/apilog"
 
 echo protocol = ${HTTP}
