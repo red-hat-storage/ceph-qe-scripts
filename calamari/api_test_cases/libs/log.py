@@ -12,6 +12,7 @@ logging.basicConfig(format='%(asctime)s : %(levelname)s: %(message)s', datefmt='
 
 
 def debug(debug_msg):
+    print debug_msg
     logging.debug(debug_msg)
 
 
@@ -22,3 +23,4 @@ def error(error_msg):
 
 def info(information):
     logging.info(information)
+    print information

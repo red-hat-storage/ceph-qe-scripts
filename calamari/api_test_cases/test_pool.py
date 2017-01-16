@@ -3,6 +3,7 @@ from utils.test_desc import AddTestInfo
 from http_ops import Initialize
 from utils.utils import get_calamari_config
 import argparse
+import random
 
 
 class PoolDefination(object):
@@ -24,7 +25,7 @@ def exec_test(config_data):
 
     try:
 
-        pool_name = 'pool_' + "api_testing1"
+        pool_name = 'pool_' + "api_testing" + str(random.randint(1,1000))
 
         pool_ops = Test(**config_data)
 
