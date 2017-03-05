@@ -60,39 +60,37 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='RGW Automation')
 
-    parser.add_argument('-c', dest="config", default='yamls/config.yaml',
+    parser.add_argument('-c', dest="config", default='yamls/test_Mbuckets_with_Nobjects.yaml',
                         help='RGW Test yaml configuration')
-
-    # parser.add_argument('-p', dest="port", default='8080',
-    #                  help='port number where RGW is running')
 
     args = parser.parse_args()
 
     yaml_file = args.config
-
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-
     config = Config()
-
-    config.user_count = doc['config']['user_count']
-    config.bucket_count = doc['config']['bucket_count']
-    config.objects_count = doc['config']['objects_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-
     config.shards = None
     config.max_objects = None
+    if yaml_file is None:
+        config.user_count = 2
+        config.bucket_count = 10
+        config.objects_count = 2
+        config.objects_size_range = {'min': 10, 'max': 50}
+        config.shards = 32
+        config.max_objects = 2
+    else:
+        with open(yaml_file, 'r') as f:
+            doc = yaml.load(f)
+        config.user_count = doc['config']['user_count']
+        config.bucket_count = doc['config']['bucket_count']
+        config.objects_count = doc['config']['objects_count']
+        config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
+                                     'max': doc['config']['objects_size_range']['max']}
 
-    for k, v in doc.iteritems():
-
-        if 'shards' in v:
-            config.shards = doc['config']['shards']
-            print 'shard value: %s' % config.shards
-
-        if 'max_objects' in v :
-            config.max_objects = doc['config']['max_objects']
-
+        for k, v in doc.iteritems():
+            if 'shards' in v:
+                config.shards = doc['config']['shards']
+                print 'shard value: %s' % config.shards
+            if 'max_objects' in v :
+                config.max_objects = doc['config']['max_objects']
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
