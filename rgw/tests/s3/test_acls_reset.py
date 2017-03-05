@@ -124,7 +124,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='RGW Automation')
 
-    parser.add_argument('-c', dest="config", default='yamls/test_acls_reset.yaml',
+    parser.add_argument('-c', dest="config",
                         help='RGW Test yaml configuration')
 
     parser.add_argument('-p', dest="port", default='8080',

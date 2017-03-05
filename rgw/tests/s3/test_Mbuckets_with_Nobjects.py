@@ -60,7 +60,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='RGW Automation')
 
-    parser.add_argument('-c', dest="config", default='yamls/test_Mbuckets_with_Nobjects.yaml',
+    parser.add_argument('-c', dest="config",
                         help='RGW Test yaml configuration')
 
     args = parser.parse_args()
