@@ -4,6 +4,6 @@ config:
  user_count: 1
  bucket_count: 10
  objects_count: 50
- objects_size_range: 
+ objects_size_range:
   min: 5
   max: 15
