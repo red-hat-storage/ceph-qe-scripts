@@ -159,6 +159,7 @@ if __name__ == '__main__':
     config = Config()
     config.port = args.port
     if yaml_file is None:
+        config.user_count = 2
         config.bucket_count = 2
         config.objects_count = 10
         config.objects_size_range = {'min': 10, 'max': 50}
