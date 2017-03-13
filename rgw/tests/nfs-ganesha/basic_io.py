@@ -40,6 +40,16 @@ def create_delete_nested_dirs(config):
         print 'deleting dirs'
         [shutil.rmtree(x) for x in created_dir]
 
+    dir_created = destination + '/dir0'
+    dir_exists = os.path.exists(dir_created)
+
+    if not dir_exists:
+        print 'deletion successful'
+
+    else:
+        print 'dir still exists'
+
+
 
 if __name__ == '__main__':
 
