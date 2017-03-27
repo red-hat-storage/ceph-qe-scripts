@@ -1,7 +1,6 @@
 config:
- bucket_count: 1
- objects_count: 1
+ bucket_count: 2
+ objects_count: 10
  objects_size_range:
   min: 5
   max: 15
-

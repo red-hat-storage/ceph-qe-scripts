@@ -13,13 +13,13 @@ import yaml
 def test_exec(config):
 
     test_info = AddTestInfo('multipart Upload')
-    
+
     try:
 
         # test case starts
 
         test_info.started_info()
-        
+
         all_user_details = rgw_lib.create_users(config.user_count)
 
         log.info('multipart upload enabled')
@@ -47,7 +47,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='RGW Automation')
 
-    parser.add_argument('-c', dest="config", default='yamls/config.yaml',
+    parser.add_argument('-c', dest="config",
                         help='RGW Test yaml configuration')
 
     parser.add_argument('-p', dest="port", default='8080',
@@ -56,16 +56,19 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     yaml_file = args.config
-
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-
     config = Config()
-
-    config.user_count = doc['config']['user_count']
-    config.bucket_count = doc['config']['bucket_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
+    config.port = args.port
+    if yaml_file is None:
+        config.user_count = 2
+        config.bucket_count = 10
+        config.objects_size_range = {'min': 300, 'max': 500}
+    else:
+        with open(yaml_file, 'r') as f:
+            doc = yaml.load(f)
+        config.user_count = doc['config']['user_count']
+        config.bucket_count = doc['config']['bucket_count']
+        config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
+                                     'max': doc['config']['objects_size_range']['max']}
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'

@@ -1,7 +1,7 @@
 config:
  user_count: 1
- bucket_count: 1
- break_at_part_no: 90
- objects_size_range: 
-  min: 800
-  max: 1300
+ bucket_count: 10
+ break_at_part_no: 19
+ objects_size_range:
+  min:  50
+  max: 100

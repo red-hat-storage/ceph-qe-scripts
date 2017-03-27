@@ -148,7 +148,7 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='RGW Automation')
 
-    parser.add_argument('-c', dest="config", default='yamls/config.yaml',
+    parser.add_argument('-c', dest="config",
                         help='RGW Test yaml configuration')
 
     parser.add_argument('-p', dest="port", default='8080',
@@ -157,17 +157,21 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     yaml_file = args.config
-
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-
     config = Config()
-
-    config.bucket_count = doc['config']['bucket_count']
-    config.user_count = doc['config']['user_count']
-    config.objects_count = doc['config']['objects_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
+    config.port = args.port
+    if yaml_file is None:
+        config.bucket_count = 2
+        config.user_count = 3
+        config.objects_count = 4
+        config.objects_size_range = {'min': 10, 'max': 50}
+    else:
+        with open(yaml_file, 'r') as f:
+            doc = yaml.load(f)
+        config.bucket_count = doc['config']['bucket_count']
+        config.user_count = doc['config']['user_count']
+        config.objects_count = doc['config']['objects_count']
+        config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
+                                     'max': doc['config']['objects_size_range']['max']}
 
 
     log.info('user_count:%s\n'
