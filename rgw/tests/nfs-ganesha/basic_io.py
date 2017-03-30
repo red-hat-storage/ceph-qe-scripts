@@ -27,8 +27,14 @@ def create_delete_nested_dirs(config):
             path = os.path.join(nest, 'file_image' + str(no))
 
             print 'creating file :%s' % path
-            fcreate = 'dd if=/dev/zero of=%s  bs=1 count=2 seek=%sM' % (path, files['size'])
-            os.system(fcreate)
+
+            try:
+                fcreate = 'dd if=/dev/urandom of=%s bs=%sM count=1' % (path, files['size'])
+                os.system(fcreate)
+
+            except (IOError, Exception) as e:
+                print e
+                exit(1)
 
         current_dir = nest
 
