@@ -387,6 +387,8 @@ class ObjectOps(BucketOps):
                     raise AssertionError
                 else:
                     log.info('download complete')
+                    log.info('after download, deleting key: %s' % filename)
+                    os.unlink(filename)
 
 
 class Config(object):
