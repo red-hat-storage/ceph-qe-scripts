@@ -17,8 +17,7 @@ def exec_shell_cmd(command):
         v = variable.stdout.read()
         return True, v
 
-
-    except subprocess.CalledProcessError as e:
+    except (Exception, subprocess.CalledProcessError) as e:
         print('command failed')
         error = e.output + " " + str(e.returncode)
         print(error)
@@ -50,7 +49,7 @@ def create_file(fname, size):
 
     fname_with_path = os.path.abspath(fname)
 
-    md5 = get_md5(fname)
+    # md5 = get_md5(fname)
 
     return fname_with_path
 
@@ -96,7 +95,7 @@ class FileOps(object):
 
         with open(self.fname, "w") as fp:
 
-            if self.type == 'json' :
+            if self.type == 'json':
 
                 json.dump(data, fp, indent=4)
 
@@ -104,6 +103,9 @@ class FileOps(object):
                 fp.write(data)
 
             if self.type == 'ceph.conf':
+                data.write(fp)
+
+            elif self.type is None:
                 data.write(fp)
 
         fp.close()
@@ -183,3 +185,19 @@ def get_radosgw_port_no():
     log.info('radosgw is running in port: %s' % port)
 
     return port
+
+
+def get_all_in_dir(path):
+
+    all = []
+
+    for dirName, subdirList, fileList in os.walk(path):
+        print('%s' % dirName)
+        log.info('dir_name: %s' % dirName)
+        for fname in fileList:
+            log.info('filename: %s' % os.path.join(dirName,fname))
+            all.append( os.path.join(dirName,fname))
+        log.info('----------------')
+
+    return all
+

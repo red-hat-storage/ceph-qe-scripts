@@ -240,7 +240,12 @@ class PutContentsFromFile(object):
 
             key_details = {'key_name': self.key.key,
                            'size': os.stat(filename).st_size,
-                           'md5': utils.get_md5(filename)}
+                           'md5': utils.get_md5(filename),
+                           'opcode': {"edit": {"new_md5": None},
+                                      "move": {"new_name": None},
+                                      "delete": {"deleted": None}
+                                      }
+                           }
 
             self.jkey.add(self.key.bucket.name, **key_details)
 
@@ -289,7 +294,11 @@ class PutContentsFromFile(object):
                            'size': os.stat(filename).st_size,
                            'md5_local': md5_local,
                            'md5_on_s3': md5_on_s3,
-                           'md5_match': md5_match
+                           'md5_match': md5_match,
+                           'opcode': {"edit": {"new_md5": None},
+                                      "move": {"new_name": None},
+                                      "delete": {"deleted": None}
+                                      }
                            }
 
             self.jkey.add(self.key.bucket.name, **key_details)
