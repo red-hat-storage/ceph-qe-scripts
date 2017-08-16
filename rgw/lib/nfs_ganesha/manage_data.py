@@ -9,7 +9,7 @@ from lib.s3.json_ops import JKeys
 import utils.utils as utils
 from utils.utils import FileOps
 from lib.s3.bucket import Bucket
-from lib.s3.objects import KeyOp
+from lib.s3.objects import KeyOp, PutContentsFromFile
 import collections
 import time
 
@@ -132,17 +132,18 @@ class BaseDir(object):
 
 
 class SubdirAndObjects(object):
-
-    def __init__(self, base_dir_list, config, json_fname, auth):
+    def __init__(self, base_dir_list, config, json_fname, auth, download_json_fname=None):
         self.base_dir_list = base_dir_list
         self.config = config
 
         self.json_fname = json_fname
         self.created = []
 
+        self.download_json_fname = download_json_fname
+
         self.bucket_conn = Bucket(auth)
 
-    def create(self):
+    def create(self,file_type=None):
 
         log.info('in sub dir create')
 
@@ -171,6 +172,8 @@ class SubdirAndObjects(object):
                 dir_info = {'key_name': key_name,
                             'size': 0,
                             'md5': None,
+                            'md5_on_s3': None,
+                            'md5_local': None,
                             'is_type': 'dir',
                             'opcode': {'move': {'old_name': None},
                                        'delete': {'deleted': None},
@@ -189,7 +192,14 @@ class SubdirAndObjects(object):
 
                     log.info('creating file :%s' % fname)
 
-                    fcreate = 'sudo dd if=/dev/urandom of=%s bs=%sM count=1' % (fname, files['size'])
+                    if file_type =='text':
+
+                        fcreate = 'base64 /dev/urandom | head -c %sM > %s' %(files['size'], fname)
+
+                    else:
+                        fcreate = 'sudo dd if=/dev/urandom of=%s bs=%sM count=1' % (fname, files['size'])
+                    log.info('fcreate command: %s' % fcreate)
+
                     os.system(fcreate)
 
                     fname_created = fname.split(base_dir)[1].lstrip('/')
@@ -221,7 +231,7 @@ class SubdirAndObjects(object):
         print 'deleting dirs'
         [shutil.rmtree(x) for x in self.created]
 
-    def verify_s3(self):
+    def verify_s3(self, op_type=None):
 
         kstatus = []
 
@@ -251,6 +261,7 @@ class SubdirAndObjects(object):
 
                 status['key_name'] = key_name_to_find
                 status['type'] = key_info['is_type']
+                md5_on_s3 = info.etag[1:-1]
 
                 if info is None:
                     status['exists'] = False
@@ -259,18 +270,26 @@ class SubdirAndObjects(object):
 
                     if key_info['is_type'] == 'file':
 
-                        print key_info['md5']
-                        print info.etag[1:-1]
+                        if op_type == 'edit':
+                            if key_info['md5_local'] == md5_on_s3:
+                                status['md5_matched'] = True
+                            else:
+                                status['md5_matched'] = False
 
-                        if key_info['md5'] == info.etag[1:-1]:
-                            status['md5_matched'] = True
                         else:
-                            status['md5_matched'] = False
 
-                        if key_info['size'] == info.size:
-                            status['size_matched'] = True
-                        else:
-                            status['size_matched'] = False
+                            print key_info['md5']
+                            print md5_on_s3
+
+                            if key_info['md5'] == info.etag[1:-1]:
+                                status['md5_matched'] = True
+                            else:
+                                status['md5_matched'] = False
+
+                            if key_info['size'] == info.size:
+                                status['size_matched'] = True
+                            else:
+                                status['size_matched'] = False
 
                 kstatus.append(status)
 
@@ -281,7 +300,7 @@ class SubdirAndObjects(object):
 
         return kstatus
 
-    def verify_nfs(self, mount_point):
+    def verify_nfs(self, mount_point, op_type=None):
 
         kstatus = []
 
@@ -317,22 +336,40 @@ class SubdirAndObjects(object):
 
                     log.info('local key: %s' % local_key)
 
-                    if status['exists']:
+                    if op_type == 'edit':
 
-                        size = os.path.getsize(local_key)
-                        md5 = utils.get_md5(local_key)
+                        log.info('in operation: -----> edit')
 
-                        if size == key_info['size']:
-                            status['size_matched'] = True
-                        else:
-                            status['size_matched'] = False
+                        # size = os.path.getsize(local_key)
+                        # md5 = utils.get_md5(local_key)
 
-                        if md5 == key_info['md5']:
+                        md5_local = key_info['md5_local']
+                        md5_on_s3 = key_info['md5_on_s3']
+
+                        if md5_local == md5_on_s3:
+
                             status['md5_matched'] = True
-                            log.info(key_info['md5'])
-                            log.info(md5)
                         else:
                             status['md5_matched'] = False
+
+                    else:
+
+                        if status['exists']:
+
+                            size = os.path.getsize(local_key)
+                            md5 = utils.get_md5(local_key)
+
+                            if size == key_info['size']:
+                                status['size_matched'] = True
+                            else:
+                                status['size_matched'] = False
+
+                            if md5 == key_info['md5']:
+                                status['md5_matched'] = True
+                                log.info(key_info['md5'])
+                                log.info(md5)
+                            else:
+                                status['md5_matched'] = False
 
                 log.info('status of this key: %s' % status)
 
@@ -371,13 +408,12 @@ class SubdirAndObjects(object):
 
             for key_info in key['keys']:
 
-                log.info('operation on  key: %s' % key_info['key_name'])
-
                 local_key = os.path.join(local_bucket, key_info['key_name'])
 
-                log.info('local key: ------------------ %s' % local_key)
-
                 if key_info['is_type'] == 'file':
+
+                        log.info('operation on  key: %s' % key_info['key_name'])
+                        log.info('local key: ------------------ %s' % local_key)
 
                         if op_code == 'move':
 
@@ -408,8 +444,24 @@ class SubdirAndObjects(object):
                                 status['op_code_status'] = False
 
                         if op_code =='edit':
-                            # append
-                            pass
+                            try:
+
+                                log.info('editing file: %s' % local_key)
+
+                                key_modify = open(local_key, 'a+')
+                                key_modify.write('file opened from NFS and added this messages')
+                                key_modify.close()
+
+                                key_info['opcode']['edit']['new_md5'] = utils.get_md5(os.path.abspath(local_key))
+                                key_info['md5_local'] = utils.get_md5(os.path.abspath(local_key))
+                                key_info['md5_on_s3'] = None
+
+                                status['op_code_status'] = True
+
+                            except Exception,e:
+                                log.info('could not edit')
+                                log.error(e)
+                                status['op_code_status'] = False
 
                         if op_code == 'delete':
 
@@ -475,6 +527,7 @@ class SubdirAndObjects(object):
                 status['bucket_name'] = bucket_name
                 keyop = KeyOp(bucket['bucket'])
                 kinfo = keyop.get(key_name)
+
                 print 'got key_info -------------------------- from s3 :%s' % kinfo
 
                 if op_code == 'move':
@@ -509,6 +562,42 @@ class SubdirAndObjects(object):
                         status['op_code_status'] = True
 
                     except Exception, e:
+                        log.error(e)
+                        status['op_code_status'] = False
+
+                if op_code == 'edit':
+
+
+                    try:
+
+                        put_contents_or_download = PutContentsFromFile(kinfo, self.json_fname)
+
+                        log.info('in edit or modify file')
+
+                        # download the file from s3
+                        download_fname = key_name + ".downloaded"
+                        downloaded_f = put_contents_or_download.get(download_fname)
+
+                        print '-------------------------------%s' % downloaded_f
+
+                        if not downloaded_f['status']:
+                            raise Exception, "download failed"
+
+                        new_text = 'downloded from s3 and uploading back with this message'
+
+                        log.info('file downloaded, string to add: %s' % new_text)
+                        f = open(download_fname, 'a')
+                        f.write(new_text)
+                        f.close()
+
+                        put_contents_or_download.put(download_fname)
+
+                        log.info('file uploaded')
+
+                        status['op_code_status'] = True
+
+                    except Exception, e:
+                        log.info('operation could not complete')
                         log.error(e)
                         status['op_code_status'] = False
 

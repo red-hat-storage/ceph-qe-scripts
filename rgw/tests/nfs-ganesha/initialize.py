@@ -6,6 +6,7 @@ from lib.nfs_ganesha.manage_conf import GaneshaConfig
 from lib.nfs_ganesha.manage_services import ManageNFSServices
 import lib.s3.rgw as rgw
 import yaml
+import subprocess
 
 
 class RGWUserConfigOps(object):
@@ -22,6 +23,7 @@ class RGWUserConfigOps(object):
 
         self.ganesha_config_exists = False
         self.already_mounted = False
+        self.nfs_version = 4                   # default nfs_version is always 4
 
     def read_config(self):
 
@@ -40,6 +42,7 @@ class RGWUserConfigOps(object):
 
         self.ganesha_config_exists = rgw_user_details['ganesha_config_exists']
         self.already_mounted = rgw_user_details['already_mounted']
+        self.nfs_version = rgw_user_details['nfs_version']
 
         return rgw_user_details
 
@@ -50,7 +53,8 @@ class RGWUserConfigOps(object):
                                           secret_key=self.secret_key,
                                           rgw_hostname=self.rgw_hostname,
                                           ganesha_config_exists=self.ganesha_config_exists,
-                                          already_mounted=self.already_mounted
+                                          already_mounted=self.already_mounted,
+                                          nfs_version = self.nfs_version
                                           )
 
         with open(self.fname, 'w') as fp:
@@ -89,7 +93,8 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
         self.nfs_service.ganesha_stop()
 
-        nfs_ganesha_config = GaneshaConfig(self.user_id, self.access_key, self.secret_key, self.rgw_hostname)
+        nfs_ganesha_config = GaneshaConfig(self.user_id, self.access_key, self.secret_key, self.rgw_hostname,
+                                           self.nfs_version)
         nfs_ganesha_config.backup(uname='default')
         nfs_ganesha_config.create()
 
@@ -106,10 +111,10 @@ class PrepNFSGanesha(RGWUserConfigOps):
         if not os.path.exists(self.mount_point):
             os.makedirs(self.mount_point)
 
-        mnt_cmd = 'sudo mount -v -t nfs -o nfsvers=4,sync,rw,noauto,soft,proto=tcp %s:/  %s' % \
-                  (self.rgw_hostname, self.mount_point)
+        mnt_cmd = 'sudo mount -v -t nfs -o nfsvers=%s,sync,rw,noauto,soft,proto=tcp %s:/  %s' % \
+                  (self.nfs_version, self.rgw_hostname, self.mount_point, )
 
-        log.info('mnt_dird_info: %s' % mnt_cmd)
+        log.info('mnt_command: %s' % mnt_cmd)
 
         mounted = utils.exec_shell_cmd(mnt_cmd)
         return mounted
@@ -161,7 +166,11 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
             log.info('mount needed')
 
-            self.do_mount()
+            mounted = self.do_mount()
+
+            if not mounted:
+                log.error('mount failed')
+                exit(1)
 
             self.already_mounted = True
 

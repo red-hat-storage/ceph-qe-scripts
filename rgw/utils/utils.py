@@ -24,9 +24,11 @@ def exec_shell_cmd(command):
         return False, error
 
 
-def get_md5(file_path):
+def get_md5(fname):
 
-    return hashlib.md5(open(file_path, 'rb').read()).hexdigest()
+    log.info('fname: %s' % fname)
+
+    return hashlib.md5(open(fname, 'rb').read()).hexdigest()
 
     # return "@424242"
 
