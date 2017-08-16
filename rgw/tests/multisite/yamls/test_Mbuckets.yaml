@@ -1,0 +1,3 @@
+config:
+ bucket_count: 2
+ objects_count: 0

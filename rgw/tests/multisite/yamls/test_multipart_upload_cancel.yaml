@@ -1,0 +1,6 @@
+config:
+ bucket_count: 10
+ break_at_part_no: 19
+ objects_size_range:
+  min:  50
+  max: 100

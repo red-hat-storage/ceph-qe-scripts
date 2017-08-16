@@ -1,0 +1,5 @@
+config:
+ bucket_count: 2
+ objects_size_range:
+  min: 20
+  max: 40
