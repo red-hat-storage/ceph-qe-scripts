@@ -45,6 +45,10 @@ class JKeys(FileOps):
         self.add_data(json_data)
 
 
+    def modify(self):
+        pass
+
+
 class JMulpipart(FileOps):
 
     def __init__(self, fname):

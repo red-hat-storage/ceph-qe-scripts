@@ -4,7 +4,7 @@ import os
 from utils.utils import FileOps
 
 
-def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname):
+def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname, nfs_version):
 
     ganesha_conf = '''
                 EXPORT
@@ -14,7 +14,7 @@ def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname):
                         Pseudo = "/";
                         Access_Type = RW;
                         SecType = "sys";
-                        NFS_Protocols = 4;
+                        NFS_Protocols = %s;
                         Transport_Protocols = TCP;
                         FSAL {
                                 Name = RGW;
@@ -35,7 +35,7 @@ def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname):
                     ceph_conf = "/etc/ceph/ceph.conf";
                     init_args = "-d --debug-rgw=16";
                 }
-        ''' % (user_id,
+        ''' % (nfs_version,user_id,
                access_key,
                secret_key,
                rgw_hostname)
@@ -45,10 +45,11 @@ def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname):
 
 class GaneshaConfig(object):
 
-    def __init__(self,user_id, access_key, secret_key, rgw_hostname):
+    def __init__(self,user_id, access_key, secret_key, rgw_hostname, nfs_version=4):
 
         self.conf_path = '/etc/ganesha'
         self.fname = 'ganesha.conf'
+        self.nfS_version = nfs_version
 
         self.user_id = user_id
         self.access_key = access_key
@@ -77,7 +78,7 @@ class GaneshaConfig(object):
         conf_fname = os.path.join(self.conf_path, self.fname)
 
         ganesha_config = get_ganesha_config(access_key=self.access_key, secret_key=self.secret_key,
-                                            user_id=self.user_id, rgw_hostname=self.rgw_hostname)
+                                            user_id=self.user_id, rgw_hostname=self.rgw_hostname, nfs_version=self.nfS_version)
 
         create_conf = FileOps(filename=conf_fname, type='txt')
 

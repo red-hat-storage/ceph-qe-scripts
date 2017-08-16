@@ -237,10 +237,12 @@ class PutContentsFromFile(object):
         try:
 
             self.key.set_contents_from_filename(filename)
+            md5_on_s3 = self.key.etag.replace('"', '')
 
             key_details = {'key_name': self.key.key,
                            'size': os.stat(filename).st_size,
-                           'md5': utils.get_md5(filename),
+                           'md5_local': utils.get_md5(filename),
+                           'md5_on_s3': md5_on_s3,
                            'opcode': {"edit": {"new_md5": None},
                                       "move": {"new_name": None},
                                       "delete": {"deleted": None}
@@ -289,7 +291,7 @@ class PutContentsFromFile(object):
             else :
                 md5_match = "no match"
 
-            key_details = {'key_name_local': os.path.basename(filename),
+            key_details = {'key_name': os.path.basename(filename),
                            'key_name_os_s3': self.key.name,
                            'size': os.stat(filename).st_size,
                            'md5_local': md5_local,
@@ -305,7 +307,7 @@ class PutContentsFromFile(object):
 
             download_status = {'status': True}
 
-        except (exception.BotoClientError, exception.S3ResponseError), e:
+        except (exception.BotoClientError, exception.S3ResponseError, Exception), e:
             log.error(e)
 
             download_status = {'status': False,
