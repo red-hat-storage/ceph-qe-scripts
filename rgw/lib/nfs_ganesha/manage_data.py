@@ -171,7 +171,7 @@ class SubdirAndObjects(object):
 
                 dir_info = {'key_name': key_name,
                             'size': 0,
-                            'md5': None,
+                            'md5_matched': None,
                             'md5_on_s3': None,
                             'md5_local': None,
                             'is_type': 'dir',
@@ -206,7 +206,8 @@ class SubdirAndObjects(object):
 
                     file_info = {'key_name': fname_created,
                                  'size': os.stat(fname).st_size,
-                                 'md5': utils.get_md5(fname),
+                                 'md5_local': utils.get_md5(fname),
+                                 'md5_on_s3': None,
                                  'is_type': 'file',
                                  'opcode': {'move': {'old_name': None},
                                             'delete': {'deleted': None},
@@ -261,7 +262,7 @@ class SubdirAndObjects(object):
 
                 status['key_name'] = key_name_to_find
                 status['type'] = key_info['is_type']
-                md5_on_s3 = info.etag[1:-1]
+                md5_on_s3 = key_info['md5_on_s3']
 
                 if info is None:
                     status['exists'] = False
@@ -278,10 +279,10 @@ class SubdirAndObjects(object):
 
                         else:
 
-                            print key_info['md5']
+                            print key_info['md5_local']
                             print md5_on_s3
 
-                            if key_info['md5'] == info.etag[1:-1]:
+                            if key_info['md5_local'] == info.etag[1:-1]:
                                 status['md5_matched'] = True
                             else:
                                 status['md5_matched'] = False
@@ -364,9 +365,9 @@ class SubdirAndObjects(object):
                             else:
                                 status['size_matched'] = False
 
-                            if md5 == key_info['md5']:
+                            if md5 == key_info['md5_on_s3']:
                                 status['md5_matched'] = True
-                                log.info(key_info['md5'])
+                                log.info(key_info['md5_on_s3'])
                                 log.info(md5)
                             else:
                                 status['md5_matched'] = False
