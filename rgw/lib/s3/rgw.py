@@ -10,7 +10,7 @@ import random
 import string
 
 
-def create_users(no_of_users_to_create, cluster_name):
+def create_users(no_of_users_to_create, cluster_name='ceph'):
     admin_ops = UserMgmt()
 
     all_users_details = []
