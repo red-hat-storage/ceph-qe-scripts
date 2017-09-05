@@ -234,7 +234,7 @@ class SubdirAndObjects(object):
 
     def verify_s3(self, op_type=None):
 
-        time.sleep(10) # sleep for 10 secs
+        time.sleep(300) # sleep for 300 secs
 
         kstatus = []
 
@@ -305,7 +305,7 @@ class SubdirAndObjects(object):
 
     def verify_nfs(self, mount_point, op_type=None):
 
-        time.sleep(10) # sleep for 10 secs
+        time.sleep(300) # sleep for 300 secs
 
         kstatus = []
 
@@ -387,7 +387,7 @@ class SubdirAndObjects(object):
 
     def operation_on_nfs(self, mount_point, op_code):
 
-        time.sleep(10) # sleep for 10 secs before operations start
+        time.sleep(300) # sleep for 300 secs before operations start
 
         opstatus = []
         status = {}
@@ -506,7 +506,7 @@ class SubdirAndObjects(object):
 
     def operation_on_s3(self, op_code=None):
 
-        time.sleep(10) # sleep for 10 secs before operation starts
+        time.sleep(300) # sleep for 300 secs before operation starts
 
         log.info('operation on s3 started with opcode: %s' % op_code)
 
