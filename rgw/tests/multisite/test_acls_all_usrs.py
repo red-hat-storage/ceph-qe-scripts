@@ -80,7 +80,8 @@ def test_exec_write(config):
 
         test_info.started_info()
 
-        all_user_details = rgw_lib.create_users(config.user_count)
+        with open('user_details') as fout:
+            all_user_details = simplejson.load(fout)
 
         user1 = all_user_details[0]
         u1 = ObjectOps(config, user1)
