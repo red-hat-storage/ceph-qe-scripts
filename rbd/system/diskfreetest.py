@@ -25,7 +25,7 @@ subprocess.Popen(
     ["ceph", "osd", "--cluster", "{}".format(CLUSTER_NAME), "pool", "create", "{}".format(POOL_NAME), "128",
      "128"]).wait()
 
-while RAW_INTERMEDIATE <= RAW_INITIAL + 2.00:
+while RAW_INTERMEDIATE <= RAW_INITIAL + 10.00:
     ITERATION += 1
     print "#############################"
     print "Iteration No. : ", ITERATION
