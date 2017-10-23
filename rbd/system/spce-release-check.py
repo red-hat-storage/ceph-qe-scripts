@@ -37,7 +37,6 @@ iterator_creation=0
 subprocess.Popen(["sudo","ceph","osd","pool","create",pool_name,"128","128","--cluster",cluster_name]).wait()
 
 
-
 output = subprocess.check_output(['sudo', 'ceph', 'df', '--cluster', cluster_name, '--format', 'json'])
 json_output = json.loads(output)
 total_bytes = float(json_output['stats']['total_bytes'])
