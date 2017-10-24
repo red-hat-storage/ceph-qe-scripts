@@ -12,9 +12,12 @@ RAW_INTERMEDIATE = 0.00
 RAW_FINAL = 0.00
 
 def rawUsed():
-    cmd_output = subprocess.check_output(["ceph", "--cluster", "{}".format(CLUSTER_NAME), "df"])
-    cmd_output_list = cmd_output.split()
-    return float(cmd_output_list[10])
+    cmd_output = subprocess.check_output(["ceph", "--cluster", "{}".format(CLUSTER_NAME), "df", "--format", "json"])
+    json_output = json.loads(cmd_output)
+    total_bytes = float(json_output['stats']['total_bytes'])
+    total_used_bytes = float(json_output['stats']['total_used_bytes'])
+    raw_used = (total_used_bytes / total_bytes) * 100
+    return float('{:.2f}'.format(raw_used))
 
 RAW_INITIAL = rawUsed()
 RAW_INTERMEDIATE = RAW_INITIAL
