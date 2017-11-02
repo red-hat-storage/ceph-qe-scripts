@@ -9,6 +9,7 @@ from lib.s3.json_ops import JMulpipart
 import utils.utils as utils
 import glob
 from json_ops import JKeys
+from lib.io_info import AddIOInfo
 
 
 class KeyOp(object):
@@ -192,7 +193,6 @@ class PutContentsFromString(object):
 
 
 class PutContentsFromFile(object):
-
     def __init__(self, key, json_file):
 
         log.debug('class: %s' % self.__class__.__name__)
@@ -200,6 +200,7 @@ class PutContentsFromFile(object):
         self.json_file = json_file
         self.jkey = JKeys(self.json_file)
         self.key = key
+        self.add_io_info = AddIOInfo()
 
     def set_metadata(self, **metadata):
 
@@ -251,6 +252,13 @@ class PutContentsFromFile(object):
 
             self.jkey.add(self.key.bucket.name, **key_details)
 
+            self.add_io_info.add_keys_info(self.key.bucket.connection.access_key, self.key.bucket.name,
+                                           **{'key_name': self.key.key,
+                                              'size': os.stat(filename).st_size,
+                                              'md5_on_s3': md5_on_s3,
+                                              'upload_type': 'normal',
+                                              'test_op_code': 'create'})
+
             upload_status = {'status': True}
 
         except (exception.BotoClientError, exception.S3ResponseError), e:
@@ -288,7 +296,7 @@ class PutContentsFromFile(object):
             if md5_on_s3 == md5_local:
                 md5_match = "match"
 
-            else :
+            else:
                 md5_match = "no match"
 
             key_details = {'key_name': os.path.basename(filename),
@@ -317,7 +325,6 @@ class PutContentsFromFile(object):
 
 
 class MultipartPut(object):
-
     def __init__(self, bucket, filename):
 
         log.debug('class: %s' % self.__class__.__name__)
@@ -334,6 +341,7 @@ class MultipartPut(object):
         self.mp = None
         self.md5 = None
         self.break_at_part_no = 0
+        self.add_io_info = AddIOInfo()
 
     def iniate_multipart(self, json_file):
 
@@ -404,98 +412,104 @@ class MultipartPut(object):
 
     def put(self):
 
-            try:
+        try:
 
-                log.info('loading the json data')
-                self.json_ops.refresh_json_data()
+            log.info('loading the json data')
+            self.json_ops.refresh_json_data()
 
-                self.json_ops.refresh_json_data()
+            self.json_ops.refresh_json_data()
 
-                log.debug('remaining parts assigning')
+            log.debug('remaining parts assigning')
 
-                log.debug('making a copy of list of remaining parts')
+            log.debug('making a copy of list of remaining parts')
 
-                remaining_file_parts_copy = list(self.json_ops.remaining_file_parts)
+            remaining_file_parts_copy = list(self.json_ops.remaining_file_parts)
 
-                log.debug('starting the loop')
+            log.debug('starting the loop')
 
-                for each_file_part in self.json_ops.remaining_file_parts:
+            for each_file_part in self.json_ops.remaining_file_parts:
 
-                    log.info('file part to upload: %s\nfile part number: %s' % (each_file_part[0], int(each_file_part[1])))
+                log.info('file part to upload: %s\nfile part number: %s' % (each_file_part[0], int(each_file_part[1])))
 
-                    log.info('entering iteration')
+                log.info('entering iteration')
 
-                    if self.break_at_part_no != 0 and self.break_at_part_no == int(each_file_part[1]):
+                if self.break_at_part_no != 0 and self.break_at_part_no == int(each_file_part[1]):
+                    log.info('upload stopped at partno : %s' % each_file_part[1])
+                    break
 
-                        log.info('upload stopped at partno : %s' % each_file_part[1])
-                        break
+                fp = open(each_file_part[0], 'rb')
 
-                    fp = open(each_file_part[0], 'rb')
+                self.mp.upload_part_from_file(fp, int(each_file_part[1]))
 
-                    self.mp.upload_part_from_file(fp, int(each_file_part[1]))
+                fp.close()
 
-                    fp.close()
+                log.info('part of file uploaded')
 
-                    log.info('part of file uploaded')
+                remaining_file_parts_copy.remove(each_file_part)
+                self.json_ops.remaining_file_parts = remaining_file_parts_copy
 
-                    remaining_file_parts_copy.remove(each_file_part)
-                    self.json_ops.remaining_file_parts = remaining_file_parts_copy
+                log.info('updating json file')
+                self.json_ops.create_update_json_file()
 
-                    log.info('updating json file')
-                    self.json_ops.create_update_json_file()
+            log.info('printing all the uploaded parts')
 
-                log.info('printing all the uploaded parts')
+            for part in self.mp:
+                log.info('%s: %s' % (part.part_number, part.size))
 
-                for part in self.mp:
-                    log.info('%s: %s' % (part.part_number, part.size))
+            if self.break_at_part_no == 0:
+                # if self.cancel_multpart:
+                #     log.info('cancelling upload')
+                #
+                #     self.mp.cancel_upload()
+                #
+                #     if not self.mp:
+                #         upload_status = {'status': False}
+                #
 
-                if self.break_at_part_no == 0:
+                log.info('completing upload')
+                self.mp.complete_upload()
 
-                    # if self.cancel_multpart:
-                    #     log.info('cancelling upload')
-                    #
-                    #     self.mp.cancel_upload()
-                    #
-                    #     if not self.mp:
-                    #         upload_status = {'status': False}
-                    #
+                log.info('adding io info to yaml')
 
-                    log.info('completing upload')
-                    self.mp.complete_upload()
+                self.add_io_info.add_keys_info(self.bucket.connection.access_key, self.bucket.name,
+                                               **{'key_name': os.path.basename(self.filename),
+                                                  'md5_on_s3': None,
+                                                  'size': None,
+                                                  'upload_type': 'multipart',
+                                                  'test_op_code': 'create'
 
-                upload_status = {'status': True}
+                                                  })
 
-                """
+            upload_status = {'status': True}
 
-                # the following code is better than splitting the file,
-                # but commenting this for now and going ahead with splting the files
+            """
 
-
-                chunk_count = int(math.ceil(filename / float(chunk_size)))
-
-                # Send the file parts, using FileChunkIO to create a file-like object
-                # that points to a certain byte range within the original file. We
-                # set bytes to never exceed the original file size
-
-                for i in range(chunk_count):
-
-                    offset = chunk_size * i
-                    bytes = min(chunk_size, file_size - offset)
-                    with FileChunkIO(filename, 'r', offset=offset, bytes=bytes) as fp:
-                        mp.upload_part_from_file(fp, part_num=i + 1)
-
-                # Finish the upload
-
-                """
-
-            except (exception.BotoClientError, exception.S3ResponseError), e:
-
-                log.error(e)
-
-                upload_status = {'status': False,
-                                 'msg': e}
-
-            return upload_status
+            # the following code is better than splitting the file,
+            # but commenting this for now and going ahead with splting the files
 
 
+            chunk_count = int(math.ceil(filename / float(chunk_size)))
 
+            # Send the file parts, using FileChunkIO to create a file-like object
+            # that points to a certain byte range within the original file. We
+            # set bytes to never exceed the original file size
+
+            for i in range(chunk_count):
+
+                offset = chunk_size * i
+                bytes = min(chunk_size, file_size - offset)
+                with FileChunkIO(filename, 'r', offset=offset, bytes=bytes) as fp:
+                    mp.upload_part_from_file(fp, part_num=i + 1)
+
+            # Finish the upload
+
+            """
+
+        except (exception.BotoClientError, exception.S3ResponseError), e:
+
+            log.error(e)
+
+            upload_status = {'status': False,
+                             'msg': e}
+
+        return upload_status

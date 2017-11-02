@@ -1,5 +1,6 @@
 import os
 import sys
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 import lib.s3.rgw as rgw_lib
 from lib.s3.rgw import Config
@@ -9,8 +10,16 @@ from utils.test_desc import AddTestInfo
 import argparse
 import yaml
 import simplejson
+from lib.io_info import AddIOInfo
+from lib.read_io_info import ReadIOInfo
+
+
 
 def test_exec(config):
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
+
+    read_io_info = ReadIOInfo()
 
     test_info = AddTestInfo('create m buckets')
 
@@ -23,12 +32,21 @@ def test_exec(config):
         with open('user_details') as fout:
             all_user_details = simplejson.load(fout)
 
-        for each_user in all_user_details:
+        # write all users details to yaml file.
 
+        for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
+
+
+        for each_user in all_user_details:
             log.info('User credentials: %s' % each_user)
             rgw = ObjectOps(config, each_user)
 
             assert rgw.create_bucket()
+
+        read_io_info.verify_io()
 
         test_info.success_status('test completed')
 

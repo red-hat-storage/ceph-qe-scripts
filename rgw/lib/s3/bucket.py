@@ -1,6 +1,7 @@
 import boto.exception as exception
 import utils.log as log
 from json_ops import JBucket
+from lib.io_info import AddIOInfo
 
 class Bucket(object):
     def __init__(self, connection):
@@ -8,6 +9,7 @@ class Bucket(object):
         log.debug('class: %s' % self.__class__.__name__)
 
         self.connection = connection
+        self.add_io_info = AddIOInfo()
 
     def create(self, bucket_name, json_file):
 
@@ -35,6 +37,9 @@ class Bucket(object):
             add_bucket_to_json = JBucket(json_file)
 
             add_bucket_to_json.add(bucket_name)
+
+            self.add_io_info.add_bucket_info(self.connection.access_key, **{'bucket_name': bucket_name})
+
 
         except (exception.AWSConnectionError, exception.BotoClientError, exception.S3ResponseError,
                 exception.S3CreateError, IOError), e:

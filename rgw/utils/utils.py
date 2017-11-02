@@ -5,7 +5,7 @@ import log
 import json
 from random import randint
 import ConfigParser
-
+import yaml
 
 def exec_shell_cmd(command):
 
@@ -79,7 +79,7 @@ class FileOps(object):
 
         data = None
 
-        with open(self.fname) as fp:
+        with open(self.fname, 'r') as fp:
 
             if self.type == 'json':
                 data = json.load(fp)
@@ -88,6 +88,10 @@ class FileOps(object):
                 raw_data = fp.readlines()
                 tmp = lambda x: x.rstrip('\n')
                 data = map(tmp, raw_data)
+
+            if self.type == 'yaml':
+
+                data = yaml.load(fp)
 
         fp.close()
 
@@ -109,6 +113,9 @@ class FileOps(object):
 
             elif self.type is None:
                 data.write(fp)
+
+            elif self.type == 'yaml':
+                yaml.dump(data, fp, default_flow_style=False)
 
         fp.close()
 

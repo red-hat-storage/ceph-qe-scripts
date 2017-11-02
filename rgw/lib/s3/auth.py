@@ -1,4 +1,3 @@
-from boto.s3.connection import S3Connection
 import boto.s3.connection
 import boto.exception as exception
 import utils.log as log
@@ -6,6 +5,17 @@ import utils.utils as utils
 import socket
 import os
 import json
+from lib.io_info import AddIOInfo
+import json
+import os
+import socket
+
+import boto.exception as exception
+import boto.s3.connection
+
+import utils.log as log
+import utils.utils as utils
+from lib.io_info import AddIOInfo
 
 
 class Authenticate(object):
@@ -81,6 +91,8 @@ class Authenticate(object):
                           'conn': conn,
                           'upload_json_file': self.json_file_upload,
                           'download_json_file': self.json_file_download}
+
+
 
         except (boto.s3.connection.HostRequiredError, exception.AWSConnectionError, Exception), e:
 

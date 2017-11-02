@@ -13,7 +13,8 @@ import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
 import simplejson
-
+from lib.io_info import AddIOInfo
+from lib.read_io_info import ReadIOInfo
 
 def test_exec(config):
 
@@ -22,6 +23,9 @@ def test_exec(config):
     try:
 
         test_info.started_info()
+        add_io_info = AddIOInfo()
+        read_io_info = ReadIOInfo()
+        add_io_info.initialize()
 
         rgw_service = RGWService()
         quota_mgmt = QuotaMgmt()
@@ -37,6 +41,14 @@ def test_exec(config):
         with open('user_details') as fout:
             all_user_details = simplejson.load(fout)
 
+
+        for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
+
+
+
         for each_user in all_user_details:
 
             if config.max_objects:
@@ -47,6 +59,9 @@ def test_exec(config):
 
             buckets = rgw.create_bucket()
             rgw.upload(buckets)
+
+
+        read_io_info.verify_io()
 
         test_info.success_status('test completed')
 
