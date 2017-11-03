@@ -220,7 +220,7 @@ class PutContentsFromFile(object):
             log.error(e)
             return False
 
-    def put(self, filename):
+    def put(self, filename, test_op_code='create'):
 
         log.debug('function: %s' % self.put.__name__)
 
@@ -257,7 +257,7 @@ class PutContentsFromFile(object):
                                               'size': os.stat(filename).st_size,
                                               'md5_on_s3': md5_on_s3,
                                               'upload_type': 'normal',
-                                              'test_op_code': 'create'})
+                                              'test_op_code': test_op_code})
 
             upload_status = {'status': True}
 

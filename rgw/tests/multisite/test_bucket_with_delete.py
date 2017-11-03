@@ -41,7 +41,7 @@ def test_exec(config):
             rgw = ObjectOps(config, each_user)
 
             buckets = rgw.create_bucket()
-            rgw.upload(buckets)
+            rgw.upload(buckets, test_op_code='delete')
 
             rgw.delete_keys()
             time.sleep(15)
