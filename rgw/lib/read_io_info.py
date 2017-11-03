@@ -46,50 +46,65 @@ class ReadIOInfo(object):
 
                     log.info('verifying data for bucket: %s' % each_bucket['name'])
 
-                    bucket_from_s3 = conn.get_bucket(each_bucket['name'])
+                    if each_bucket['bucket_test_op_code'] == 'delete':
 
-                    if not each_bucket['keys']:
+                        bucket_from_s3 = conn.lookup(each_bucket['name'])
 
-                        log.info('keys are not created')
+                        if bucket_from_s3 is None:
+
+                            log.info('bucket deleted')
+                            log.info('cannot verify objects as objects will be deleted since bucket does not exist')
+
+                        if bucket_from_s3 is not None:
+                            log.info('bucket exists')
+                            raise Exception, "Bucket exists"
 
                     else:
 
-                        for each_key in each_bucket['keys']:
+                        bucket_from_s3 = conn.get_bucket(each_bucket['name'])
 
-                            log.info('verifying data for key: %s' % each_key['name'])
+                        if not each_bucket['keys']:
 
-                            if each_key['test_op_code'] == 'create':
+                            log.info('keys are not created')
 
-                                key_from_s3 = bucket_from_s3.get_key(each_key['name'])
+                        else:
 
-                                log.info('verifying size')
+                            for each_key in each_bucket['keys']:
 
-                                log.info('size from yaml: %s' % each_key['size'])
-                                log.info('size from s3: %s' % key_from_s3.size)
+                                log.info('verifying data for key: %s' % each_key['name'])
 
-                                if int(each_key['size']) != int(key_from_s3.size):
-                                    raise Exception, "Size not matched"
+                                if each_key['test_op_code'] == 'create':
 
-                                log.info('verifying md5')
+                                    key_from_s3 = bucket_from_s3.get_key(each_key['name'])
 
-                                log.info('md5_on_s3_from yaml: %s' % each_key['md5_on_s3'])
-                                log.info('md5_on_s3: %s' % key_from_s3.etag.replace('"', ''))
+                                    log.info('verifying size')
 
-                                if each_key['md5_on_s3'] != key_from_s3.etag.replace('"', ''):
-                                    raise Exception, "Md5 not matched"
+                                    log.info('size from yaml: %s' % each_key['size'])
+                                    log.info('size from s3: %s' % key_from_s3.size)
 
-                                log.info('verification complete for the key: %s' % key_from_s3.name)
+                                    if int(each_key['size']) != int(key_from_s3.size):
+                                        raise Exception, "Size not matched"
 
-                            if each_key['test_op_code'] == 'delete':
+                                    log.info('verifying md5')
 
-                                key_from_s3 = bucket_from_s3.get_key(each_key['name'])
+                                    log.info('md5_on_s3_from yaml: %s' % each_key['md5_on_s3'])
+                                    log.info('md5_on_s3: %s' % key_from_s3.etag.replace('"', ''))
 
-                                if key_from_s3 is None:
-                                    log.info('key deleted')
+                                    if each_key['md5_on_s3'] != key_from_s3.etag.replace('"', ''):
+                                        raise Exception, "Md5 not matched"
 
-                                if  key_from_s3 is not None:
-                                    log.info('key exists')
-                                    raise Exception, "Key is not deleted"
+                                    log.info('verification complete for the key: %s' % key_from_s3.name)
+
+                                if each_key['test_op_code'] == 'delete':
+
+                                    key_from_s3 = bucket_from_s3.get_key(each_key['name'])
+
+                                    if key_from_s3 is None:
+                                        log.info('key deleted')
+
+                                    if  key_from_s3 is not None:
+                                        log.info('key exists')
+                                        raise Exception, "Key is not deleted"
 
             log.info('verification of data completed, data intact')
 

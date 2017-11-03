@@ -19,6 +19,7 @@ class IOInfoStructure(object):
         self.bucket = lambda **args: {'name': args['bucket_name'], 'keys': list()}
 
         self.key = lambda **args: {'name': args['key_name'],
+                                   'bucket_test_op_code': args['test_op_code'],
                                    'size': args['size'],
                                    'md5_on_s3': args['md5_on_s3'],
                                    'upload_type': args['upload_type'],
