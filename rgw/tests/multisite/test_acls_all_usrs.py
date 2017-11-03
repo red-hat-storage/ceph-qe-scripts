@@ -9,9 +9,13 @@ import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
 import simplejson
-
+from lib.read_io_info import ReadIOInfo
+from lib.io_info import AddIOInfo
 
 def test_exec_read(config):
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     grants = {'permission': 'READ', 'user_id': None, 'recursive': True}
 

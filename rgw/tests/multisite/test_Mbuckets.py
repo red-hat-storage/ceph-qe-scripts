@@ -14,8 +14,8 @@ from lib.io_info import AddIOInfo
 from lib.read_io_info import ReadIOInfo
 
 
-
 def test_exec(config):
+
     add_io_info = AddIOInfo()
     add_io_info.initialize()
 

@@ -62,13 +62,18 @@ class ReadIOInfo(object):
 
                                 key_from_s3 = bucket_from_s3.get_key(each_key['name'])
 
-
                                 log.info('verifying size')
+
+                                log.info('size from yaml: %s' % each_key['size'])
+                                log.info('size from s3: %s' % key_from_s3.size)
 
                                 if int(each_key['size']) != int(key_from_s3.size):
                                     raise Exception, "Size not matched"
 
                                 log.info('verifying md5')
+
+                                log.info('md5_on_s3_from yaml: %s' % each_key['md5_on_s3'])
+                                log.info('md5_on_s3: %s' % key_from_s3.etag.replace('"', ''))
 
                                 if each_key['md5_on_s3'] != key_from_s3.etag.replace('"', ''):
                                     raise Exception, "Md5 not matched"

@@ -9,6 +9,9 @@ import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
 import simplejson
+from lib.read_io_info import ReadIOInfo
+from lib.io_info import AddIOInfo
+
 
 
 # no of users 2 and not more.
@@ -21,6 +24,9 @@ def test_exec_read(config):
     config.objects_count = 3
     config.objects_size_range = {'min': 50, 'max': 100}
     """
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     grants = {'permission': 'READ', 'user_id': None, 'recursive': True}
 

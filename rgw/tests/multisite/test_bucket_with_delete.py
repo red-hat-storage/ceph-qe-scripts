@@ -10,9 +10,14 @@ import argparse
 import yaml
 import simplejson
 import time
+from lib.read_io_info import ReadIOInfo
+from lib.io_info import AddIOInfo
 
 
 def test_exec(config):
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     test_info = AddTestInfo('create m buckets, n objects and delete')
 
@@ -24,6 +29,12 @@ def test_exec(config):
 
         with open('user_details') as fout:
             all_user_details = simplejson.load(fout)
+
+        for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
+
 
         for each_user in all_user_details:
 

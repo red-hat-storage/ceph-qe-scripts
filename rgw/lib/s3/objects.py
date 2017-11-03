@@ -469,12 +469,14 @@ class MultipartPut(object):
                 log.info('completing upload')
                 self.mp.complete_upload()
 
+                mp_object = self.bucket.get_key(self.mp.key_name)
+
                 log.info('adding io info to yaml')
 
                 self.add_io_info.add_keys_info(self.bucket.connection.access_key, self.bucket.name,
                                                **{'key_name': os.path.basename(self.filename),
-                                                  'md5_on_s3': None,
-                                                  'size': None,
+                                                  'md5_on_s3': mp_object.etag.replace('"', ''),
+                                                  'size': mp_object.size,
                                                   'upload_type': 'multipart',
                                                   'test_op_code': 'create'
 

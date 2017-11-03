@@ -11,7 +11,7 @@ import json
 
 def test_exec(config):
 
-    test_info = AddTestInfo('create m buckets')
+    test_info = AddTestInfo('create users')
 
     try:
         test_info.started_info()

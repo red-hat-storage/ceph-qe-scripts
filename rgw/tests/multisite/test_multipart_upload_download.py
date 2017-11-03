@@ -10,9 +10,14 @@ from utils.test_desc import AddTestInfo
 import yaml
 import argparse
 import simplejson
-
+from lib.read_io_info import ReadIOInfo
+from lib.io_info import AddIOInfo
 
 def test_exec(config):
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
+
     test_info = AddTestInfo('multipart Upload and download')
 
     try:
@@ -24,6 +29,11 @@ def test_exec(config):
             all_user_details = simplejson.load(fout)
 
         log.info('multipart upload enabled')
+
+        for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
 
         for each_user in all_user_details:
             config.objects_count = 1
