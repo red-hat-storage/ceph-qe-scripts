@@ -10,6 +10,7 @@ class Bucket(object):
 
         self.connection = connection
         self.add_io_info = AddIOInfo()
+        self.test_op_code = 'create'
 
     def create(self, bucket_name, json_file):
 
@@ -38,7 +39,8 @@ class Bucket(object):
 
             add_bucket_to_json.add(bucket_name)
 
-            self.add_io_info.add_bucket_info(self.connection.access_key, **{'bucket_name': bucket_name})
+            self.add_io_info.add_bucket_info(self.connection.access_key, **{'bucket_name': bucket_name,
+                                                                            'test_op_code': self.test_op_code})
 
 
         except (exception.AWSConnectionError, exception.BotoClientError, exception.S3ResponseError,

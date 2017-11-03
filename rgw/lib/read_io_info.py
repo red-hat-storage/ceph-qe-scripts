@@ -46,7 +46,7 @@ class ReadIOInfo(object):
 
                     log.info('verifying data for bucket: %s' % each_bucket['name'])
 
-                    if each_bucket['bucket_test_op_code'] == 'delete':
+                    if each_bucket['test_op_code'] == 'delete':
 
                         bucket_from_s3 = conn.lookup(each_bucket['name'])
 
@@ -56,7 +56,7 @@ class ReadIOInfo(object):
                             log.info('cannot verify objects as objects will be deleted since bucket does not exist')
 
                         if bucket_from_s3 is not None:
-                            log.info('bucket exists')
+                            log.info('Bucket exists')
                             raise Exception, "Bucket exists"
 
                     else:

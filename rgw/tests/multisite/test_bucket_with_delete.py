@@ -39,6 +39,7 @@ def test_exec(config):
         for each_user in all_user_details:
 
             rgw = ObjectOps(config, each_user)
+            rgw.bucket_ops.test_op_code = 'delete'
 
             buckets = rgw.create_bucket()
             rgw.upload(buckets, test_op_code='delete')

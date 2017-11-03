@@ -69,6 +69,8 @@ class BucketOps(BaseOp):
         self.bucket_names = []
         self.bucket_create_nos = config.bucket_count
 
+        self.bucket_ops.test_op_code = 'create'
+
     def create_bucket(self):
 
             log.info('no of buckets to create: %s' % self.bucket_create_nos)
