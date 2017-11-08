@@ -30,6 +30,13 @@ def test_exec_read(config):
         with open('user_details') as fout:
             all_user_details = simplejson.load(fout)
 
+
+        for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
+
+
         user1 = all_user_details[0]
         log.info('user1: %s' % user1)
         user2 = all_user_details[1]
