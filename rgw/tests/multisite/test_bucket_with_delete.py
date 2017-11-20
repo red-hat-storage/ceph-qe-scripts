@@ -10,9 +10,14 @@ import argparse
 import yaml
 import simplejson
 import time
+from lib.read_io_info import ReadIOInfo
+from lib.io_info import AddIOInfo
 
 
 def test_exec(config):
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     test_info = AddTestInfo('create m buckets, n objects and delete')
 
@@ -26,11 +31,18 @@ def test_exec(config):
             all_user_details = simplejson.load(fout)
 
         for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
+
+
+        for each_user in all_user_details:
 
             rgw = ObjectOps(config, each_user)
+            rgw.bucket_ops.test_op_code = 'delete'
 
             buckets = rgw.create_bucket()
-            rgw.upload(buckets)
+            rgw.upload(buckets, test_op_code='delete')
 
             rgw.delete_keys()
             time.sleep(15)

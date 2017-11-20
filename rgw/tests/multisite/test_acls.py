@@ -9,6 +9,9 @@ import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
 import simplejson
+from lib.read_io_info import ReadIOInfo
+from lib.io_info import AddIOInfo
+
 
 
 # no of users 2 and not more.
@@ -22,6 +25,9 @@ def test_exec_read(config):
     config.objects_size_range = {'min': 50, 'max': 100}
     """
 
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
+
     grants = {'permission': 'READ', 'user_id': None, 'recursive': True}
 
     test_info = AddTestInfo('Test with read permission on buckets')
@@ -34,6 +40,12 @@ def test_exec_read(config):
 
         with open('user_details') as fout:
             all_user_details = simplejson.load(fout)
+
+
+        for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
 
         user1 = all_user_details[0]
         log.info('user1: %s' % user1)
@@ -85,10 +97,18 @@ def test_exec_write(config):
 
         # test case starts
 
+        add_io_info = AddIOInfo()
+        add_io_info.initialize()
+
         test_info.started_info()
 
         with open('user_details') as fout:
             all_user_details = simplejson.load(fout)
+
+        for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
 
         user1 = all_user_details[0]
         log.info('user1: %s' % user1)

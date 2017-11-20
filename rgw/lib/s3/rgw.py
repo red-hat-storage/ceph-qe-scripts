@@ -69,6 +69,8 @@ class BucketOps(BaseOp):
         self.bucket_names = []
         self.bucket_create_nos = config.bucket_count
 
+        self.bucket_ops.test_op_code = 'create'
+
     def create_bucket(self):
 
             log.info('no of buckets to create: %s' % self.bucket_create_nos)
@@ -167,7 +169,7 @@ class ObjectOps(BucketOps):
         self.set_cancel_multipart = False
         self.break_upload_at_part_no = 0
 
-    def upload(self, buckets_created, object_base_name='key'):
+    def upload(self, buckets_created, object_base_name='key', test_op_code='create'):
 
         object_create_nos = self.objects_count
 
@@ -254,7 +256,7 @@ class ObjectOps(BucketOps):
 
                     print 'code here '
 
-                    put = put_file.put(random_file)
+                    put = put_file.put(random_file, test_op_code)
 
                     if not put['status']:
                         return put['status']

@@ -9,9 +9,14 @@ from utils.test_desc import AddTestInfo
 import argparse
 import yaml
 import simplejson
-
+from lib.read_io_info import ReadIOInfo
+from lib.io_info import AddIOInfo
 
 def test_exec(config):
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
+
+    read_io = ReadIOInfo()
 
     test_info = AddTestInfo('multipart Upload')
 
@@ -27,13 +32,21 @@ def test_exec(config):
         log.info('multipart upload enabled')
 
         for each_user in all_user_details:
+            add_io_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
 
-            config.objects_count = 2
+
+        for each_user in all_user_details:
+
+            config.objects_count = 1
 
             rgw = ObjectOps(config, each_user)
             buckets = rgw.create_bucket()
 
             rgw.multipart_upload(buckets)
+
+        read_io.verify_io()
 
         test_info.success_status('test completed')
 
