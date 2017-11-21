@@ -7,6 +7,7 @@ from lib.nfs_ganesha.manage_services import ManageNFSServices
 import lib.s3.rgw as rgw
 import yaml
 import subprocess
+from lib.io_info import AddIOInfo
 
 
 class RGWUserConfigOps(object):

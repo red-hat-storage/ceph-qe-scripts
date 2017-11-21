@@ -10,6 +10,7 @@ import utils.log as log
 from lib.s3.rgw import ObjectOps, Authenticate
 from utils.test_desc import AddTestInfo
 from lib.nfs_ganesha.manage_data import BaseDir, SubdirAndObjects
+from lib.io_info import AddIOInfo
 
 
 def test(yaml_file_path):
@@ -21,6 +22,9 @@ def test(yaml_file_path):
     io_config = {'base_dir_count': 1,
                  'sub_dir_count': 1,
                  'Files': {'files_in_dir': 1, 'size': 10}}
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     log.info('io_config: %s\n' % io_config)
 

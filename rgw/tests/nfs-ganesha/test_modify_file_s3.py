@@ -11,6 +11,7 @@ from lib.s3.rgw import ObjectOps, Authenticate
 from utils.test_desc import AddTestInfo
 from lib.nfs_ganesha.manage_data import BaseDir, SubdirAndObjects
 from lib.s3.rgw import Config
+from lib.io_info import AddIOInfo
 
 
 def test(yaml_file_path):
@@ -21,6 +22,9 @@ def test(yaml_file_path):
         log.info('ganesha_test_config :%s\n' % ganesha_test_config)
 
         log.info('initiating nfs ganesha')
+
+        add_io_info = AddIOInfo()
+        add_io_info.initialize()
 
         nfs_ganesha = PrepNFSGanesha(mount_point=ganesha_test_config['mount_point'],
                                      yaml_fname=ganesha_test_config['rgw_user_info'])

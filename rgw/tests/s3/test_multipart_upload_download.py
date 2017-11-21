@@ -9,10 +9,14 @@ import sys
 from utils.test_desc import AddTestInfo
 import yaml
 import argparse
+from lib.io_info import AddIOInfo
 
 
 def test_exec(config):
     test_info = AddTestInfo('multipart Upload and download')
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     try:
         # test case starts

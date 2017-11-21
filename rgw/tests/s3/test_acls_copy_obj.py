@@ -8,6 +8,7 @@ from lib.s3.rgw import ObjectOps
 import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
+from lib.io_info import AddIOInfo
 
 
 # only 2 users test case and 1 bucket in each user
@@ -19,6 +20,9 @@ def test_exec_read(config):
     try:
 
         # test case starts
+
+        add_io_info = AddIOInfo()
+        add_io_info.initialize()
 
         test_info.started_info()
 

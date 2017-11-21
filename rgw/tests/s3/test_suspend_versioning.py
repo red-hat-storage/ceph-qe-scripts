@@ -8,12 +8,16 @@ from lib.s3.rgw import ObjectOps
 import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
+from lib.io_info import AddIOInfo
 
 
 def test_exec(config):
 
     test_info = AddTestInfo('enable versioning on a bucket and upload keys and its versions '
                             'and suspend version on the same bucket')
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     try:
 

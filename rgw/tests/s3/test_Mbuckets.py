@@ -8,10 +8,15 @@ from lib.s3.rgw import ObjectOps
 from utils.test_desc import AddTestInfo
 import argparse
 import yaml
+from lib.io_info import AddIOInfo
+
 
 def test_exec(config):
 
     test_info = AddTestInfo('create m buckets')
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     try:
 
