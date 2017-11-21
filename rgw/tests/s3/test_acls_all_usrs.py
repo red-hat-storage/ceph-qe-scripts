@@ -8,13 +8,16 @@ from lib.s3.rgw import ObjectOps
 import lib.s3.rgw as rgw_lib
 import argparse
 import yaml
-
+from lib.io_info import AddIOInfo
 
 def test_exec_read(config):
 
     grants = {'permission': 'READ', 'user_id': None, 'recursive': True}
 
     test_info = AddTestInfo('Test with read permission on buckets for all users')
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     try:
 
