@@ -2,7 +2,7 @@ import subprocess
 import utils.log as log
 import utils.utils as utils
 import json
-
+from lib.io_info import AddIOInfo
 
 class UserMgmt(object):
 
@@ -13,6 +13,9 @@ class UserMgmt(object):
     def create_admin_user(self, username, displayname, cluster_name='ceph'):
 
         try:
+
+            add_io_info = AddIOInfo()
+
             cmd = 'radosgw-admin user create --uid=%s --display-name=%s --cluster %s' % (username, displayname, cluster_name)
             log.info('cmd')
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
@@ -30,6 +33,10 @@ class UserMgmt(object):
             user_details['access_key'] = v_as_json['keys'][0]['access_key']
 
             user_details['secret_key'] = v_as_json['keys'][0]['secret_key']
+
+            add_io_info.add_user_info(**{'user_id': user_details['user_id'],
+                                         'access_key': user_details['access_key'],
+                                         'secret_key': user_details['secret_key']})
 
             return user_details
 
