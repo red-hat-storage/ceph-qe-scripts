@@ -37,7 +37,7 @@ def cmd(args):
     print '************************************************************************************************************'
     command = ' '.join(map(str, args))
     print 'Executing the command :', command
-#    print("Executing the command :", *args) #python3
+
     try:
         process = Popen(args, stdout=PIPE, stderr=PIPE)
         stdout, stderr = process.communicate()
