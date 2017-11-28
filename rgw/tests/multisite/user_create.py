@@ -8,10 +8,14 @@ from utils.test_desc import AddTestInfo
 import argparse
 import yaml
 import json
+from lib.io_info import AddIOInfo
 
 def test_exec(config):
 
     test_info = AddTestInfo('create users')
+
+    add_io_info = AddIOInfo()
+    add_io_info.initialize()
 
     try:
         test_info.started_info()
