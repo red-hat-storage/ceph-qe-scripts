@@ -489,7 +489,7 @@ if F_COUNT == 0:
     exit(0)
 
 else:
-    print 'Toatal Failed Commands: ', F_COUNT
+    print 'Total Failed Commands: ', F_COUNT
     print '*******FAILED COMMANDS*******'
     for command in failed_commands:
         print command[0], command[1]
