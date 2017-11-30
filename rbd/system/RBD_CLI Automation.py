@@ -49,6 +49,7 @@ def cmd(args):
     except CmdError as e:
         failed_commands.append(['Command : ' + command, ', Error Code : ' + str(e.value)])
 
+#Parameters
 
 pool_name = {'pool_name': {'pool1': {'arg': '-p', 'val': 'test_rbd_pool'},
                            'pool2': {'arg': '-p', 'val': 'test_rbd_pool2'}}}
@@ -144,7 +145,6 @@ elif "version 12" in ceph_version:
 for _, v in parameters['pool_name'].iteritems():
     cmd(['ceph', 'osd', '--cluster', '{}'.format(CLUSTER_NAME), 'pool', 'delete', v['val'], v['val'],
          '--yes-i-really-really-mean-it'])
-
 
 # Pool Creation
 timer = datetime.datetime.now()
@@ -299,6 +299,8 @@ for k, v in parameters['io_type_parameters'].iteritems():
                             v4['arg'], v4['val'], parameters['pool_name']['pool1']['val'] + '/' + 'testbench'])
 print "Execution time for Bench : " + str(datetime.datetime.now() - timer)
 
+sleep(10)
+
 # Image Rollback
 timer = datetime.datetime.now()
 cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'rollback', parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2)])
@@ -385,7 +387,6 @@ print "Execution time for showing image/snap info : " + str(datetime.datetime.no
 
 # Disk Usage
 timer = datetime.datetime.now()
-#cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'du', parameters['pool_name']['pool1']['arg'], parameters['pool_name']['pool1']['val']])
 cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'du', parameters['pool_name']['pool2']['arg'], parameters['pool_name']['pool2']['val']])
 cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'du',parameters['pool_name']['pool1']['arg'], parameters['pool_name']['pool1']['val'],
      parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
