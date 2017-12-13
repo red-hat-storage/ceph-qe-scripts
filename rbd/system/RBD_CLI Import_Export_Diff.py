@@ -50,16 +50,14 @@ def cmd(args):
 
 # Directories Creation
 def create_dir():
-    cmd(['mkdir', '{}'.format(PATH)])
-    cmd(['mkdir', '{}'.format(PATH2)])
-    cmd(['mkdir', '{}'.format(PATH3)])
+    for dir_path in [PATH, PATH2, PATH3]:
+        cmd(['mkdir', '{}'.format(dir_path)])
 
 
 # Directories deletion
 def delete_dir():
-    cmd(['rm', '-rf', '{}'.format(PATH)])
-    cmd(['rm', '-rf', '{}'.format(PATH2)])
-    cmd(['rm', '-rf', '{}'.format(PATH3)])
+    for dir_path in [PATH, PATH2, PATH3]:
+        cmd(['rm', '-rf', '{}'.format(dir_path)])
 
 
 pool_name = {'pool_name': {'pool1': {'arg': '-p', 'val': 'test_rbd_pool'}}}
