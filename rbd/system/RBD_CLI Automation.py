@@ -383,6 +383,11 @@ cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'info', parameters['pool_nam
 cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'info', parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2)])
 print "Execution time for showing image/snap info : " + str(datetime.datetime.now() - timer)
 
+# Image Status
+timer = datetime.datetime.now()
+cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'status', parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+print "Execution time for Image Status : " + str(datetime.datetime.now() - timer)
+
 # Disk Usage
 timer = datetime.datetime.now()
 cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'du', parameters['pool_name']['pool2']['arg'], parameters['pool_name']['pool2']['val']])
