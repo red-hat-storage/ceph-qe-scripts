@@ -1,0 +1,14 @@
+----------CEPH-MEDIC – FIND COMMON ISSUES IN CEPH CLUSTERS--------------
+
+
+Requirements:
+
+A fresh cluster with 3 MONs, N OSDs,optionals(N RGWs,N MGRs,N MDSs) with user with sudo permissions.
+
+For one TC, cluster with 1 among 3 MONs, should be collocated with one OSD.
+
+Specify the cluster name while running the test scripts.
+
+Example: sudo python ceph-medic_cli_validation.py -cluster name_of_cluster
+
+if cluster name is ceph ,just run sudo python ceph-medic_cli_validation.py
