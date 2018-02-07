@@ -1,15 +1,17 @@
-# Script to test the RBD Positive CLI's
+# Script to test the RBD Positive CLIs
 #  Test Description:
 #   a) Invoke various rbd cli commands with positive options
 #   b) Verify the cli executes properly
 #  Success: exit code: 0
 #  Failure: Failed commands with Error code in output and Non Zero Exit
 
-import subprocess
+import os
 import json
+import shlex
+import logging
 import datetime
+import subprocess
 from time import sleep
-from subprocess import Popen, PIPE
 
 # Variables
 START = datetime.datetime.now()
@@ -18,7 +20,7 @@ ITERATOR2 = 0
 ITERATOR3 = 1
 CLUSTER_NAME = 'ceph'
 FEATUREVAR = ' '
-F_COUNT = 0
+FAILED_COUNT = 0
 
 # Lists and dictionaries
 failed_commands = []
@@ -103,38 +105,37 @@ io_pattern_parameters = {'io_pattern_parameters': {'null': {'arg': ' ', 'val': '
 limit_parameters = {'limit_parameters': {'arg': '--limit', 'val': '10'}}
 
 
-# Exception Class
-class CmdError(Exception):
-    def __init__(self, value):
-        self.value = value
-
-    def __str__(self):
-        return repr(self.value)
-
-
 # Function Executing the command
-def cmd(args):
-    global F_COUNT
-    while ' ' in args:
-        args.remove(' ')
-    print '************************************************************************************************************'
-    command = ' '.join(map(str, args))
-    print 'Executing the command :', command
-
+def execute_command(args, return_output=False):
+    global FAILED_COUNT
+    print '{:-^120}'.format('')
+    command = shlex.split(args)
+    logging.info('Command:' + ' '.join(command))
     try:
-        process = Popen(args, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = process.communicate()
-        print '-----Output-----'
-        print stdout, stderr
+        process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        output, error = process.communicate()
         if process.returncode == 0:
-            return 0
-        else:
-            F_COUNT += 1
-            print 'Command Failed'
-            raise CmdError(process.returncode)
-    except CmdError as e:
-        failed_commands.append(['Command : ' + command, ', Error Code : ' + str(e.value)])
+            if return_output is True:
+                return output
+            if output:
+                logging.info('Output: \n' + output)
+            if error:
+                logging.warning(error)
 
+        else:
+            FAILED_COUNT += 1
+            logging.error(error)
+            failed_commands.append('Command: {}, Return Code: {}'.format(' '.join(command), process.returncode))
+
+    except subprocess.CalledProcessError as e:
+        logging.error(e.output + str(e.returncode))
+
+    except Exception as e:
+        logging.error(e)
+
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.INFO)
 
 if __name__ == "__main__":
     parameters.update(pool_name)
@@ -149,7 +150,8 @@ if __name__ == "__main__":
     parameters.update(io_pattern_parameters)
     parameters.update(image_shared_parameters)
 
-    ceph_version = subprocess.check_output(['ceph', '--cluster', '{}'.format(CLUSTER_NAME), '-v'])
+    os.environ['CEPH_ARGS'] = '--cluster {}'.format(CLUSTER_NAME)
+    ceph_version = execute_command('ceph -v', return_output=True)
     if 'version 10' in ceph_version:
         parameters.update(stripe_parameters_2)
         parameters.update(io_type_parameters_2)
@@ -160,27 +162,22 @@ if __name__ == "__main__":
 
     # Deletion Of existing Test Pools
     for k, v in parameters['pool_name'].iteritems():
-        cmd(['ceph', 'osd', '--cluster', '{}'.format(CLUSTER_NAME), 'pool', 'delete', v['val'], v['val'],
-             '--yes-i-really-really-mean-it'])
+        execute_command('ceph osd pool delete {pool} {pool} --yes-i-really-really-mean-it'.format(pool=v['val']))
 
     # Pool Creation
     timer = datetime.datetime.now()
-    cmd(['ceph', 'osd', '--cluster', '{}'.format(CLUSTER_NAME), 'pool', 'create',
-         parameters['pool_name']['pool1']['val'],
-         '128', '128'])
-    cmd(['ceph', 'osd', '--cluster', '{}'.format(CLUSTER_NAME), 'pool', 'create',
-         parameters['pool_name']['pool2']['val'],
-         '128', '128'])
+    execute_command('ceph osd pool create {} 128 128'.format(parameters['pool_name']['pool1']['val']))
+    execute_command('ceph osd pool create {} 128 128'.format(parameters['pool_name']['pool2']['val']))
     print 'Execution time for Pool Creation : ' + str(datetime.datetime.now() - timer)
 
     # Simple Image Creation
     timer = datetime.datetime.now()
     for k, v in parameters['image_format_parameters'].iteritems():
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'create',
-             parameters['image_size_parameters']['size_GB']['arg'],
-             parameters['image_size_parameters']['size_GB']['val'], v['arg'], v['val'],
-             parameters['pool_name']['pool1']['arg'],
-             parameters['pool_name']['pool1']['val'], 'testimg' + str(ITERATOR)])
+        execute_command('rbd create {} {} {} {} {} {} testimg{}'
+                        .format(parameters['image_size_parameters']['size_GB']['arg'],
+                                parameters['image_size_parameters']['size_GB']['val'], v['arg'], v['val'],
+                                parameters['pool_name']['pool1']['arg'],
+                                parameters['pool_name']['pool1']['val'], ITERATOR))
         ITERATOR += 1
     print 'Execution time for Image Creation : ' + str(datetime.datetime.now() - timer)
 
@@ -198,53 +195,48 @@ if __name__ == "__main__":
                         continue
 
                     else:
-                        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'create',
-                             v1['arg'], v1['val'], v2['arg'], v2['val'], v3['stripe-unit']['arg'],
-                             v3['stripe-unit']['val'],
-                             v3['stripe-count']['arg'], v3['stripe-count']['val'],
-                             v4['arg'], v4['val'],
-                             parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+                        execute_command('rbd create {} {} {} {} {} {} {} {} {} {} {}/testimg{}'
+                                        .format(v1['arg'], v1['val'], v2['arg'], v2['val'], v3['stripe-unit']['arg'],
+                                                v3['stripe-unit']['val'], v3['stripe-count']['arg'],
+                                                v3['stripe-count']['val'], v4['arg'], v4['val'],
+                                                parameters['pool_name']['pool1']['val'], ITERATOR))
                         ITERATOR += 1
     print 'Execution time for Image Creation with various options : ' + str(datetime.datetime.now() - timer)
 
     # Feature Disable & Enable and Object-map rebuild
     timer = datetime.datetime.now()
     for _ in range(0, 2):
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'create', '-s', '10G', '--object-size', '32M',
-             '--stripe-unit',
-             '16777216',
-             '--stripe-count', '16', '--image-feature',
-             'layering,striping,exclusive-lock,object-map,fast-diff,deep-flatten,journaling',
-             parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+        execute_command('rbd create -s 10G --object-size 32M --stripe-unit 16777216 --stripe-count 16 --image-feature \
+        layering,striping,exclusive-lock,object-map,fast-diff,deep-flatten,journaling {}/testimg{}'
+                        .format(parameters['pool_name']['pool1']['val'], ITERATOR))
         ITERATOR += 1
 
     ITERATOR -= 1
     for k in image_feature_disable_parameters:
         if 'layering' not in k and 'striping' not in k:
-            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'feature', 'disable',
-                 parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR), k])
+            execute_command('rbd feature disable {}/testimg{} {}'.format(parameters['pool_name']['pool1']['val'],
+                                                                         ITERATOR, k))
 
     for k in image_feature_enable_parameters:
         if 'deep-flatten' not in k and 'layering' not in k and 'striping' not in k:
-            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'feature', 'enable',
-                 parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR), k])
+            execute_command('rbd feature enable {}/testimg{} {}'.format(parameters['pool_name']['pool1']['val'],
+                                                                        ITERATOR, k))
             if str(k) == 'fast-diff' or str(k) == 'object-map':
-                cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'object-map', 'rebuild',
-                     parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+                execute_command('rbd object-map rebuild {}/testimg{}'.format(parameters['pool_name']['pool1']['val'],
+                                                                             ITERATOR))
     print 'Execution time for Image Features Disable and Enable : ' + str(datetime.datetime.now() - timer)
 
     # Resize
     timer = datetime.datetime.now()
     for k, v in parameters['image_resize_parameters'].iteritems():
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'resize', v['arg'], v['val'],
-             parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+        execute_command('rbd resize {} {} {}/testimg{}'.format(v['arg'], v['val'],
+                                                               parameters['pool_name']['pool1']['val'], ITERATOR))
     print 'Execution time for Resizing Images : ' + str(datetime.datetime.now() - timer)
 
     # Images Deletion
     timer = datetime.datetime.now()
-    for _ in range(0, 10):
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'rm',
-             parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(_)])
+    for index in range(0, 10):
+        execute_command('rbd rm {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], index))
     print 'Execution time for Image Deletion : ' + str(datetime.datetime.now() - timer)
 
     # Snap Creation
@@ -252,9 +244,8 @@ if __name__ == "__main__":
     ITERATOR -= 1
     for _ in range(0, 2):
         for ITERATOR2 in range(1, 4):
-            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'create',
-                 parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(
-                     ITERATOR2)])
+            execute_command('rbd snap create {}/testimg{}@snapimg{}'.format(parameters['pool_name']['pool1']['val'],
+                                                                            ITERATOR, ITERATOR2))
         ITERATOR += 1
     print 'Execution time for Snap Creation : ' + str(datetime.datetime.now() - timer)
 
@@ -263,96 +254,90 @@ if __name__ == "__main__":
 
     # Copy Images and Snaps
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'cp',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR),
-         parameters['pool_name']['pool2']['val'] + '/' + 'cptestimg'])
+    execute_command('rbd cp {}/testimg{} {}/cptestimg'.format(parameters['pool_name']['pool1']['val'], ITERATOR,
+                                                              parameters['pool_name']['pool2']['val']))
 
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'cp',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2),
-         parameters['pool_name']['pool2']['val'] + '/' + 'cpsnapimg'])
+    execute_command('rbd cp {}/testimg{}@snapimg{} {}/cpsnapimg'.format(parameters['pool_name']['pool1']['val'],
+                                                                        ITERATOR, ITERATOR2,
+                                                                        parameters['pool_name']['pool2']['val']))
     print 'Execution time for Copying Images & Snaps : ' + str(datetime.datetime.now() - timer)
 
     # Renaming Images
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'mv',
-         parameters['pool_name']['pool2']['val'] + '/' + 'cptestimg',
-         parameters['pool_name']['pool2']['val'] + '/' + 'mvtestimg'])
+    execute_command('rbd mv {}/cptestimg {}/mvtestimg'.format(parameters['pool_name']['pool2']['val'],
+                                                              parameters['pool_name']['pool2']['val']))
     print 'Execution time for Renaming Images : ' + str(datetime.datetime.now() - timer)
 
     # Image-meta set
     timer = datetime.datetime.now()
     for num in range(0, 2):
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'image-meta', 'set',
-             parameters['pool_name']['pool2']['val'] + '/' + 'mvtestimg', 'key' + str(num), str(num)])
+        execute_command('rbd image-meta set {}/mvtestimg key{num} {num}'.format(parameters['pool_name']['pool2']['val'],
+                                                                                num=num))
     print 'Execution time for Setting Image-meta : ' + str(datetime.datetime.now() - timer)
 
     # Image-meta list
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'image-meta', 'list',
-         parameters['pool_name']['pool2']['val'] + '/' + 'mvtestimg'])
+    execute_command('rbd image-meta list {}/mvtestimg'.format(parameters['pool_name']['pool2']['val']))
     print 'Execution time for Listing Image-meta : ' + str(datetime.datetime.now() - timer)
 
     # Image-meta get
     timer = datetime.datetime.now()
     for num in range(0, 2):
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'image-meta', 'get',
-             parameters['pool_name']['pool2']['val'] + '/' + 'mvtestimg', 'key' + str(num)])
+        execute_command('rbd image-meta get {}/mvtestimg key{}'.format(parameters['pool_name']['pool2']['val'], num))
     print 'Execution time for Getting Image-meta : ' + str(datetime.datetime.now() - timer)
 
     # Image-meta Removing
     timer = datetime.datetime.now()
     for num in range(0, 2):
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'image-meta', 'remove',
-             parameters['pool_name']['pool2']['val'] + '/' + 'mvtestimg', 'key' + str(num)])
+        execute_command('rbd image-meta remove {}/mvtestimg key{}'.format(parameters['pool_name']['pool2']['val'], num))
     print 'Execution time for Removing Image-meta : ' + str(datetime.datetime.now() - timer)
 
     # Listing Images and Snapshots In the Pool
     timer = datetime.datetime.now()
     for k, v in parameters['pool_name'].iteritems():
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'ls', '-l', parameters['pool_name'][k]['val']])
+        execute_command('rbd ls -l {}'.format(parameters['pool_name'][k]['val']))
     print 'Execution time for Listing Images & Snaps in the pool : ' + str(datetime.datetime.now() - timer)
 
     # Listing Snap of Images
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'ls',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+    execute_command('rbd snap ls {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
     print 'Execution time for Listing Snaps of a Image: ' + str(datetime.datetime.now() - timer)
 
     # Bench
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'create', '-s', '10G',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testbench'])
+    execute_command('rbd create -s 10G {}/testbench'.format(parameters['pool_name']['pool1']['val']))
     for k, v in parameters['io_type_parameters'].iteritems():
         for k1, v1 in parameters['io_size_parameters'].iteritems():
             for k2, v2 in parameters['io_threads_parameters'].iteritems():
                 for k3, v3 in parameters['io_total_parameters'].iteritems():
                     for k4, v4 in parameters['io_pattern_parameters'].iteritems():
                         if 'version 10' in ceph_version:
-                            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'bench-' + v['val'],
-                                 v1['arg'], v1['val'], v2['arg'], v2['val'], v3['arg'], v3['val'],
-                                 v4['arg'], v4['val'], parameters['pool_name']['pool1']['val'] + '/' + 'testbench'])
+                            execute_command('rbd bench-{} {} {} {} {} {} {} {} {} {}/testbench'
+                                            .format(v['val'], v1['arg'], v1['val'], v2['arg'], v2['val'], v3['arg'],
+                                                    v3['val'], v4['arg'], v4['val'],
+                                                    parameters['pool_name']['pool1']['val']))
                         elif 'version 12' in ceph_version:
 
-                            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'bench', v['arg'], v['val'],
-                                 v1['arg'], v1['val'], v2['arg'], v2['val'], v3['arg'], v3['val'],
-                                 v4['arg'], v4['val'], parameters['pool_name']['pool1']['val'] + '/' + 'testbench'])
+                            execute_command('rbd bench {} {} {} {} {} {} {} {} {} {} {}/testbench'
+                                            .format(v['arg'], v['val'], v1['arg'], v1['val'], v2['arg'], v2['val'],
+                                                    v3['arg'], v3['val'], v4['arg'], v4['val'],
+                                                    parameters['pool_name']['pool1']['val']))
     print 'Execution time for Bench : ' + str(datetime.datetime.now() - timer)
 
     sleep(10)
 
     # Image Rollback
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'rollback',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2)])
+    execute_command('rbd snap rollback {}/testimg{}@snapimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR,
+                                                                      ITERATOR2))
     print 'Execution time for Image Rollback : ' + str(datetime.datetime.now() - timer)
 
     # Snap Protection
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'protect',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2)])
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'protect',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR - 1) + '@' + 'snapimg' + str(
-             ITERATOR2)])
+    execute_command('rbd snap protect {}/testimg{}@snapimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR,
+                                                                     ITERATOR2))
+    execute_command('rbd snap protect {}/testimg{}@snapimg{}'.format(parameters['pool_name']['pool1']['val'],
+                                                                     ITERATOR-1, ITERATOR2))
     print 'Execution time for Snap Protection : ' + str(datetime.datetime.now() - timer)
 
     # Cloning
@@ -378,12 +363,12 @@ if __name__ == "__main__":
                         if 15 < ITERATOR3 < 17:
                             ITERATOR -= 1
 
-                        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'clone',
-                             v1['arg'], v1['val'], v2['stripe-unit']['arg'], v2['stripe-unit']['val'],
-                             v2['stripe-count']['arg'], v2['stripe-count']['val'], v3['arg'], FEATUREVAR + v3['val'],
-                             v4['arg'], parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(
-                                ITERATOR) + '@' + 'snapimg' + str(ITERATOR2),
-                             parameters['pool_name']['pool1']['val'] + '/' + 'clonetestimg' + str(ITERATOR3)])
+                        execute_command('rbd clone {} {} {} {} {} {} {} {} {} {}/testimg{}@snapimg{} {}/clonetestimg{}'
+                                        .format(v1['arg'], v1['val'], v2['stripe-unit']['arg'],
+                                                v2['stripe-unit']['val'], v2['stripe-count']['arg'],
+                                                v2['stripe-count']['val'], v3['arg'], FEATUREVAR + v3['val'], v4['arg'],
+                                                parameters['pool_name']['pool1']['val'], ITERATOR, ITERATOR2,
+                                                parameters['pool_name']['pool1']['val'], ITERATOR3))
 
                         ITERATOR3 += 1
 
@@ -393,9 +378,8 @@ if __name__ == "__main__":
     timer = datetime.datetime.now()
     for _ in range(0, 2):
         for ITERATOR2 in range(1, 4):
-            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'children',
-                 parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(
-                     ITERATOR2)])
+            execute_command('rbd children {}/testimg{}@snapimg{}'.format(parameters['pool_name']['pool1']['val'],
+                                                                         ITERATOR, ITERATOR2))
         ITERATOR += 1
     print 'Execution time for Listing Clones of Snaps : ' + str(datetime.datetime.now() - timer)
 
@@ -405,182 +389,162 @@ if __name__ == "__main__":
     # Making child independent of the parent
     timer = datetime.datetime.now()
     for k in range(1, 16):
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'flatten',
-             parameters['pool_name']['pool1']['val'] + '/' + 'clonetestimg' + str(k)])
+        execute_command('rbd flatten {}/clonetestimg{}'.format(parameters['pool_name']['pool1']['val'], k))
     print 'Execution time for Flatten Images : ' + str(datetime.datetime.now() - timer)
 
     # Snap Unprotect
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'unprotect',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2)])
+    execute_command('rbd snap unprotect {}/testimg{}@snapimg{}'.format(parameters['pool_name']['pool1']['val'],
+                                                                       ITERATOR, ITERATOR2))
     print 'Execution time for Unprotecting snap : ' + str(datetime.datetime.now() - timer)
 
     if 'version 12' in ceph_version:
         # Setting limit for number of snapshots
         timer = datetime.datetime.now()
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'limit', 'set',
-             parameters['limit_parameters']['arg'],
-             parameters['limit_parameters']['val'],
-             parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+        execute_command('rbd snap limit set {} {} {}/testimg{}'.format(parameters['limit_parameters']['arg'],
+                                                                       parameters['limit_parameters']['val'],
+                                                                       parameters['pool_name']['pool1']['val'],
+                                                                       ITERATOR))
         print 'Execution time for setting limit for number of snapshots : ' + str(datetime.datetime.now() - timer)
 
         # Remove previous limit for number of snapshots
         timer = datetime.datetime.now()
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'limit', 'clear',
-             parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+        execute_command('rbd snap limit clear {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
         print 'Execution time for Removing the limit previously set : ' + str(datetime.datetime.now() - timer)
 
     # Image or Snap Info
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'info',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'info',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2)])
+    execute_command('rbd info {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
+    execute_command('rbd info {}/testimg{}@snapimg{}'.format(parameters['pool_name']['pool1']['val'],
+                                                             ITERATOR, ITERATOR2))
     print 'Execution time for showing image/snap info : ' + str(datetime.datetime.now() - timer)
 
     # Image Status
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'status',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+    execute_command('rbd status {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
     print 'Execution time for Image Status : ' + str(datetime.datetime.now() - timer)
 
     # Disk Usage
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'du', parameters['pool_name']['pool2']['arg'],
-         parameters['pool_name']['pool2']['val']])
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'du', parameters['pool_name']['pool1']['arg'],
-         parameters['pool_name']['pool1']['val'],
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'du',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2)])
+    execute_command('rbd du {} {}'.format(parameters['pool_name']['pool2']['arg'],
+                                          parameters['pool_name']['pool2']['val']))
+    execute_command('rbd du {} {} {}/testimg{}'.format(parameters['pool_name']['pool1']['arg'],
+                                                       parameters['pool_name']['pool1']['val'],
+                                                       parameters['pool_name']['pool1']['val'], ITERATOR))
+    execute_command('rbd du {}/testimg{}@snapimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR,
+                                                           ITERATOR2))
     print 'Execution time for Disk usage : ' + str(datetime.datetime.now() - timer)
 
     # Snap Rename
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'rename',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimg' + str(ITERATOR2),
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimgrenamed'])
+    execute_command('rbd snap rename {}/testimg{}@snapimg{} {}/testimg{}@snapimgrenamed'
+                    .format(parameters['pool_name']['pool1']['val'], ITERATOR, ITERATOR2,
+                            parameters['pool_name']['pool1']['val'], ITERATOR))
     print 'Execution time for Snap Rename : ' + str(datetime.datetime.now() - timer)
 
     # Snap Deletion
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'rm',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapimgrenamed'])
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'purge',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+    execute_command('rbd snap rm {}/testimg{}@snapimgrenamed'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
+    execute_command('rbd snap purge {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
     print 'Execution time for Snap deletion : ' + str(datetime.datetime.now() - timer)
 
     # Add Lock
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'lock', 'add',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR), '007'])
+    execute_command('rbd lock add {}/testimg{} 007'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
     ITERATOR -= 1
 
     for lock_id in range(0, 2):
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'lock', 'add', '--shared', 'tag',
-             parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR), str(lock_id)])
+        execute_command('rbd lock add --shared tag {}/testimg{} {}'.format(parameters['pool_name']['pool1']['val'],
+                                                                           ITERATOR, lock_id))
     print 'Execution time for Adding Lock : ' + str(datetime.datetime.now() - timer)
 
     # List Lock
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'lock', 'list',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+    execute_command('rbd lock list {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
     ITERATOR += 1
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'lock', 'list',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+    execute_command('rbd lock list {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
     print 'Execution time for List locked Images : ' + str(datetime.datetime.now() - timer)
 
     # Remove Lock
     timer = datetime.datetime.now()
     for _ in range(0, 2):
-        cmd_output = subprocess.check_output(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'lock', 'list',
-                                              parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR),
-                                              '--format=json'])
-        json_output = json.loads(cmd_output)
+        json_output = json.loads(execute_command('rbd lock list {}/testimg{} --format=json'
+                                                 .format(parameters['pool_name']['pool1']['val'], ITERATOR),
+                                                 return_output=True))
         for k, v in json_output.iteritems():
-            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'lock', 'remove',
-                 parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR), k, v['locker']])
+            execute_command('rbd lock remove {}/testimg{} {} {}'.format(parameters['pool_name']['pool1']['val'],
+                                                                        ITERATOR, k, v['locker']))
         ITERATOR -= 1
     print 'Execution time for Removing Lock : ' + str(datetime.datetime.now() - timer)
 
     # Mapping Images to block-device
     timer = datetime.datetime.now()
     ITERATOR += 3
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'create', '-s', '5G', '--image-feature', 'layering',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'snap', 'create',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapmapimg'])
+    if 'ubuntu' in execute_command('lsb_release -is', return_output=True).lower():
+        execute_command('ceph osd crush tunables hammer')
+    execute_command('rbd create -s 5G --image-feature layering {}/testimg{}'
+                    .format(parameters['pool_name']['pool1']['val'], ITERATOR))
+    execute_command('rbd snap create {}/testimg{}@snapmapimg'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
 
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'map',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'map', '--read-only',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapmapimg'])
+    execute_command('rbd map {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
+    execute_command('rbd map --read-only {}/testimg{}@snapmapimg'.format(parameters['pool_name']['pool1']['val'],
+                                                                         ITERATOR))
     print 'Execution time for Mapping Images : ' + str(datetime.datetime.now() - timer)
 
     # Listing Mapped Images
     timer = datetime.datetime.now()
-    cmd(['rbd', 'showmapped'])
+    execute_command('rbd showmapped')
     print 'Execution time for Listing Mapped Images : ' + str(datetime.datetime.now() - timer)
 
     # Unmap Images
     timer = datetime.datetime.now()
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'unmap',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
-    cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'unmap',
-         parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR) + '@' + 'snapmapimg'])
+    execute_command('rbd unmap {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
+    execute_command('rbd unmap {}/testimg{}@snapmapimg'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
     print 'Execution time for Unmapping Images : ' + str(datetime.datetime.now() - timer)
 
     if 'version 12' in ceph_version:
         # Moving Image to trash
         timer = datetime.datetime.now()
         for _ in range(0, 11):
-            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'trash', 'mv',
-                 parameters['pool_name']['pool1']['val'] + '/' + 'testimg' + str(ITERATOR)])
+            execute_command('rbd trash mv {}/testimg{}'.format(parameters['pool_name']['pool1']['val'], ITERATOR))
             ITERATOR -= 1
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'trash', 'mv',
-             parameters['pool_name']['pool2']['val'] + '/' + 'cpsnapimg'])
+        execute_command('rbd trash mv {}/cpsnapimg'.format(parameters['pool_name']['pool2']['val']))
         print 'Execution time for moving image to trash : ' + str(datetime.datetime.now() - timer)
 
         # Listing trash entries
         timer = datetime.datetime.now()
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'trash', 'ls', parameters['pool_name']['pool1']['val']])
+        execute_command('rbd trash ls {}'.format(parameters['pool_name']['pool1']['val']))
         print 'Execution time for listing trash entries : ' + str(datetime.datetime.now() - timer)
 
         #  Restoring image from trash
         timer = datetime.datetime.now()
-        cmd_output = subprocess.check_output(
-            ['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'trash', 'ls', parameters['pool_name']['pool1']['val'],
-             '--format=json'])
-        json_output = json.loads(cmd_output)
+        json_output = json.loads(execute_command('rbd trash ls {} --format=json'
+                                                 .format(parameters['pool_name']['pool1']['val']), return_output=True))
         for num in range(0, 18, 2):
-            cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'trash', 'restore',
-                 parameters['pool_name']['pool1']['val'] + '/' + json_output[num]])
+            execute_command('rbd trash restore {}/{}'.format(parameters['pool_name']['pool1']['val'], json_output[num]))
         print 'Execution time for restoring trash entry : ' + str(datetime.datetime.now() - timer)
 
         #  Removing image from trash
         timer = datetime.datetime.now()
-        cmd_output = subprocess.check_output(
-            ['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'trash', 'ls', parameters['pool_name']['pool2']['val'],
-             '--format=json'])
-        json_output = json.loads(cmd_output)
-        cmd(['rbd', '--cluster', '{}'.format(CLUSTER_NAME), 'trash', 'rm',
-             parameters['pool_name']['pool2']['val'] + '/' + json_output[0]])
+        json_output = json.loads(execute_command('rbd trash ls {} --format=json'
+                                                 .format(parameters['pool_name']['pool2']['val']), return_output=True))
+        execute_command('rbd trash rm {}/{}'.format(parameters['pool_name']['pool2']['val'], json_output[0]))
         print 'Execution time for removing image from trash : ' + str(datetime.datetime.now() - timer)
 
     # Deletion Of Pools
     timer = datetime.datetime.now()
     for k, v in parameters['pool_name'].iteritems():
-        cmd(['ceph', 'osd', '--cluster', '{}'.format(CLUSTER_NAME), 'pool', 'delete', v['val'], v['val'],
-             '--yes-i-really-really-mean-it'])
+        execute_command('ceph osd pool delete {pool} {pool} --yes-i-really-really-mean-it'.format(pool=v['val']))
     print 'Execution time for Pool Deletion : ' + str(datetime.datetime.now() - timer)
 
     print 'Execution time for the script : ' + str(datetime.datetime.now() - START)
 
-    if F_COUNT == 0:
+    if FAILED_COUNT == 0:
         exit(0)
     else:
-        print 'Total Failed Commands: ', F_COUNT
-        print '*******FAILED COMMANDS*******'
+        print 'Total Failed Commands: ', FAILED_COUNT
+        print '{:-^21}'.format('FAILED COMMANDS')
         for values in failed_commands:
-            print values[0], values[1]
+            print values
         exit(1)
+
