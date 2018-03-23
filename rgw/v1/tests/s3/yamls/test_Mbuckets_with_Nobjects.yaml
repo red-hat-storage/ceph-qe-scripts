@@ -1,0 +1,9 @@
+config:
+ shards: 32
+ max_objects: 30
+ user_count: 1
+ bucket_count: 3
+ objects_count: 50
+ objects_size_range:
+  min: 10
+  max: 50
