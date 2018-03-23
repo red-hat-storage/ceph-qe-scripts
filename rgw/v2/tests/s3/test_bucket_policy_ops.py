@@ -76,15 +76,21 @@ def test_exec(config):
 
         # add policy to the existing policy - TC 11214
 
-        t1_u1_bucket1_obj, t1_u1_bucket_name1 = resuables.create_bucket(rgw_tenant1_user1, tenant1_user1_info,
-                                                                        rand_no=1)
-        t1_u1_bucket2_obj, t1_u1_bucket_name2 = resuables.create_bucket(rgw_tenant1_user1, tenant1_user1_info,
-                                                                        rand_no=2)
+        bucket_name1 = utils.gen_bucket_name_from_userid(tenant1_user1_info['user_id'], rand_no=1)
+
+        t1_u1_bucket1 = resuables.create_bucket(bucket_name1, rgw_tenant1_user1,
+                                                tenant1_user1_info,
+                                                )
+        bucket_name2 = utils.gen_bucket_name_from_userid(tenant1_user1_info['user_id'], rand_no=2)
+
+        t1_u1_bucket2 = resuables.create_bucket(bucket_name2, rgw_tenant1_user1,
+                                                tenant1_user1_info,
+                                                )
 
         bucket_policy_generated = s3_bucket_policy.gen_bucket_policy(tenants_list=[tenant1],
                                                                      userids_list=[tenant2_user1_info['user_id']],
                                                                      actions_list=['CreateBucket'],
-                                                                     resources=[t1_u1_bucket_name1]
+                                                                     resources=[t1_u1_bucket1.name]
                                                                      )
 
         bucket_policy = json.dumps(bucket_policy_generated)
@@ -95,7 +101,7 @@ def test_exec(config):
 
         bucket_policy_obj = s3lib.resource_op({'obj': rgw_tenant1_user1,
                                                'resource': 'BucketPolicy',
-                                               'args': [t1_u1_bucket_name1]})
+                                               'args': [t1_u1_bucket1.name]})
 
         put_policy = s3lib.resource_op({'obj': bucket_policy_obj,
                                         'resource': 'put',
@@ -121,7 +127,7 @@ def test_exec(config):
 
         # get policy
 
-        get_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket_name1)
+        get_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
 
         log.info('got bucket policy:%s\n' % get_policy['Policy'])
 
@@ -139,7 +145,7 @@ def test_exec(config):
             bucket_policy2_generated = s3_bucket_policy.gen_bucket_policy(tenants_list=[tenant1],
                                                                           userids_list=[tenant2_user1_info['user_id']],
                                                                           actions_list=actions_list,
-                                                                          resources=[t1_u1_bucket_name1]
+                                                                          resources=[t1_u1_bucket1.name]
                                                                           )
 
             bucket_policy2 = json.dumps(bucket_policy2_generated)
@@ -166,7 +172,7 @@ def test_exec(config):
             else:
                 raise TestExecError("bucket policy creation failed")
 
-            get_modified_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket_name1)
+            get_modified_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
 
             modified_policy = json.loads(get_modified_policy['Policy'])
 
@@ -193,7 +199,7 @@ def test_exec(config):
             new_policy_generated = s3_bucket_policy.gen_bucket_policy(tenants_list=[tenant1],
                                                                       userids_list=[tenant2_user1_info['user_id']],
                                                                       actions_list=['ListBucket'],
-                                                                      resources=[t1_u1_bucket_name2]
+                                                                      resources=[t1_u1_bucket2.name]
                                                                       )
 
             new_policy = json.dumps(new_policy_generated)
@@ -247,7 +253,7 @@ def test_exec(config):
             # confirming once again by calling get_bucket_policy
 
             try:
-                rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket_name1)
+                rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
                 raise TestExecError("bucket policy did not get deleted")
 
             except boto3exception.ClientError as e:

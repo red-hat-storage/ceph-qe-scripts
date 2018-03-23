@@ -241,7 +241,7 @@ def gen_s3_object_name(bucket_name, rand_no=0):
 
     log.info('generating s3 object name to create')
 
-    s3_object_name_to_create = bucket_name + "." + S3_OBJECT_NAME_PREFIX + "." + str(rand_no)
+    s3_object_name_to_create = S3_OBJECT_NAME_PREFIX + "." + bucket_name  + "." + str(rand_no)
 
     log.info('s3 object name to create generated: %s' % s3_object_name_to_create)
 
