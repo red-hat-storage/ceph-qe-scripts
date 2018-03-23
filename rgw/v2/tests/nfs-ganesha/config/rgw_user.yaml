@@ -1,0 +1,8 @@
+user_id:
+access_key:
+secret_key:
+rgw_hostname:
+ganesha_config_exists: false # set true to create ganesha config based on the above input or set false not to create any config.
+already_mounted: false # set rcat rgw  ue if nfs_directory is already mounted or false if not.
+nfs_version: 4
+nfs_mnt_point: ganesh-mount # provide full path
