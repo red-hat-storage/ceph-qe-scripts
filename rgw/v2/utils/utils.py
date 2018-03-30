@@ -181,19 +181,19 @@ class RGWService(object):
 
         executed = exec_shell_cmd('sudo systemctl restart ceph-radosgw.target')
 
-        return executed[0]
+        return executed
 
     def stop(self):
 
         executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
 
-        return executed[0]
+        return executed
 
     def start(self):
 
         executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
 
-        return executed[0]
+        return executed
 
 
 def get_radosgw_port_no():
