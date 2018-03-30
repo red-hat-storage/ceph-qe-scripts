@@ -12,7 +12,7 @@ class ConfigOpts(object):
     rgw_bucket_default_quota_max_objects = 'rgw_bucket_default_quota_max_objects'
 
 
-class AddToCephConf(FileOps, ConfigParse):
+class CephConfOp(FileOps, ConfigParse):
     def __init__(self, ceph_conf_path='/etc/ceph/ceph.conf'):
 
         self.ceph_conf_path = ceph_conf_path

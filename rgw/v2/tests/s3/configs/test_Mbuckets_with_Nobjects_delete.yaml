@@ -12,4 +12,7 @@ config:
       create_object: true
       download_object: false
       delete_bucket_object: true
+      sharding:
+        enable: false
+        max_shards: 0
 
