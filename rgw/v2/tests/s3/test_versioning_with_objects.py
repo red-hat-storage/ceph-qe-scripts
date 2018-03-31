@@ -163,10 +163,6 @@ def test_exec(config):
 
                                 upload_info = dict({'access_key': each_user['access_key']}, **modified_data_info)
 
-                                # object_uploaded_status = s3_ops.resource_op(bucket, 'upload_file', modified_data_info['name'],
-                                #                                            s3_object_name,
-                                #                                            **upload_info)
-
                                 object_uploaded_status = s3lib.resource_op({'obj': bucket,
                                                                             'resource': 'upload_file',
                                                                             'args': [modified_data_info['name'], s3_object_name],
@@ -222,6 +218,39 @@ def test_exec(config):
                                 # log.info('downloading current s3object: %s' % s3_object_name)
 
                                 # s3_obj.download_file(s3_object_name + ".download")
+
+                            if config.test_ops['delete_object_versions'] is True:
+
+                                log.info('deleting s3_obj keys and its versions')
+
+                                s3_obj = s3lib.resource_op({'obj': rgw_conn,
+                                                            'resource': 'Object',
+                                                            'args': [bucket.name, s3_object_name]})
+
+                                log.info('deleting versions for s3 obj: %s' % s3_object_name)
+
+                                for version in versions:
+
+                                    log.info('trying to delete obj version: %s' % version.version_id)
+
+                                    del_obj_version = s3lib.resource_op({'obj': s3_obj,
+                                                                         'resource': 'delete',
+                                                                         'kwargs': dict(VersionId=version.version_id)})
+
+                                    log.info('response:\n%s' % del_obj_version)
+
+                                    if del_obj_version is not None:
+
+                                        response = HttpResponseParser(del_obj_version)
+
+                                        if response.status_code == 204:
+                                            log.info('version deleted ')
+
+                                        else:
+                                            raise TestExecError("version  deletion failed")
+
+                                    else:
+                                        raise TestExecError("version deletion failed")
 
                     if config.test_ops['suspend_version'] is True:
 
