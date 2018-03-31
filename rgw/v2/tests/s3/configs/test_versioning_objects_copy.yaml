@@ -12,4 +12,5 @@ config:
       enable_version: true
       suspend_version: false
       copy_to_version: true # this is same as revert and restore object
-
+      delete_object_versions: false
+      upload_after_suspend: false
