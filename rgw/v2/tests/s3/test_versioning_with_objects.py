@@ -41,6 +41,8 @@ def test_exec(config):
             auth = Auth(each_user)
             rgw_conn = auth.do_auth()
 
+            s3_object_names = []
+
             # create buckets
 
             log.info('no of buckets to create: %s' % config.bucket_count)
@@ -123,6 +125,8 @@ def test_exec(config):
 
                     if config.objects_count > 0:
 
+
+
                         log.info('s3 objects to create: %s' % config.objects_count)
 
                         for oc in range(config.objects_count):
@@ -130,6 +134,8 @@ def test_exec(config):
                             # versioning upload
 
                             s3_object_name = utils.gen_s3_object_name(bucket_name_to_create,str(oc))
+
+                            s3_object_names.append(s3_object_name)
 
                             log.info('s3 object name: %s' % s3_object_name)
 
@@ -162,10 +168,6 @@ def test_exec(config):
                                 log.info('uploading s3 object: %s' % s3_object_path)
 
                                 upload_info = dict({'access_key': each_user['access_key']}, **modified_data_info)
-
-                                # object_uploaded_status = s3_ops.resource_op(bucket, 'upload_file', modified_data_info['name'],
-                                #                                            s3_object_name,
-                                #                                            **upload_info)
 
                                 object_uploaded_status = s3lib.resource_op({'obj': bucket,
                                                                             'resource': 'upload_file',
@@ -223,6 +225,39 @@ def test_exec(config):
 
                                 # s3_obj.download_file(s3_object_name + ".download")
 
+                            if config.test_ops['delete_object_versions'] is True:
+
+                                log.info('deleting s3_obj keys and its versions')
+
+                                s3_obj = s3lib.resource_op({'obj': rgw_conn,
+                                                            'resource': 'Object',
+                                                            'args': [bucket.name, s3_object_name]})
+
+                                log.info('deleting versions for s3 obj: %s' % s3_object_name)
+
+                                for version in versions:
+
+                                    log.info('trying to delete obj version: %s' % version.version_id)
+
+                                    del_obj_version = s3lib.resource_op({'obj': s3_obj,
+                                                                         'resource': 'delete',
+                                                                         'kwargs': dict(VersionId=version.version_id)})
+
+                                    log.info('response:\n%s' % del_obj_version)
+
+                                    if del_obj_version is not None:
+
+                                        response = HttpResponseParser(del_obj_version)
+
+                                        if response.status_code == 204:
+                                            log.info('version deleted ')
+
+                                        else:
+                                            raise TestExecError("version  deletion failed")
+
+                                    else:
+                                        raise TestExecError("version deletion failed")
+
                     if config.test_ops['suspend_version'] is True:
 
                         # suspend_version_status = s3_ops.resource_op(bucket_versioning, 'suspend')
@@ -237,6 +272,66 @@ def test_exec(config):
 
                         else:
                             raise TestExecError("version suspend failed")
+
+                if config.test_ops['upload_after_suspend'] is True:
+
+
+                    log.info('trying to upload after suspending versioning on bucket')
+
+                    for s3_object_name in s3_object_names:
+
+                        # non versioning upload
+
+                        log.info('s3 object name: %s' % s3_object_name)
+
+                        s3_object_size = utils.get_file_size(config.objects_size_range['min'],
+                                                             config.objects_size_range['max'])
+
+                        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+
+                        non_version_data_info = manage_data.io_generator(s3_object_path, s3_object_size, op="append",
+                                                                    **{'message': '\nhello object for non version\n'})
+
+                        if non_version_data_info is False:
+                            TestExecError("data creation failed")
+
+                        log.info('uploading s3 object: %s' % s3_object_path)
+
+                        upload_info = dict({'access_key': each_user['access_key']}, **non_version_data_info)
+
+                        object_uploaded_status = s3lib.resource_op({'obj': bucket,
+                                                                    'resource': 'upload_file',
+                                                                    'args': [non_version_data_info['name'],
+                                                                             s3_object_name],
+                                                                    'extra_info': upload_info})
+
+                        if object_uploaded_status is False:
+                            raise TestExecError("Resource execution failed: object upload failed")
+
+                        if object_uploaded_status is None:
+                            log.info('object uploaded')
+
+                        s3_object_download_path = os.path.join(TEST_DATA_PATH, s3_object_name+".download")
+
+                        object_downloaded_status = s3lib.resource_op({'obj': bucket,
+                                                                      'resource': 'download_file',
+                                                                      'args': [s3_object_name,
+                                                                               s3_object_download_path],
+                                                                      })
+
+                        if object_downloaded_status is False:
+                            raise TestExecError("Resource execution failed: object download failed")
+
+                        if object_downloaded_status is None:
+                            log.info('object downloaded')
+
+                        # checking md5 of the downloaded file
+
+                        s3_object_downloaded_md5 = utils.get_md5(s3_object_download_path)
+
+                        log.info('s3_object_downloaded_md5: %s' % s3_object_downloaded_md5)
+                        log.info('s3_object_uploaded_md5: %s' % non_version_data_info['md5'])
+
 
         test_info.success_status('test passed')
 

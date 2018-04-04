@@ -9,7 +9,7 @@ import socket
 from v1.lib.s3.rgw import ObjectOps
 import sys
 from v1.utils.test_desc import AddTestInfo
-import lib.s3.rgw as rgw_lib
+import v1.lib.s3.rgw as rgw_lib
 import argparse
 import yaml
 import simplejson

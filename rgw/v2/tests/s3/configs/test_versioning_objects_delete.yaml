@@ -11,6 +11,6 @@ config:
  test_ops:
       enable_version: true
       suspend_version: false
-      copy_to_version: true # this is same as revert and restore object
-      delete_object_versions: false
+      copy_to_version: false # this is same as revert and restore object
+      delete_object_versions: true
       upload_after_suspend: false

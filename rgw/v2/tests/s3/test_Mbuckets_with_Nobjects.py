@@ -6,6 +6,8 @@ import v2.lib.s3.s3lib as s3lib
 from v2.lib.s3.auth import Auth
 import v2.utils.log as log
 import v2.utils.utils as utils
+from v2.utils.utils import RGWService
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.utils.utils import HttpResponseParser
 import traceback
 import argparse
@@ -14,6 +16,7 @@ import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
+import time
 
 TEST_DATA_PATH = None
 
@@ -24,6 +27,8 @@ def test_exec(config):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ceph_conf = CephConfOp()
+    rgw_service = RGWService()
 
     try:
 
@@ -39,6 +44,30 @@ def test_exec(config):
 
             auth = Auth(each_user)
             rgw_conn = auth.do_auth()
+
+            # enabling sharding
+
+            if config.test_ops['sharding']['enable'] is True:
+
+                    log.info('enabling sharding on buckets')
+
+                    max_shards = config.test_ops['sharding']['max_shards']
+
+                    log.info('making changes to ceph.conf')
+
+                    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_override_bucket_index_max_shards,
+                                                 max_shards)
+
+                    log.info('trying to restart services ')
+
+                    srv_restarted =  rgw_service.restart()
+
+                    time.sleep(10)
+
+                    if srv_restarted is False:
+                        raise TestExecError("RGW service restart failed")
+                    else:
+                        log.info('RGW service restarted')
 
             # create buckets
 
@@ -146,6 +175,23 @@ def test_exec(config):
 
                                 if object_downloaded_status is None:
                                     log.info('object downloaded')
+
+                        # verification of shards after upload
+
+                        if config.test_ops['sharding']['enable'] is True:
+
+                            cmd = 'radosgw-admin metadata get bucket:%s | grep bucket_id' % bucket.name
+
+                            out = utils.exec_shell_cmd(cmd)
+
+                            b_id = out.replace('"', '').strip().split(":")[1].strip().replace(',', '')
+
+                            cmd2 = 'rados -p default.rgw.buckets.index ls | grep %s' % b_id
+
+                            out = utils.exec_shell_cmd(cmd2)
+
+                            log.info('got output from sharing verification.--------')
+
 
                         if config.test_ops['delete_bucket_object'] is True:
 
