@@ -2,7 +2,7 @@ import os
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
-import lib.s3.rgw as rgw_lib
+import v1.lib.s3.rgw as rgw_lib
 from v1.lib.s3.rgw import Config
 import v1.utils.log as log
 from v1.lib.s3.rgw import ObjectOps
