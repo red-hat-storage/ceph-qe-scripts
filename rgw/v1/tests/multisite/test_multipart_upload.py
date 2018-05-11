@@ -46,6 +46,8 @@ def test_exec(config):
 
             rgw.multipart_upload(buckets)
 
+        read_io.verify_io()
+
         test_info.success_status('test completed')
 
         sys.exit(0)
