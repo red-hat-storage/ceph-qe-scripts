@@ -46,7 +46,7 @@ def test_exec(config):
 
             assert rgw.create_bucket()
 
-        read_io_info.verify_io()
+        #read_io_info.verify_io()
 
         test_info.success_status('test completed')
 
