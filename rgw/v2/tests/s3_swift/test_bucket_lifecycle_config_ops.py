@@ -2,8 +2,8 @@
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
-from v2.lib.s3.s3lib import Config
-import v2.lib.s3.s3lib as s3lib
+from v2.lib.resource_op import Config
+import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
 import v2.utils.log as log
 import v2.utils.utils as utils
@@ -15,7 +15,6 @@ from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import resuables
-import json
 from v2.lib.s3 import lifecycle as lc
 
 TEST_DATA_PATH = None
