@@ -146,7 +146,8 @@ class UserMgmt(object):
             user_details['tenant'], _ = user_details['user_id'].split('$')
 
             user_info = basic_io_structure.user(**{'user_id': user_details['user_id'],
-                                                   'secret_key': user_details['secret_key']})
+                                                   'secret_key': user_details['key'],
+                                                   'access_key': ' '})
 
             write_user_info.add_user_info(dict(user_info, **tenant_info.tenant(user_details['tenant'])))
 
