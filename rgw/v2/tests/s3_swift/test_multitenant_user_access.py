@@ -101,7 +101,7 @@ def test_exec(config):
                                                  'resource': 'Bucket',
                                                  'args': [Bucket_names[0]]})
 
-        log.info('trying to download tenant1->user1->bucket1->object1' )
+        log.info('trying to download tenant1->user1->bucket1->object1 from tenant2->user2' )
 
         download_path1 = TEST_DATA_PATH + "/t1_u1_b1_%s.download" % object_names[0]
 
@@ -110,34 +110,31 @@ def test_exec(config):
                                                   'args': [object_names[0], download_path1 ]})
 
         if t1_u1_b1_o1_download is False:
-            raise TestExecError("Resource execution failed: object download failed\n"
-                                "download failed for tenant1->user1->bucket1->object1")
+            log.info('object not downloaded\n')
 
         if t1_u1_b1_o1_download is None:
-            log.info('object downloaded\n'
-                     'downloaded tenant1->user1->bucket1->object1')
+            raise TestExecError("object downloaded for tenant1->user1->bucket1->object1, this should not happen")
 
-        log.info('trying to access tenant2->user1->bucket1 from user2 in tenant 2 ')
+        log.info('trying to access tenant2->user1->bucket1 from user2 in tenant 2')
 
         t2_u1_b1_from_t2_u2 = s3lib.resource_op({'obj': t2_u2,
                                                  'resource': 'Bucket',
                                                  'args': [Bucket_names[0]]})
 
-        log.info('trying to download tenant2->user1->bucket1->object1')
+        log.info('trying to download tenant2->user1->bucket1->object1 from tenant2->user2')
 
         download_path2 = TEST_DATA_PATH + "/t2_u1_b1_%s.download" % object_names[0]
 
-        t1_u1_b1_o1_download = s3lib.resource_op({'obj': t2_u1_b1_from_t2_u2,
+        t2_u1_b1_o1_download = s3lib.resource_op({'obj': t2_u1_b1_from_t2_u2,
                                                   'resource': 'download_file',
                                                   'args': [object_names[0], download_path2]})
 
-        if t1_u1_b1_o1_download is False:
-            raise TestExecError("Resource execution failed: object download failed\n"
-                                "download failed for tenant2->user1->bucket1->object1")
+        if t2_u1_b1_o1_download is False:
+            log.info('object did not download, worked as expected')
 
         if t1_u1_b1_o1_download is None:
-            log.info('object downloaded\n'
-                     'downloaded tenant2->user1->bucket1->object1')
+            raise TestExecError('object downloaded\n'
+                                'downloaded tenant2->user1->bucket1->object1, this should not happen')
 
         test_info.success_status('test passed')
 
