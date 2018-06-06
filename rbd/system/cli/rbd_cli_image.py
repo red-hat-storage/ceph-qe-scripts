@@ -1,7 +1,8 @@
+import os
 import sys
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 import json
 import parameters
-sys.path.append("../../")
 import utils.log as log
 import utils.utils as rbd
 
