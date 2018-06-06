@@ -33,6 +33,8 @@ if __name__ == "__main__":
     # Creation Of Pools
     [exec_cmd('ceph osd pool create {} 64 64'
               .format(val)) for key, val in pool_name['val'].iteritems()]
+    if cli.ceph_version > 2:
+        [exec_cmd('rbd pool init {} {}'.format(pool_name['arg'], val)) for key, val in pool_name['val'].iteritems()]
 
     # Simple Image Creation
     combinations = cli.generate_combinations('image_size', 'image_format')
@@ -128,7 +130,7 @@ if __name__ == "__main__":
     # Image Status
     exec_cmd('rbd status {}/img{}'.format(pool_name['val']['pool1'], iterator))
 
-    if cli.ceph_version != 2:
+    if cli.ceph_version > 2:
         # Moving Image to trash
         [exec_cmd('rbd trash mv {}/img{}'.format(pool_name['val']['pool1'],
                                                  iterator))

@@ -30,6 +30,8 @@ if __name__ == "__main__":
     # Creation Of Pools
     [exec_cmd('ceph osd pool create {} 64 64'.format(val))
      for key, val in pool_name['val'].iteritems()]
+    if cli.ceph_version > 2:
+        [exec_cmd('rbd pool init {} {}'.format(pool_name['arg'], val)) for key, val in pool_name['val'].iteritems()]
 
     # Simple Image Creation
     combinations = cli.generate_combinations('image_size')
@@ -131,7 +133,7 @@ if __name__ == "__main__":
     exec_cmd('rbd snap unprotect {}/img{}@snapimg{}'
              .format(pool_name['val']['pool1'], iterator, iterator2))
 
-    if cli.ceph_version != 2:
+    if cli.ceph_version > 2:
         # Setting limit for number of snapshots
         combinations = cli.generate_combinations('limit')
         [exec_cmd('rbd snap limit set {} {}/img{}'
