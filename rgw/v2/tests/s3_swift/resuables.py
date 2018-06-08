@@ -1,7 +1,7 @@
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
-import v2.lib.s3.s3lib as s3lib
+import v2.lib.resource_op as s3lib
 import v2.utils.log as log
 import v2.utils.utils as utils
 from v2.utils.utils import HttpResponseParser

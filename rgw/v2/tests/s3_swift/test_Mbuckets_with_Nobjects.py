@@ -1,8 +1,8 @@
 # test basic creation of buckets with objects
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
-from v2.lib.s3.s3lib import Config
-import v2.lib.s3.s3lib as s3lib
+from v2.lib.resource_op import Config
+import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
 import v2.utils.log as log
 import v2.utils.utils as utils
@@ -168,7 +168,7 @@ def test_exec(config):
                                                                                'resource': 'download_file',
                                                                                'args': [s3_object_name,
                                                                                         s3_object_download_path],
-                                                                               })
+                                                                              })
 
                                 if object_downloaded_status is False:
                                     raise TestExecError("Resource execution failed: object download failed")

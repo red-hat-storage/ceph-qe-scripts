@@ -8,9 +8,8 @@ import socket
 from v2.lib.nfs_ganesha.manage_conf import GaneshaConfig
 from v2.lib.nfs_ganesha.manage_services import ManageNFSServices
 import yaml
-import subprocess
 # from v2.lib.io_info import AddIOInfo
-import v2.lib.s3.s3lib as s3lib
+import v2.lib.resource_op as s3lib
 from v2.lib.exceptions import NFSGaneshaMountError
 from v2.lib.nfs_ganesha.write_io_info import BasicIOInfoStructure, AddUserInfo
 
