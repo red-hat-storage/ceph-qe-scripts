@@ -10,6 +10,7 @@ class ConfigOpts(object):
 
     rgw_override_bucket_index_max_shards = 'rgw_override_bucket_index_max_shards'
     rgw_bucket_default_quota_max_objects = 'rgw_bucket_default_quota_max_objects'
+    rgw_dynamic_resharding = 'rgw_dynamic_resharding'
 
 
 class CephConfOp(FileOps, ConfigParse):
