@@ -2,7 +2,7 @@
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
-import v2.lib.resource_op as s3lib
+import v2.lib.resource_op as s3_swift_lib
 from v2.lib.s3.auth import Auth
 import v2.utils.log as log
 import v2.utils.utils as utils
@@ -16,6 +16,7 @@ import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
+from v2.lib.admin import UserMgmt
 import time
 import json
 import resuables
@@ -139,7 +140,6 @@ def test_exec(config):
         if get_zone_exec is False:
             raise TestExecError("cmd execution failed")
 
-
         fp = open(zone_file, 'r')
         zone_info = fp.read()
         fp.close()
@@ -183,7 +183,9 @@ def test_exec(config):
 
         if config.rgw_client == 'rgw':
 
-            rgw_user_info = s3lib.create_users(1)
+            log.info('client type is rgw')
+
+            rgw_user_info = s3_swift_lib.create_users(1)
 
             auth = Auth(rgw_user_info)
             rgw_conn = auth.do_auth()
@@ -195,6 +197,58 @@ def test_exec(config):
             # create object
             s3_object_name = utils.gen_s3_object_name(bucket_name, 0)
             resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, rgw_user_info)
+    
+        if config.rgw_client == 'swift':
+
+            log.info('client type is swift')
+            
+            user_names = ['tuffy', 'scooby', 'max']
+            tenant = 'tenant'
+            
+            umgmt = UserMgmt()
+
+            umgmt.create_tenant_user(tenant_name=tenant, user_id=user_names[0],
+                                                        displayname=user_names[0])
+            
+            user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[0])
+            
+            auth = Auth(user_info)
+
+            rgw = auth.do_auth()
+
+            container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=0)
+
+            container = s3_swift_lib.resource_op({'obj': rgw,
+                                              'resource': 'put_container',
+                                              'args': [container_name]})
+
+            if container is False:
+                raise TestExecError("Resource execution failed: container creation faield")
+
+            swift_object_name = utils.gen_s3_object_name('%s.container.%s' % (user_names[0], 0), 0)
+
+            log.info('object name: %s' % swift_object_name)
+
+            object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
+
+            log.info('object path: %s' % object_path)
+
+            object_size = utils.get_file_size(config.objects_size_range['min'],
+                                              config.objects_size_range['max'])
+
+            data_info = manage_data.io_generator(object_path, object_size)
+
+            # upload object
+
+            if data_info is False:
+                TestExecError("data creation failed")
+
+            log.info('uploading object: %s' % object_path)
+
+            with open(object_path, 'r') as fp:
+                rgw.put_object(container_name, swift_object_name,
+                               contents=fp.read(),
+                               content_type='text/plain')
 
         test_info.success_status('test passed')
 
@@ -215,17 +269,30 @@ def test_exec(config):
 
 if __name__ == '__main__':
 
-
-    config = Config()
-
-    config.rgw_client = 'rgw'
-
-
     project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
     test_data_dir = 'test_data'
 
     TEST_DATA_PATH = (os.path.join(project_dir, test_data_dir))
 
     log.info('TEST_DATA_PATH: %s' % TEST_DATA_PATH)
+
+    if not os.path.exists(TEST_DATA_PATH):
+        log.info('test data dir not exists, creating.. ')
+        os.makedirs(TEST_DATA_PATH)
+
+    parser = argparse.ArgumentParser(description='RGW S3 Automation')
+
+    parser.add_argument('-c', dest="config",
+                        help='RGW Test yaml configuration')
+
+    args = parser.parse_args()
+
+    yaml_file = args.config
+    config = Config()
+
+    with open(yaml_file, 'r') as f:
+        doc = yaml.load(f)
+
+    config.rgw_client = doc['rgw_client']
 
     test_exec(config)
