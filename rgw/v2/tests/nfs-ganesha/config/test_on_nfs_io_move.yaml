@@ -1,0 +1,10 @@
+config:
+  'basedir_count': 2
+  'subdir_count': 1
+  'file_count': 2
+  'objects_size_range':
+      'min': 5
+      'max': 15
+io_op_config:
+  create: true
+  move: true # moves only the files not and dirs and sub dirs
