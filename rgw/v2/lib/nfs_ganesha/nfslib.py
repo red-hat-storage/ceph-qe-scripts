@@ -46,9 +46,10 @@ class DoIO(object):
 
                 os.makedirs(full_path)
 
-                io_info = {'name': os.path.basename(full_path),
+                io_info = {'name': os.path.basename(path),
                            'type': 'dir',
                            's3_convention': s3_conv,
+                           'bucket': 'self' if s3_conv == 'bucket' else path.split('/')[1],
                            'md5': None
                            }
 
@@ -67,6 +68,7 @@ class DoIO(object):
                 io_info = {'name': os.path.basename(path),
                            'type': 'file',
                            's3_convention': s3_conv,
+                           'bucket': path.split('/')[1],
                            'md5': finfo['md5']}
 
                 log.info('io_info: %s' % io_info)

@@ -98,7 +98,7 @@ class PrepNFSGanesha(RGWUserConfigOps):
             os.makedirs(self.rgw_user_info['nfs_mnt_point'])
 
         mnt_cmd = 'sudo mount -v -t nfs -o nfsvers=%s,sync,rw,noauto,soft,proto=tcp %s:/  %s' % \
-                  (self.rgw_user_info['nfs_version'], self.rgw_user_info['rgw_hostname'], self.rgw_user_info['nfs_mnt_point'], )
+                   (self.rgw_user_info['nfs_version'], self.rgw_user_info['rgw_hostname'], self.rgw_user_info['nfs_mnt_point'], )
 
         log.info('mnt_command: %s' % mnt_cmd)
 
@@ -122,7 +122,7 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
         return un_mounted
 
-    def initialize(self):
+    def initialize(self, write_io_info=True):
 
         write_user_info = AddUserInfo()
         basic_io_structure = BasicIOInfoStructure()
@@ -141,12 +141,14 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
             self.read_config()
 
-        log.info('user_id already exists, logging in for io_info')
+        if write_io_info is True:
 
-        user_info = basic_io_structure.user(**{'user_id': self.rgw_user_info['user_id'],
-                                               'access_key': self.rgw_user_info['access_key'],
-                                               'secret_key': self.rgw_user_info['secret_key']})
-        write_user_info.add_user_info(user_info)
+            log.info('user_id already exists, logging in for io_info')
+
+            user_info = basic_io_structure.user(**{'user_id': self.rgw_user_info['user_id'],
+                                                   'access_key': self.rgw_user_info['access_key'],
+                                                   'secret_key': self.rgw_user_info['secret_key']})
+            write_user_info.add_user_info(user_info)
 
         if not self.rgw_user_info['ganesha_config_exists']:
 
