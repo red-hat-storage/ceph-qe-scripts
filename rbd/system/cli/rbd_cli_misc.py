@@ -1,7 +1,8 @@
+import os
 import sys
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 import json
 import parameters
-sys.path.append("../../")
 import utils.log as log
 import utils.utils as rbd
 
@@ -27,6 +28,8 @@ if __name__ == "__main__":
 
     # Creation Of Pool
     exec_cmd('ceph osd pool create {} 64 64'.format(pool_name['val']))
+    if cli.ceph_version > 2:
+        exec_cmd('rbd pool init {} {}'.format(pool_name['arg'], pool_name['val']))
 
     # Simple Image Creation
     combinations = cli.generate_combinations('image_size')

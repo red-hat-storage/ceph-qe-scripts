@@ -1,6 +1,7 @@
+import os
 import sys
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 import parameters
-sys.path.append("../../")
 import utils.log as log
 import utils.utils as rbd
 
@@ -32,7 +33,9 @@ if __name__ == "__main__":
 
     # Creation Of Pool
     exec_cmd('ceph osd pool create {} 64 64'.format(pool_name['val']))
-
+    if cli.ceph_version > 2:
+        exec_cmd('rbd pool init {} {}'.format(pool_name['arg'], pool_name['val']))
+ 
     # Simple Image Creation
     combinations = cli.generate_combinations('image_size', 'object_size',
                                              'image_format')
@@ -61,7 +64,7 @@ if __name__ == "__main__":
             'rbd export {} {}/img{num}@snapimg{num} {}/img{num}@snapimg{num}'
             .format(param, pool_name['val'], path_list[0], num=iterator))
 
-        if cli.ceph_version != 2 and iterator2 < len(combinations) - 1:
+        if cli.ceph_version > 2 and iterator2 < len(combinations) - 1:
                 exec_cmd('rm {}/img{}'.format(path_list[0], iterator))
                 exec_cmd('rm {}/img{num}@snapimg{num}'.format(path_list[0],
                                                               num=iterator))

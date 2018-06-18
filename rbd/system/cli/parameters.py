@@ -1,6 +1,7 @@
+import os
 import sys
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 import itertools
-sys.path.append("../../")
 import utils.log as log
 import utils.utils as rbd
 
@@ -93,9 +94,10 @@ class CliParams(object):
         list = ['stripe', 'io_type', 'export_format']
 
         self.ceph_version = rbd.exec_cmd('ceph -v')
-        if 'version 10' in self.ceph_version:
+        self.ceph_version = int('.'.join(self.ceph_version.split()[2].split('.')[:1]))
+        if self.ceph_version == 10:
             self.ceph_version = 2
-        elif 'version 12' in self.ceph_version:
+        elif self.ceph_version == 12:
             self.ceph_version = 3
 
         for param in list:
