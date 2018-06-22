@@ -43,7 +43,8 @@ class RGWUserConfigOps(object):
                                           ganesha_config_exists=self.rgw_user_info['ganesha_config_exists'],
                                           already_mounted=self.rgw_user_info['already_mounted'],
                                           nfs_version = self.rgw_user_info['nfs_version'],
-                                          nfs_mnt_point = self.rgw_user_info['nfs_mnt_point']
+                                          nfs_mnt_point = self.rgw_user_info['nfs_mnt_point'],
+                                          Pseudo = self.rgw_user_info['Pseudo']
                                           )
 
         with open(self.fname, 'w') as fp:

@@ -87,6 +87,8 @@ class ReadIOInfoOnS3(object):
 
             log.info('verifying data for key: %s' % os.path.basename(each_key['name']))
 
+            log.info('bucket: %s' % each_key['bucket'])
+
             key_from_s3 = self.rgw_conn.Object(each_key['bucket'],os.path.basename(each_key['name']))
             log.info('got key name from s3: %s' % key_from_s3.key)
 

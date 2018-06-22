@@ -17,7 +17,7 @@ from v2.lib.resource_op import Config
 import yaml
 import shutil
 
-SLEEP_TIME = 10
+SLEEP_TIME = 60
 
 
 def test_exec(rgw_user_info_file, config):
@@ -52,9 +52,15 @@ def test_exec(rgw_user_info_file, config):
 
         mnt_point = nfs_ganesha.rgw_user_info['nfs_mnt_point']
 
+        if nfs_ganesha.rgw_user_info['nfs_version'] == 4 and nfs_ganesha.rgw_user_info['Pseudo'] is not None:
+            log.info('nfs version: 4')
+            log.info('adding Pseudo path to writable mount point')
+            mnt_point = os.path.join(mnt_point,nfs_ganesha.rgw_user_info['Pseudo'])
+            log.info('writable mount point with Pseudo: %s' % mnt_point)
+
         if io_op_config.get('create', None) is True:
 
-            do_io = DoIO(nfs_ganesha.rgw_user_info)
+            do_io = DoIO(nfs_ganesha.rgw_user_info, mnt_point)
 
             # base dir creation
 
@@ -63,7 +69,7 @@ def test_exec(rgw_user_info_file, config):
                 basedir_name_to_create = utils.gen_bucket_name_from_userid(nfs_ganesha.rgw_user_info['user_id'], rand_no=bc)
                 log.info('creating basedir with name: %s' % basedir_name_to_create)
 
-                write = do_io.write('basedir', os.path.join(mnt_point, basedir_name_to_create))
+                write = do_io.write('basedir',  basedir_name_to_create)
 
                 if write is False:
                     raise TestExecError("write failed on mount point")
@@ -78,7 +84,7 @@ def test_exec(rgw_user_info_file, config):
                         log.info('creating subdir with name: %s' % subdir_name_to_create)
 
                         write = do_io.write('subdir',
-                                            os.path.join(mnt_point, basedir_name_to_create, subdir_name_to_create))
+                                            os.path.join(basedir_name_to_create, subdir_name_to_create))
 
                         if write is False:
                             raise TestExecError("write failed on mount point")
@@ -95,7 +101,7 @@ def test_exec(rgw_user_info_file, config):
                                                         io_config['objects_size_range']['max'])
 
                         write = do_io.write('file',
-                                            os.path.join(mnt_point, basedir_name_to_create, file_name_to_create),
+                                            os.path.join(basedir_name_to_create, file_name_to_create),
                                             file_size)
 
                         if write is False:

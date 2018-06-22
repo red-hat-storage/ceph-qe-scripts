@@ -46,6 +46,12 @@ def test_exec(rgw_user_info_file, config):
         if mounted is False:
             raise TestExecError("mount failed")
 
+        if nfs_ganesha.rgw_user_info['nfs_version'] == 4 and nfs_ganesha.rgw_user_info['Pseudo'] is not None:
+            log.info('nfs version: 4')
+            log.info('adding Pseudo path to writable mount point')
+            mount_point = os.path.join(mount_point,nfs_ganesha.rgw_user_info['Pseudo'])
+            log.info('writable mount point with Pseudo: %s' % mount_point)
+
         log.info('authenticating rgw user')
 
         # authenticate
@@ -154,11 +160,15 @@ def test_exec(rgw_user_info_file, config):
 
                 log.info('verification on NFS will start after %s seconds for delete operation' % SLEEP_TIME)
 
-                time.sleep(SLEEP_TIME)
+                time.sleep(200)
 
                 for basedir in created_buckets:
 
-                    if os.path.exists(basedir) is True:
+                    exists = os.path.exists(basedir)
+
+                    log.info('exists status: %s' % exists)
+
+                    if exists is True:
                         raise TestExecError("Basedir or Basedir: %s not deleted on NFS" % basedir)
 
                 log.info('basedirs deleted')
@@ -185,11 +195,11 @@ def test_exec(rgw_user_info_file, config):
                     # in s3 move operation is achieved by copying the same object with the new name and
                     #  deleting the old object
 
-                    log.info('deleted operation for :%s' % each_file['file'])
+                    log.info('move operation for :%s' % each_file['file'])
 
                     new_obj_name = os.path.basename(each_file['file']) + ".moved"
 
-                    log.info('new move file name: %s' % new_obj_name)
+                    log.info('new file name: %s' % new_obj_name)
 
                     new_object = s3lib.resource_op({'obj': rgw_conn,
                                                 'resource': 'Object',
