@@ -13,7 +13,7 @@ import v1.lib.s3.rgw as rgw_lib
 import argparse
 import yaml
 from v1.lib.io_info import AddIOInfo
-
+import time
 
 def test_exec(config):
 
@@ -33,7 +33,11 @@ def test_exec(config):
         if config.shards:
             test_config.set_to_ceph_conf('global', ConfigOpts.rgw_override_bucket_index_max_shards, config.shards)
 
+            log.info('test to continue after service restart, sleept time 120 seconds')
+            
             rgw_service.restart()
+
+            time.sleep(120)
 
             no_of_shards_for_each_bucket = int(config.shards) * int(config.bucket_count)
 
