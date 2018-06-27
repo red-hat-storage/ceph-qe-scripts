@@ -1,9 +1,9 @@
 import v2.utils.log as log
 import v2.utils.utils as utils
 import os
-from v1.utils.utils import FileOps
+from v2.utils.utils import FileOps
 import socket
-from v1.lib.process_manage import Process
+import time
 
 
 class ManageNFSServices(object):
@@ -22,11 +22,14 @@ class ManageNFSServices(object):
         cmd = 'sudo systemctl start nfs-ganesha '
         utils.exec_shell_cmd(cmd)
 
+        time.sleep(10)
+
     def ganesha_stop(self):
 
         log.info('stopping ganesha services via systemctl')
         cmd = 'sudo systemctl stop nfs-ganesha'
         utils.exec_shell_cmd(cmd)
+        time.sleep(10)
 
     def ganesha_restart(self):
 
@@ -37,6 +40,8 @@ class ManageNFSServices(object):
         cmd = 'sudo systemctl restart nfs-ganesha'
         utils.exec_shell_cmd(cmd)
 
+        time.sleep(10)
+
     def kernel_stop(self):
 
         log.info('stopping nfs kernel services')
@@ -46,6 +51,10 @@ class ManageNFSServices(object):
 
         cmd = 'systemctl disable nfs-server.service'
         utils.exec_shell_cmd(cmd)
+
+        time.sleep(10)
+
+
 
 
 

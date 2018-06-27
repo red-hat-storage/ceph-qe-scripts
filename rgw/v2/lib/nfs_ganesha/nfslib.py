@@ -19,36 +19,37 @@ NFS_CONVENTIONS = {'basedir': 'bucket',
 
 class DoIO(object):
 
-    def __init__(self, rgw_user_info):
+    def __init__(self, rgw_user_info, mnt_pont):
 
         self.rgw_user_info = rgw_user_info
+        self.mnt_point = mnt_pont
 
-    def write(self, io_type, path, size=0):
+    def write(self, io_type, fname, size=0):
 
         # io_type should be: basedir | subdir | file
 
-        # path should be given from mount point
-
         log.info('io_type: %s' % io_type)
-        log.info('path: %s' % path)
+        log.info('fname: %s' % fname)
         log.info('size: %s' % size)
 
         s3_conv = NFS_CONVENTIONS.get(io_type)
         ioinfo = IOInfo()
 
+        path = os.path.abspath(self.mnt_point)
+        full_path = os.path.join(path, fname)
+        log.info('abs_path: %s' % full_path)
         try:
 
             if io_type == 'basedir' or io_type == 'subdir':
-                full_path = os.path.abspath(path)
 
-                log.info('abs_path: %s' % full_path)
                 log.info('creating dir, type: %s' % io_type)
 
                 os.makedirs(full_path)
 
-                io_info = {'name': os.path.basename(full_path),
+                io_info = {'name': os.path.basename(fname),
                            'type': 'dir',
                            's3_convention': s3_conv,
+                           'bucket': 'self' if s3_conv == 'bucket' else fname.split('/')[0],
                            'md5': None
                            }
 
@@ -62,11 +63,12 @@ class DoIO(object):
 
                 log.info('creating file with size: %s' % size)
 
-                finfo = manage_date.io_generator(path, size)
+                finfo = manage_date.io_generator(full_path, size)
 
-                io_info = {'name': os.path.basename(path),
+                io_info = {'name': os.path.basename(fname),
                            'type': 'file',
                            's3_convention': s3_conv,
+                           'bucket': fname.split('/')[0],
                            'md5': finfo['md5']}
 
                 log.info('io_info: %s' % io_info)
