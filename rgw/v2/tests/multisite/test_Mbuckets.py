@@ -43,7 +43,7 @@ def test_exec(config):
         with open('user_details') as fout:
             all_users_info = simplejson.load(fout)
 
-        for each_user in all_user_details:
+        for each_user in all_users_info:
 
             user_info = basic_io_structure.user(**{'user_id': each_user['user_id'],
                                                    'access_key': each_user['access_key'],
