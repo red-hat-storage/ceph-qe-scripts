@@ -16,6 +16,7 @@ import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
+from v2.lib.s3.write_io_info import AddUserInfo
 import time
 import simplejson
 
@@ -43,9 +44,12 @@ def test_exec(config):
             all_users_info = simplejson.load(fout)
 
         for each_user in all_user_details:
-            write_user_info.add_user_info(**{'user_id': each_user['user_id'],
-                                         'access_key': each_user['access_key'],
-                                         'secret_key': each_user['secret_key']})
+
+            user_info = basic_io_structure.user(**{'user_id': each_user['user_id'],
+                                                   'access_key': each_user['access_key'],
+                                                   'secret_key': each_user['secret_key']})
+
+            write_user_info.add_user_info(user_info)
 
         for each_user in all_users_info:
 
