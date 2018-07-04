@@ -1,0 +1,7 @@
+# script: test_bucket_policy_ops.py
+# bucket policy will be modified to take additional policies with already existing policy.
+# TC 11213
+config:
+ bucket_policy_op: delete
+ cluster_name: c1
+
