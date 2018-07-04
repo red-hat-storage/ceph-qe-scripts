@@ -24,6 +24,10 @@ TEST_DATA_PATH = None
 
 def test_exec(config):
 
+    io_info_initialize = IOInfoInitialize()
+    basic_io_structure = BasicIOInfoStructure()
+    io_info_initialize.initialize(basic_io_structure.initial())
+    write_user_info = AddUserInfo()
     test_info = AddTestInfo('create m buckets')
     conf_path = '/etc/ceph/%s.conf' % config.cluster_name
     ceph_conf = CephConfOp(conf_path)
@@ -37,6 +41,11 @@ def test_exec(config):
 
         with open('user_details') as fout:
             all_users_info = simplejson.load(fout)
+
+        for each_user in all_user_details:
+            write_user_info.add_user_info(**{'user_id': each_user['user_id'],
+                                         'access_key': each_user['access_key'],
+                                         'secret_key': each_user['secret_key']})
 
         for each_user in all_users_info:
 
