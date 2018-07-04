@@ -124,8 +124,8 @@ class UserMgmt(object):
 
             keys = utils.gen_access_key_secret_key(user_id)
 
-            cmd = 'radosgw-admin subuser create --uid=%s$%s --subuser=%s:swift --tenant=%s --access=full' % (
-            tenant_name, user_id, user_id, tenant_name)
+            cmd = 'radosgw-admin subuser create --uid=%s$%s --subuser=%s:swift --tenant=%s --access=full --cluster %s' \
+                  % (tenant_name, user_id, user_id, tenant_name, cluster_name)
 
             log.info('cmd to execute:\n%s' % cmd)
 
@@ -168,9 +168,10 @@ class QuotaMgmt(object):
     def __init__(self):
         self.exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
-    def set_bucket_quota(self, uid, max_objects):
+    def set_bucket_quota(self, uid, max_objects, cluster_name='ceph'):
 
-        cmd = 'radosgw-admin quota set --uid=%s --quota-scope=bucket --max-objects=%s' % (uid, max_objects)
+        cmd = 'radosgw-admin quota set --uid=%s --quota-scope=bucket --max-objects=%s --cluster %s' \
+              % (uid, max_objects, cluster_name)
 
         status = utils.exec_shell_cmd(cmd)
 
@@ -179,9 +180,9 @@ class QuotaMgmt(object):
 
         log.info('quota set complete')
 
-    def enable_bucket_quota(self, uid):
+    def enable_bucket_quota(self, uid, cluster_name='ceph'):
 
-        cmd = 'radosgw-admin quota enable --quota-scope=bucket --uid=%s' % uid
+        cmd = 'radosgw-admin quota enable --quota-scope=bucket --uid=%s --cluster %s' % (uid, cluster_name)
 
         status = utils.exec_shell_cmd(cmd)
 

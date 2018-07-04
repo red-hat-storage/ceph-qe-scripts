@@ -1,0 +1,16 @@
+# upload type: non multipart
+# script: test_versioning_with_objects.py
+config:
+ user_count: 1
+ bucket_count: 1
+ objects_count: 2
+ version_count: 4
+ objects_size_range:
+  min: 5
+  max: 15
+ test_ops:
+      enable_version: true
+      suspend_version: false
+      copy_to_version: false # this is same as revert and restore object
+      delete_object_versions: true
+      upload_after_suspend: false

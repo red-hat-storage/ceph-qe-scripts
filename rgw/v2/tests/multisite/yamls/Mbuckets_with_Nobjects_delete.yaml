@@ -1,0 +1,12 @@
+# upload type: non multipart
+# script: test_Mbuckets_with_Nobjects.py
+config:
+ objects_count: 5
+ objects_size_range:
+  min: 5
+  max: 15
+ test_ops:
+      create_object: true
+      download_object: false
+      delete_bucket_object: true
+
