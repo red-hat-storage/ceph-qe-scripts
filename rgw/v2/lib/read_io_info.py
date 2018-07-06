@@ -2,9 +2,9 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import socket
-import v2.utils.log as log
+from v2.utils import log
 from v2.utils.utils import FileOps
-import v2.utils.utils as utils
+from v2.utils import utils
 import boto3
 from v2.lib.exceptions import TestExecError
 
