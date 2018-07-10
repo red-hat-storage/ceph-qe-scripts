@@ -1,4 +1,4 @@
-# TC Ids - CEPH-10351, CEPH-10347
+# TC Ids - CEPH-10346, CEPH-10347
 config:
  user_count: 1
  bucket_count: 10
