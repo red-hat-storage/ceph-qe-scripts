@@ -1,0 +1,5 @@
+# TC Ids - CEPH-10351, CEPH-10347
+config:
+ user_count: 1
+ bucket_count: 10
+ objects_count: 0
