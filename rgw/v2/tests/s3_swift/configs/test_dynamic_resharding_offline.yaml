@@ -1,9 +1,7 @@
 # test case id: CEPH-83571740
 config:
- bucket_count: 1
- objects_count: 500
+ objects_count: 10
  objects_size_range:
   min: 15
   max: 20
  sharding_type: offline
- max_shards: 32

@@ -17,60 +17,50 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import random, time
 import resuables
 import threading
+import json
 from v2.lib.s3.read_io_info import ReadIOInfo
 
 TEST_DATA_PATH = None
 
 
-def create_bucket_with_versioning(rgw_conn, user_info,  config):
+def create_bucket_with_versioning(rgw_conn, user_info,  bucket_name):
 
     # create buckets
 
-    log.info('no of buckets to create: %s' % config.bucket_count)
+    bucket = resuables.create_bucket(bucket_name, rgw_conn, user_info)
 
-    buckets = []
+    bucket_versioning = s3lib.resource_op({'obj': rgw_conn,
+                                           'resource': 'BucketVersioning',
+                                           'args': [bucket.name]})
 
-    for bc in range(config.bucket_count):
+    # checking the versioning status
 
-        bucket_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=bc)
-        bucket = resuables.create_bucket(bucket_name, rgw_conn, user_info)
+    version_status = s3lib.resource_op({'obj': bucket_versioning,
+                                        'resource': 'status',
+                                        'args': None
+                                        })
 
-        bucket_versioning = s3lib.resource_op({'obj': rgw_conn,
-                                               'resource': 'BucketVersioning',
-                                               'args': [bucket.name]})
+    if version_status is None:
+        log.info('bucket versioning still not enabled')
 
-        # checking the versioning status
+    # enabling bucket versioning
 
-        version_status = s3lib.resource_op({'obj': bucket_versioning,
-                                            'resource': 'status',
-                                            'args': None
-                                            })
+    version_enable_status = s3lib.resource_op({'obj': bucket_versioning,
+                                               'resource': 'enable',
+                                               'args': None})
 
-        if version_status is None:
-            log.info('bucket versioning still not enabled')
+    response = HttpResponseParser(version_enable_status)
 
-        # enabling bucket versioning
+    if response.status_code == 200:
+        log.info('version enabled')
 
-        version_enable_status = s3lib.resource_op({'obj': bucket_versioning,
-                                                   'resource': 'enable',
-                                                   'args': None})
+    else:
+        raise TestExecError("version enable failed")
 
-        response = HttpResponseParser(version_enable_status)
-
-        if response.status_code == 200:
-            log.info('version enabled')
-
-        else:
-            raise TestExecError("version enable failed")
-
-        buckets.append(bucket)
-
-    return buckets
+    return bucket
 
 
-def upload_objects(user_info, buckets, config):
-
-    for bucket in buckets:
+def upload_objects(user_info, bucket, config):
 
         log.info('s3 objects to create: %s' % config.objects_count)
 
@@ -95,6 +85,9 @@ def test_exec(config):
 
         log.info('starting IO')
 
+        config.max_objects_per_shard = 10
+        config.no_of_shards = 10
+
         config.user_count = 1
 
         user_info = s3lib.create_users(config.user_count)
@@ -103,28 +96,45 @@ def test_exec(config):
         auth = Auth(user_info)
         rgw_conn = auth.do_auth()
 
-        buckets = create_bucket_with_versioning(rgw_conn, user_info, config)
+        config.bucket_count = 1
 
-        upload_objects(user_info, buckets, config)
+        log.info('no of buckets to create: %s' % config.bucket_count)
+
+        bucket_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=1)
+
+        bucket = create_bucket_with_versioning(rgw_conn, user_info, bucket_name)
+
+        upload_objects(user_info, bucket, config)
 
         log.info('sharding configuration will be added now.')
 
         if config.sharding_type == 'online':
 
+            log.info('sharding type is online')
+
+            # for online,
+            # the number of shards  should be greater than   [ (no of objects)/(max objects per shard) ]
+            # example: objects = 500 ; max object per shard = 10
+            # then no of shards should be at least 50 or more
+
             time.sleep(15)
 
             log.info('making changes to ceph.conf')
 
-            ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_override_bucket_index_max_shards, config.max_shards)
+            ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_max_objs_per_shard, config.max_objects_per_shard)
 
             ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_dynamic_resharding,
                                        True)
+
+            num_shards_expected = config.objects_count / config.max_objects_per_shard
+
+            log.info('num_shards_expected: %s' % num_shards_expected)
 
             log.info('trying to restart services ')
 
             srv_restarted = rgw_service.restart()
 
-            time.sleep(10)
+            time.sleep(30)
 
             if srv_restarted is False:
                 raise TestExecError("RGW service restart failed")
@@ -133,23 +143,62 @@ def test_exec(config):
 
         if config.sharding_type == 'offline':
 
-            time.sleep(15) # waiting so that user gets created.
+            log.info('sharding type is offline')
+
+            # for offline.
+            # the number of shards will be the value set in the command.
+
+            time.sleep(15)
 
             log.info('in offline sharding')
 
-            for bucket in buckets:
+            cmd_exec = utils.exec_shell_cmd('radosgw-admin bucket reshard --bucket=%s --num-shards=%s'
+                                            %(bucket.name, config.no_of_shards))
 
-                cmd_exec = utils.exec_shell_cmd('radosgw-admin bucket reshard --bucket=%s --num-shards=%s'
-                                                %(bucket.name, config.max_shards))
+            if cmd_exec is False:
+                raise TestExecError("offline resharding command execution failed")
 
-                if cmd_exec is False:
-                    raise TestExecError("offline resharding command execution failed")
+        # upload_objects(user_info, bucket, config)
 
-        upload_objects(user_info, buckets, config)
+        log.info('s3 objects to create: %s' % config.objects_count)
 
-        # verification
+        for oc in range(config.objects_count):
+            s3_object_name = utils.gen_s3_object_name(bucket.name, config.objects_count + oc)
 
-        time.sleep(20)
+            resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
+
+        time.sleep(300)
+
+        log.info('verification starts')
+
+        op = utils.exec_shell_cmd("radosgw-admin metadata get bucket:%s" % bucket.name)
+        json_doc = json.loads(op)
+        bucket_id = json_doc['data']['bucket']['bucket_id']
+
+        op2 = utils.exec_shell_cmd("radosgw-admin metadata get bucket.instance:%s:%s" %(bucket.name, bucket_id))
+        json_doc2 = json.loads((op2))
+        num_shards_created  = json_doc2['data']['bucket_info']['num_shards']
+
+        log.info('no_of_shards_created: %s' % num_shards_created)
+        log.info('no_of_shards_expected: %s' % num_shards_expected)
+
+        if config.sharding_type == 'offline':
+
+            if num_shards_expected != num_shards_created:
+                raise TestExecError("expected number of shards not created")
+
+            log.info('Expected number of shards created')
+
+        if config.sharding_type == 'online':
+
+            log.info('for online, '
+                     'number of shards created should be greater than or equal to number of  expected shards')
+
+            if int(num_shards_created) >= int(num_shards_expected):
+                log.info('Expected number of shards created')
+
+            else:
+                raise TestExecError('Expected number of shards not created')
 
         read_io = ReadIOInfo()
         read_io.yaml_fname = 'io_info.yaml'
@@ -197,20 +246,16 @@ if __name__ == '__main__':
 
     with open(yaml_file, 'r') as f:
         doc = yaml.load(f)
-    config.bucket_count = doc['config']['bucket_count']
     config.objects_count = doc['config']['objects_count']
     config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                  'max': doc['config']['objects_size_range']['max']}
 
-    config.max_shards = doc['config']['max_shards']
-
     config.sharding_type = doc['config']['sharding_type']
 
-    log.info('bucket_count: %s\n'
-             'objects_count: %s\n'
+    log.info('objects_count: %s\n'
              'objects_size_range: %s\n'
              'sharding_type: %s\n'
-             % (config.bucket_count, config.objects_count, config.objects_size_range,
+             % (config.objects_count, config.objects_size_range,
                 config.sharding_type))
 
     test_exec(config)

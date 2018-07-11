@@ -12,6 +12,8 @@ from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import resuables
+from v2.utils.utils import HttpResponseParser
+import yaml
 
 TEST_DATA_PATH = None
 
@@ -30,7 +32,6 @@ def test_exec(config):
         # create user
 
         all_users_info = s3lib.create_users(config.user_count)
-
         for each_user in all_users_info:
 
             # authenticate
@@ -69,7 +70,25 @@ def test_exec(config):
 
                 log.info(response)
 
+                if response is not None:
 
+                    response = HttpResponseParser(response)
+
+                    if response.status_code == 200:
+                        log.info('bucket created')
+
+                    else:
+                        raise TestExecError("bucket request payer modification failed")
+
+                else:
+                    raise TestExecError("bucket request payer modification failed")
+
+                payer = bucket_request_payer.payer
+
+                log.info('bucket request payer: %s' % payer)
+
+                if payer != 'Requester':
+                    TestExecError('Request payer is not set or changed properly ')
 
         test_info.success_status('test passed')
 
@@ -109,8 +128,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     config = Config()
+    yaml_file = args.config
 
-    config.user_count = 2
-    config.bucket_count = 2
+    with open(yaml_file, 'r') as f:
+        doc = yaml.load(f)
+
+    config.user_count = doc['config']['user_count']
+    config.bucket_count = doc['config']['bucket_count']
+    config.objects_count = doc['config']['objects_count']
+
 
     test_exec(config)
