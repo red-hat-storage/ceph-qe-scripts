@@ -90,6 +90,17 @@ def test_exec(config):
                 if payer != 'Requester':
                     TestExecError('Request payer is not set or changed properly ')
 
+                log.info('s3 objects to create: %s' % config.objects_count)
+
+                if config.objects_count is not None:
+
+                    log.info('objects size range:\n%s' % config.objects_size_range)
+
+                    for oc in range(config.objects_count):
+                        s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
+
+                        resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
+
         test_info.success_status('test passed')
 
         sys.exit(0)
@@ -135,7 +146,7 @@ if __name__ == '__main__':
 
     config.user_count = doc['config']['user_count']
     config.bucket_count = doc['config']['bucket_count']
-    config.objects_count = doc['config']['objects_count']
-
+    config.objects_count = doc['config'].get('objects_count', None)
+    config.objects_size_range = doc['config'].get('objects_size_range', None)
 
     test_exec(config)
