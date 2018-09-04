@@ -135,6 +135,115 @@ def test_exec(config):
                     else:
                         raise TestExecError("bucket life cycle retrieved")
 
+                    # modify bucket lifecycle configuration, modify expiration days here for the test case.
+
+                    if config.test_ops.get('modify_lifecycle', False) is True:
+
+                        log.info('modifying lifecycle configuration')
+
+                        life_cycle_modifed = basic_lifecycle_config(prefix="key", days=15, id="rul1", status="Disabled")
+
+                        put_bucket_life_cycle = s3lib.resource_op({"obj": bucket_life_cycle,
+                                                                   "resource": "put",
+                                                                   "kwargs": dict(LifecycleConfiguration=life_cycle_modifed)})
+
+                        log.info('put bucket life cycle:\n%s' % put_bucket_life_cycle)
+
+                        if put_bucket_life_cycle is False:
+                            raise TestExecError("Resource execution failed: bucket creation faield")
+
+                        if put_bucket_life_cycle is not None:
+
+                            response = HttpResponseParser(put_bucket_life_cycle)
+
+                            if response.status_code == 200:
+                                log.info('bucket life cycle added')
+
+                            else:
+                                raise TestExecError("bucket lifecycle addition failed")
+
+                        else:
+                            raise TestExecError("bucket lifecycle addition failed")
+
+                        log.info('trying to retrieve bucket lifecycle config')
+
+                        get_bucket_life_cycle_config = s3lib.resource_op({"obj": rgw_conn2,
+                                                                          "resource": 'get_bucket_lifecycle_configuration',
+                                                                          "kwargs": dict(Bucket=bucket.name)
+                                                                          })
+                        if get_bucket_life_cycle_config is False:
+                            raise TestExecError("bucket lifecycle config retrieval failed")
+
+                        if get_bucket_life_cycle_config is not None:
+
+                            response = HttpResponseParser(get_bucket_life_cycle_config)
+
+                            modified_expiration_days = get_bucket_life_cycle_config['Rules'][0]['Expiration']['Days']
+                            log.info('modified expiration days: %s' % modified_expiration_days)
+
+                            if response.status_code == 200 and modified_expiration_days == 15:
+
+                                log.info('bucket life cycle retrieved after modifying')
+
+                            else:
+                                raise TestExecError("bucket lifecycle config retrieval failed after modifying")
+
+                        else:
+                            raise TestExecError("bucket lifecycle config retrieval failed after modifying")
+
+                    # disable bucket lifecycle configuration
+
+                    if config.test_ops.get('disable_lifecycle', False) is True:
+
+                        log.info('disabling lifecycle configuration')
+
+                        life_cycle_disabled_config = basic_lifecycle_config(prefix="key", days=20, id="rul1", status="Disabled")
+
+                        put_bucket_life_cycle = s3lib.resource_op({"obj": bucket_life_cycle,
+                                                                   "resource": "put",
+                                                                   "kwargs": dict(LifecycleConfiguration=life_cycle_disabled_config)})
+
+                        log.info('put bucket life cycle:\n%s' % put_bucket_life_cycle)
+
+                        if put_bucket_life_cycle is False:
+                            raise TestExecError("Resource execution failed: bucket creation faield")
+
+                        if put_bucket_life_cycle is not None:
+
+                            response = HttpResponseParser(put_bucket_life_cycle)
+
+                            if response.status_code == 200:
+                                log.info('bucket life cycle added')
+
+                            else:
+                                raise TestExecError("bucket lifecycle addition failed")
+
+                        else:
+                            raise TestExecError("bucket lifecycle addition failed")
+
+                        log.info('trying to retrieve bucket lifecycle config')
+
+                        get_bucket_life_cycle_config = s3lib.resource_op({"obj": rgw_conn2,
+                                                                          "resource": 'get_bucket_lifecycle_configuration',
+                                                                          "kwargs": dict(Bucket=bucket.name)
+                                                                          })
+                        if get_bucket_life_cycle_config is False:
+                            raise TestExecError("bucket lifecycle config retrieval failed")
+
+                        if get_bucket_life_cycle_config is not None:
+
+                            response = HttpResponseParser(get_bucket_life_cycle_config)
+
+                            if response.status_code == 200 and get_bucket_life_cycle_config['Rules'][0]['Status'] == 'Disabled':
+                                log.info('disabled_status: %s' % get_bucket_life_cycle_config['Rules'][0]['Status'])
+                                log.info('bucket life cycle retrieved after disabled')
+
+                            else:
+                                raise TestExecError("bucket lifecycle config retrieval failed after disabled")
+
+                        else:
+                            raise TestExecError("bucket lifecycle config retrieval failed after disabled")
+
         test_info.success_status('test passed')
 
         sys.exit(0)
