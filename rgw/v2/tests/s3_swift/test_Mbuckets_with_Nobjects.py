@@ -43,7 +43,11 @@ def test_exec(config):
             # authenticate
 
             auth = Auth(each_user)
-            rgw_conn = auth.do_auth()
+
+            if config.use_aws4 is True:
+                rgw_conn = auth.do_auth(**{'signature_version': 's3v4'})
+            else:
+                rgw_conn = auth.do_auth()
 
             # enabling sharding
 
@@ -306,22 +310,16 @@ if __name__ == '__main__':
     config = Config()
     config.shards = None
     config.max_objects = None
-    if yaml_file is None:
-        config.user_count = 2
-        config.bucket_count = 10
-        config.objects_count = 2
-        config.objects_size_range = {'min': 10, 'max': 50}
+    with open(yaml_file, 'r') as f:
+        doc = yaml.load(f)
+    config.user_count = doc['config']['user_count']
+    config.bucket_count = doc['config']['bucket_count']
+    config.objects_count = doc['config']['objects_count']
+    config.use_aws4 = doc['config'].get('use_aws4', None)
+    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
+                                 'max': doc['config']['objects_size_range']['max']}
 
-    else:
-        with open(yaml_file, 'r') as f:
-            doc = yaml.load(f)
-        config.user_count = doc['config']['user_count']
-        config.bucket_count = doc['config']['bucket_count']
-        config.objects_count = doc['config']['objects_count']
-        config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                     'max': doc['config']['objects_size_range']['max']}
-
-        config.test_ops = doc['config']['test_ops']
+    config.test_ops = doc['config']['test_ops']
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
