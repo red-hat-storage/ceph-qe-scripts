@@ -10,5 +10,5 @@ config:
  test_ops:
       create_bucket: true
       create_object: true
-
+      disable_lifecycle: true
 
