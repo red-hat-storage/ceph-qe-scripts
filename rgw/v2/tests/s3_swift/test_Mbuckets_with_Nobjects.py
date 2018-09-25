@@ -217,6 +217,14 @@ def test_exec(config):
 
                             log.info('got output from sharing verification.--------')
 
+                        # print out bucket stats and verify in logs for compressed data by
+                        # comparing size_kb_utilized and size_kb_actual
+
+                        if config.test_ops['compression']['enable'] is True:
+
+                            cmd = 'radosgw-admin bucket stats --bucket=%s' % bucket.name
+
+                            out = utils.exec_shell_cmd(cmd)
 
                         if config.test_ops['delete_bucket_object'] is True:
 
