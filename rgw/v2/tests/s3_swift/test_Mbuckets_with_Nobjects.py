@@ -94,6 +94,17 @@ def test_exec(config):
                     except ValueError, e:
                         exit(str(e))
 
+                    log.info('trying to restart rgw services ')
+
+                    srv_restarted = rgw_service.restart()
+
+                    time.sleep(10)
+
+                    if srv_restarted is False:
+                        raise TestExecError("RGW service restart failed")
+                    else:
+                        log.info('RGW service restarted')
+
             # create buckets
 
             if config.test_ops['create_bucket'] is True:
@@ -306,6 +317,15 @@ def test_exec(config):
                       '--placement-id=default-placement --compression='
 
                 out = utils.exec_shell_cmd(cmd)
+
+                srv_restarted = rgw_service.restart()
+
+                time.sleep(10)
+
+                if srv_restarted is False:
+                    raise TestExecError("RGW service restart failed")
+                else:
+                    log.info('RGW service restarted')
 
         test_info.success_status('test passed')
 
