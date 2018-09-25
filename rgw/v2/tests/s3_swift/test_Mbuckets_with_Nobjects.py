@@ -17,6 +17,7 @@ from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import time
+import json
 
 TEST_DATA_PATH = None
 
@@ -72,6 +73,26 @@ def test_exec(config):
                         raise TestExecError("RGW service restart failed")
                     else:
                         log.info('RGW service restarted')
+
+            if config.test_ops['compression']['enable'] is True:
+
+                    compression_type = config.test_ops['compression']['type']
+
+                    log.info('enabling compression')
+
+                    cmd = 'radosgw-admin zone placement modify --rgw-zone=default ' \
+                          '--placement-id=default-placement --compression=%s' % compression_type
+
+                    out = utils.exec_shell_cmd(cmd)
+
+                    try:
+                        data = json.loads(out)
+                        if data['placement_pools'][0]['val']['compression'] == compression_type:
+                            log.info('Compression enabled successfully')
+                        else:
+                            raise ValueError('failed to enable compression')
+                    except ValueError, e:
+                        exit(str(e))
 
             # create buckets
 
@@ -267,7 +288,16 @@ def test_exec(config):
                             else:
                                 raise TestExecError("bucket deletion failed")
 
+            # disable compression after test
 
+            if config.test_ops['compression']['enable'] is True:
+
+                log.info('disable compression')
+
+                cmd = 'radosgw-admin zone placement modify --rgw-zone=default ' \
+                      '--placement-id=default-placement --compression='
+
+                out = utils.exec_shell_cmd(cmd)
 
         test_info.success_status('test passed')
 
