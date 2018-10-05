@@ -14,7 +14,7 @@ class Auth(object):
         self.access_key = user_info['access_key']
         self.secret_key = user_info['secret_key']
         self.hostname = socket.gethostname()
-        self.port = int(utils.get_radosgw_port_no())
+        self.port = 8080
         self.is_secure = False
         self.user_id = user_info['user_id']
 
