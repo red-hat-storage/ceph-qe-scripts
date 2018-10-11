@@ -34,12 +34,25 @@ def test_exec(config):
             test_config.set_to_ceph_conf('global', ConfigOpts.rgw_override_bucket_index_max_shards, config.shards)
 
             log.info('test to continue after service restart, sleept time 120 seconds')
-            
-            rgw_service.restart()
-
-            time.sleep(120)
 
             no_of_shards_for_each_bucket = int(config.shards) * int(config.bucket_count)
+
+        if config.dynamic_sharding:
+
+            test_config.set_to_ceph_conf('global', ConfigOpts.rgw_max_objs_per_shard, config.max_objects_per_shard)
+
+            test_config.set_to_ceph_conf('global', ConfigOpts.rgw_dynamic_resharding,
+                                       True)
+
+            num_shards_expected = config.objects_count / config.max_objects_per_shard
+
+            log.info('num_shards_expected: %s' % num_shards_expected)
+
+            log.info('test to continue after service restart, sleept time 120 seconds')
+
+        rgw_service.restart()
+
+        time.sleep(120)
 
         all_user_details = rgw_lib.create_users(config.user_count)
 
