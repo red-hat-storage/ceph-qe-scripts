@@ -1,0 +1,9 @@
+config:
+ dynamic_sharding: true
+ max_objects_per_shard: 32
+ user_count: 1
+ bucket_count: 1
+ objects_count: 100000
+ objects_size_range:
+  min: 5
+  max: 10
