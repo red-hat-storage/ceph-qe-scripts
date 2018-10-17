@@ -9,6 +9,9 @@ class ConfigOpts(object):
     rgw_override_bucket_index_max_shards = 'rgw_override_bucket_index_max_shards'
     rgw_bucket_default_quota_max_objects = 'rgw_bucket_default_quota_max_objects'
 
+    rgw_dynamic_resharding = 'rgw_dynamic_resharding'
+    rgw_max_objs_per_shard = 'rgw_max_objs_per_shard'
+
 
 class AddToCephConf(FileOps, ConfigParse):
     def __init__(self, ceph_conf_path='/etc/ceph/ceph.conf'):
