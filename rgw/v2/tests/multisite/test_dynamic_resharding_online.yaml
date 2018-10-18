@@ -1,0 +1,7 @@
+# test case id: CEPH-83571740
+config:
+ objects_count: 10
+ objects_size_range:
+  min: 15
+  max: 20
+ sharding_type: online
