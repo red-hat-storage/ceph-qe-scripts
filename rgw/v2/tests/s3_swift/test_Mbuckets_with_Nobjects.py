@@ -1,5 +1,6 @@
 # test basic creation of buckets with objects
 import os, sys
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3lib
@@ -18,12 +19,14 @@ from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import time
 import json
+import time, hashlib
 
 TEST_DATA_PATH = None
+password = "32characterslongpassphraseneeded".encode('utf-8')
+encryption_key = hashlib.md5(password).hexdigest()
 
 
 def test_exec(config):
-
     test_info = AddTestInfo('create m buckets with n objects')
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
@@ -38,6 +41,22 @@ def test_exec(config):
         # create user
 
         all_users_info = s3lib.create_users(config.user_count)
+
+        if config.test_ops.get('encryption_algorithm', None) is not None:
+
+            log.info('encryption enabled, making ceph config changes')
+
+            ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_crypt_require_ssl,
+                                       False)
+
+            srv_restarted = rgw_service.restart()
+
+            time.sleep(30)
+
+            if srv_restarted is False:
+                raise TestExecError("RGW service restart failed")
+            else:
+                log.info('RGW service restarted')
 
         for each_user in all_users_info:
 
@@ -54,25 +73,25 @@ def test_exec(config):
 
             if config.test_ops['sharding']['enable'] is True:
 
-                    log.info('enabling sharding on buckets')
+                log.info('enabling sharding on buckets')
 
-                    max_shards = config.test_ops['sharding']['max_shards']
+                max_shards = config.test_ops['sharding']['max_shards']
 
-                    log.info('making changes to ceph.conf')
+                log.info('making changes to ceph.conf')
 
-                    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_override_bucket_index_max_shards,
-                                                 max_shards)
+                ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_override_bucket_index_max_shards,
+                                           max_shards)
 
-                    log.info('trying to restart services ')
+                log.info('trying to restart services ')
 
-                    srv_restarted =  rgw_service.restart()
+                srv_restarted = rgw_service.restart()
 
-                    time.sleep(10)
+                time.sleep(10)
 
-                    if srv_restarted is False:
-                        raise TestExecError("RGW service restart failed")
-                    else:
-                        log.info('RGW service restarted')
+                if srv_restarted is False:
+                    raise TestExecError("RGW service restart failed")
+                else:
+                    log.info('RGW service restarted')
 
             if config.test_ops['compression']['enable'] is True:
 
@@ -120,13 +139,13 @@ def test_exec(config):
                     # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
 
                     bucket = s3lib.resource_op({'obj': rgw_conn,
-                                                 'resource': 'Bucket',
-                                                 'args': [bucket_name_to_create]})
+                                                'resource': 'Bucket',
+                                                'args': [bucket_name_to_create]})
 
                     created = s3lib.resource_op({'obj': bucket,
-                                                  'resource': 'create',
-                                                  'args': None,
-                                                  'extra_info': {'access_key': each_user['access_key']}})
+                                                 'resource': 'create',
+                                                 'args': None,
+                                                 'extra_info': {'access_key': each_user['access_key']}})
 
                     if created is False:
                         raise TestExecError("Resource execution failed: bucket creation faield")
@@ -136,7 +155,7 @@ def test_exec(config):
                         response = HttpResponseParser(created)
 
                         if response.status_code == 200:
-                           log.info('bucket created')
+                            log.info('bucket created')
 
                         else:
                             raise TestExecError("bucket creation failed")
@@ -170,14 +189,32 @@ def test_exec(config):
 
                             log.info('uploading s3 object: %s' % s3_object_path)
 
-                            upload_info = dict({'access_key': each_user['access_key']}, **data_info )
+                            upload_info = dict({'access_key': each_user['access_key']}, **data_info)
 
-                            # object_uploaded_status = s3_ops.resource_op(bucket, 'upload_file', s3_object_path, s3_object_name, **upload_info)
+                            if config.test_ops.get('encryption_algorithm', None) is not None:
 
-                            object_uploaded_status = s3lib.resource_op({'obj': bucket,
-                                                                         'resource': 'upload_file',
-                                                                         'args': [s3_object_path, s3_object_name],
-                                                                         'extra_info': upload_info})
+                                log.info('encryption enabled')
+
+                                log.info('encryption algorithm: %s' % config.test_ops['encryption_algorithm'])
+
+                                object_uploaded_status = s3lib.resource_op({'obj': bucket,
+                                                                            'resource': 'put_object',
+                                                                            'kwargs': dict(Body=open(s3_object_path),
+                                                                                           Key=s3_object_name,
+                                                                                           SSECustomerAlgorithm=
+                                                                                           config.test_ops[
+                                                                                               'encryption_algorithm'],
+                                                                                           SSECustomerKey=encryption_key
+                                                                                           ),
+                                                                            'extra_info': upload_info})
+
+
+                            else:
+
+                                object_uploaded_status = s3lib.resource_op({'obj': bucket,
+                                                                            'resource': 'upload_file',
+                                                                            'args': [s3_object_path, s3_object_name],
+                                                                            'extra_info': upload_info})
 
                             if object_uploaded_status is False:
                                 raise TestExecError("Resource execution failed: object upload failed")
@@ -197,14 +234,23 @@ def test_exec(config):
 
                                 log.info('downloading to filename: %s' % s3_object_download_name)
 
-                                #object_downloaded_status = s3_ops.resource_op(bucket, 'download_file', s3_object_name,
-                                #                                              s3_object_download_path)
+                                if config.test_ops.get('encryption_algorithm', None) is not None:
 
-                                object_downloaded_status = s3lib.resource_op({'obj': bucket,
-                                                                               'resource': 'download_file',
-                                                                               'args': [s3_object_name,
-                                                                                        s3_object_download_path],
-                                                                              })
+                                    log.info('encryption download')
+
+                                    log.info('encryption algorithm: %s' % config.test_ops['encryption_algorithm'])
+
+                                    object_downloaded_status = bucket.download_file(s3_object_name, s3_object_download_path,
+                                                        ExtraArgs={'SSECustomerKey': encryption_key,
+                                                                   'SSECustomerAlgorithm': config.test_ops['encryption_algorithm'] })
+
+                                else:
+
+                                    object_downloaded_status = s3lib.resource_op({'obj': bucket,
+                                                                                  'resource': 'download_file',
+                                                                                  'args': [s3_object_name,
+                                                                                           s3_object_download_path],
+                                                                                  })
 
                                 if object_downloaded_status is False:
                                     raise TestExecError("Resource execution failed: object download failed")
@@ -215,7 +261,6 @@ def test_exec(config):
                         # verification of shards after upload
 
                         if config.test_ops['sharding']['enable'] is True:
-
                             cmd = 'radosgw-admin metadata get bucket:%s | grep bucket_id' % bucket.name
 
                             out = utils.exec_shell_cmd(cmd)
@@ -243,15 +288,15 @@ def test_exec(config):
 
                             # objects = s3_ops.resource_op(bucket, 'objects', None)
                             objects = s3lib.resource_op({'obj': bucket,
-                                                          'resource': 'objects',
-                                                          'args': None})
+                                                         'resource': 'objects',
+                                                         'args': None})
 
                             log.info('objects :%s' % objects)
 
                             # all_objects = s3_ops.resource_op(objects, 'all')
                             all_objects = s3lib.resource_op({'obj': objects,
-                                                              'resource': 'all',
-                                                              'args': None})
+                                                             'resource': 'all',
+                                                             'args': None})
 
                             log.info('all objects: %s' % all_objects)
 
@@ -263,8 +308,8 @@ def test_exec(config):
                             # objects_deleted = s3_ops.resource_op(objects, 'delete')
 
                             objects_deleted = s3lib.resource_op({'obj': objects,
-                                                                  'resource': 'delete',
-                                                                  'args': None})
+                                                                 'resource': 'delete',
+                                                                 'args': None})
 
                             log.info('objects_deleted: %s' % objects_deleted)
 
@@ -289,8 +334,8 @@ def test_exec(config):
                             # bucket_deleted_status = s3_ops.resource_op(bucket, 'delete')
 
                             bucket_deleted_status = s3lib.resource_op({'obj': bucket,
-                                                                        'resource': 'delete',
-                                                                        'args': None})
+                                                                       'resource': 'delete',
+                                                                       'args': None})
 
                             log.info('bucket_deleted_status: %s' % bucket_deleted_status)
 
@@ -331,7 +376,7 @@ def test_exec(config):
 
         sys.exit(0)
 
-    except Exception,e:
+    except Exception, e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
@@ -348,6 +393,9 @@ if __name__ == '__main__':
 
     project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
     test_data_dir = 'test_data'
+
+    ceph_conf = CephConfOp()
+    rgw_service = RGWService()
 
     TEST_DATA_PATH = (os.path.join(project_dir, test_data_dir))
 
@@ -388,7 +436,3 @@ if __name__ == '__main__':
     log.info('test_ops: %s' % config.test_ops)
 
     test_exec(config)
-
-
-
-
