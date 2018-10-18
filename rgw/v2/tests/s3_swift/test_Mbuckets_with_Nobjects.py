@@ -17,6 +17,8 @@ import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
+import time
+import json
 import time, hashlib
 
 TEST_DATA_PATH = None
@@ -90,6 +92,37 @@ def test_exec(config):
                     raise TestExecError("RGW service restart failed")
                 else:
                     log.info('RGW service restarted')
+
+            if config.test_ops['compression']['enable'] is True:
+
+                    compression_type = config.test_ops['compression']['type']
+
+                    log.info('enabling compression')
+
+                    cmd = 'radosgw-admin zone placement modify --rgw-zone=default ' \
+                          '--placement-id=default-placement --compression=%s' % compression_type
+
+                    out = utils.exec_shell_cmd(cmd)
+
+                    try:
+                        data = json.loads(out)
+                        if data['placement_pools'][0]['val']['compression'] == compression_type:
+                            log.info('Compression enabled successfully')
+                        else:
+                            raise ValueError('failed to enable compression')
+                    except ValueError, e:
+                        exit(str(e))
+
+                    log.info('trying to restart rgw services ')
+
+                    srv_restarted = rgw_service.restart()
+
+                    time.sleep(10)
+
+                    if srv_restarted is False:
+                        raise TestExecError("RGW service restart failed")
+                    else:
+                        log.info('RGW service restarted')
 
             # create buckets
 
@@ -240,6 +273,15 @@ def test_exec(config):
 
                             log.info('got output from sharing verification.--------')
 
+                        # print out bucket stats and verify in logs for compressed data by
+                        # comparing size_kb_utilized and size_kb_actual
+
+                        if config.test_ops['compression']['enable'] is True:
+
+                            cmd = 'radosgw-admin bucket stats --bucket=%s' % bucket.name
+
+                            out = utils.exec_shell_cmd(cmd)
+
                         if config.test_ops['delete_bucket_object'] is True:
 
                             log.info('listing all objects in bucket: %s' % bucket.name)
@@ -309,6 +351,26 @@ def test_exec(config):
 
                             else:
                                 raise TestExecError("bucket deletion failed")
+
+            # disable compression after test
+
+            if config.test_ops['compression']['enable'] is True:
+
+                log.info('disable compression')
+
+                cmd = 'radosgw-admin zone placement modify --rgw-zone=default ' \
+                      '--placement-id=default-placement --compression='
+
+                out = utils.exec_shell_cmd(cmd)
+
+                srv_restarted = rgw_service.restart()
+
+                time.sleep(10)
+
+                if srv_restarted is False:
+                    raise TestExecError("RGW service restart failed")
+                else:
+                    log.info('RGW service restarted')
 
         test_info.success_status('test passed')
 

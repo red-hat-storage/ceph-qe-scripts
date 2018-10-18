@@ -27,7 +27,7 @@ class Authenticate(object):
         self.access_key = access_key
         self.secret_key = secret_key
         self.hostname = socket.gethostname()
-        self.port = int(utils.get_radosgw_port_no())
+        self.port = 8080
         self.is_secure = False
         self.user_id = user_id
         self.json_file_upload = self.user_id + "." + "upload" + "." + "json"
