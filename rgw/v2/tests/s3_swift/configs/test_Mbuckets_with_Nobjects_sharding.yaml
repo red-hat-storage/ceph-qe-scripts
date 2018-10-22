@@ -15,4 +15,6 @@ config:
       sharding:
         enable: true
         max_shards: 32
-
+      compression:
+        enable: false
+        type: zlib
