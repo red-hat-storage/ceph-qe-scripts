@@ -37,7 +37,7 @@ def test_exec(config):
 
             no_of_shards_for_each_bucket = int(config.shards) * int(config.bucket_count)
 
-        if config.dynamic_sharding:
+        if config.dynamic_sharding is True:
 
             test_config.set_to_ceph_conf('global', ConfigOpts.rgw_max_objs_per_shard, config.max_objects_per_shard)
 
@@ -105,13 +105,19 @@ if __name__ == '__main__':
         config.objects_count = doc['config']['objects_count']
         config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                      'max': doc['config']['objects_size_range']['max']}
-
         for k, v in doc.iteritems():
             if 'shards' in v:
                 config.shards = doc['config']['shards']
                 print 'shard value: %s' % config.shards
             if 'max_objects' in v :
                 config.max_objects = doc['config']['max_objects']
+
+        if doc['config'].get('dynamic_sharding', None) is True:
+            config.dynamic_sharding = True
+            config.max_objects_per_shard = doc['config']['max_objects_per_shard']
+
+        else:
+            config.dynamic_sharding = False
 
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
