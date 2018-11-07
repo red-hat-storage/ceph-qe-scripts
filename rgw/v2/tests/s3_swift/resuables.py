@@ -43,7 +43,7 @@ def create_bucket(bucket_name, rgw, user_info):
     return bucket
 
 
-def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info):
+def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, append_data=False, append_msg=None):
 
     log.info('s3 object name: %s' % s3_object_name)
 
@@ -54,7 +54,11 @@ def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info):
     s3_object_size = utils.get_file_size(config.objects_size_range['min'],
                                          config.objects_size_range['max'])
 
-    data_info = manage_data.io_generator(s3_object_path, s3_object_size)
+    if append_data is True:
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size, data='append',
+                                                      **{'message': '\n%s' % append_msg})
+    else:
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size)
 
     if data_info is False:
         TestExecError("data creation failed")

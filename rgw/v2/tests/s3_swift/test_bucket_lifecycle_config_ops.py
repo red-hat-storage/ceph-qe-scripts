@@ -74,16 +74,62 @@ def test_exec(config):
                     bucket_name = utils.gen_bucket_name_from_userid(each_user['user_id'], rand_no=1)
                     bucket = resuables.create_bucket(bucket_name, rgw_conn, each_user)
 
+                    if config.test_ops['enable_versioning'] is True:
+
+                        log.info('bucket versionig test on bucket: %s' % bucket.name)
+
+                        # bucket_versioning = s3_ops.resource_op(rgw_conn, 'BucketVersioning', bucket.name)
+
+                        bucket_versioning = s3lib.resource_op({'obj': rgw_conn,
+                                                               'resource': 'BucketVersioning',
+                                                               'args': [bucket.name]})
+
+                        version_status = s3lib.resource_op({'obj': bucket_versioning,
+                                                            'resource': 'status',
+                                                            'args': None
+                                                            })
+
+                        if version_status is None:
+                            log.info('bucket versioning still not enabled')
+
+                        # enabling bucket versioning
+
+                        version_enable_status = s3lib.resource_op({'obj': bucket_versioning,
+                                                                   'resource': 'enable',
+                                                                   'args': None})
+
+                        response = HttpResponseParser(version_enable_status)
+
+                        if response.status_code == 200:
+                            log.info('version enabled')
+
+                        else:
+                            raise TestExecError("version enable failed")
+
                     if config.test_ops['create_object'] is True:
 
-                        # uploading data
-
-                        log.info('s3 objects to create: %s' % config.objects_count)
+                        # upload data
 
                         for oc in range(config.objects_count):
+
                             s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
 
-                            resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
+                            if config.test_ops['version_count'] > 0:
+
+                                for vc in range(config.test_ops['version_count']):
+
+                                    log.info('version count for %s is %s' % (s3_object_name, str(vc)))
+
+                                    log.info('modifying data: %s' % s3_object_name)
+
+                                    resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user,
+                                                            append_data=True,
+                                                            append_msg='hello object for version: %s\n' % str(vc))
+
+                            else:
+                                log.info('s3 objects to create: %s' % config.objects_count)
+
+                                resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
 
                     bucket_life_cycle = s3lib.resource_op({'obj': rgw_conn,
                                                            'resource': 'BucketLifecycleConfiguration',
@@ -134,6 +180,61 @@ def test_exec(config):
 
                     else:
                         raise TestExecError("bucket life cycle retrieved")
+
+                    if config.test_ops['create_object'] is True:
+
+                        for oc in range(config.objects_count):
+
+                            s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
+
+                            if config.test_ops['version_count'] > 0:
+
+                                if config.test_ops.get('delete_versioned_object', None) is True:
+
+                                    log.info('list all the versions of the object and delete the '
+                                             'current version of the object')
+
+                                    log.info('all versions for the object: %s\n' % s3_object_name)
+
+                                    versions = bucket.object_versions.filter(Prefix=s3_object_name)
+                                    t1 = []
+                                    for version in versions:
+                                        log.info('key_name: %s --> version_id: %s' % (
+                                        version.object_key, version.version_id))
+                                        t1.append(version.version_id)
+
+                                    s3_object = s3lib.resource_op({'obj': rgw_conn,
+                                                           'resource': 'Object',
+                                                           'args': [bucket.name, s3_object_name]})
+
+                                    #log.info('object version to delete: %s -> %s' % (versions[0].object_key,
+                                    #                                                 versions[0].version_id))
+
+                                    delete_response = s3_object.delete()
+
+                                    log.info('delete response: %s' % delete_response)
+
+                                    if delete_response['DeleteMarker'] is True:
+                                        log.info('object delete marker is set to true')
+                                    else:
+                                        raise TestExecError("'object delete marker is set to false")
+
+                                    log.info('available versions for the object after delete marker is set')
+                                    t2 = []
+                                    versions_after_delete_marker_is_set = bucket.object_versions.filter(Prefix=
+                                                                                                        s3_object_name)
+
+                                    for version in versions_after_delete_marker_is_set:
+                                        log.info('key_name: %s --> version_id: %s' % (
+                                            version.object_key, version.version_id))
+                                        t2.append(version.version_id)
+
+                                    t2.pop()
+
+                                    if t1 == t2:
+                                        log.info('versions remained intact')
+                                    else:
+                                        raise TestExecError('versions are not intact after delete marker is set')
 
                     # modify bucket lifecycle configuration, modify expiration days here for the test case.
 

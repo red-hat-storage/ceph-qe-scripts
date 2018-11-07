@@ -8,9 +8,10 @@ config:
   min: 5
   max: 15
  test_ops:
-      enable_versioning: false
-      version_count: 0
+      enable_versioning: true
+      version_count: 5
+      delete_versioned_object: true
       create_bucket: true
       create_object: true
-      modify_lifecycle: true
+
 

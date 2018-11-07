@@ -125,8 +125,6 @@ def test_exec(config):
 
                     if config.objects_count > 0:
 
-
-
                         log.info('s3 objects to create: %s' % config.objects_count)
 
                         for oc in range(config.objects_count):
@@ -257,6 +255,14 @@ def test_exec(config):
 
                                     else:
                                         raise TestExecError("version deletion failed")
+
+                                log.info('available versions for the object')
+
+                                versions = bucket.object_versions.filter(Prefix=s3_object_name)
+
+                                for version in versions:
+                                    log.info('key_name: %s --> version_id: %s' % (
+                                        version.object_key, version.version_id))
 
                     if config.test_ops['suspend_version'] is True:
 
