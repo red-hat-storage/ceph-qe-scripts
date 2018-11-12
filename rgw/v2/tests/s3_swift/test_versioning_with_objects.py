@@ -185,6 +185,35 @@ def test_exec(config):
                             for version in versions:
                                 log.info('key_name: %s --> version_id: %s' %(version.object_key, version.version_id))
 
+                            if config.test_ops.get('set_acl', None) is True:
+
+                                s3_obj_acl = s3lib.resource_op({'obj': rgw_conn,
+                                                               'resource': 'ObjectAcl',
+                                                               'args': [bucket.name, s3_object_name]})
+
+                                # setting acl to private, just need to set to any acl and
+                                # check if its set - check by response code
+
+                                acls_set_status = s3_obj_acl.put(ACL='private')
+
+                                response = HttpResponseParser(acls_set_status)
+
+                                if response.status_code == 200:
+                                    log.info('ACLs set')
+
+                                else:
+                                    raise TestExecError("Acls Set")
+
+                                # get obj details based on version id
+
+                                for version in versions:
+                                    log.info('getting info for version id: %s' % version.version_id)
+                                    obj = s3lib.resource_op({'obj': rgw_conn,
+                                                               'resource': 'Object',
+                                                               'args': [bucket.name, s3_object_name]})
+
+                                    log.info('obj get detils :%s\n' % (obj.get(VersionId=version.version_id)))
+
                             if config.test_ops['copy_to_version'] is True:
 
                                 # reverting object to one of the versions ( randomly chosen )
