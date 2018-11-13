@@ -77,3 +77,43 @@ def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, app
 
     if object_uploaded_status is None:
         log.info('object uploaded')
+
+
+def enable_versioning(bucket, rgw_conn):
+
+    log.info('bucket versionig test on bucket: %s' % bucket.name)
+
+    # bucket_versioning = s3_ops.resource_op(rgw_conn, 'BucketVersioning', bucket.name)
+
+    bucket_versioning = s3lib.resource_op({'obj': rgw_conn,
+                                           'resource': 'BucketVersioning',
+                                           'args': [bucket.name]})
+
+    # checking the versioning status
+
+    # version_status = s3_ops.resource_op(bucket_versioning, 'status')
+
+    version_status = s3lib.resource_op({'obj': bucket_versioning,
+                                        'resource': 'status',
+                                        'args': None
+                                        })
+
+    if version_status is None:
+        log.info('bucket versioning still not enabled')
+
+    # enabling bucket versioning
+
+    # version_enable_status = s3_ops.resource_op(bucket_versioning, 'enable')
+
+    version_enable_status = s3lib.resource_op({'obj': bucket_versioning,
+                                               'resource': 'enable',
+                                               'args': None})
+
+    response = HttpResponseParser(version_enable_status)
+
+    if response.status_code == 200:
+        log.info('version enabled')
+
+    else:
+        raise TestExecError("version enable failed")
+
