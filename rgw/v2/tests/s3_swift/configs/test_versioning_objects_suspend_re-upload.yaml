@@ -1,5 +1,6 @@
 # upload type: non multipart
 # script: test_versioning_with_objects.py
+# covers even for CEPH-9223
 config:
  user_count: 1
  bucket_count: 1
