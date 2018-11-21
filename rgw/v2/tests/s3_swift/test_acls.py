@@ -1,4 +1,5 @@
 # test basic creation of buckets with objects
+# incomplete file.... wip
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config

@@ -38,7 +38,6 @@ def test_exec(config):
         test_info.started_info()
 
         # preparing data
-
         user_names = ['tuffy', 'scooby', 'max']
         tenant = 'tenant'
 
@@ -52,7 +51,6 @@ def test_exec(config):
         rgw = auth.do_auth()
 
         for cc in range(config.container_count):
-
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
 
             container = swiftlib.resource_op({'obj': rgw,
@@ -63,7 +61,6 @@ def test_exec(config):
                 raise TestExecError("Resource execution failed: container creation faield")
 
             for oc in range(config.objects_count):
-
                 swift_object_name = utils.gen_s3_object_name('%s.container.%s' % (user_names[0], cc), oc)
 
                 log.info('object name: %s' % swift_object_name)
@@ -78,7 +75,6 @@ def test_exec(config):
                 data_info = manage_data.io_generator(object_path, object_size)
 
                 # upload object
-
                 if data_info is False:
                     TestExecError("data creation failed")
 
@@ -90,7 +86,6 @@ def test_exec(config):
                                    content_type='text/plain')
 
                 # download object
-
                 swift_object_download_fname = swift_object_name + ".download"
 
                 log.info('download object name: %s' % swift_object_download_fname)
@@ -105,7 +100,6 @@ def test_exec(config):
                     fp.write(swift_object_downloaded[1])
 
                 # modify and re-upload
-
                 log.info('appending new message to test_data')
 
                 message_to_append = 'adding new msg after download'
@@ -120,13 +114,11 @@ def test_exec(config):
                                    content_type='text/plain')
 
                 # delete object
-
                 log.info('deleting swift object')
 
                 rgw.delete_object(container_name, swift_object_name)
 
             # delete container
-
             log.info('deleting swift container')
 
             rgw.delete_container(container_name)
@@ -149,7 +141,6 @@ def test_exec(config):
 
 
 if __name__ == '__main__':
-
     project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
     test_data_dir = 'test_data'
 
