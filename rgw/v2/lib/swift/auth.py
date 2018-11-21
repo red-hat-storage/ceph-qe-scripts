@@ -18,7 +18,6 @@ class Auth(object):
 
     def do_auth(self):
         log.info('performing authentication usinf swift')
-
         # user = 'tenant3$tuffy3:swift'
         # key = 'm4NsRGjghOpUPX3OZZFeIYUylNjO22lMVDXATnNi' -- secret key
 
@@ -26,5 +25,4 @@ class Auth(object):
                                      key=self.secret_key,
                                      authurl='http://%s:%s/auth' % (self.hostname, self.port),
                                      )
-
         return rgw
