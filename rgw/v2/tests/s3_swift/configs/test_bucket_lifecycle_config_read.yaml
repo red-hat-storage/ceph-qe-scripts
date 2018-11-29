@@ -8,6 +8,8 @@ config:
   min: 5
   max: 15
  test_ops:
+      enable_versioning: false
+      version_count: 0
       create_bucket: true
       create_object: true
 

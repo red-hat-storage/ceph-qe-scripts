@@ -8,7 +8,6 @@ import datetime
 import json
 
 sample_lifecycle_syntax = {
-
     'Rules': [
         {
             'Expiration': {
@@ -55,14 +54,12 @@ sample_lifecycle_syntax = {
                 'DaysAfterInitiation': 123
             }
         },
-
     ]
 }
 
 # the below example lifecycle configuration will be used in our tests
 
 lifecycle_configuration_using_for_tests = {
-
     'Rules': [
         {
             'Expiration': {
@@ -76,16 +73,13 @@ lifecycle_configuration_using_for_tests = {
             },
             'Status': 'Enabled',
         },
-
     ]
 }
 
 
 def gen_lifecycle_rules(rule):
     # not using now, but may be used in the later stages
-
     gen_rule = dict(
-
         Expiration=rule.get("Expiration", None),
         ID=rule.get("Id", None),
         Prefix=rule.get("Prefix", None),
@@ -95,34 +89,25 @@ def gen_lifecycle_rules(rule):
         NoncurrentVersionTransitions=rule.get("NoncurrentVersionTransitions", None),
         NoncurrentVersionExpiration=rule.get("NoncurrentVersionExpiration", None),
         AbortIncompleteMultipartUpload=rule.get("AbortIncompleteMultipartUpload", None)
-
     )
-
     log.info('generated rule:\n%s' % gen_rule)
-
     cleaned_gen_rule = dict((k, v) for k, v in gen_rule.iteritems() if v is not None)
-
     log.info('cleaned rule:\n%s' % cleaned_gen_rule)
-
     log.info('generated rule:\n%s' % rule)
-
     return rule
 
 
 def gen_lifecycle_configuration(rules):
     """
-
     :param rules: list
     :return: lifecycle configuration in json format
     """
 
     lifecycle_config = {'Rules': rules}
-
     # lifecycle_config = json.dumps(lifecycle_config)
-
     log.info('generated rules:\n%s' % rules)
-
     return lifecycle_config
+
 
 gen_filter = lambda: {'Filter': {}}
 gen_prefix = lambda prefix: {'Prefix': prefix}
@@ -134,6 +119,8 @@ gen_expiration_days = lambda days: {"Days": days}
 gen_expired_object_deleteMarker = lambda bool: {"ExpiredObjectDeleteMarker": bool}
 
 """
+
+# keep this code for now
 
 def basic_rule(prefix,days,id,status="Enabled"):
 
