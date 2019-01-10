@@ -15,6 +15,7 @@ def io_generator(fname, size, type='txt', op='create', **kwargs):
     # fname should include path, ex: /some/path/filename
     try:
         if op == 'create':
+            log.info('in create')
             if type == 'txt':
                 fcreate = 'base64 /dev/urandom | head -c %sM > %s' % (size, fname)
                 created = utils.exec_shell_cmd(fcreate)
@@ -24,7 +25,9 @@ def io_generator(fname, size, type='txt', op='create', **kwargs):
                     raise RGWIOGenException, "file %s creation error" % fname
             return finfo
         if op == 'append':
+            log.info('in modify or append')
             message = kwargs['message']
+            log.info('message to append: %s' % message)
             fappend = open(fname, 'a+')
             fappend.write(message)
             fappend.close()
