@@ -103,7 +103,7 @@ def test_exec(config):
                                 log.info('version count for %s is %s' % (s3_object_name, str(vc)))
                                 log.info('modifying data: %s' % s3_object_name)
                                 modified_data_info = manage_data.io_generator(s3_object_path, s3_object_size,
-                                                                              data='append',
+                                                                              op='append',
                                                                               **{'message': '\nhello for version: %s\n'
                                                                                             % str(vc)})
                                 if modified_data_info is False:
@@ -119,6 +119,22 @@ def test_exec(config):
                                     raise TestExecError("Resource execution failed: object upload failed")
                                 if object_uploaded_status is None:
                                     log.info('object uploaded')
+                                s3_object_download_path = os.path.join(TEST_DATA_PATH, s3_object_name + ".download")
+                                object_downloaded_status = s3lib.resource_op({'obj': bucket,
+                                                                              'resource': 'download_file',
+                                                                              'args': [s3_object_name,
+                                                                                       s3_object_download_path],
+                                                                              })
+                                if object_downloaded_status is False:
+                                    raise TestExecError("Resource execution failed: object download failed")
+                                if object_downloaded_status is None:
+                                    log.info('object downloaded')
+                                # checking md5 of the downloaded file
+                                s3_object_downloaded_md5 = utils.get_md5(s3_object_download_path)
+                                log.info('downloaded_md5: %s' % s3_object_downloaded_md5)
+                                log.info('uploaded_md5: %s' % modified_data_info['md5'])
+                                tail_op = utils.exec_shell_cmd('tail -l %s' % s3_object_download_path)
+
                             log.info('all versions for the object: %s\n' % s3_object_name)
                             versions = bucket.object_versions.filter(Prefix=s3_object_name)
                             for version in versions:
@@ -134,7 +150,7 @@ def test_exec(config):
                                 if response.status_code == 200:
                                     log.info('ACLs set')
                                 else:
-                                    raise TestExecError("Acls Set")
+                                    raise TestExecError("Acls not Set")
                                 # get obj details based on version id
                                 for version in versions:
                                     log.info('getting info for version id: %s' % version.version_id)
