@@ -3,6 +3,8 @@ import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import v2.utils.log as log
 from v2.utils.utils import FileOps
+# import log
+# from utils import FileOps
 
 IO_INFO_FNAME = 'io_info.yaml'
 
@@ -21,19 +23,26 @@ class BasicIOInfoStructure(object):
                                     'secret_key': args['secret_key'],
                                     'bucket': list()
                                     }
-        self.bucket = lambda **args: {'name': args['name'], 'properties': list(), 'keys': list()}
+        self.bucket = lambda **args: {'name': args['name'], 'properties': list(), 'keys': list(),
+                                      'curr_versioning_status': 'disabled'}
         self.key = lambda **args: {'name': args['name'],
                                    'size': args['size'],
                                    'md5_local': args['md5_local'],
                                    'upload_type': args['upload_type'],
-                                   'properties': list()
+                                   'properties': list(),
+                                   'versioning_info': list()
                                    }
+        self.version_info = lambda **args: {'version_id': args['version_id'],
+                                            'md5_local': args['md5'],
+                                            'count_no': args['count_no'],
+                                            'size': args['size']}
 
 
 class ExtraIOInfoStructure(object):
     def __init__(self):
         self.op_code = lambda op_code: {'op_code': op_code}
         self.version_count = lambda version_count: {'version_count': version_count}
+        self.curr_versioning_status = lambda curr_versioning_status: {'curr_versioning_status': curr_versioning_status}
 
 
 class TenantInfo(object):
@@ -81,6 +90,21 @@ class BucketIoInfo(AddIOInfo):
                 indx = i
                 break
         yaml_data['users'][indx]['bucket'].append(bucket_info)
+        self.file_op.add_data(yaml_data)
+
+    def add_versioning_status(self, access_key, bucket_name, versioning_status):
+        yaml_data = self.file_op.get_data()
+        access_key_indx = None
+        bucket_indx = None
+        for i, k in enumerate(yaml_data['users']):
+            if k['access_key'] == access_key:
+                access_key_indx = i
+                break
+        for i, k in enumerate(yaml_data['users'][access_key_indx]['bucket']):
+            if k['name'] == bucket_name:
+                bucket_indx = i
+                break
+        yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['curr_versioning_status'] = versioning_status
         self.file_op.add_data(yaml_data)
 
     def add_properties(self, access_key, bucket_name, properties):
@@ -131,11 +155,61 @@ class KeyIoInfo(AddIOInfo):
             if k['name'] == bucket_name:
                 bucket_indx = i
                 break
-        for i, k in enumerate(yaml_data['users'][access_key_indx]['bucket'][bucket_indx]):
+        for i, k in enumerate(yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys']):
             if k['name'] == key_name:
                 key_indx = i
                 break
-        yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys'][key_indx].append(properties)
+        yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys'][key_indx]['properties'].append(properties)
+        self.file_op.add_data(yaml_data)
+
+    def add_versioning_info(self, access_key, bucket_name, key_name, versioning_info):
+        yaml_data = self.file_op.get_data()
+        access_key_indx = None
+        bucket_indx = None
+        key_indx = None
+        for i, k in enumerate(yaml_data['users']):
+            if k['access_key'] == access_key:
+                access_key_indx = i
+                break
+        for i, k in enumerate(yaml_data['users'][access_key_indx]['bucket']):
+            if k['name'] == bucket_name:
+                bucket_indx = i
+                break
+        for i, k in enumerate(yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys']):
+            if k['name'] == key_name:
+                key_indx = i
+                break
+        yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys'][key_indx]['versioning_info'].append(
+                                                                                                    versioning_info)
+        self.file_op.add_data(yaml_data)
+
+    def delete_version_info(self,access_key, bucket_name, key_name, version_id):
+        yaml_data = self.file_op.get_data()
+        access_key_indx = None
+        bucket_indx = None
+        key_indx = None
+        version_info_indx = None
+        for i, k in enumerate(yaml_data['users']):
+            if k['access_key'] == access_key:
+                access_key_indx = i
+                break
+        for i, k in enumerate(yaml_data['users'][access_key_indx]['bucket']):
+            if k['name'] == bucket_name:
+                bucket_indx = i
+                break
+        for i, k in enumerate(yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys']):
+            if k['name'] == key_name:
+                key_indx = i
+                break
+        # print 'versioing info'
+        # print yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys'][key_indx]['versioning_info']
+        for i,k in enumerate(yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys'][key_indx]
+                                                                                            ['versioning_info']):
+            if k['version_id'] == version_id:
+                version_info_indx = i
+                break
+        yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys'][key_indx]['versioning_info'].pop(
+                                                                                                    version_info_indx)
         self.file_op.add_data(yaml_data)
 
 
@@ -162,20 +236,28 @@ def logioinfo(func):
                 write_bucket_info.add_bucket_info(access_key, bucket_info)
             if resource_name == 'upload_file':
                 access_key = extra_info['access_key']
-                log.info('adding io info of upload objects')
-                key_upload_info = gen_basic_io_info_structure.key(
-                    **{'name': extra_info['name'], 'size': extra_info['size'],
-                       'md5_local': extra_info['md5'],
-                       'upload_type': 'normal'})
-                write_key_info.add_keys_info(access_key, obj.name, key_upload_info)
+                if extra_info.get('versioning_status') == 'disabled' or extra_info.get('versioning_status') == 'suspended' :
+                    log.info('adding io info of upload objects')
+                    key_upload_info = gen_basic_io_info_structure.key(
+                        **{'name': extra_info['name'], 'size': extra_info['size'],
+                           'md5_local': extra_info['md5'],
+                           'upload_type': 'normal'})
+                    write_key_info.add_keys_info(access_key, obj.name, key_upload_info)
+                if extra_info.get('versioning_status') == 'enabled' and extra_info.get('version_count_no') == 0:
+                    log.info('adding io info of upload objects, version enabled, so only key name will be added')
+                    key_upload_info = gen_basic_io_info_structure.key(
+                        **{'name': extra_info['name'], 'size': None,
+                           'md5_local': None,
+                           'upload_type': 'normal'})
+                    write_key_info.add_keys_info(access_key, obj.name, key_upload_info)
         print 'writing log for %s' % resource_name
         return ret_val
 
     return write
 
 
-"""
 
+"""
 if __name__ == '__main__':
     # test data
 
@@ -194,15 +276,26 @@ if __name__ == '__main__':
                   'secret_key': '87324skfs',
                   }
 
-    key_info1 = {'name': 'k1', 'size': 374, 'md5_on_s3': 'sfsf734', 'upload_type': 'normal', 'test_op_code': 'create'}
-    key_info2 = {'name': 'k2', 'size': 242, 'md5_on_s3': 'sgg345', 'upload_type': 'normal', 'test_op_code': 'create'}
-    key_info3 = {'name': 'k3', 'size': 3563, 'md5_on_s3': 'sfy4hfd', 'upload_type': 'normal', 'test_op_code': 'create'}
+    key_info1 = {'name': 'k1', 'size': 374, 'md5_local': 'sfsf734', 'upload_type': 'normal', 'test_op_code': 'create'}
+    key_info2 = {'name': 'k2', 'size': 242, 'md5_local': 'sgg345', 'upload_type': 'normal', 'test_op_code': 'create'}
+    key_info3 = {'name': 'k3', 'size': 3563, 'md5_local': 'sfy4hfd', 'upload_type': 'normal', 'test_op_code': 'create'}
 
-    key_info4 = {'key_name': 'k4', 'size': 2342, 'md5_on_s3': 'sfsf3534', 'upload_type': 'normal',
-                 'test_op_code': 'create'}
+    key_info4 = {'key_name': 'k4', 'size': 2342, 'md5_local': 'sfsf3534', 'upload_type': 'normal',
+                 'test_op_code': 'create', }
+    
+    key1_version_info1 = {'version_id': 'v1',
+                          'md5': 'md51'
+                          'size' 'size1'}
 
-    from v2.lib.s3.gen_io_info_structure import BasicIOInfoStructure, ExtraIOInfoStructure
+    key1_version_info2 = {'version_id': 'v2',
+                          'md5': 'md52'
+                          'size' 'size2'}
 
+    key1_version_info3 = {'version_id': 'v3',
+                          'md5': 'md53'
+                          'size' 'size3'}
+
+    # import BasicIOInfoStructure, ExtraIOInfoStructure
 
     basic_io_struct = BasicIOInfoStructure()
     extened_io_struct = ExtraIOInfoStructure()
@@ -220,7 +313,8 @@ if __name__ == '__main__':
     u1 = basic_io_struct.user(**user_data1)
     b1 = basic_io_struct.bucket(**{'name': 'b3', 'test_op_code': 'create'})
 
-    # b1_extened_info = dict(b1, **extened_io_struct.version_count('5'))
+    # b1 = dict(b1, **extened_io_struct.version_count('5'))
+    # b1 = dict(b1, **extened_io_struct.curr_versioning_status('disabled'))
 
     k1 = basic_io_struct.key(**key_info1)
 
@@ -229,8 +323,12 @@ if __name__ == '__main__':
     write_user_info.add_user_info(u1)
     write_bucket_io_info.add_bucket_info(access_key='235sff34', bucket_info=b1)
     write_key_io_info.add_keys_info(access_key='235sff34', bucket_name=b1['name'], key_info=k1)
+    write_key_io_info.add_versioning_info(access_key='235sff34', bucket_name=b1['name'], key_name=k1['name'],
+                                          versioning_info=key1_version_info1)
+    write_key_io_info.add_versioning_info(access_key='235sff34', bucket_name=b1['name'], key_name=k1['name'],
+                                          versioning_info=key1_version_info2)
 
-    #io_info.add_keys_info(access_key='235sff34', bucket_name='b3', **key_info3)
-    #io_info.add_keys_info(access_key='235sff34', bucket_name='b3', **key_info4)
-    
+    # io_info.add_keys_info(access_key='235sff34', bucket_name='b3', **key_info3)
+    # io_info.add_keys_info(access_key='235sff34', bucket_name='b3', **key_info4)
 """
+
