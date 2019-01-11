@@ -1,4 +1,4 @@
-# test basic creation of buckets with objects
+# test of version copy objects to different buckets
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
