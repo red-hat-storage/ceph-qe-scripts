@@ -33,7 +33,7 @@ class BasicIOInfoStructure(object):
                                    'versioning_info': list()
                                    }
         self.version_info = lambda **args: {'version_id': args['version_id'],
-                                            'md5_local': args['md5'],
+                                            'md5_local': args['md5_local'],
                                             'count_no': args['count_no'],
                                             'size': args['size']}
 
