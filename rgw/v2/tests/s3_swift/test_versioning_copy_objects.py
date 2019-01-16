@@ -14,7 +14,7 @@ import yaml
 import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
-from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
+from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure,  BucketIoInfo, KeyIoInfo
 import random
 import resuables
 
@@ -26,6 +26,8 @@ def test_exec(config):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    write_bucket_io_info = BucketIoInfo()
+    write_key_io_info = KeyIoInfo()
 
     try:
         test_info.started_info()
@@ -44,7 +46,7 @@ def test_exec(config):
         b1 = resuables.create_bucket(b1_name, rgw_conn, s3_user)
         b2 = resuables.create_bucket(b2_name, rgw_conn, s3_user)
         # enable versioning on b1
-        resuables.enable_versioning(b1, rgw_conn)
+        resuables.enable_versioning(b1, rgw_conn, s3_user, write_bucket_io_info)
         # upload object to version enabled bucket b1
         for vc in range(version_count):
             resuables.upload_object(b1_k1_name, b1, TEST_DATA_PATH, config, s3_user, append_data=True,
