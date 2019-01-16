@@ -112,6 +112,7 @@ def test_exec(config):
                             original_data_info = manage_data.io_generator(s3_object_path, s3_object_size)
                             if original_data_info is False:
                                 TestExecError("data creation failed")
+                            created_versions_count = 0
                             for vc in range(config.version_count):
                                 log.info('version count for %s is %s' % (s3_object_name, str(vc)))
                                 log.info('modifying data: %s' % s3_object_name)
@@ -144,6 +145,25 @@ def test_exec(config):
                                     log.info('key_version_info: %s' % key_version_info)
                                     write_key_io_info.add_versioning_info(each_user['access_key'], bucket.name,
                                                                           s3_object_path, key_version_info)
+                                    created_versions_count += 1
+                                    log.info('created_versions_count: %s' % created_versions_count)
+                                    log.info('adding metadata')
+                                    metadata1 = {"m_data1": "this is the meta1 for this obj"}
+                                    s3_obj.metadata.update(metadata1)
+                                    metadata2 = {"m_data2": "this is the meta2 for this obj"}
+                                    s3_obj.metadata.update(metadata2)
+                                    log.info('metadata for this object: %s' % s3_obj.metadata)
+                                    log.info('metadata count for object: %s' % (len(s3_obj.metadata)))
+                                    if not s3_obj.metadata:
+                                        raise TestExecError('metadata not created even adding metadata')
+                                    versions = bucket.object_versions.filter(Prefix=s3_object_name)
+                                    created_versions_count_from_s3 = len([v.version_id for v in versions])
+                                    log.info('created versions count on s3: %s' % created_versions_count_from_s3)
+                                    if created_versions_count is created_versions_count_from_s3:
+                                        log.info('no new versions are created when added metdata')
+                                    else:
+                                        raise TestExecError("version count missmatch, "
+                                                            "possible creation of version on adding metadata")
                                 s3_object_download_path = os.path.join(TEST_DATA_PATH, s3_object_name + ".download")
                                 object_downloaded_status = s3lib.resource_op({'obj': bucket,
                                                                               'resource': 'download_file',
@@ -158,8 +178,7 @@ def test_exec(config):
                                 s3_object_downloaded_md5 = utils.get_md5(s3_object_download_path)
                                 log.info('downloaded_md5: %s' % s3_object_downloaded_md5)
                                 log.info('uploaded_md5: %s' % modified_data_info['md5'])
-                                tail_op = utils.exec_shell_cmd('tail -l %s' % s3_object_download_path)
-
+                                # tail_op = utils.exec_shell_cmd('tail -l %s' % s3_object_download_path)
                             log.info('all versions for the object: %s\n' % s3_object_name)
                             versions = bucket.object_versions.filter(Prefix=s3_object_name)
                             for version in versions:
