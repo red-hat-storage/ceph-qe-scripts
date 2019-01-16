@@ -36,6 +36,9 @@ def test_exec(config):
         test_info.started_info()
         # create user
         all_users_info = s3lib.create_users(config.user_count)
+        extra_user = s3lib.create_users(1)[0]
+        extra_user_auth = Auth(extra_user)
+        extra_user_conn = extra_user_auth.do_auth()
         for each_user in all_users_info:
             # authenticate
             auth = Auth(each_user)
@@ -229,6 +232,32 @@ def test_exec(config):
                                 for version in versions:
                                     log.info('key_name: %s --> version_id: %s' % (
                                         version.object_key, version.version_id))
+                            if config.test_ops.get('delete_from_extra_user') is True:
+                                log.info('trying to delete objects from extra user')
+                                s3_obj = s3lib.resource_op({'obj': extra_user_conn,
+                                                            'resource': 'Object',
+                                                            'args': [bucket.name, s3_object_name]})
+                                log.info('deleting versions for s3 obj: %s' % s3_object_name)
+                                for version in versions:
+                                    log.info('trying to delete obj version: %s' % version.version_id)
+                                    del_obj_version = s3lib.resource_op({'obj': s3_obj,
+                                                                         'resource': 'delete',
+                                                                         'kwargs': dict(
+                                                                             VersionId=version.version_id)})
+                                    log.info('response:\n%s' % del_obj_version)
+                                    if del_obj_version is not False:
+                                        response = HttpResponseParser(del_obj_version)
+                                        if response.status_code == 204:
+                                            log.info('version deleted ')
+                                            write_key_io_info.delete_version_info(each_user['access_key'],
+                                                                                  bucket.name,
+                                                                                  s3_object_path,
+                                                                                  version.version_id)
+                                            raise TestExecError("version and deleted, this should not happen")
+                                        else:
+                                            log.info('version did not delete, expected behaviour')
+                                    else:
+                                        log.info('version did not delete, expected behaviour')
                     if config.test_ops['suspend_version'] is True:
                         log.info('suspending versioning')
                         # suspend_version_status = s3_ops.resource_op(bucket_versioning, 'suspend')
@@ -260,6 +289,26 @@ def test_exec(config):
                             for version in versions:
                                 log.info(
                                     'key_name: %s --> version_id: %s' % (version.object_key, version.version_id))
+                    if config.test_ops.get('suspend_from_extra_user') is True:
+                        log.info('suspending versioning from extra user')
+                        # suspend_version_status = s3_ops.resource_op(bucket_versioning, 'suspend')
+
+                        bucket_versioning = s3lib.resource_op({'obj': extra_user_conn,
+                                                               'resource': 'BucketVersioning',
+                                                               'args': [bucket.name]})
+
+                        suspend_version_status = s3lib.resource_op({'obj': bucket_versioning,
+                                                                    'resource': 'suspend',
+                                                                    'args': None})
+                        if suspend_version_status is not False:
+                            response = HttpResponseParser(suspend_version_status)
+                            if response.status_code == 200:
+                                log.info('versioning suspended')
+                                write_bucket_io_info.add_versioning_status(each_user['access_key'], bucket.name,
+                                                                           VERSIONING_STATUS['SUSPENDED'])
+                                raise TestExecError('version suspended, this should not happen')
+                        else:
+                            log.info('versioning not suspended, expected behaviour')
                 if config.test_ops['upload_after_suspend'] is True:
                     log.info('trying to upload after suspending versioning on bucket')
                     for s3_object_name in s3_object_names:
