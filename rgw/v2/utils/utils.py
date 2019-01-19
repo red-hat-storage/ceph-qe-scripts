@@ -69,17 +69,12 @@ def create_file(fname, size):
     return fname_with_path
 
 
-def split_file(fname, size_to_split=5):
+def split_file(fname, size_to_split=5, splitlocation=""):
 
-    try:
+    # size_to_split should be in MBs
 
-        split_cmd = "split" + " " + '-b' + str(size_to_split) + "m " + fname
-        subprocess.check_output(split_cmd, shell=True, stderr=subprocess.STDOUT)
-
-    except subprocess.CalledProcessError as e:
-        error = e.output + str(e.returncode)
-        log.error(error)
-        return False
+    split_cmd = "split" + " " + '-b' + str(size_to_split) + "m " + fname + " " + splitlocation
+    exec_shell_cmd(split_cmd)
 
 
 class FileOps(object):
@@ -155,6 +150,7 @@ class ConfigParse(object):
         except ConfigParser.DuplicateSectionError, e :
             log.info('section already exists: %s' % e)
             return self.cfg
+
 
 def make_copy_of_file(f1, f2):
 
