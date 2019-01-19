@@ -126,11 +126,14 @@ def test_exec(config):
                                 upload_info = dict({'access_key': each_user['access_key'],
                                                     'versioning_status': VERSIONING_STATUS['ENABLED'],
                                                     'version_count_no': vc}, **modified_data_info)
-                                object_uploaded_status = s3lib.resource_op({'obj': bucket,
+                                s3_obj = s3lib.resource_op({'obj': bucket,
+                                                            'resource': 'Object',
+                                                            'args': [s3_object_name],
+                                                            'extra_info': upload_info, })
+                                object_uploaded_status = s3lib.resource_op({'obj': s3_obj,
                                                                             'resource': 'upload_file',
-                                                                            'args': [modified_data_info['name'],
-                                                                                     s3_object_name],
-                                                                            'extra_info': upload_info,})
+                                                                            'args': [modified_data_info['name']],
+                                                                            'extra_info': upload_info})
                                 if object_uploaded_status is False:
                                     raise TestExecError("Resource execution failed: object upload failed")
                                 if object_uploaded_status is None:
@@ -345,11 +348,15 @@ def test_exec(config):
                         log.info('uploading s3 object: %s' % s3_object_path)
                         upload_info = dict({'access_key': each_user['access_key'],
                                            'versioning_status': 'suspended'},**non_version_data_info)
-                        object_uploaded_status = s3lib.resource_op({'obj': bucket,
+                        s3_obj = s3lib.resource_op({'obj': bucket,
+                                                    'resource': 'Object',
+                                                    'args': [s3_object_name],
+                                                    'extra_info': upload_info})
+                        object_uploaded_status = s3lib.resource_op({'obj': s3_obj,
                                                                     'resource': 'upload_file',
-                                                                    'args': [non_version_data_info['name'],
-                                                                             s3_object_name],
+                                                                    'args': [non_version_data_info['name']],
                                                                     'extra_info': upload_info})
+
                         if object_uploaded_status is False:
                             raise TestExecError("Resource execution failed: object upload failed")
                         if object_uploaded_status is None:
