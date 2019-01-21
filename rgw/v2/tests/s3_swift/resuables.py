@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, glob
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import v2.lib.resource_op as s3lib
@@ -7,7 +7,12 @@ import v2.utils.utils as utils
 from v2.utils.utils import HttpResponseParser
 from v2.lib.exceptions import TestExecError
 import v2.lib.manage_data as manage_data
+from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, BucketIoInfo, KeyIoInfo
 
+io_info_initialize = IOInfoInitialize()
+basic_io_structure = BasicIOInfoStructure()
+write_bucket_io_info = BucketIoInfo()
+write_key_io_info = KeyIoInfo()
 
 def create_bucket(bucket_name, rgw, user_info):
     log.info('creating bucket with name: %s' % bucket_name)
@@ -39,7 +44,7 @@ def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, app
     s3_object_size = utils.get_file_size(config.objects_size_range['min'],
                                          config.objects_size_range['max'])
     if append_data is True:
-        data_info = manage_data.io_generator(s3_object_path, s3_object_size, data='append',
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size, op='append',
                                              **{'message': '\n%s' % append_msg})
     else:
         data_info = manage_data.io_generator(s3_object_path, s3_object_size)
@@ -47,14 +52,83 @@ def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, app
         TestExecError("data creation failed")
     log.info('uploading s3 object: %s' % s3_object_path)
     upload_info = dict({'access_key': user_info['access_key']}, **data_info)
-    object_uploaded_status = s3lib.resource_op({'obj': bucket,
+    s3_obj = s3lib.resource_op({'obj': bucket,
+                                'resource': 'Object',
+                                'args': [s3_object_name],
+                                })
+    object_uploaded_status = s3lib.resource_op({'obj': s3_obj,
                                                 'resource': 'upload_file',
-                                                'args': [s3_object_path, s3_object_name],
+                                                'args': [s3_object_path],
                                                 'extra_info': upload_info})
     if object_uploaded_status is False:
         raise TestExecError("Resource execution failed: object upload failed")
     if object_uploaded_status is None:
         log.info('object uploaded')
+
+
+def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, append_data=False,
+                            append_msg=None):
+    log.info('s3 object name: %s' % s3_object_name)
+    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    log.info('s3 object path: %s' % s3_object_path)
+    s3_object_size = utils.get_file_size(config.objects_size_range['min'],
+                                         config.objects_size_range['max'])
+    split_size = config.split_size if hasattr(config, 'split_size') else 5
+    log.info('split size: %s' % split_size)
+    if append_data is True:
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size, op='append',
+                                             **{'message': '\n%s' % append_msg})
+    else:
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size)
+    if data_info is False:
+        TestExecError("data creation failed")
+    mp_dir = os.path.join(TEST_DATA_PATH, s3_object_name + '.mp.parts')
+    log.info('mp part dir: %s' % mp_dir)
+    log.info('making multipart object part dir')
+    mkdir = utils.exec_shell_cmd('sudo mkdir %s' % mp_dir)
+    if mkdir is False:
+        raise TestExecError('mkdir failed creating mp_dir_name')
+    utils.split_file(s3_object_path, split_size, mp_dir+"/")
+    parts_list = sorted(glob.glob(mp_dir + '/' + '*'))
+    log.info('parts_list: %s' % parts_list)
+    log.info('uploading s3 object: %s' % s3_object_path)
+    upload_info = dict({'access_key': user_info['access_key'], 'upload_type': 'multipart'}, **data_info)
+    s3_obj = s3lib.resource_op({'obj': bucket,
+                                'resource': 'Object',
+                                'args': [s3_object_name],
+                                })
+    log.info('initiating multipart upload')
+    mpu = s3lib.resource_op({'obj': s3_obj,
+                             'resource': 'initiate_multipart_upload',
+                             'args': None,
+                             'extra_info': upload_info})
+    part_number = 1
+    parts_info = {'Parts': []}
+    log.info('no of parts: %s' % len(parts_list))
+    for each_part in parts_list:
+        log.info('trying to upload part: %s' % each_part)
+        part = mpu.Part(part_number)
+        # part_upload_response = part.upload(Body=open(each_part))
+        part_upload_response = s3lib.resource_op({'obj': part,
+                                                  'resource': 'upload',
+                                                  'kwargs': dict(Body=open(each_part))})
+        if part_upload_response is not False:
+            response = HttpResponseParser(part_upload_response)
+            if response.status_code == 200:
+                log.info('part uploaded')
+            else:
+                raise TestExecError("part uploading failed")
+        part_info = {'PartNumber': part_number, 'ETag': part_upload_response['ETag']}
+        parts_info['Parts'].append(part_info)
+        if each_part != parts_list[-1]:
+            # increase the part number only if the current part is not the last part
+            part_number += 1
+        log.info('curr part_number: %s' % part_number)
+    # log.info('parts_info so far: %s'% parts_info)
+    if len(parts_list) == part_number:
+        log.info('all parts upload completed')
+        mpu.complete(MultipartUpload=parts_info)
+        log.info('multipart upload complete for key: %s' % s3_object_name)
 
 
 def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):

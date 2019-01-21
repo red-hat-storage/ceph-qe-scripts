@@ -227,29 +227,40 @@ def logioinfo(func):
         obj = exec_info['obj']
         resource_name = exec_info['resource']
         extra_info = exec_info.get('extra_info', None)
-        print 'obj_name :%s' % obj
+        log.info('obj_name :%s' % obj)
+        log.info('resource_name: %s' % resource_name)
         if 's3.Bucket' == type(obj).__name__:
-            if resource_name == 'create':
+            log.info('in s3.Bucket logging')
+            resource_names = ['create']
+            if resource_name in resource_names:
                 access_key = extra_info['access_key']
                 log.info('adding io info of create bucket')
                 bucket_info = gen_basic_io_info_structure.bucket(**{'name': obj.name})
                 write_bucket_info.add_bucket_info(access_key, bucket_info)
-            if resource_name == 'upload_file':
+        if 's3.Object' == type(obj).__name__:
+            log.info('in s3.Object logging')
+            resource_names = ['upload_file', 'initiate_multipart_upload']
+            if resource_name in resource_names:
+                log.info('writing log for upload_type: %s' % extra_info.get('upload_type','normal'))
                 access_key = extra_info['access_key']
-                if extra_info.get('versioning_status') == 'disabled' or extra_info.get('versioning_status') == 'suspended' :
+                # setting default versioning status to disabled
+                extra_info['versioning_status'] = extra_info.get('versioning_status', 'disabled')
+                log.info('versioning_status: %s' % extra_info['versioning_status'])
+                if extra_info.get('versioning_status') == 'disabled' or \
+                        extra_info.get('versioning_status') == 'suspended':
                     log.info('adding io info of upload objects')
                     key_upload_info = gen_basic_io_info_structure.key(
                         **{'name': extra_info['name'], 'size': extra_info['size'],
                            'md5_local': extra_info['md5'],
-                           'upload_type': 'normal'})
-                    write_key_info.add_keys_info(access_key, obj.name, key_upload_info)
+                           'upload_type': extra_info.get('upload_type','normal')})
+                    write_key_info.add_keys_info(access_key, obj.bucket_name, key_upload_info)
                 if extra_info.get('versioning_status') == 'enabled' and extra_info.get('version_count_no') == 0:
                     log.info('adding io info of upload objects, version enabled, so only key name will be added')
                     key_upload_info = gen_basic_io_info_structure.key(
                         **{'name': extra_info['name'], 'size': None,
                            'md5_local': None,
-                           'upload_type': 'normal'})
-                    write_key_info.add_keys_info(access_key, obj.name, key_upload_info)
+                           'upload_type': extra_info.get('upload_type','normal')})
+                    write_key_info.add_keys_info(access_key, obj.bucket_name, key_upload_info)
         print 'writing log for %s' % resource_name
         return ret_val
 

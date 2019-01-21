@@ -8,6 +8,7 @@ from v2.lib.s3.auth import Auth
 import v2.utils.log as log
 import v2.utils.utils as utils
 from v2.utils.utils import RGWService
+import resuables
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.utils.utils import HttpResponseParser
 import traceback
@@ -96,24 +97,7 @@ def test_exec(config):
                 for bc in range(config.bucket_count):
                     bucket_name_to_create = utils.gen_bucket_name_from_userid(each_user['user_id'], rand_no=bc)
                     log.info('creating bucket with name: %s' % bucket_name_to_create)
-                    # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
-                    bucket = s3lib.resource_op({'obj': rgw_conn,
-                                                'resource': 'Bucket',
-                                                'args': [bucket_name_to_create]})
-                    created = s3lib.resource_op({'obj': bucket,
-                                                 'resource': 'create',
-                                                 'args': None,
-                                                 'extra_info': {'access_key': each_user['access_key']}})
-                    if created is False:
-                        raise TestExecError("Resource execution failed: bucket creation faield")
-                    if created is not None:
-                        response = HttpResponseParser(created)
-                        if response.status_code == 200:
-                            log.info('bucket created')
-                        else:
-                            raise TestExecError("bucket creation failed")
-                    else:
-                        raise TestExecError("bucket creation failed")
+                    bucket = resuables.create_bucket(bucket_name_to_create, rgw_conn, each_user)
                     if config.test_ops['create_object'] is True:
                         # uploading data
                         log.info('s3 objects to create: %s' % config.objects_count)
@@ -122,35 +106,13 @@ def test_exec(config):
                             log.info('s3 object name: %s' % s3_object_name)
                             s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                             log.info('s3 object path: %s' % s3_object_path)
-                            s3_object_size = utils.get_file_size(config.objects_size_range['min'],
-                                                                 config.objects_size_range['max'])
-                            data_info = manage_data.io_generator(s3_object_path, s3_object_size)
-                            if data_info is False:
-                                TestExecError("data creation failed")
-                            log.info('uploading s3 object: %s' % s3_object_path)
-                            upload_info = dict({'access_key': each_user['access_key']}, **data_info)
-                            if config.test_ops.get('encryption_algorithm', None) is not None:
-                                log.info('encryption enabled')
-                                log.info('encryption algorithm: %s' % config.test_ops['encryption_algorithm'])
-                                object_uploaded_status = s3lib.resource_op({'obj': bucket,
-                                                                            'resource': 'put_object',
-                                                                            'kwargs': dict(Body=open(s3_object_path),
-                                                                                           Key=s3_object_name,
-                                                                                           SSECustomerAlgorithm=
-                                                                                           config.test_ops[
-                                                                                               'encryption_algorithm'],
-                                                                                           SSECustomerKey=encryption_key
-                                                                                           ),
-                                                                            'extra_info': upload_info})
+                            if config.test_ops.get('upload_type') == 'multipart':
+                                log.info('upload type: multipart')
+                                resuables.upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config,
+                                                                 each_user)
                             else:
-                                object_uploaded_status = s3lib.resource_op({'obj': bucket,
-                                                                            'resource': 'upload_file',
-                                                                            'args': [s3_object_path, s3_object_name],
-                                                                            'extra_info': upload_info})
-                            if object_uploaded_status is False:
-                                raise TestExecError("Resource execution failed: object upload failed")
-                            if object_uploaded_status is None:
-                                log.info('object uploaded')
+                                log.info('upload type: normal')
+                                resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
                             if config.test_ops['download_object'] is True:
                                 log.info('trying to download object: %s' % s3_object_name)
                                 s3_object_download_name = s3_object_name + "." + "download"
@@ -177,6 +139,15 @@ def test_exec(config):
                                     raise TestExecError("Resource execution failed: object download failed")
                                 if object_downloaded_status is None:
                                     log.info('object downloaded')
+                                s3_object_downloaded_md5 = utils.get_md5(s3_object_download_path)
+                                s3_object_uploaded_md5 = utils.get_md5(s3_object_path)
+                                log.info('s3_object_downloaded_md5: %s' % s3_object_downloaded_md5)
+                                log.info('s3_object_uploaded_md5: %s' % s3_object_uploaded_md5)
+                                if str(s3_object_uploaded_md5) == str(s3_object_downloaded_md5):
+                                    log.info('md5 match')
+                                    utils.exec_shell_cmd('rm -rf %s' % s3_object_download_path)
+                                else:
+                                    raise TestExecError('md5 mismatch')
                         # verification of shards after upload
                         if config.test_ops['sharding']['enable'] is True:
                             cmd = 'radosgw-admin metadata get bucket:%s | grep bucket_id' % bucket.name
@@ -293,6 +264,7 @@ if __name__ == '__main__':
     config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                  'max': doc['config']['objects_size_range']['max']}
     config.test_ops = doc['config']['test_ops']
+    config.split_size = doc['config'].get('split_size')
     log.info('user_count:%s\n'
              'bucket_count: %s\n'
              'objects_count: %s\n'
