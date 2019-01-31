@@ -2,11 +2,12 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 import itertools
-import utils.log as log
-import utils.utils as rbd
+import utils.utils as utils
 
-pool_name = {'arg': '-p', 'val': {'pool1': 'test_rbd_pool',
-                                  'pool2': 'test_rbd_pool2'}}
+
+rep_pool = {'arg': '-p', 'val': {}}
+
+data_pool = {'arg': '--data-pool', 'val': {None: None}}
 
 image_format = {'arg': '--image-format',
                 'val': {None: None,
@@ -89,20 +90,32 @@ export_format_v3 = {'arg': '--export-format',
 
 class CliParams(object):
 
-    def __init__(self):
+    def __init__(self, k_m=None, num_rep_pool=1, num_data_pool=0):
         # Ceph version specific parameters list
         list = ['stripe', 'io_type', 'export_format']
-
-        self.ceph_version = rbd.exec_cmd('ceph -v')
-        self.ceph_version = int('.'.join(self.ceph_version.split()[2].split('.')[:1]))
-        if self.ceph_version == 10:
-            self.ceph_version = 2
-        elif self.ceph_version == 12:
-            self.ceph_version = 3
+        self.rbd = utils.RbdUtils()
+        self.ceph_version = self.rbd.ceph_version
+        self.ec_profile = self.rbd.random_string(length=5)
 
         for param in list:
             globals()[param] = globals()['{}_v{}'.format(param,
                                                          self.ceph_version)]
+        for iterator in xrange(0, num_rep_pool):
+            globals()['rep_pool']['val']['pool'+str(iterator)] = self.rbd.random_string(length=5,prefix='rep_')
+
+        if self.ceph_version > 2 and k_m:
+            self.rbd.set_ec_profile(k=k_m[0],m=k_m[2],profile=self.ec_profile)
+            for iterator in xrange(0, num_data_pool):
+                globals()['data_pool']['val']['pool'+str(iterator)] = self.rbd.random_string(length=5,prefix='data_')
+
+            [self.rbd.create_pool(poolname=val) for key, val in rep_pool['val'].iteritems()]
+            [self.rbd.create_ecpool(poolname=val, profile=self.ec_profile) for key, val in data_pool['val'].iteritems() if val!=None]
+
+        else:
+            globals()['data_pool']['arg'] = ''
+            for iterator in xrange(0, num_rep_pool):
+                globals()['data_pool']['val']['pool'+str(iterator)] = ''
+            [self.rbd.create_pool(poolname=val) for key, val in rep_pool['val'].iteritems()]
 
     def search_param_val(self, param_arg, str_to_search):
             if str_to_search.find(param_arg) != -1:
