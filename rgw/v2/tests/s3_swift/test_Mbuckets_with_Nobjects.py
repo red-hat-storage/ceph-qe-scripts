@@ -101,7 +101,8 @@ def test_exec(config):
                     if config.test_ops['create_object'] is True:
                         # uploading data
                         log.info('s3 objects to create: %s' % config.objects_count)
-                        for oc in range(config.objects_count):
+                        for oc, size in config.mapped_sizes.items():
+                            config.obj_size = size
                             s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, oc)
                             log.info('s3 object name: %s' % s3_object_name)
                             s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
@@ -148,6 +149,9 @@ def test_exec(config):
                                     utils.exec_shell_cmd('rm -rf %s' % s3_object_download_path)
                                 else:
                                     raise TestExecError('md5 mismatch')
+                            if config.local_file_delete is True:
+                                log.info('deleting local file created after the upload')
+                                utils.exec_shell_cmd('rm -rf %s' % s3_object_path)
                         # verification of shards after upload
                         if config.test_ops['sharding']['enable'] is True:
                             cmd = 'radosgw-admin metadata get bucket:%s | grep bucket_id' % bucket.name
@@ -252,23 +256,8 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    config.shards = None
-    config.max_objects = None
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.user_count = doc['config']['user_count']
-    config.bucket_count = doc['config']['bucket_count']
-    config.objects_count = doc['config']['objects_count']
-    config.use_aws4 = doc['config'].get('use_aws4', None)
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-    config.test_ops = doc['config']['test_ops']
-    config.split_size = doc['config'].get('split_size')
-    log.info('user_count:%s\n'
-             'bucket_count: %s\n'
-             'objects_count: %s\n'
-             'objects_size_range: %s\n'
-             % (config.user_count, config.bucket_count, config.objects_count, config.objects_size_range))
-    log.info('test_ops: %s' % config.test_ops)
+    config = Config(yaml_file)
+    config.read()
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

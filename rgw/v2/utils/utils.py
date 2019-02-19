@@ -293,8 +293,13 @@ def gen_access_key_secret_key(base_str, access_key_len=20, secret_key_len=40):
             'secret_key': secret_key}
 
 
-
-
+def make_mapped_sizes(config):
+    log.info('did not get mapped sizes')
+    mapped_sizes = {i: get_file_size(config.objects_size_range['min'],
+                                     config.objects_size_range['max'])
+                    for i in range(config.objects_count)}
+    log.info('mapped_sizes: %s' % mapped_sizes)
+    return mapped_sizes
 
 
 """

@@ -79,7 +79,8 @@ def test_exec(config):
                             raise TestExecError("version enable failed")
                     if config.test_ops['create_object'] is True:
                         # upload data
-                        for oc in range(config.objects_count):
+                        for oc,size in config.mapped_sizes.items():
+                            config.obj_size = size
                             s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
                             if config.test_ops['version_count'] > 0:
                                 for vc in range(config.test_ops['version_count']):
@@ -266,21 +267,8 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    config.shards = None
-    config.max_objects = None
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.user_count = doc['config']['user_count']
-    config.bucket_count = doc['config']['bucket_count']
-    config.objects_count = doc['config']['objects_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-    config.test_ops = doc['config']['test_ops']
-    log.info('user_count:%s\n'
-             'bucket_count: %s\n'
-             'objects_count: %s\n'
-             'objects_size_range: %s\n'
-             % (config.user_count, config.bucket_count, config.objects_count, config.objects_size_range))
-    log.info('test_ops: %s' % config.test_ops)
+    config = Config(yaml_file)
+    config.read()
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

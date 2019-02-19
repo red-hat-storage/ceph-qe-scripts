@@ -14,6 +14,7 @@ basic_io_structure = BasicIOInfoStructure()
 write_bucket_io_info = BucketIoInfo()
 write_key_io_info = KeyIoInfo()
 
+
 def create_bucket(bucket_name, rgw, user_info):
     log.info('creating bucket with name: %s' % bucket_name)
     # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
@@ -41,8 +42,7 @@ def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, app
     log.info('s3 object name: %s' % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
     log.info('s3 object path: %s' % s3_object_path)
-    s3_object_size = utils.get_file_size(config.objects_size_range['min'],
-                                         config.objects_size_range['max'])
+    s3_object_size = config.obj_size
     if append_data is True:
         data_info = manage_data.io_generator(s3_object_path, s3_object_size, op='append',
                                              **{'message': '\n%s' % append_msg})
@@ -71,8 +71,7 @@ def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_
     log.info('s3 object name: %s' % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
     log.info('s3 object path: %s' % s3_object_path)
-    s3_object_size = utils.get_file_size(config.objects_size_range['min'],
-                                         config.objects_size_range['max'])
+    s3_object_size = config.obj_size
     split_size = config.split_size if hasattr(config, 'split_size') else 5
     log.info('split size: %s' % split_size)
     if append_data is True:
@@ -116,6 +115,9 @@ def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_
             response = HttpResponseParser(part_upload_response)
             if response.status_code == 200:
                 log.info('part uploaded')
+                if config.local_file_delete is True:
+                    log.info('deleting local file part')
+                    utils.exec_shell_cmd('sudo rm -rf %s' % each_part)
             else:
                 raise TestExecError("part uploading failed")
         part_info = {'PartNumber': part_number, 'ETag': part_upload_response['ETag']}

@@ -5,6 +5,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
+import v2.utils.utils as utils
 import v2.utils.log as log
 import traceback
 import argparse
@@ -67,10 +68,13 @@ def test_exec(config):
         t2_u1 = t2_u1_auth.do_auth()
         t1_u1_b1 = resuables.create_bucket(bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info)
         t2_u1_b1 = resuables.create_bucket(bucket_name=Bucket_names[0], rgw=t2_u1, user_info=t2_u1_info)
+        obj_sizes = config.mapped_sizes.values()
+        config.obj_size = obj_sizes[0]
         resuables.upload_object(s3_object_name=object_names[0],
                                 bucket=t1_u1_b1,
                                 TEST_DATA_PATH=TEST_DATA_PATH,
                                 config=config, user_info=t1_u1_info)
+        config.obj_size = obj_sizes[1]
         resuables.upload_object(s3_object_name=object_names[0],
                                 bucket=t2_u1_b1,
                                 TEST_DATA_PATH=TEST_DATA_PATH,
@@ -140,12 +144,10 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    config.shards = None
-    config.max_objects = None
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.user_count = doc['config']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
+    config = Config(yaml_file)
+    config.read()
+    config.user_count = 2
+    config.objects_count = 2
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

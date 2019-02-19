@@ -99,14 +99,12 @@ def test_exec(config):
                         raise TestExecError("version enable failed")
                     if config.objects_count > 0:
                         log.info('s3 objects to create: %s' % config.objects_count)
-                        for oc in range(config.objects_count):
+                        for oc, s3_object_size in config.mapped_sizes.items():
                             # versioning upload
                             s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, str(oc))
                             s3_object_names.append(s3_object_name)
                             log.info('s3 object name: %s' % s3_object_name)
                             log.info('versioning count: %s' % config.version_count)
-                            s3_object_size = utils.get_file_size(config.objects_size_range['min'],
-                                                                 config.objects_size_range['max'])
                             s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, str(oc))
                             s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                             original_data_info = manage_data.io_generator(s3_object_path, s3_object_size)
@@ -280,6 +278,9 @@ def test_exec(config):
                                             log.info('version did not delete, expected behaviour')
                                     else:
                                         log.info('version did not delete, expected behaviour')
+                            if config.local_file_delete is True:
+                                log.info('deleting local file')
+                                utils.exec_shell_cmd('sudo rm -rf %s' % s3_object_path)
                     if config.test_ops['suspend_version'] is True:
                         log.info('suspending versioning')
                         # suspend_version_status = s3_ops.resource_op(bucket_versioning, 'suspend')
@@ -331,14 +332,12 @@ def test_exec(config):
                                 raise TestExecError('version suspended, this should not happen')
                         else:
                             log.info('versioning not suspended, expected behaviour')
-                if config.test_ops['upload_after_suspend'] is True:
+                if config.test_ops.get('upload_after_suspend') is True:
                     log.info('trying to upload after suspending versioning on bucket')
-                    for s3_object_name in s3_object_names:
+                    for oc, s3_object_size in config.mapped_sizes.items():
                         # non versioning upload
-                        s3_object_name = s3_object_name + ".after_version_suspending"
+                        s3_object_name = s3_object_names[oc] + ".after_version_suspending"
                         log.info('s3 object name: %s' % s3_object_name)
-                        s3_object_size = utils.get_file_size(config.objects_size_range['min'],
-                                                             config.objects_size_range['max'])
                         s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                         non_version_data_info = manage_data.io_generator(s3_object_path, s3_object_size, op="append",
                                                                          **{
@@ -383,6 +382,8 @@ def test_exec(config):
                         s3_object_downloaded_md5 = utils.get_md5(s3_object_download_path)
                         log.info('s3_object_downloaded_md5: %s' % s3_object_downloaded_md5)
                         log.info('s3_object_uploaded_md5: %s' % non_version_data_info['md5'])
+                        if config.local_file_delete is True:
+                            utils.exec_shell_cmd('sudo rm -rf %s' % s3_object_path)
 
         test_info.success_status('test passed')
         sys.exit(0)
@@ -413,22 +414,8 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    config.shards = None
-    config.max_objects = None
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.user_count = doc['config']['user_count']
-    config.bucket_count = doc['config']['bucket_count']
-    config.objects_count = doc['config']['objects_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-    config.test_ops = doc['config']['test_ops']
-    config.version_count = doc['config']['version_count']
-    log.info('user_count:%s\n'
-             'bucket_count: %s\n'
-             'objects_count: %s\n'
-             'objects_size_range: %s\n'
-             % (config.user_count, config.bucket_count, config.objects_count, config.objects_size_range))
-    log.info('test_ops: %s' % config.test_ops)
+    config = Config(yaml_file)
+    config.read()
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

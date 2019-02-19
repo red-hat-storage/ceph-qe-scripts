@@ -48,10 +48,13 @@ def test_exec(config):
         # enable versioning on b1
         resuables.enable_versioning(b1, rgw_conn, s3_user, write_bucket_io_info)
         # upload object to version enabled bucket b1
+        obj_sizes = config.mapped_sizes.values()
+        config.obj_size = obj_sizes[0]
         for vc in range(version_count):
             resuables.upload_object(b1_k1_name, b1, TEST_DATA_PATH, config, s3_user, append_data=True,
                                     append_msg='hello vc count: %s' % str(vc))
         # upload object to non version bucket b2
+        config.obj_size = obj_sizes[1]
         resuables.upload_object(b2_k1_name, b2, TEST_DATA_PATH, config, s3_user)
         # copy b2_k1 to b1 and check if version id is created, expectation: version id should be created
         # copy b1_k1 to b2 and check if version id is created, expectation: version id should not be present
@@ -136,10 +139,9 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-    log.info('objects_size_range: %s\n' % (config.objects_size_range))
+    config = Config(yaml_file)
+    config.read()
+    config.objects_count = 2
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

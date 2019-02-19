@@ -65,8 +65,8 @@ def test_exec(config, requester):
                     TestExecError('Request payer is not set or changed properly ')
                 log.info('s3 objects to create: %s' % config.objects_count)
                 if config.objects_count is not None:
-                    log.info('objects size range:\n%s' % config.objects_size_range)
-                    for oc in range(config.objects_count):
+                    for oc, size in config.mapped_sizes.items():
+                        config.obj_size = size
                         s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
                         resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
         test_info.success_status('test passed')
@@ -97,14 +97,11 @@ if __name__ == '__main__':
     parser.add_argument('-c', dest="config",
                         help='RGW Test yaml configuration', default=None)
     args = parser.parse_args()
-    config = Config()
     yaml_file = args.config
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.user_count = doc['config']['user_count']
-    config.bucket_count = doc['config']['bucket_count']
-    config.objects_count = doc['config'].get('objects_count', None)
-    config.objects_size_range = doc['config'].get('objects_size_range', None)
+    config = Config(yaml_file)
+    config.read()
+    if (config.mapped_sizes is None) and (config.objects_count is not None):
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     requester = 'Requester'
     test_exec(config, requester)
     requester = 'Owner'

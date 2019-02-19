@@ -217,8 +217,6 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.bucket_policy_op = doc['config']['bucket_policy_op']
+    config = Config(yaml_file)
+    config.read()
     test_exec(config)
