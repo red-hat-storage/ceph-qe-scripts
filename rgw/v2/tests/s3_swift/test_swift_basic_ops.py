@@ -60,7 +60,7 @@ def test_exec(config):
             if container is False:
                 raise TestExecError("Resource execution failed: container creation faield")
 
-            for oc in range(config.objects_count):
+            for oc, size in config.mapped_sizes.items():
                 swift_object_name = utils.gen_s3_object_name('%s.container.%s' % (user_names[0], cc), oc)
 
                 log.info('object name: %s' % swift_object_name)
@@ -69,10 +69,7 @@ def test_exec(config):
 
                 log.info('object path: %s' % object_path)
 
-                object_size = utils.get_file_size(config.objects_size_range['min'],
-                                                  config.objects_size_range['max'])
-
-                data_info = manage_data.io_generator(object_path, object_size)
+                data_info = manage_data.io_generator(object_path, size)
 
                 # upload object
                 if data_info is False:
@@ -143,36 +140,18 @@ def test_exec(config):
 if __name__ == '__main__':
     project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
     test_data_dir = 'test_data'
-
     TEST_DATA_PATH = (os.path.join(project_dir, test_data_dir))
-
     log.info('TEST_DATA_PATH: %s' % TEST_DATA_PATH)
-
     if not os.path.exists(TEST_DATA_PATH):
         log.info('test data dir not exists, creating.. ')
         os.makedirs(TEST_DATA_PATH)
-
     parser = argparse.ArgumentParser(description='RGW S3 Automation')
-
     parser.add_argument('-c', dest="config",
                         help='RGW Test yaml configuration')
-
     args = parser.parse_args()
-
     yaml_file = args.config
-    config = Config()
-
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-
-    config.container_count = doc['config']['container_count']
-    config.objects_count = doc['config']['objects_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-
-    log.info('bucket_count: %s\n'
-             'objects_count: %s\n'
-             'objects_size_range: %s\n'
-             % (config.container_count, config.objects_count, config.objects_size_range))
-
+    config = Config(yaml_file)
+    config.read()
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

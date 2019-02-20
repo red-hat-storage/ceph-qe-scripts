@@ -50,7 +50,8 @@ def create_bucket_with_versioning(rgw_conn, user_info, bucket_name):
 
 def upload_objects(user_info, bucket, config):
     log.info('s3 objects to create: %s' % config.objects_count)
-    for oc in range(config.objects_count):
+    for oc, size in config.mapped_sizes.items():
+        config.obj_size = size
         s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
         resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
 
@@ -105,13 +106,15 @@ def test_exec(config):
             # the number of shards will be the value set in the command.
             time.sleep(15)
             log.info('in offline sharding')
-            cmd_exec = utils.exec_shell_cmd('radosgw-admin bucket reshard --bucket=%s --num-shards=%s'
+            cmd_exec = utils.exec_shell_cmd('radosgw-admin bucket reshard --bucket=%s --num-shards=%s '
+                                            '--yes-i-really-mean-it'
                                             % (bucket.name, config.no_of_shards))
             if cmd_exec is False:
                 raise TestExecError("offline resharding command execution failed")
         # upload_objects(user_info, bucket, config)
         log.info('s3 objects to create: %s' % config.objects_count)
-        for oc in range(config.objects_count):
+        for oc, size in config.mapped_sizes.items():
+            config.obj_size = size
             s3_object_name = utils.gen_s3_object_name(bucket.name, config.objects_count + oc)
             resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
         time.sleep(300)
@@ -165,16 +168,8 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.objects_count = doc['config']['objects_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-    config.sharding_type = doc['config']['sharding_type']
-    log.info('objects_count: %s\n'
-             'objects_size_range: %s\n'
-             'sharding_type: %s\n'
-             % (config.objects_count, config.objects_size_range,
-                config.sharding_type))
+    config = Config(yaml_file)
+    config.read()
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

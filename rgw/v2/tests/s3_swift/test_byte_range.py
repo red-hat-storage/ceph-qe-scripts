@@ -42,44 +42,23 @@ def test_exec(config):
                 bucket = resuables.create_bucket(bucket_name, rgw_conn, each_user)
                 # uploading data
                 log.info('s3 objects to create: %s' % config.objects_count)
-                for oc in range(config.objects_count):
+                for oc, size in config.mapped_sizes.items():
+                    config.obj_size = size
                     s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
-                    log.info('s3 object name: %s' % s3_object_name)
-                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
-                    log.info('s3 object path: %s' % s3_object_path)
-                    s3_object_size = utils.get_file_size(config.objects_size_range['min'],
-                                                         config.objects_size_range['max'])
-                    data_info = manage_data.io_generator(s3_object_path, s3_object_size)
-                    if data_info is False:
-                        TestExecError("data creation failed")
-                    log.info('uploading s3 object: %s' % s3_object_path)
-                    upload_info = dict({'access_key': each_user['access_key']}, **data_info)
-                    s3_obj = s3lib.resource_op({'obj': bucket,
-                                                'resource': 'Object',
-                                                'args': [s3_object_name],
-                                                'extra_info': upload_info})
-                    object_uploaded_status = s3lib.resource_op({'obj': s3_obj,
-                                                                'resource': 'upload_file',
-                                                                'args': [s3_object_path],
-                                                                'extra_info': upload_info})
-
-                    if object_uploaded_status is False:
-                        raise TestExecError("Resource execution failed: object upload failed")
-                    if object_uploaded_status is None:
-                        log.info('object uploaded')
+                    resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
                     log.info('testing for negative range')
                     response = rgw_conn2.get_object(Bucket=bucket.name, Key=s3_object_name, Range='-2--1')
                     log.info('response: %s\n' % response)
                     log.info('Content-Lenght: %s' % response['ContentLength'])
-                    log.info('s3_object_size: %s' % (s3_object_size * 1024 * 1024))
-                    if response['ContentLength'] != s3_object_size * 1024 * 1024:
+                    log.info('s3_object_size: %s' % (config.obj_size * 1024 * 1024))
+                    if response['ContentLength'] != config.obj_size * 1024 * 1024:
                         TestExecError("Content Lenght not matched")
                     log.info('testing for one positive and one negative range')
                     response = rgw_conn2.get_object(Bucket=bucket.name, Key=s3_object_name, Range='-1-3')
                     log.info('response: %s\n' % response)
                     log.info('Content-Length: %s' % response['ContentLength'])
-                    log.info('s3_object_size: %s' % (s3_object_size * 1024 * 1024))
-                    if response['ContentLength'] != s3_object_size * 1024 * 1024:
+                    log.info('s3_object_size: %s' % (config.obj_size * 1024 * 1024))
+                    if response['ContentLength'] != config.obj_size * 1024 * 1024:
                         TestExecError("Content Lenght not matched")
 
         test_info.success_status('test passed')
@@ -112,17 +91,8 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.user_count = doc['config']['user_count']
-    config.bucket_count = doc['config']['bucket_count']
-    config.objects_count = doc['config']['objects_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-    log.info('user_count:%s\n'
-             'bucket_count: %s\n'
-             'objects_count: %s\n'
-             'objects_size_range: %s\n'
-             % (config.user_count, config.bucket_count, config.objects_count, config.objects_size_range))
+    config = Config(yaml_file)
+    config.read()
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

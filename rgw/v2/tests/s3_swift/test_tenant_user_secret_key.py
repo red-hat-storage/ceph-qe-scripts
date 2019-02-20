@@ -71,14 +71,12 @@ def test_exec(config):
                                               'args': [container_name]})
             if container is False:
                 raise TestExecError("Resource execution failed: container creation faield")
-            for oc in range(config.objects_count):
+            for oc,size in config.mapped_sizes.items():
                 swift_object_name = utils.gen_s3_object_name('%s.container.%s' % (user_names[0], cc), oc)
                 log.info('object name: %s' % swift_object_name)
                 object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
                 log.info('object path: %s' % object_path)
-                object_size = utils.get_file_size(config.objects_size_range['min'],
-                                                  config.objects_size_range['max'])
-                data_info = manage_data.io_generator(object_path, object_size)
+                data_info = manage_data.io_generator(object_path, size)
                 if data_info is False:
                     TestExecError("data creation failed")
                 log.info('uploading object: %s' % object_path)
@@ -116,15 +114,8 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
-    with open(yaml_file, 'r') as f:
-        doc = yaml.load(f)
-    config.container_count = doc['config']['container_count']
-    config.objects_count = doc['config']['objects_count']
-    config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
-                                 'max': doc['config']['objects_size_range']['max']}
-    log.info('bucket_count: %s\n'
-             'objects_count: %s\n'
-             'objects_size_range: %s\n'
-             % (config.container_count, config.objects_count, config.objects_size_range))
+    config = Config(yaml_file)
+    config.read()
+    if config.mapped_sizes is None:
+        config.mapped_sizes = utils.make_mapped_sizes(config)
     test_exec(config)

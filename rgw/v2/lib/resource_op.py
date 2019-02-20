@@ -7,6 +7,7 @@ import names
 import random
 import string
 import inspect
+import yaml
 import v2.lib.s3.write_io_info as write_io_info
 
 
@@ -70,5 +71,24 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph')
 
 
 class Config(object):
-    def __init__(self):
-        pass
+    def __init__(self, conf_file):
+        with open(conf_file, 'r') as f:
+            self.doc = yaml.load(f)
+        log.info('got config: \n%s' % self.doc)
+
+    def read(self):
+        self.shards = None
+        self.max_objects = None
+        self.user_count = self.doc['config'].get('user_count')
+        self.bucket_count = self.doc['config'].get('bucket_count')
+        self.objects_count = self.doc['config'].get('objects_count')
+        self.use_aws4 = self.doc['config'].get('use_aws4', None)
+        self.objects_size_range = self.doc['config'].get('objects_size_range')
+        self.sharding_type = self.doc['config'].get('sharding_type')
+        self.split_size = self.doc['config'].get('split_size')
+        self.test_ops = self.doc['config'].get('test_ops')
+        self.mapped_sizes = self.doc['config'].get('mapped_sizes')
+        self.bucket_policy_op = self.doc['config'].get('bucket_policy_op')
+        self.container_count = self.doc['config'].get('container_count')
+        self.version_count = self.doc['config'].get('version_count')
+        self.local_file_delete = self.doc['config'].get('local_file_delete', False)
