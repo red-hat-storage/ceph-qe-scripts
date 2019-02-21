@@ -85,7 +85,7 @@ class Config(object):
         self.use_aws4 = self.doc['config'].get('use_aws4', None)
         self.objects_size_range = self.doc['config'].get('objects_size_range')
         self.sharding_type = self.doc['config'].get('sharding_type')
-        self.split_size = self.doc['config'].get('split_size')
+        self.split_size = self.doc['config'].get('split_size', 5)
         self.test_ops = self.doc['config'].get('test_ops')
         self.mapped_sizes = self.doc['config'].get('mapped_sizes')
         self.bucket_policy_op = self.doc['config'].get('bucket_policy_op')
