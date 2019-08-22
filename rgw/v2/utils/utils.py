@@ -9,7 +9,7 @@ import yaml
 import random
 import string
 
-BUCKET_NAME_PREFIX = 'bucky'
+BUCKET_NAME_PREFIX = 'bucky' + '-' + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = 'key'
 
 
