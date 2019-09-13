@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+print a
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 scripts=("sudo python $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_Mbuckets.yaml"
