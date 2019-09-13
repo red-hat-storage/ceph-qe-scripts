@@ -80,6 +80,7 @@ def test_exec(config):
         bucket = create_bucket_with_versioning(rgw_conn, user_info, bucket_name)
         upload_objects(user_info, bucket, config)
         log.info('sharding configuration will be added now.')
+	num_shards_expected = config.objects_count / config.max_objects_per_shard
         if config.sharding_type == 'online':
             log.info('sharding type is online')
             # for online,
@@ -126,6 +127,8 @@ def test_exec(config):
         json_doc2 = json.loads((op2))
         num_shards_created = json_doc2['data']['bucket_info']['num_shards']
         log.info('no_of_shards_created: %s' % num_shards_created)
+	#global num_shards_expected
+	#num_shards_expected = config.objects_count / config.max_objects_per_shard
         log.info('no_of_shards_expected: %s' % num_shards_expected)
         if config.sharding_type == 'offline':
             if num_shards_expected != num_shards_created:
