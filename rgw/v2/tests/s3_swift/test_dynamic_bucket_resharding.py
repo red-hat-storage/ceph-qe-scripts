@@ -80,9 +80,9 @@ def test_exec(config):
         bucket = create_bucket_with_versioning(rgw_conn, user_info, bucket_name)
         upload_objects(user_info, bucket, config)
         log.info('sharding configuration will be added now.')
-        if config.sharding_type == 'online':
-            log.info('sharding type is online')
-            # for online,
+        if config.sharding_type == 'dynamic':
+            log.info('sharding type is dynamic')
+            # for dynamic,
             # the number of shards  should be greater than   [ (no of objects)/(max objects per shard) ]
             # example: objects = 500 ; max object per shard = 10
             # then no of shards should be at least 50 or more
@@ -100,17 +100,17 @@ def test_exec(config):
                 raise TestExecError("RGW service restart failed")
             else:
                 log.info('RGW service restarted')
-        if config.sharding_type == 'offline':
-            log.info('sharding type is offline')
-            # for offline.
+        if config.sharding_type == 'manual':
+            log.info('sharding type is manual')
+            # for manual.
             # the number of shards will be the value set in the command.
             time.sleep(15)
-            log.info('in offline sharding')
+            log.info('in manual sharding')
             cmd_exec = utils.exec_shell_cmd('radosgw-admin bucket reshard --bucket=%s --num-shards=%s '
                                             '--yes-i-really-mean-it'
                                             % (bucket.name, config.no_of_shards))
             if cmd_exec is False:
-                raise TestExecError("offline resharding command execution failed")
+                raise TestExecError("manual resharding command execution failed")
         # upload_objects(user_info, bucket, config)
         log.info('s3 objects to create: %s' % config.objects_count)
         for oc, size in config.mapped_sizes.items():
@@ -127,12 +127,12 @@ def test_exec(config):
         num_shards_created = json_doc2['data']['bucket_info']['num_shards']
         log.info('no_of_shards_created: %s' % num_shards_created)
         log.info('no_of_shards_expected: %s' % num_shards_expected)
-        if config.sharding_type == 'offline':
-            if num_shards_expected != num_shards_created:
+        if config.sharding_type == 'manual':
+            if config.no_of_shards != num_shards_created:
                 raise TestExecError("expected number of shards not created")
             log.info('Expected number of shards created')
-        if config.sharding_type == 'online':
-            log.info('for online, '
+        if config.sharding_type == 'dynamic':
+            log.info('for dynamic, '
                      'number of shards created should be greater than or equal to number of  expected shards')
             if int(num_shards_created) >= int(num_shards_expected):
                 log.info('Expected number of shards created')
