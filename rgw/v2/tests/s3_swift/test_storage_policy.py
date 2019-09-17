@@ -4,7 +4,7 @@ import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3_swift_lib
-from v2.lib.s3.auth import Auth
+from v2.lib.swift.auth import Auth
 import v2.utils.log as log
 import v2.utils.utils as utils
 from v2.utils.utils import RGWService
@@ -49,7 +49,7 @@ def test_exec(config):
         # create realm
         realm_name = 'buz-tickets'
         log.info('creating realm name')
-        realm_create = 'sudo radosgw-admin realm create --rgw-realm=%s --default' % realm_name
+        realm_create = 'sudo radosgw-admin realm create --rgw-realm=%s' % realm_name
         realm_create_exec = utils.exec_shell_cmd(realm_create)
         if realm_create_exec is False:
             raise TestExecError("cmd execution failed")
@@ -63,7 +63,7 @@ def test_exec(config):
         }
         """
         log.info('modify zonegroup ')
-        modify = 'sudo radosgw-admin zonegroup modify --rgw-zonegroup=default --rgw-realm=%s --master --default' % realm_name
+        modify = 'sudo radosgw-admin zonegroup modify --rgw-zonegroup=default --rgw-realm=%s --master' % realm_name
         modify_exec = utils.exec_shell_cmd(modify)
         if modify_exec is False:
             raise TestExecError("cmd execution failed")
@@ -122,6 +122,9 @@ def test_exec(config):
         if zone_file_set_exec is False:
             raise TestExecError("cmd execution failed")
         log.info('zone info updated ')
+        pool_create1 = 'radosgw-admin period update --commit'
+        pool_create_exec1 = utils.exec_shell_cmd(pool_create1)
+        log.info(pool_create_exec1)
         restarted = rgw_service.restart()
         if restarted is False:
             raise TestExecError("service restart failed")
@@ -144,6 +147,9 @@ def test_exec(config):
             umgmt.create_tenant_user(tenant_name=tenant, user_id=user_names[0],
                                      displayname=user_names[0])
             user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[0])
+            log.info(type(user_info))
+            log.info(user_info)
+            log.info(user_info['key'])
             auth = Auth(user_info)
             rgw = auth.do_auth()
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=0)
@@ -157,8 +163,7 @@ def test_exec(config):
             log.info('object name: %s' % swift_object_name)
             object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
             log.info('object path: %s' % object_path)
-            object_size = utils.get_file_size(config.objects_size_range['min'],
-                                              config.objects_size_range['max'])
+            object_size = utils.get_file_size(config.objects_size_range['min'],config.objects_size_range['max'])
             data_info = manage_data.io_generator(object_path, object_size)
             # upload object
             if data_info is False:
@@ -198,8 +203,9 @@ if __name__ == '__main__':
                         help='RGW Test yaml configuration')
     args = parser.parse_args()
     yaml_file = args.config
-    config = Config()
+    config = Config(yaml_file)
     with open(yaml_file, 'r') as f:
         doc = yaml.load(f)
+    config.objects_size_range = doc['config']['objects_size_range']
     config.rgw_client = doc['rgw_client']
     test_exec(config)
