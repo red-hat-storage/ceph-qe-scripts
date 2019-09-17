@@ -122,9 +122,9 @@ def test_exec(config):
         if zone_file_set_exec is False:
             raise TestExecError("cmd execution failed")
         log.info('zone info updated ')
-        pool_create1 = 'radosgw-admin period update --commit'
-        pool_create_exec1 = utils.exec_shell_cmd(pool_create1)
-        log.info(pool_create_exec1)
+        zone_group_update_set = 'radosgw-admin period update --commit'
+        zone_group_update_set_exec = utils.exec_shell_cmd(zone_group_update_set)
+        log.info(zone_group_update_set_exec)
         restarted = rgw_service.restart()
         if restarted is False:
             raise TestExecError("service restart failed")
@@ -147,9 +147,6 @@ def test_exec(config):
             umgmt.create_tenant_user(tenant_name=tenant, user_id=user_names[0],
                                      displayname=user_names[0])
             user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[0])
-            log.info(type(user_info))
-            log.info(user_info)
-            log.info(user_info['key'])
             auth = Auth(user_info)
             rgw = auth.do_auth()
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=0)
