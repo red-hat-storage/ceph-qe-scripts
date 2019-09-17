@@ -34,8 +34,8 @@ scripts=("sudo python $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_M
          "sudo python $DIR/test_bucket_request_payer.py -c $DIR/configs/test_bucket_request_payer.yaml"
          "sudo python $DIR/test_bucket_request_payer.py -c $DIR/configs/test_bucket_request_payer_download.yaml"
          "sudo python $DIR/test_byte_range.py -c $DIR/configs/test_byte_range.yaml"
-         #"sudo python $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_dynamic_resharding_offline.yaml"
-         "sudo python $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_dynamic_resharding_online.yaml")
+         "sudo python $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_manual_resharding.yaml"
+         "sudo python $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_dynamic_resharding.yaml")
 
 for script in "${scripts[@]}"
 do

@@ -4,4 +4,4 @@ config:
  objects_size_range:
   min: 15
   max: 20
- sharding_type: online
+ sharding_type: manual
