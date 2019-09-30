@@ -1,0 +1,3 @@
+#script - test_user_bucket_rename.py
+config:
+ user_count: 1
