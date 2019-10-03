@@ -34,40 +34,44 @@ def test_exec(config):
 
     try:
         test_info.started_info()
-        non_ten_buckets = []
-        ten_buckets = []
+        non_ten_buckets = {}
+        ten_buckets = {}
         user_names = ['bill', 'newbill', 'joe', 'newjoe']
         tenant1 = 'tenant'
         non_ten_users = s3lib.create_users(config.user_count)
         ten_users = s3lib.create_tenant_users(config.user_count, tenant1)
         # Rename users
-        for user in non_ten_users:
-            new_non_ten_name = 'new' + user['user_id']
-            out = resuables.rename_user(user['user_id'], new_non_ten_name)
-            if out is False:
-                raise TestExecError("RGW User rename error")
-            log.info('output :%s' % out)
+        if config.test_ops['rename_users'] is True:
+            for user in non_ten_users:
+                new_non_ten_name = 'new' + user['user_id']
+                out = resuables.rename_user(user['user_id'], new_non_ten_name)
+                if out is False:
+                    raise TestExecError("RGW User rename error")
+                log.info('output :%s' % out)
+                user['user_id'] = new_non_ten_name
 
-        for ten_user in ten_users:
-            new_ten_name = 'new' + ten_user['user_id']
-            out1 = resuables.rename_user(ten_user['user_id'], new_ten_name, tenant1)
-            if out1 is False:
-                raise TestExecError("RGW User rename error")
-            log.info('output :%s' % out1)
+            for ten_user in ten_users:
+                new_ten_name = 'new' + ten_user['user_id']
+                out1 = resuables.rename_user(ten_user['user_id'], new_ten_name, tenant1)
+                if out1 is False:
+                    raise TestExecError("RGW User rename error")
+                log.info('output :%s' % out1)
+                ten_user['user_id'] = new_ten_name
         # create buckets and test rename
-        bucket_names = ['bill1', 'joe1']
         for user in non_ten_users:
             auth = Auth(user)
             rgw_conn = auth.do_auth()
             bucket_name_to_create1 = utils.gen_bucket_name_from_userid(user['user_id'])
             log.info('creating bucket with name: %s' % bucket_name_to_create1)
             bucket = resuables.create_bucket(bucket_name_to_create1, rgw_conn, user)
-            bucket_new_name1 = 'new' + bucket_name_to_create1
-            non_ten_buckets.append(bucket_new_name1)
-            out2 = resuables.rename_bucket(bucket.name, bucket_new_name1, 'new' + user['user_id'])
-            if out2 is False:
-                raise TestExecError("RGW Bucket rename error")
-            log.info('output :%s' % out2)
+            non_ten_buckets[user['user_id']] = bucket_name_to_create1
+            if config.test_ops['rename_buckets'] is True:
+                bucket_new_name1 = 'new' + bucket_name_to_create1
+                non_ten_buckets[user['user_id']] = bucket_new_name1
+                out2 = resuables.rename_bucket(bucket.name, bucket_new_name1, user['user_id'])
+                if out2 is False:
+                    raise TestExecError("RGW Bucket rename error")
+                log.info('output :%s' % out2)
 
         for ten_user in ten_users:
             auth = Auth(ten_user)
@@ -75,25 +79,28 @@ def test_exec(config):
             bucket_name_to_create2 = utils.gen_bucket_name_from_userid(ten_user['user_id'])
             log.info('creating bucket with name: %s' % bucket_name_to_create2)
             bucket = resuables.create_bucket(bucket_name_to_create2, rgw_conn, ten_user)
-            bucket_new_name2 = 'new' + bucket_name_to_create2
-            ten_buckets.append(bucket_new_name2)
-            out3 = resuables.rename_bucket(bucket.name, bucket_new_name2, 'new' + ten_user['user_id'], tenant1)
-            if out3 is False:
-                raise TestExecError("RGW Bucket rename error")
-            log.info('output :%s' % out3)
-        # Bucket unlink and link from non tenanted to tenanted users
-        out4 = resuables.unlink_bucket('new'+non_ten_users[0]['user_id'], non_ten_buckets[0])
-        if out4 is False:
-            raise TestExecError("RGW Bucket unlink error")
-        log.info('output :%s' % out4)
-        resuables.link_chown_to_tenanted('new'+ten_users[0]['user_id'], non_ten_buckets[0], tenant1)
+            ten_buckets[ten_user['user_id']] = bucket_name_to_create2
+            if config.test_ops['rename_buckets'] is True:
+                bucket_new_name2 = 'new' + bucket_name_to_create2
+                ten_buckets[ten_user['user_id']] = bucket_new_name2
+                out3 = resuables.rename_bucket(bucket.name, bucket_new_name2, ten_user['user_id'], tenant1)
+                if out3 is False:
+                    raise TestExecError("RGW Bucket rename error")
+                log.info('output :%s' % out3)
+        if config.test_ops['bucket_link_unlink'] is True:
+            # Bucket unlink and link from non tenanted to tenanted users
+            out4 = resuables.unlink_bucket(non_ten_users[0]['user_id'], non_ten_buckets[non_ten_users[0]['user_id']])
+            if out4 is False:
+                raise TestExecError("RGW Bucket unlink error")
+            log.info('output :%s' % out4)
+            resuables.link_chown_to_tenanted(ten_users[0]['user_id'], non_ten_buckets[non_ten_users[0]['user_id']], tenant1)
 
-        # Bucket unlink and link from tenanted to non tenanted users
-        out5 = resuables.unlink_bucket('new'+ten_users[0]['user_id'], ten_buckets[0], tenant1)
-        if out5 is False:
-            raise TestExecError("RGW Bucket unlink error")
-        log.info('output :%s' % out5)
-        resuables.link_chown_to_nontenanted('new'+non_ten_users[0]['user_id'], ten_buckets[0], tenant1)
+            # Bucket unlink and link from tenanted to non tenanted users
+            out5 = resuables.unlink_bucket(ten_users[0]['user_id'], ten_buckets[ten_users[0]['user_id']], tenant1)
+            if out5 is False:
+                raise TestExecError("RGW Bucket unlink error")
+            log.info('output :%s' % out5)
+            resuables.link_chown_to_nontenanted(non_ten_users[0]['user_id'], ten_buckets[ten_users[0]['user_id']], tenant1)
 
         test_info.success_status('test passed')
         sys.exit(0)

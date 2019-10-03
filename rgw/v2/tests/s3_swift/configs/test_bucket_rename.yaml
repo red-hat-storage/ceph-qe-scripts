@@ -2,6 +2,6 @@
 config:
  user_count: 1
  test_ops:
-    rename_users: true
+    rename_users: false
     rename_buckets: true
-    bucket_link_unlink: true
+    bucket_link_unlink: false

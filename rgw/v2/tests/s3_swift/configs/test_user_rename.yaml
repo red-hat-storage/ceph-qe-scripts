@@ -3,5 +3,5 @@ config:
  user_count: 1
  test_ops:
     rename_users: true
-    rename_buckets: true
-    bucket_link_unlink: true
+    rename_buckets: false
+    bucket_link_unlink: false
