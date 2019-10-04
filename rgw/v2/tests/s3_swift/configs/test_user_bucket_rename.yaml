@@ -1,0 +1,7 @@
+#script - test_user_bucket_rename.py
+config:
+ user_count: 1
+ test_ops:
+    rename_users: true
+    rename_buckets: true
+    bucket_link_unlink: true

@@ -159,3 +159,76 @@ def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
                                                    'enabled')
     else:
         raise TestExecError("version enable failed")
+
+
+def rename_user(old_username, new_username, tenant=False):
+    """"""
+    if tenant:
+        cmd = 'radosgw-admin user rename --uid=%s --new-uid=%s --tenant=%s' % (
+            old_username, new_username, tenant)
+    else:
+        cmd = 'radosgw-admin user rename --uid=%s --new-uid=%s' % (
+            old_username, new_username)
+    out = utils.exec_shell_cmd(cmd)
+    log.info('Renamed user %s to %s' % (old_username, new_username))
+    return out
+
+
+def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
+    """"""
+    if tenant:
+        cmd = 'radosgw-admin bucket link --bucket=%s --bucket-new-name=%s --uid=%s --tenant=%s' % (
+            str(tenant) + '/' + old_bucket, str(tenant) + '/' + new_bucket, userid, tenant)
+    else:
+        cmd = 'radosgw-admin bucket link --bucket=%s --bucket-new-name=%s --uid=%s' % ('/' + old_bucket,
+                                                                                       new_bucket, userid)
+    out = utils.exec_shell_cmd(cmd)
+    if out is False:
+        raise TestExecError("RGW Bucket rename error")
+    return out
+
+
+def unlink_bucket(curr_uid, bucket, tenant=False):
+    """"""
+    if tenant:
+        cmd = 'radosgw-admin bucket unlink --bucket=%s --uid=%s --tenant=%s' % (bucket, curr_uid,
+                                                                                tenant)
+    else:
+        cmd = 'radosgw-admin bucket unlink --bucket=%s --uid=%s' % (bucket, curr_uid)
+    out = utils.exec_shell_cmd(cmd)
+    if out is False:
+        raise TestExecError("RGW Bucket unlink error")
+    return out
+
+
+def link_chown_to_tenanted(new_uid, bucket, tenant):
+    """"""
+    cmd = 'radosgw-admin bucket link --bucket=%s --uid=%s --tenant=%s' % (
+        '/' + bucket, new_uid, tenant)
+    out1 = utils.exec_shell_cmd(cmd)
+    if out1 is False:
+        raise TestExecError("RGW Bucket link error")
+    log.info('output :%s' % out1)
+    cmd1 = 'radosgw-admin bucket chown --bucket=%s --uid=%s --tenant=%s' % (bucket, new_uid,
+                                                                            tenant)
+    out2 = utils.exec_shell_cmd(cmd1)
+    if out2 is False:
+        raise TestExecError("RGW Bucket chown error")
+    log.info('output :%s' % out2)
+    return
+
+
+def link_chown_to_nontenanted(new_uid, bucket, tenant):
+    """"""
+    cmd2 = 'radosgw-admin bucket link --bucket=%s --uid=%s' % (
+        tenant + '/' + bucket, new_uid)
+    out3 = utils.exec_shell_cmd(cmd2)
+    if out3 is False:
+        raise TestExecError("RGW Bucket link error")
+    log.info('output :%s' % out3)
+    cmd3 = 'radosgw-admin bucket chown --bucket=%s --uid=%s' % (bucket, new_uid)
+    out4 = utils.exec_shell_cmd(cmd3)
+    if out4 is False:
+        raise TestExecError("RGW Bucket chown error")
+    log.info('output :%s' % out4)
+    return
