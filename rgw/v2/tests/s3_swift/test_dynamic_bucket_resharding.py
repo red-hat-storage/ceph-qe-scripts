@@ -126,7 +126,6 @@ def test_exec(config):
         json_doc2 = json.loads((op2))
         num_shards_created = json_doc2['data']['bucket_info']['num_shards']
         log.info('no_of_shards_created: %s' % num_shards_created)
-        log.info('no_of_shards_expected: %s' % num_shards_expected)
         if config.sharding_type == 'manual':
             if config.no_of_shards != num_shards_created:
                 raise TestExecError("expected number of shards not created")
@@ -134,6 +133,7 @@ def test_exec(config):
         if config.sharding_type == 'dynamic':
             log.info('for dynamic, '
                      'number of shards created should be greater than or equal to number of  expected shards')
+            log.info('no_of_shards_expected: %s' % num_shards_expected)
             if int(num_shards_created) >= int(num_shards_expected):
                 log.info('Expected number of shards created')
             else:
