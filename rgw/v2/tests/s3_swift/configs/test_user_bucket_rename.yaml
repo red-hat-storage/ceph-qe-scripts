@@ -1,4 +1,5 @@
 #script - test_user_bucket_rename.py
+# Polarion ID : CEPH-83572908
 config:
  user_count: 1
  test_ops:
