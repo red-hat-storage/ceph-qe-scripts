@@ -47,3 +47,16 @@ class Auth(object):
                            config=additional_config,
                            )
         return rgw
+
+    def do_auth_ssl(self, pem_file_path, **config):
+        log.info('performing authentication')
+        additional_config = Config(signature_version=config.get('signature_version', None))
+        rgw = boto3.resource('s3',
+                             aws_access_key_id=self.access_key,
+                             aws_secret_access_key=self.secret_key,
+                             endpoint_url='https://%s:%s' % (self.hostname, '443'),
+                             use_ssl=True,
+                             verify= False,
+                             config=additional_config,
+                             )
+        return rgw
