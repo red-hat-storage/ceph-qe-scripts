@@ -232,3 +232,4 @@ def link_chown_to_nontenanted(new_uid, bucket, tenant):
         raise TestExecError("RGW Bucket chown error")
     log.info('output :%s' % out4)
     return
+

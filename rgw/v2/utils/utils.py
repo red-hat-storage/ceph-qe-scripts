@@ -8,22 +8,22 @@ import ConfigParser
 import yaml
 import random
 import string
+import socket
 
 BUCKET_NAME_PREFIX = 'bucky' + '-' + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = 'key'
 
 
 def exec_shell_cmd(cmd):
-
     try:
 
-        log.info('executing cmd: %s' %cmd)
+        log.info('executing cmd: %s' % cmd)
 
-        pr = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE, shell=True)
+        pr = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
 
         out, err = pr.communicate()
 
-        if pr.returncode == 0 :
+        if pr.returncode == 0:
             log.info('cmd excuted')
             if out is not None: log.info(out)
             return out
@@ -31,14 +31,13 @@ def exec_shell_cmd(cmd):
         else:
             raise Exception("error: %s \nreturncode: %s" % (err, pr.returncode))
 
-    except Exception,e :
+    except Exception, e:
         log.error('cmd execution failed')
         log.error(e)
         return False
 
 
 def get_md5(fname):
-
     log.info('fname: %s' % fname)
 
     return hashlib.md5(open(fname, 'rb').read()).hexdigest()
@@ -47,14 +46,12 @@ def get_md5(fname):
 
 
 def get_file_size(min, max):
-
     size = lambda x: x if x % 5 == 0 else size(randint(min, max))
 
     return size(randint(min, max))
 
 
 def create_file(fname, size):
-
     # give the size in mega bytes.
 
     file_size = 1024 * 1024 * size
@@ -70,7 +67,6 @@ def create_file(fname, size):
 
 
 def split_file(fname, size_to_split=5, splitlocation=""):
-
     # size_to_split should be in MBs
 
     split_cmd = "split" + " " + '-b' + str(size_to_split) + "m " + fname + " " + splitlocation
@@ -78,7 +74,6 @@ def split_file(fname, size_to_split=5, splitlocation=""):
 
 
 class FileOps(object):
-
     def __init__(self, filename, type):
         self.type = type
         self.fname = filename
@@ -92,13 +87,12 @@ class FileOps(object):
             if self.type == 'json':
                 data = json.load(fp)
 
-            if self.type == 'txt' or self.type == 'ceph.conf' :
+            if self.type == 'txt' or self.type == 'ceph.conf':
                 raw_data = fp.readlines()
                 tmp = lambda x: x.rstrip('\n')
                 data = map(tmp, raw_data)
 
             if self.type == 'yaml':
-
                 data = yaml.load(fp)
 
         fp.close()
@@ -110,7 +104,6 @@ class FileOps(object):
         with open(self.fname, "w") as fp:
 
             if self.type == 'json':
-
                 json.dump(data, fp, indent=4)
 
             if self.type == 'txt':
@@ -128,15 +121,16 @@ class FileOps(object):
         fp.close()
 
 
-class ConfigParse(object):
 
+
+class ConfigParse(object):
     def __init__(self, fname):
 
         self.fname = fname
         self.cfg = ConfigParser.ConfigParser()
         self.cfg.read(fname)
 
-    def set(self, section, option, value =None):
+    def set(self, section, option, value=None):
 
         self.cfg.set(section, option, value)
 
@@ -147,13 +141,12 @@ class ConfigParse(object):
         try:
             self.cfg.add_section(section)
             return self.cfg
-        except ConfigParser.DuplicateSectionError, e :
+        except ConfigParser.DuplicateSectionError, e:
             log.info('section already exists: %s' % e)
             return self.cfg
 
 
 def make_copy_of_file(f1, f2):
-
     """
     copy f1 to f2 location
 
@@ -169,31 +162,26 @@ def make_copy_of_file(f1, f2):
 
 
 class RGWService(object):
-
     def __init__(self):
         pass
 
     def restart(self):
-
         executed = exec_shell_cmd('sudo systemctl restart ceph-radosgw.target')
 
         return executed
 
     def stop(self):
-
         executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
 
         return executed
 
     def start(self):
-
         executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
 
         return executed
 
 
 def get_radosgw_port_no():
-
     op = exec_shell_cmd('sudo netstat -nltp | grep radosgw')
 
     log.info('output: %s' % op)
@@ -208,22 +196,20 @@ def get_radosgw_port_no():
 
 
 def get_all_in_dir(path):
-
     all = []
 
     for dirName, subdirList, fileList in os.walk(path):
         print('%s' % dirName)
         log.info('dir_name: %s' % dirName)
         for fname in fileList:
-            log.info('filename: %s' % os.path.join(dirName,fname))
-            all.append( os.path.join(dirName,fname))
+            log.info('filename: %s' % os.path.join(dirName, fname))
+            all.append(os.path.join(dirName, fname))
         log.info('----------------')
 
     return all
 
 
 def gen_bucket_name_from_userid(user_id, rand_no=0):
-
     log.info('generating bucket name or basedir to create')
 
     bucket_name_to_create = user_id + "." + BUCKET_NAME_PREFIX + "." + str(rand_no)
@@ -234,10 +220,9 @@ def gen_bucket_name_from_userid(user_id, rand_no=0):
 
 
 def gen_s3_object_name(bucket_name, rand_no=0):
-
     log.info('generating s3 object name to create')
 
-    s3_object_name_to_create = S3_OBJECT_NAME_PREFIX + "." + bucket_name  + "." + str(rand_no)
+    s3_object_name_to_create = S3_OBJECT_NAME_PREFIX + "." + bucket_name + "." + str(rand_no)
 
     log.info('s3 object name to create generated: %s' % s3_object_name_to_create)
 
@@ -245,9 +230,7 @@ def gen_s3_object_name(bucket_name, rand_no=0):
 
 
 class HttpResponseParser(object):
-
     def __init__(self, http_response):
-
         log.info('begin response ----------------------')
         log.info('http reponse:\n%s' % http_response)
         log.info('end response ----------------------')
@@ -265,8 +248,6 @@ class HttpResponseParser(object):
         log.info('Error: %s' % self.error)
 
 
-
-
 def merge_two_dicts(x, y):
     """Given two dicts, merge them into a new dict as a shallow copy."""
     z = x.copy()
@@ -275,10 +256,9 @@ def merge_two_dicts(x, y):
 
 
 def gen_access_key_secret_key(base_str, access_key_len=20, secret_key_len=40):
-
     # consider base_str as user_id
     log.info('generating access_key and secret_key')
-    log.info('base_str: %s' %base_str)
+    log.info('base_str: %s' % base_str)
     log.info('access_key_len=%s; secret_key_len=%s' % (access_key_len, secret_key_len))
 
     generate = lambda len: ''.join(
@@ -311,3 +291,14 @@ d = {'ResponseMetadata': {'HTTPStatusCode': 404, 'RetryAttempts': 0, 'HostId': '
      'Error': {'Message': 'The bucket policy does not exist', 'Code': 'NoSuchBucketPolicy',
                'BucketName': 'mariaq.110.bucky.1'}}
 """
+
+
+def get_Host_name_IP():
+    try:
+        host_name = socket.gethostname()
+        host_ip = socket.gethostbyname(host_name)
+        log.info("Hostname : %s  " % host_name)
+        log.info("IP : %s" % host_ip)
+        return [host_name, host_ip]
+    except:
+        print("Unable to get Hostname and IP")

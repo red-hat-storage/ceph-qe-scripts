@@ -1,0 +1,7 @@
+#script - test_ssl.py
+# Polarion ID : CEPH-83572902
+config:
+ user_count: 1
+ test_ops:
+    use_civetweb: False
+    use_beast: True
