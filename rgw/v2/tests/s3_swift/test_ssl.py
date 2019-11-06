@@ -36,7 +36,7 @@ def test_exec(config):
         test_info.started_info()
         # Create a .pem file
         frontend = ceph_conf.check_if_config_exists('rgw frontends')
-        out = resuables.create_pem()
+        out = s3lib.create_pem()
         name_ip = utils.get_Host_name_IP()
 
         #ceph_conf.remove_from_ceph_conf('rgw frontends')

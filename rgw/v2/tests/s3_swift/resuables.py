@@ -233,27 +233,3 @@ def link_chown_to_nontenanted(new_uid, bucket, tenant):
     log.info('output :%s' % out4)
     return
 
-
-def create_pem():
-    """
-    :param pem_file: Name of the Certificate (.pem) file to be created in the present working directory
-    """
-    log.info('Creating pem file')
-    cmd = 'openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.csr -days 365 -nodes ' \
-          '-subj "/C=IN/ST=KA/L=BLR/O=Carina Company/OU=Redhat/CN=*.ceph.redhat.com"'
-    out = utils.exec_shell_cmd(cmd)
-    pem_file = 'server.pem'
-    if out is False:
-        raise TestExecError("Key file creation error")
-    log.info('output :%s' % out)
-    cmd2 = 'cat server.csr server.key > %s' % pem_file
-    out2 = utils.exec_shell_cmd(cmd2)
-    if out2 is False:
-        raise TestExecError("Pem file generation error")
-    log.info('output :%s' % out2)
-    cmd3 = 'cp %s /etc/ssl/certs/%s' % (pem_file, pem_file)
-    out3 = utils.exec_shell_cmd(cmd3)
-    if out3 is False:
-        raise TestExecError("Linux copy error")
-    log.info('output :%s' % out3)
-    return
