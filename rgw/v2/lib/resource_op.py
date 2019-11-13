@@ -56,6 +56,18 @@ def create_users(no_of_users_to_create, cluster_name='ceph'):
     return all_users_details
 
 
+def create_users_from_list(user_list, cluster_name='ceph'):
+    admin_ops = UserMgmt()
+    all_users_details = []
+    for user in user_list:
+        user_details = admin_ops.create_admin_user(
+            user_id=user,
+            displayname=user.capitalize(),
+            cluster_name=cluster_name)
+        all_users_details.append(user_details)
+    return all_users_details
+
+
 def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph'):
     admin_ops = UserMgmt()
     all_users_details = []

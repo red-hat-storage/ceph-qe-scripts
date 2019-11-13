@@ -112,6 +112,38 @@ class UserMgmt(object):
             log.error(error)
             return False
 
+    def get_user_info(self, user_id, cluster_name="ceph"):
+        try:
+            write_user_info = AddUserInfo()
+            basic_io_structure = BasicIOInfoStructure()
+            log.info('cluster name: %s' % cluster_name)
+            cmd = 'radosgw-admin user info --uid=%s --cluster %s' % (
+                user_id, cluster_name)
+            log.info('cmd to execute:\n%s' % cmd)
+            variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+            v = variable.stdout.read()
+            v_as_json = json.loads(v)
+            log.info(v_as_json)
+            user_details = {}
+            user_details['user_id'] = v_as_json['user_id']
+            user_details['display_name'] = v_as_json['display_name']
+            user_details['access_key'] = v_as_json['keys'][0]['access_key']
+            user_details['secret_key'] = v_as_json['keys'][0]['secret_key']
+            user_info = basic_io_structure.user(**{'user_id': user_details['user_id'],
+                                                   'access_key': user_details['access_key'],
+                                                   'secret_key': user_details['secret_key']})
+            write_user_info.add_user_info(user_info)
+            log.info('access_key: %s' % user_details['access_key'])
+            log.info('secret_key: %s' % user_details['secret_key'])
+            log.info('user_id: %s' % user_details['user_id'])
+            return user_details
+
+        except subprocess.CalledProcessError as e:
+            error = e.output + str(e.returncode)
+            log.error(error)
+            # traceback.print_exc(e)
+            return False
+
 
 class QuotaMgmt(object):
 
