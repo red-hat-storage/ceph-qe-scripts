@@ -26,40 +26,17 @@ TEST_DATA_PATH = None
 
 
 def test_exec(config):
-    test_info = AddTestInfo('test swift user key gen')
+    test_info = AddTestInfo('test frontends configuration')
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ceph_conf = CephConfOp()
-    rgw_service = RGWService()
 
     try:
         test_info.started_info()
-        # Create a .pem file
-        frontend = ceph_conf.check_if_config_exists('rgw frontends')
-        out = pem.create_pem()
-        name_ip = utils.get_host_name_ip()
-
-        #ceph_conf.remove_from_ceph_conf('rgw frontends')
-        # Configure rgw frontend
-        if config.test_ops['use_civetweb'] is True:
-            new_front = "civetweb port=" + name_ip[1] + ":443s ssl_certificate=/etc/ssl/certs/server.pem"
-        elif config.test_ops['use_beast'] is True:
-            new_front = "beast ssl_endpoint=" + name_ip[1] + ":443 ssl_certificate=/etc/ssl/certs/server.pem"
-        section = 'client.rgw.' + name_ip[0]
-        ceph_conf.set_to_ceph_conf(section, 'rgw frontends', new_front)
-        log.info('trying to restart services ')
-        srv_restarted = rgw_service.restart()
-        time.sleep(10)
-        if srv_restarted is False:
-            raise TestExecError("RGW service restart failed")
-        else:
-            log.info('RGW service restarted')
-        # create users
         all_users_info = s3lib.create_users(config.user_count)
         for each_user in all_users_info:
-            auth = Auth(each_user)
-            rgw_conn = auth.do_auth_ssl('/etc/ssl/certs/server.pem')
+            auth = Auth(each_user, ssl=config.ssl)
+            rgw_conn = auth.do_auth()
             bucket_name_to_create2 = utils.gen_bucket_name_from_userid(each_user['user_id'])
             log.info('creating bucket with name: %s' % bucket_name_to_create2)
             bucket = resuables.create_bucket(bucket_name_to_create2, rgw_conn, each_user)

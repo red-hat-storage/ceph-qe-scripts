@@ -145,6 +145,12 @@ class ConfigParse(object):
             log.info('section already exists: %s' % e)
             return self.cfg
 
+    def check_if_section_exists(self, section):
+        log.info('checking if section: {} exists'.format(section))
+        exists = self.cfg.has_section(section)
+        log.info('section exists status: {}'.format(exists))
+        return exists
+
 
 def make_copy_of_file(f1, f2):
     """
@@ -293,12 +299,13 @@ d = {'ResponseMetadata': {'HTTPStatusCode': 404, 'RetryAttempts': 0, 'HostId': '
 """
 
 
-def get_Host_name_IP():
+def get_hostname_ip():
     try:
-        host_name = socket.gethostname()
-        host_ip = socket.gethostbyname(host_name)
-        log.info("Hostname : %s  " % host_name)
-        log.info("IP : %s" % host_ip)
-        return [host_name, host_ip]
-    except:
-        print("Unable to get Hostname and IP")
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        log.info("Hostname : %s  " % hostname)
+        log.info("IP : %s" % ip)
+        return hostname, ip
+    except Exception,e:
+        log.info(e)
+        log.error('unable to get Hostname and IP')
