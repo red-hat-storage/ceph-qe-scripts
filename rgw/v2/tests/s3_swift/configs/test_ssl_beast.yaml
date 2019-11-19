@@ -4,3 +4,22 @@ config:
  user_count: 1
  frontend: beast
  ssl: true
+
+
+# supported config options for frontends and SSL
+#config:
+#  frontend: civetweb or beast
+#  ssl: true or false
+#-------
+#config:
+#  frontend: civetweb or beast
+#  takes the ssl info from ceph.conf
+#-----
+#config:
+#  ssl: true or false
+#  takes the frontend info from ceph.conf
+#-----
+#config:
+#  blank, takes the ssl status and frontends from ceph.conf
+
+  
