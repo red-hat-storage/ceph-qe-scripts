@@ -24,8 +24,8 @@ scripts=("sudo python $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_M
          "sudo python $DIR/test_versioning_with_objects.py -c $DIR/configs/test_versioning_objects_suspend_from_another_user.yaml"
          "sudo python $DIR/test_versioning_with_objects.py -c $DIR/configs/test_versioning_objects_suspend_re-upload.yaml"
          "sudo python $DIR/test_versioning_with_objects.py -c $DIR/configs/test_versioning_suspend.yaml"
-         "sudo python $DIR/test_bucket_lifecycle_config_ops.py -c $DIR/configs/test_bucket_lifecycle_config_disable.yaml"
-         "sudo python $DIR/test_bucket_lifecycle_config_ops.py -c $DIR/configs/test_bucket_lifecycle_config_modify.yaml"
+         "sudo python $DIR/test_bucket_lifecycle_config_ops.py -c $DIR/configs/test_bucket_lifecycle_config_disable.yaml" # need to check
+         "sudo python $DIR/test_bucket_lifecycle_config_ops.py -c $DIR/configs/test_bucket_lifecycle_config_modify.yaml" # need to check
          "sudo python $DIR/test_bucket_lifecycle_config_ops.py -c $DIR/configs/test_bucket_lifecycle_config_read.yaml"
          "sudo python $DIR/test_bucket_lifecycle_config_ops.py -c $DIR/configs/test_bucket_lifecycle_config_versioning.yaml"
          "sudo python $DIR/test_bucket_policy_ops.py -c $DIR/configs/test_bucket_policy_delete.yaml"
@@ -35,7 +35,9 @@ scripts=("sudo python $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_M
          "sudo python $DIR/test_bucket_request_payer.py -c $DIR/configs/test_bucket_request_payer_download.yaml"
          "sudo python $DIR/test_byte_range.py -c $DIR/configs/test_byte_range.yaml"
          "sudo python $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_manual_resharding.yaml"
-         "sudo python $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_dynamic_resharding.yaml")
+         "sudo python $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_dynamic_resharding.yaml"
+         "sudo python $DIR/test_frontends_with_ssl.py -c $DIR/configs/test_ssl_beast.yaml"
+         "sudo python $DIR/test_frontends_with_ssl.py -c $DIR/configs/test_ssl_civetweb.yaml")
 
 for script in "${scripts[@]}"
 do
