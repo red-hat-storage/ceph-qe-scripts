@@ -61,10 +61,10 @@ def test_exec(config):
         tenant1 = 'tenant1'
         tenant2 = 'tenant2'
         t1_u1_info = create_tenant_user(tenant_name=tenant1, user_id=user_names[0])
-        t1_u1_auth = Auth(t1_u1_info)
+        t1_u1_auth = Auth(t1_u1_info, ssl=config.ssl)
         t1_u1 = t1_u1_auth.do_auth()
         t2_u1_info = create_tenant_user(tenant_name=tenant2, user_id=user_names[0])
-        t2_u1_auth = Auth(t2_u1_info)
+        t2_u1_auth = Auth(t2_u1_info, ssl=config.ssl)
         t2_u1 = t2_u1_auth.do_auth()
         t1_u1_b1 = resuables.create_bucket(bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info)
         t2_u1_b1 = resuables.create_bucket(bucket_name=Bucket_names[0], rgw=t2_u1, user_info=t2_u1_info)
@@ -80,7 +80,7 @@ def test_exec(config):
                                 TEST_DATA_PATH=TEST_DATA_PATH,
                                 config=config, user_info=t1_u1_info)
         t2_u2_info = create_tenant_user(tenant_name=tenant2, user_id=user_names[1])
-        t2_u2_auth = Auth(t2_u2_info)
+        t2_u2_auth = Auth(t2_u2_info, ssl=config.ssl)
         t2_u2 = t2_u2_auth.do_auth()
         # will try to access the bucket and objects in both tenants
         # access t1_u1_b1

@@ -51,7 +51,7 @@ def test_exec(config):
                 log.info('RGW service restarted')
         for each_user in all_users_info:
             # authenticate
-            auth = Auth(each_user)
+            auth = Auth(each_user, ssl=config.ssl)
             if config.use_aws4 is True:
                 rgw_conn = auth.do_auth(**{'signature_version': 's3v4'})
             else:

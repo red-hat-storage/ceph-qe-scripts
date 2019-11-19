@@ -46,8 +46,8 @@ def test_exec(config):
         tenant1_user1_info = tenant1_user_info[0]
         tenant2_user_info = s3lib.create_tenant_users(tenant_name=tenant2, no_of_users_to_create=config.user_count)
         tenant2_user1_info = tenant2_user_info[0]
-        tenant1_user1_auth = Auth(tenant1_user1_info)
-        tenant2_user1_auth = Auth(tenant2_user1_info)
+        tenant1_user1_auth = Auth(tenant1_user1_info, ssl=config.ssl)
+        tenant2_user1_auth = Auth(tenant2_user1_info, ssl=config.ssl)
         rgw_tenant1_user1 = tenant1_user1_auth.do_auth()
         rgw_tenant1_user1_c = tenant1_user1_auth.do_auth_using_client()
         rgw_tenant2_user1 = tenant2_user1_auth.do_auth()

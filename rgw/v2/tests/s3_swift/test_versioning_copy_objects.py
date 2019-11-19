@@ -35,7 +35,7 @@ def test_exec(config):
         # create user
         s3_user = s3lib.create_users(1)[0]
         # authenticate
-        auth = Auth(s3_user)
+        auth = Auth(s3_user, ssl=config.ssl)
         rgw_conn = auth.do_auth()
         b1_name = 'bucky.1e'  # bucket 1
         b1_k1_name = b1_name + ".key.1"  # key1
