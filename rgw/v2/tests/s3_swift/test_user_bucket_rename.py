@@ -59,7 +59,7 @@ def test_exec(config):
                 ten_user['user_id'] = new_ten_name
         # create buckets and test rename
         for user in non_ten_users:
-            auth = Auth(user)
+            auth = Auth(user, ssl=config.ssl)
             rgw_conn = auth.do_auth()
             bucket_name_to_create1 = utils.gen_bucket_name_from_userid(user['user_id'])
             log.info('creating bucket with name: %s' % bucket_name_to_create1)
@@ -74,7 +74,7 @@ def test_exec(config):
                 log.info('output :%s' % out2)
 
         for ten_user in ten_users:
-            auth = Auth(ten_user)
+            auth = Auth(ten_user, ssl=config.ssl)
             rgw_conn = auth.do_auth()
             bucket_name_to_create2 = utils.gen_bucket_name_from_userid(ten_user['user_id'])
             log.info('creating bucket with name: %s' % bucket_name_to_create2)

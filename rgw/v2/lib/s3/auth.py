@@ -10,11 +10,15 @@ from botocore.client import Config
 
 class Auth(object):
 
-    def __init__(self, user_info):
+    def __init__(self, user_info, **extra_kwargs):
         self.access_key = user_info['access_key']
         self.secret_key = user_info['secret_key']
         self.hostname = socket.gethostname()
-        self.port = 8080
+        self.ip = socket.gethostbyname(self.hostname)
+        self.ssl = extra_kwargs.get('ssl', False)
+        self.port = utils.get_radosgw_port_no()
+        self.endpoint_url = 'https://{}:{}'.format(self.ip, self.port) if self.ssl \
+                                else 'http://{}:{}'.format(self.ip, self.port)
         self.is_secure = False
         self.user_id = user_info['user_id']
 
@@ -23,17 +27,23 @@ class Auth(object):
         log.info('hostname: %s' % self.hostname)
         log.info('port: %s' % self.port)
         log.info('user_id: %s' % self.user_id)
+        log.info('endpoint url: %s' % self.endpoint_url)
+        log.info('ssl: %s' % self.ssl)
 
     def do_auth(self, **config):
         log.info('performing authentication')
         additional_config = Config(signature_version=config.get('signature_version', None))
+        
         rgw = boto3.resource('s3',
                              aws_access_key_id=self.access_key,
                              aws_secret_access_key=self.secret_key,
-                             endpoint_url='http://%s:%s' % (self.hostname, self.port),
-                             use_ssl=False,
+                             endpoint_url=self.endpoint_url,
+                             use_ssl=self.ssl,
+                             verify=False,
                              config=additional_config,
                              )
+
+        log.info('connected')
 
         return rgw
 
@@ -43,20 +53,8 @@ class Auth(object):
         rgw = boto3.client('s3',
                            aws_access_key_id=self.access_key,
                            aws_secret_access_key=self.secret_key,
-                           endpoint_url='http://%s:%s' % (self.hostname, self.port),
+                           endpoint_url=self.endpoint_url,
                            config=additional_config,
                            )
         return rgw
 
-    def do_auth_ssl(self, pem_file_path, **config):
-        log.info('performing authentication')
-        additional_config = Config(signature_version=config.get('signature_version', None))
-        rgw = boto3.resource('s3',
-                             aws_access_key_id=self.access_key,
-                             aws_secret_access_key=self.secret_key,
-                             endpoint_url='https://%s:%s' % (self.hostname, '443'),
-                             use_ssl=True,
-                             verify= False,
-                             config=additional_config,
-                             )
-        return rgw

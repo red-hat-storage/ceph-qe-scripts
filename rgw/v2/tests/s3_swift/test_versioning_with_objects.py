@@ -37,11 +37,11 @@ def test_exec(config):
         # create user
         all_users_info = s3lib.create_users(config.user_count)
         extra_user = s3lib.create_users(1)[0]
-        extra_user_auth = Auth(extra_user)
+        extra_user_auth = Auth(extra_user, ssl=config.ssl)
         extra_user_conn = extra_user_auth.do_auth()
         for each_user in all_users_info:
             # authenticate
-            auth = Auth(each_user)
+            auth = Auth(each_user, ssl=config.ssl)
             rgw_conn = auth.do_auth()
             s3_object_names = []
             # create buckets

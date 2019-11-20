@@ -2,6 +2,5 @@
 # Polarion ID : CEPH-10359
 config:
  user_count: 1
- test_ops:
-    use_civetweb: True
-    use_beast: False
+ frontend: civetweb
+ ssl: true

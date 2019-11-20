@@ -72,7 +72,7 @@ def test_exec(config):
         config.user_count = 1
         user_info = s3lib.create_users(config.user_count)
         user_info = user_info[0]
-        auth = Auth(user_info)
+        auth = Auth(user_info, ssl=config.ssl)
         rgw_conn = auth.do_auth()
         config.bucket_count = 1
         log.info('no of buckets to create: %s' % config.bucket_count)
