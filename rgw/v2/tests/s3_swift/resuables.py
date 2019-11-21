@@ -1,5 +1,5 @@
 import os, sys, glob
-
+import json
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import v2.lib.resource_op as s3lib
 import v2.utils.log as log
@@ -176,6 +176,7 @@ def rename_user(old_username, new_username, tenant=False):
 
 def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
     """"""
+    validate = 'radosgw-admin bucket list'
     if tenant:
         cmd = 'radosgw-admin bucket link --bucket=%s --bucket-new-name=%s --uid=%s --tenant=%s' % (
             str(tenant) + '/' + old_bucket, str(tenant) + '/' + new_bucket, userid, tenant)
@@ -185,7 +186,12 @@ def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
     out = utils.exec_shell_cmd(cmd)
     if out is False:
         raise TestExecError("RGW Bucket rename error")
+    response = utils.exec_shell_cmd(validate)
+    if old_bucket in json.loads(response):
+        raise TestExecError("RGW Bucket rename validation error")
+    log.info('Renamed bucket %s to %s' % (old_bucket, new_bucket)) 
     return out
+
 
 
 def unlink_bucket(curr_uid, bucket, tenant=False):
