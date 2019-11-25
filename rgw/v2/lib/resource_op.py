@@ -10,6 +10,7 @@ import random
 import string
 import inspect
 import yaml
+import subprocess
 import v2.lib.s3.write_io_info as write_io_info
 import v2.lib.pem as pem
 import traceback
@@ -60,6 +61,18 @@ def create_users(no_of_users_to_create, cluster_name='ceph'):
     return all_users_details
 
 
+def create_users_from_list(user_list, cluster_name='ceph'):
+    admin_ops = UserMgmt()
+    all_users_details = []
+    for user in user_list:
+        user_details = admin_ops.create_admin_user(
+            user_id=user,
+            displayname=user.capitalize(),
+            cluster_name=cluster_name)
+        all_users_details.append(user_details)
+    return all_users_details
+
+
 def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph'):
     admin_ops = UserMgmt()
     all_users_details = []
@@ -70,6 +83,29 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph')
             displayname=names.get_full_name().lower(),
             cluster_name=cluster_name,
             tenant_name=tenant_name)
+        all_users_details.append(user_details)
+    return all_users_details
+
+
+def list_all_users(cluster_name='ceph'):
+    admin_ops = UserMgmt()
+    all_users_details = []
+    cmd = 'radosgw-admin user list --cluster %s' % cluster_name
+    log.info('cmd to execute:\n%s' % cmd)
+    variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+    v = variable.stdout.readlines()
+    # Store all users list
+    list1 = []
+    list2 = []
+    for item in v:
+        list1.append(item.strip().decode())
+    list1.pop(0)
+    list1.pop()
+    # removing commas from rgw CLI output
+    for item in list1:
+        list2.append(str(item).strip(","))
+    for user in list2:
+        user_details = admin_ops.get_user_info(user_id=user, cluster_name=cluster_name)
         all_users_details.append(user_details)
     return all_users_details
 
