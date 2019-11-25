@@ -87,29 +87,6 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph')
     return all_users_details
 
 
-def list_all_users(cluster_name='ceph'):
-    admin_ops = UserMgmt()
-    all_users_details = []
-    cmd = 'radosgw-admin user list --cluster %s' % cluster_name
-    log.info('cmd to execute:\n%s' % cmd)
-    variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
-    v = variable.stdout.readlines()
-    # Store all users list
-    list1 = []
-    list2 = []
-    for item in v:
-        list1.append(item.strip().decode())
-    list1.pop(0)
-    list1.pop()
-    # removing commas from rgw CLI output
-    for item in list1:
-        list2.append(str(item).strip(","))
-    for user in list2:
-        user_details = admin_ops.get_user_info(user_id=user, cluster_name=cluster_name)
-        all_users_details.append(user_details)
-    return all_users_details
-
-
 class Config(object):
     def __init__(self, conf_file):
         with open(conf_file, 'r') as f:
