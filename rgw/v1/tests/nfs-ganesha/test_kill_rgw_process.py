@@ -5,7 +5,7 @@ import threading
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
 import v1.lib.s3.rgw as rgw
-from initialize import PrepNFSGanesha
+from .initialize import PrepNFSGanesha
 import time
 import v1.utils.log as log
 from v1.lib.s3.rgw import ObjectOps, Authenticate

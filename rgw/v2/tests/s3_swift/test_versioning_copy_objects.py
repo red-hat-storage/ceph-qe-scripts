@@ -16,7 +16,7 @@ from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure,  BucketIoInfo, KeyIoInfo
 import random
-import resuables
+from v2.tests.s3_swift import resuables
 
 TEST_DATA_PATH = None
 
@@ -48,7 +48,7 @@ def test_exec(config):
         # enable versioning on b1
         resuables.enable_versioning(b1, rgw_conn, s3_user, write_bucket_io_info)
         # upload object to version enabled bucket b1
-        obj_sizes = config.mapped_sizes.values()
+        obj_sizes = list(config.mapped_sizes.values())
         config.obj_size = obj_sizes[0]
         for vc in range(version_count):
             resuables.upload_object(b1_k1_name, b1, TEST_DATA_PATH, config, s3_user, append_data=True,
@@ -113,13 +113,13 @@ def test_exec(config):
         test_info.success_status('test passed')
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

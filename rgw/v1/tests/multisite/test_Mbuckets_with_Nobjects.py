@@ -67,7 +67,7 @@ def test_exec(config):
 
         sys.exit(0)
 
-    except AssertionError, e:
+    except AssertionError as e:
         log.error(e)
         test_info.failed_status('test failed: %s' % e)
         sys.exit(1)
@@ -100,10 +100,10 @@ if __name__ == '__main__':
         config.objects_size_range = {'min': doc['config']['objects_size_range']['min'],
                                      'max': doc['config']['objects_size_range']['max']}
 
-        for k, v in doc.iteritems():
+        for k, v in doc.items():
             if 'shards' in v:
                 config.shards = doc['config']['shards']
-                print 'shard value: %s' % config.shards
+                print('shard value: %s' % config.shards)
             if 'max_objects' in v :
                 config.max_objects = doc['config']['max_objects']
 

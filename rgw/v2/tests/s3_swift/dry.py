@@ -27,7 +27,7 @@ def create_file(fname, size):
     return fname_with_path
 #
 fname  = create_file('sample1', 10)
-print fname
+print(fname)
 #
 #
 #
@@ -51,7 +51,7 @@ bucket_name = 'nicolee.955.bucky.11'
 
 buck1 = s3_conn_resource.Bucket(bucket_name)
 buck1.create()
-print 'bucket created'
+print('bucket created')
 
 # buck1.upload_file('sample', 'sample')
 
@@ -60,24 +60,24 @@ print 'bucket created'
 #print 'obj uploaded'
 
 obj_acl = s3_conn_resource.ObjectAcl(bucket_name, 'sample1')
-print 'putting acl'
+print('putting acl')
 response = obj_acl.put(ACL='private')
-print 'response: %s\n' % response
+print('response: %s\n' % response)
 
-print 'grants'
-print obj_acl.grants
-
-
-print obj_acl.load()
-print '---- grants'
-
-print obj_acl.grants
+print('grants')
+print(obj_acl.grants)
 
 
-print 'performing get'
+print(obj_acl.load())
+print('---- grants')
+
+print(obj_acl.grants)
+
+
+print('performing get')
 sample = s3_conn_resource.Object(bucket_name, 'sample1')
 
-print sample.get()
+print(sample.get())
 
 
 #

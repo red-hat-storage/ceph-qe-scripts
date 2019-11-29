@@ -41,9 +41,9 @@ def gen_bucket_policy(tenants_list, userids_list, actions_list, resources, effec
 
     """
 
-    princials = map(gen_principal, tenants_list, userids_list)
-    actions = map(gen_action, actions_list)
-    resources = map(gen_resource, resources)
+    principals = list(map(gen_principal, tenants_list, userids_list))
+    actions = list(map(gen_action, actions_list))
+    resources = list(map(gen_resource, resources))
     version = gen_version()
-    bucket_policy = bucket_policy_dict(version, princials, actions, resources, effect, sid)
+    bucket_policy = bucket_policy_dict(version, principals, actions, resources, effect, sid)
     return bucket_policy

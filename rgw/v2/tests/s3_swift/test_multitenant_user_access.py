@@ -13,7 +13,7 @@ import yaml
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-import resuables
+from v2.tests.s3_swift import resuables
 from v2.lib.admin import UserMgmt
 
 TEST_DATA_PATH = None
@@ -68,7 +68,7 @@ def test_exec(config):
         t2_u1 = t2_u1_auth.do_auth()
         t1_u1_b1 = resuables.create_bucket(bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info)
         t2_u1_b1 = resuables.create_bucket(bucket_name=Bucket_names[0], rgw=t2_u1, user_info=t2_u1_info)
-        obj_sizes = config.mapped_sizes.values()
+        obj_sizes = list(config.mapped_sizes.values())
         config.obj_size = obj_sizes[0]
         resuables.upload_object(s3_object_name=object_names[0],
                                 bucket=t1_u1_b1,
@@ -117,13 +117,13 @@ def test_exec(config):
 
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

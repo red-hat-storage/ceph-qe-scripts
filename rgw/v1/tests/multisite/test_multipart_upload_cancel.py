@@ -59,7 +59,7 @@ def test_exec(config):
 
         sys.exit(0)
 
-    except AssertionError, e:
+    except AssertionError as e:
         log.error(e)
         test_info.failed_status('test failed: %s' % e)
         sys.exit(1)

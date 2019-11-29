@@ -49,7 +49,7 @@ def test_exec(config):
 
         sys.exit(0)
 
-    except AssertionError, e:
+    except AssertionError as e:
         log.error(e)
         sys.exit(1)
 

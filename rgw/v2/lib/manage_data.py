@@ -22,7 +22,7 @@ def io_generator(fname, size, type='txt', op='create', **kwargs):
                 finfo['md5'] = utils.get_md5(fname)
                 finfo['size'] = os.stat(fname).st_size
                 if created is False:
-                    raise RGWIOGenException, "file %s creation error" % fname
+                    raise RGWIOGenException("file %s creation error" % fname)
             return finfo
         if op == 'append':
             log.info('in modify or append')
@@ -35,6 +35,6 @@ def io_generator(fname, size, type='txt', op='create', **kwargs):
             finfo['size'] = os.stat(fname).st_size
             return finfo
 
-    except RGWIOGenException, e:
+    except RGWIOGenException as e:
         log.error(e)
         return False

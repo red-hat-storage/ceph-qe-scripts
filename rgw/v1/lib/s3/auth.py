@@ -94,7 +94,7 @@ class Authenticate(object):
 
 
 
-        except (boto.s3.connection.HostRequiredError, exception.AWSConnectionError, Exception), e:
+        except (boto.s3.connection.HostRequiredError, exception.AWSConnectionError, Exception) as e:
 
             log.error('connection failed')
             log.error(e)

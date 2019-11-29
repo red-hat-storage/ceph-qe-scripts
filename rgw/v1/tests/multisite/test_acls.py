@@ -83,7 +83,7 @@ def test_exec_read(config):
 
         test_info.success_status('test completed')
 
-    except AssertionError, e:
+    except AssertionError as e:
         log.error(e)
         test_info.failed_status('test failed: %s' % e)
         sys.exit(1)
@@ -160,7 +160,7 @@ def test_exec_write(config):
 
         test_info.success_status('test completed')
 
-    except AssertionError, e:
+    except AssertionError as e:
         log.error(e)
         test_info.failed_status('test failed: %s' % e)
         sys.exit(1)

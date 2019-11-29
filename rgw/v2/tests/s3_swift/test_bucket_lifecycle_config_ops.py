@@ -14,7 +14,7 @@ import yaml
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-import resuables
+from v2.tests.s3_swift import resuables
 from v2.lib.s3 import lifecycle as lc
 
 TEST_DATA_PATH = None
@@ -79,7 +79,7 @@ def test_exec(config):
                             raise TestExecError("version enable failed")
                     if config.test_ops['create_object'] is True:
                         # upload data
-                        for oc,size in config.mapped_sizes.items():
+                        for oc,size in list(config.mapped_sizes.items()):
                             config.obj_size = size
                             s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
                             if config.test_ops['version_count'] > 0:
@@ -241,13 +241,13 @@ def test_exec(config):
         test_info.success_status('test passed')
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
