@@ -1,10 +1,10 @@
 import os
 import hashlib
 import subprocess
-import log
+from . import log
 import json
 from random import randint
-import ConfigParser
+import configparser
 import yaml
 import random
 import string
@@ -16,22 +16,16 @@ S3_OBJECT_NAME_PREFIX = 'key'
 
 def exec_shell_cmd(cmd):
     try:
-
         log.info('executing cmd: %s' % cmd)
-
-        pr = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-
+        pr = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,  shell=True)
         out, err = pr.communicate()
-
         if pr.returncode == 0:
             log.info('cmd excuted')
             if out is not None: log.info(out)
             return out
-
         else:
             raise Exception("error: %s \nreturncode: %s" % (err, pr.returncode))
-
-    except Exception, e:
+    except Exception as e:
         log.error('cmd execution failed')
         log.error(e)
         return False
@@ -39,36 +33,27 @@ def exec_shell_cmd(cmd):
 
 def get_md5(fname):
     log.info('fname: %s' % fname)
-
     return hashlib.md5(open(fname, 'rb').read()).hexdigest()
-
     # return "@424242"
 
 
 def get_file_size(min, max):
     size = lambda x: x if x % 5 == 0 else size(randint(min, max))
-
     return size(randint(min, max))
 
 
 def create_file(fname, size):
     # give the size in mega bytes.
-
     file_size = 1024 * 1024 * size
-
     with open(fname, 'wb') as f:
         f.truncate(file_size)
-
     fname_with_path = os.path.abspath(fname)
-
     # md5 = get_md5(fname)
-
     return fname_with_path
 
 
 def split_file(fname, size_to_split=5, splitlocation=""):
     # size_to_split should be in MBs
-
     split_cmd = "split" + " " + '-b' + str(size_to_split) + "m " + fname + " " + splitlocation
     exec_shell_cmd(split_cmd)
 
@@ -79,69 +64,49 @@ class FileOps(object):
         self.fname = filename
 
     def get_data(self):
-
         data = None
-
         with open(self.fname, 'r') as fp:
-
             if self.type == 'json':
                 data = json.load(fp)
-
             if self.type == 'txt' or self.type == 'ceph.conf':
                 raw_data = fp.readlines()
                 tmp = lambda x: x.rstrip('\n')
-                data = map(tmp, raw_data)
-
+                data = list(map(tmp, raw_data))
             if self.type == 'yaml':
-                data = yaml.load(fp)
-
+                data = yaml.safe_load(fp)
         fp.close()
-
         return data
 
     def add_data(self, data):
-
         with open(self.fname, "w") as fp:
-
             if self.type == 'json':
                 json.dump(data, fp, indent=4)
-
             if self.type == 'txt':
                 fp.write(data)
-
             if self.type == 'ceph.conf':
                 data.write(fp)
-
             elif self.type is None:
                 data.write(fp)
-
             elif self.type == 'yaml':
                 yaml.dump(data, fp, default_flow_style=False)
-
         fp.close()
-
-
 
 
 class ConfigParse(object):
     def __init__(self, fname):
-
         self.fname = fname
-        self.cfg = ConfigParser.ConfigParser()
+        self.cfg = configparser.ConfigParser()
         self.cfg.read(fname)
 
     def set(self, section, option, value=None):
-
         self.cfg.set(section, option, value)
-
         return self.cfg
 
     def add_section(self, section):
-
         try:
             self.cfg.add_section(section)
             return self.cfg
-        except ConfigParser.DuplicateSectionError, e:
+        except configparser.DuplicateSectionError as e:
             log.info('section already exists: %s' % e)
             return self.cfg
 
@@ -155,12 +120,9 @@ class ConfigParse(object):
 def make_copy_of_file(f1, f2):
     """
     copy f1 to f2 location
-
     """
-
     cmd = 'sudo cp %s %s' % (f1, f2)
     executed_status = exec_shell_cmd(cmd)
-
     if not executed_status[0]:
         return executed_status
     else:
@@ -173,31 +135,23 @@ class RGWService(object):
 
     def restart(self):
         executed = exec_shell_cmd('sudo systemctl restart ceph-radosgw.target')
-
         return executed
 
     def stop(self):
         executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
-
         return executed
 
     def start(self):
         executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
-
         return executed
 
 
 def get_radosgw_port_no():
     op = exec_shell_cmd('sudo netstat -nltp | grep radosgw')
-
     log.info('output: %s' % op)
-
     x = op.split(" ")
-
     port = [i for i in x if ':' in i][0].split(':')[1]
-
     log.info('radosgw is running in port: %s' % port)
-
     return port
 
 
@@ -205,7 +159,7 @@ def get_all_in_dir(path):
     all = []
 
     for dirName, subdirList, fileList in os.walk(path):
-        print('%s' % dirName)
+        log.info('%s' % dirName)
         log.info('dir_name: %s' % dirName)
         for fname in fileList:
             log.info('filename: %s' % os.path.join(dirName, fname))
@@ -217,21 +171,15 @@ def get_all_in_dir(path):
 
 def gen_bucket_name_from_userid(user_id, rand_no=0):
     log.info('generating bucket name or basedir to create')
-
     bucket_name_to_create = user_id + "." + BUCKET_NAME_PREFIX + "." + str(rand_no)
-
     log.info('bucket or basedir name to create generated: %s' % bucket_name_to_create)
-
     return bucket_name_to_create
 
 
 def gen_s3_object_name(bucket_name, rand_no=0):
     log.info('generating s3 object name to create')
-
     s3_object_name_to_create = S3_OBJECT_NAME_PREFIX + "." + bucket_name + "." + str(rand_no)
-
     log.info('s3 object name to create generated: %s' % s3_object_name_to_create)
-
     return s3_object_name_to_create
 
 
@@ -268,7 +216,7 @@ def gen_access_key_secret_key(base_str, access_key_len=20, secret_key_len=40):
     log.info('access_key_len=%s; secret_key_len=%s' % (access_key_len, secret_key_len))
 
     generate = lambda len: ''.join(
-        random.choice(base_str + string.uppercase + string.digits) for x in range(len))
+        random.choice(base_str + string.ascii_uppercase + string.digits) for x in range(len))
 
     access_key = generate(access_key_len)
     log.info('access_key: %s' % access_key)
@@ -306,6 +254,11 @@ def get_hostname_ip():
         log.info("Hostname : %s  " % hostname)
         log.info("IP : %s" % ip)
         return hostname, ip
-    except Exception,e:
+    except Exception as e:
         log.info(e)
         log.error('unable to get Hostname and IP')
+
+
+def cmp(val1, val2):
+    return (val1 > val2) - (val1 < val2)
+

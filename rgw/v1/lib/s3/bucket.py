@@ -1,6 +1,6 @@
 import boto.exception as exception
 import v1.utils.log as log
-from json_ops import JBucket
+from .json_ops import JBucket
 from v1.lib.io_info import AddIOInfo
 
 class Bucket(object):
@@ -44,7 +44,7 @@ class Bucket(object):
 
 
         except (exception.AWSConnectionError, exception.BotoClientError, exception.S3ResponseError,
-                exception.S3CreateError, IOError), e:
+                exception.S3CreateError, IOError) as e:
             log.error(e)
             create_bucket_stack = {'status': False,
                                    'msgs': e}
@@ -79,7 +79,7 @@ class Bucket(object):
             get_bucket_stack = {'status': True,
                                 'bucket': bucket}
 
-        except (exception.S3ResponseError, exception.AWSConnectionError), e:
+        except (exception.S3ResponseError, exception.AWSConnectionError) as e:
 
             log.error(e)
             get_bucket_stack = {'status': False,
@@ -109,7 +109,7 @@ class Bucket(object):
 
             delete_bucket_stack = {'status': True}
 
-        except exception.S3ResponseError, e:
+        except exception.S3ResponseError as e:
             log.error(e)
             delete_bucket_stack = {'status': False,
                                    'msgs': e}
@@ -220,7 +220,7 @@ def check_if_bucket_empty(bucket):
 
             check_for_empty_stack = {'contents': bucket_contents}
 
-        except (exception.S3ResponseError, exception.AWSConnectionError), e:
+        except (exception.S3ResponseError, exception.AWSConnectionError) as e:
             log.error(e)
             check_for_empty_stack = {'contents': [],
                                      'msgs': e}
@@ -249,7 +249,7 @@ def list_all_buckets(connection):
         all_buckets = connection.get_all_buckets()
         list_buckets_stack = {'all_buckets': all_buckets}
 
-    except (exception.S3ResponseError, exception.AWSConnectionError), e:
+    except (exception.S3ResponseError, exception.AWSConnectionError) as e:
         log.error(e)
 
         list_buckets_stack = {'all_buckets': None,

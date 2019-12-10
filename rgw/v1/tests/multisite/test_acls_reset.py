@@ -44,7 +44,7 @@ def test_exec_write(config):
 
         for each_user in all_user_details:
 
-            print 'iter ------------------>'
+            print('iter ------------------>')
 
             log.info('user2: %s' % each_user)
 
@@ -79,7 +79,7 @@ def test_exec_write(config):
                 log.info('no write permission set and hence failing to create object')
 
             elif key_created:
-                raise AssertionError,  "object created even with no permission"
+                raise AssertionError("object created even with no permission")
 
             log.info('setting permission to write also')
 
@@ -104,7 +104,7 @@ def test_exec_write(config):
 
             u2 = ObjectOps(config, each_user)
 
-            print 'iter ------------------>'
+            print('iter ------------------>')
 
             u2.bucket_names = u1.bucket_names
             u2.buckets_created = u1.buckets_created
@@ -124,11 +124,11 @@ def test_exec_write(config):
                     log.info('no write permission set and hence failing to create object')
 
                 elif key_created:
-                    raise AssertionError, "object created even with no permission"
+                    raise AssertionError("object created even with no permission")
 
         test_info.success_status('test completed')
 
-    except AssertionError, e:
+    except AssertionError as e:
         log.error(e)
         test_info.failed_status('test failed: %s' % e)
         sys.exit(1)

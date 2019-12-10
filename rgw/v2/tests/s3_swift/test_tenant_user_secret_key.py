@@ -7,7 +7,6 @@ import v2.utils.log as log
 import v2.utils.utils as utils
 import traceback
 import argparse
-import yaml
 import json
 import v2.lib.resource_op as swiftlib
 from v2.lib.exceptions import TestExecError
@@ -71,7 +70,7 @@ def test_exec(config):
                                               'args': [container_name]})
             if container is False:
                 raise TestExecError("Resource execution failed: container creation faield")
-            for oc,size in config.mapped_sizes.items():
+            for oc,size in list(config.mapped_sizes.items()):
                 swift_object_name = utils.gen_s3_object_name('%s.container.%s' % (user_names[0], cc), oc)
                 log.info('object name: %s' % swift_object_name)
                 object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
@@ -88,13 +87,13 @@ def test_exec(config):
         test_info.success_status('test passed')
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

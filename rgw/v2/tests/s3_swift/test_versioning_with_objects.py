@@ -10,7 +10,6 @@ import v2.utils.utils as utils
 from v2.utils.utils import HttpResponseParser
 import traceback
 import argparse
-import yaml
 import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
@@ -99,7 +98,7 @@ def test_exec(config):
                         raise TestExecError("version enable failed")
                     if config.objects_count > 0:
                         log.info('s3 objects to create: %s' % config.objects_count)
-                        for oc, s3_object_size in config.mapped_sizes.items():
+                        for oc, s3_object_size in list(config.mapped_sizes.items()):
                             # versioning upload
                             s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, str(oc))
                             s3_object_names.append(s3_object_name)
@@ -334,7 +333,7 @@ def test_exec(config):
                             log.info('versioning not suspended, expected behaviour')
                 if config.test_ops.get('upload_after_suspend') is True:
                     log.info('trying to upload after suspending versioning on bucket')
-                    for oc, s3_object_size in config.mapped_sizes.items():
+                    for oc, s3_object_size in list(config.mapped_sizes.items()):
                         # non versioning upload
                         s3_object_name = s3_object_names[oc] + ".after_version_suspending"
                         log.info('s3 object name: %s' % s3_object_name)
@@ -388,13 +387,13 @@ def test_exec(config):
         test_info.success_status('test passed')
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

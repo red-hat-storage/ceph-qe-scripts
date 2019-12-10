@@ -1,3 +1,8 @@
+# file may need fixing if being used anywhere.
+def cmp(val1, val2):
+    return (val1 > val2) - (val1 < val2)
+
+
 def check_object_cmp(k1, k2):
 # compare key names
     cmp(k1.name, k2.name)

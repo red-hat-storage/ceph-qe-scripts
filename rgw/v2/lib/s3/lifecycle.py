@@ -91,7 +91,7 @@ def gen_lifecycle_rules(rule):
         AbortIncompleteMultipartUpload=rule.get("AbortIncompleteMultipartUpload", None)
     )
     log.info('generated rule:\n%s' % gen_rule)
-    cleaned_gen_rule = dict((k, v) for k, v in gen_rule.iteritems() if v is not None)
+    cleaned_gen_rule = dict((k, v) for k, v in gen_rule.items() if v is not None)
     log.info('cleaned rule:\n%s' % cleaned_gen_rule)
     log.info('generated rule:\n%s' % rule)
     return rule

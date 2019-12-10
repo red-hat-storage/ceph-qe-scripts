@@ -25,14 +25,14 @@ def resource_op(exec_info):
 
     try:
         if inspect.ismethod(getattr(obj, resource)) or inspect.isfunction(getattr(obj, resource)):
-            if exec_info.has_key("args"):
+            if "args" in exec_info:
                 log.info('in args')
                 log.info('args_val: %s' % exec_info['args'])
                 if exec_info['args'] is not None:
                     result = getattr(obj, resource)(*tuple(exec_info['args']))
                 else:
                     result = getattr(obj, resource)()
-            if exec_info.has_key('kwargs'):
+            if 'kwargs' in exec_info:
                 log.info('in kwargs')
                 log.info('kwargs value: %s' % exec_info['kwargs'])
                 result = getattr(obj, resource)(**dict(exec_info['kwargs']))
@@ -75,13 +75,17 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph')
 
 
 class Config(object):
-    def __init__(self, conf_file):
-        with open(conf_file, 'r') as f:
-            self.doc = yaml.load(f)
-        log.info('got config: \n%s' % self.doc)
+    def __init__(self, conf_file=None):
+        self.doc = None
+        if conf_file is not None:
+            with open(conf_file, 'r') as f:
+                self.doc = yaml.safe_load(f)
+            log.info('got config: \n%s' % self.doc)
 
     def read(self):
         try:
+            if self.doc is None:
+                raise Exception('trying to read configs without providing yaml config')
             self.shards = None
             self.max_objects = None
             self.user_count = self.doc['config'].get('user_count')
@@ -99,6 +103,7 @@ class Config(object):
             self.local_file_delete = self.doc['config'].get('local_file_delete', False)
             self.ssl = self.doc['config'].get('ssl',)
             self.frontend = self.doc['config'].get('frontend')
+            self.io_op_config = self.doc.get('io_op_config')
             frontend_config = Frontend()
 
             # if frontend is set in config yaml
@@ -125,7 +130,7 @@ class Config(object):
                 log.info('ssl is not set in config.yaml')
                 self.ssl = frontend_config.curr_ssl
 
-        except Exception,e:
+        except Exception as e:
             log.info(e)
             log.info(traceback.format_exc())
             sys.exit(1)

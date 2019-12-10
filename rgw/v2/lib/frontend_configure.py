@@ -23,10 +23,11 @@ class RGWSection(object):
         self._ceph_conf = CephConfOp()
         self._rgw_service = RGWService()
 
-        _sections_to_check = ['client.rgw.' + self._hostname, 'client.rgw.' + self._ip]
+        _sections_to_check = ['client.rgw.' + self._hostname,
+                              'client.rgw.' + self._ip]
         log.info('checking for existence of sections: {}'.format(_sections_to_check))
-        _sections = filter(lambda section: section if self._ceph_conf.check_if_section_exists(section) else False,
-                           _sections_to_check)
+        _sections = [section for section in _sections_to_check if self._ceph_conf.check_if_section_exists(section)]
+
         log.info('got section(s): {}'.format(_sections))
         if not any(_sections):
             raise RGWBaseException('No RGW section in ceph.conf')
@@ -94,7 +95,7 @@ class Frontend(RGWSectionOptions):
             log.info('ssl status updated: {}'.format(ssl))
             return frontend
 
-        except RGWBaseException, e:
+        except RGWBaseException as e:
             log.info(e)
             log.info(traceback.format_exc())
             sys.exit(1)

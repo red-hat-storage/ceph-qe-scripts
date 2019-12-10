@@ -123,12 +123,12 @@ class QuotaMgmt(object):
               % (uid, max_objects, cluster_name)
         status = utils.exec_shell_cmd(cmd)
         if not status[0]:
-            raise AssertionError, status[1]
+            raise AssertionError(status[1])
         log.info('quota set complete')
 
     def enable_bucket_quota(self, uid, cluster_name='ceph'):
         cmd = 'radosgw-admin quota enable --quota-scope=bucket --uid=%s --cluster %s' % (uid, cluster_name)
         status = utils.exec_shell_cmd(cmd)
         if not status[0]:
-            raise AssertionError, status[1]
+            raise AssertionError(status[1])
         log.info('quota set complete')

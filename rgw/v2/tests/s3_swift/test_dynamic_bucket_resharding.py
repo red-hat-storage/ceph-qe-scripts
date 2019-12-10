@@ -16,7 +16,7 @@ from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import random, time
-import resuables
+from v2.tests.s3_swift import resuables
 import threading
 import json
 
@@ -50,7 +50,7 @@ def create_bucket_with_versioning(rgw_conn, user_info, bucket_name):
 
 def upload_objects(user_info, bucket, config):
     log.info('s3 objects to create: %s' % config.objects_count)
-    for oc, size in config.mapped_sizes.items():
+    for oc, size in list(config.mapped_sizes.items()):
         config.obj_size = size
         s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
         resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
@@ -113,7 +113,7 @@ def test_exec(config):
                 raise TestExecError("manual resharding command execution failed")
         # upload_objects(user_info, bucket, config)
         log.info('s3 objects to create: %s' % config.objects_count)
-        for oc, size in config.mapped_sizes.items():
+        for oc, size in list(config.mapped_sizes.items()):
             config.obj_size = size
             s3_object_name = utils.gen_s3_object_name(bucket.name, config.objects_count + oc)
             resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
@@ -142,13 +142,13 @@ def test_exec(config):
         test_info.success_status('test passed')
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

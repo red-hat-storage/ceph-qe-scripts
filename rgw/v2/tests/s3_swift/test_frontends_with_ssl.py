@@ -18,8 +18,7 @@ from v2.lib.s3.write_io_info import AddUserInfo, BucketIoInfo
 from v2.lib.read_io_info import ReadIOInfo
 from v2.lib.s3.auth import Auth
 from v2.lib import pem
-
-import resuables
+from v2.tests.s3_swift import resuables
 import v2.lib.resource_op as s3lib
 
 TEST_DATA_PATH = None
@@ -43,13 +42,13 @@ def test_exec(config):
         test_info.success_status('test passed')
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

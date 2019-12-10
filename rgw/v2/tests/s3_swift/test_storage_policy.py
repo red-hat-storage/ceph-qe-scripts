@@ -20,7 +20,7 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.lib.admin import UserMgmt
 import time
 import json
-import resuables
+from v2.tests.s3_swift import resuables
 
 TEST_DATA_PATH = None
 
@@ -114,7 +114,6 @@ def test_exec(config):
         }
         log.info('adding  special placement info')
         zone_info_cleaned['placement_pools'].append(special_placement_info)
-        print zone_info_cleaned
         with open(zone_file, 'w+') as fp:
             json.dump(zone_info_cleaned, fp)
         zone_file_set = 'sudo radosgw-admin zone set < %s' % zone_file
@@ -174,13 +173,13 @@ def test_exec(config):
 
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

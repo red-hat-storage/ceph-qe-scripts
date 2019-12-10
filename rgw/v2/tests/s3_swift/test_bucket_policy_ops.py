@@ -16,7 +16,7 @@ import json
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-import resuables
+from v2.tests.s3_swift import resuables
 import botocore.exceptions as boto3exception
 
 TEST_DATA_PATH = None
@@ -103,7 +103,7 @@ def test_exec(config):
             # adding new action list: ListBucket to existing action: CreateBucket
             log.info('modifying buckey policy')
             actions_list = ['ListBucket', 'CreateBucket']
-            actions = map(s3_bucket_policy.gen_action, actions_list)
+            actions = list(map(s3_bucket_policy.gen_action, actions_list))
             bucket_policy2_generated = s3_bucket_policy.gen_bucket_policy(tenants_list=[tenant1],
                                                                           userids_list=[tenant2_user1_info['user_id']],
                                                                           actions_list=actions_list,
@@ -129,10 +129,10 @@ def test_exec(config):
             modified_policy = json.loads(get_modified_policy['Policy'])
             log.info('got bucket policy:%s\n' % modified_policy)
             actions_list_from_modified_policy = modified_policy['Statement'][0]['Action']
-            cleaned_actions_list_from_modified_policy = map(str, actions_list_from_modified_policy)
+            cleaned_actions_list_from_modified_policy = list(map(str, actions_list_from_modified_policy))
             log.info('cleaned_actions_list_from_modified_policy: %s' % cleaned_actions_list_from_modified_policy)
             log.info('actions list to be modified: %s' % actions)
-            cmp_val = cmp(actions, cleaned_actions_list_from_modified_policy)
+            cmp_val = utils.cmp(actions, cleaned_actions_list_from_modified_policy)
             log.info('cmp_val: %s' % cmp_val)
             if cmp_val != 0:
                 raise TestExecError("modification of bucket policy failed ")
@@ -190,13 +190,13 @@ def test_exec(config):
         test_info.success_status('test passed')
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

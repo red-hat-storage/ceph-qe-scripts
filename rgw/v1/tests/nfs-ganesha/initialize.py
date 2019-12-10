@@ -31,7 +31,7 @@ class RGWUserConfigOps(object):
         yaml_file = os.path.abspath(self.fname)
 
         with open(yaml_file, 'r') as f:
-            rgw_user_details = yaml.load(f)
+            rgw_user_details = yaml.safe_load(f)
 
         log.info('got configuration: %s' % rgw_user_details)
 

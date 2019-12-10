@@ -15,7 +15,7 @@ from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import v2.lib.manage_data as manage_data
-import resuables
+from v2.tests.s3_swift import resuables
 
 TEST_DATA_PATH = None
 
@@ -42,7 +42,7 @@ def test_exec(config):
                 bucket = resuables.create_bucket(bucket_name, rgw_conn, each_user)
                 # uploading data
                 log.info('s3 objects to create: %s' % config.objects_count)
-                for oc, size in config.mapped_sizes.items():
+                for oc, size in list(config.mapped_sizes.items()):
                     config.obj_size = size
                     s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
                     resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
@@ -65,13 +65,13 @@ def test_exec(config):
 
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')

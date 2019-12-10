@@ -8,19 +8,16 @@ from v2.lib.s3.auth import Auth
 import v2.utils.log as log
 import v2.utils.utils as utils
 from v2.utils.utils import RGWService
-import resuables
+from v2.tests.s3_swift import resuables
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.utils.utils import HttpResponseParser
 import traceback
 import argparse
-import yaml
-import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-import time
-import json
-import time, hashlib
+import json, time, hashlib
+
 
 TEST_DATA_PATH = None
 password = "32characterslongpassphraseneeded".encode('utf-8')
@@ -41,8 +38,7 @@ def test_exec(config):
         all_users_info = s3lib.create_users(config.user_count)
         if config.test_ops.get('encryption_algorithm', None) is not None:
             log.info('encryption enabled, making ceph config changes')
-            ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_crypt_require_ssl,
-                                       False)
+            ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_crypt_require_ssl, "false")
             srv_restarted = rgw_service.restart()
             time.sleep(30)
             if srv_restarted is False:
@@ -62,7 +58,7 @@ def test_exec(config):
                 max_shards = config.test_ops['sharding']['max_shards']
                 log.info('making changes to ceph.conf')
                 ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_override_bucket_index_max_shards,
-                                           max_shards)
+                                           str(max_shards))
                 log.info('trying to restart services ')
                 srv_restarted = rgw_service.restart()
                 time.sleep(10)
@@ -82,7 +78,7 @@ def test_exec(config):
                         log.info('Compression enabled successfully')
                     else:
                         raise ValueError('failed to enable compression')
-                except ValueError, e:
+                except ValueError as e:
                     exit(str(e))
                 log.info('trying to restart rgw services ')
                 srv_restarted = rgw_service.restart()
@@ -101,7 +97,7 @@ def test_exec(config):
                     if config.test_ops['create_object'] is True:
                         # uploading data
                         log.info('s3 objects to create: %s' % config.objects_count)
-                        for oc, size in config.mapped_sizes.items():
+                        for oc, size in list(config.mapped_sizes.items()):
                             config.obj_size = size
                             s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, oc)
                             log.info('s3 object name: %s' % s3_object_name)
@@ -228,13 +224,13 @@ def test_exec(config):
 
         sys.exit(0)
 
-    except Exception, e:
+    except Exception as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
 
-    except TestExecError, e:
+    except TestExecError as e:
         log.info(e)
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
