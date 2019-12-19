@@ -23,15 +23,22 @@ class RGWSection(object):
         self._ceph_conf = CephConfOp()
         self._rgw_service = RGWService()
 
-        _sections_to_check = ['client.rgw.' + self._hostname,
-                              'client.rgw.' + self._ip]
-        log.info('checking for existence of sections: {}'.format(_sections_to_check))
-        _sections = [section for section in _sections_to_check if self._ceph_conf.check_if_section_exists(section)]
+        # _sections_to_check = ['client.rgw.' + self._hostname,
+        #                       'client.rgw.' + self._ip]
+        # log.info('checking for existence of sections: {}'.format(_sections_to_check))
+        # _sections = [section for section in _sections_to_check if self._ceph_conf.check_if_section_exists(section)]
+        #
+        # log.info('got section(s): {}'.format(_sections))
+        # if not any(_sections):
+        #     raise RGWBaseException('No RGW section in ceph.conf')
+        # self.section = _sections[0]
 
-        log.info('got section(s): {}'.format(_sections))
-        if not any(_sections):
+        sections_in_ceph_conf = self._ceph_conf.cfg.sections()
+        log.info('got sections from ceph_conf: {}'.format(sections_in_ceph_conf))
+        rgw_section = list(filter(lambda section: 'rgw' in section, sections_in_ceph_conf))
+        if not rgw_section:
             raise RGWBaseException('No RGW section in ceph.conf')
-        self.section = _sections[0]
+        self.section = rgw_section[0]
         log.info('using section: {}'.format(self.section))
 
 
