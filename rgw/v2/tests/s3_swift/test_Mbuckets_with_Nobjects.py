@@ -69,12 +69,16 @@ def test_exec(config):
             if config.test_ops['compression']['enable'] is True:
                 compression_type = config.test_ops['compression']['type']
                 log.info('enabling compression')
-                cmd = 'radosgw-admin zone placement modify --rgw-zone=default ' \
-                      '--placement-id=default-placement --compression=%s' % compression_type
+                cmd = 'radosgw-admin zone get'
+                out = utils.exec_shell_cmd(cmd)
+                zone = json.loads(out)
+                zone = zone.get("name")
+                cmd = 'radosgw-admin zone placement modify --rgw-zone=%s ' \
+                      '--placement-id=default-placement --compression=%s' % (zone,compression_type)
                 out = utils.exec_shell_cmd(cmd)
                 try:
                     data = json.loads(out)
-                    if data['placement_pools'][0]['val']['compression'] == compression_type:
+                    if data['placement_pools'][0]['val']['storage_classes']['STANDARD']['compression_type'] == compression_type:
                         log.info('Compression enabled successfully')
                     else:
                         raise ValueError('failed to enable compression')
@@ -210,8 +214,12 @@ def test_exec(config):
             # disable compression after test
             if config.test_ops['compression']['enable'] is True:
                 log.info('disable compression')
-                cmd = 'radosgw-admin zone placement modify --rgw-zone=default ' \
-                      '--placement-id=default-placement --compression='
+                cmd = 'radosgw-admin zone get'
+                out = utils.exec_shell_cmd(cmd)
+                zone = json.loads(out)
+                zone = zone.get("name")
+                cmd = 'radosgw-admin zone placement modify --rgw-zone=%s ' \
+                      '--placement-id=default-placement --compression=none' % zone
                 out = utils.exec_shell_cmd(cmd)
                 srv_restarted = rgw_service.restart()
                 time.sleep(10)
