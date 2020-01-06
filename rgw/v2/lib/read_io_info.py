@@ -75,7 +75,7 @@ class ReadIOInfo(object):
                                   aws_access_key_id=each_user['access_key'],
                                   aws_secret_access_key=each_user['secret_key'],
                                   endpoint_url='http://%s:%s' % (
-                                  socket.gethostname(), int(utils.get_radosgw_port_no())),
+                                  socket.gethostbyname(socket.gethostname()), int(utils.get_radosgw_port_no())),
                                   use_ssl=False)
             for each_bucket in each_user['bucket']:
                 log.info('verifying data for bucket: %s' % each_bucket['name'])
