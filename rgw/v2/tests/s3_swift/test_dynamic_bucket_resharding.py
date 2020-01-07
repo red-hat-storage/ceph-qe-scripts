@@ -88,9 +88,9 @@ def test_exec(config):
             # then no of shards should be at least 50 or more
             time.sleep(15)
             log.info('making changes to ceph.conf')
-            ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_max_objs_per_shard, config.max_objects_per_shard)
+            ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_max_objs_per_shard, str(config.max_objects_per_shard))
             ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_dynamic_resharding,
-                                       True)
+                                       'True')
             num_shards_expected = config.objects_count / config.max_objects_per_shard
             log.info('num_shards_expected: %s' % num_shards_expected)
             log.info('trying to restart services ')
@@ -117,7 +117,7 @@ def test_exec(config):
             config.obj_size = size
             s3_object_name = utils.gen_s3_object_name(bucket.name, config.objects_count + oc)
             resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
-        time.sleep(300)
+        time.sleep(450)
         log.info('verification starts')
         op = utils.exec_shell_cmd("radosgw-admin metadata get bucket:%s" % bucket.name)
         json_doc = json.loads(op)
