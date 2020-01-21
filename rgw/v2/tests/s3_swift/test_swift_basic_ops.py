@@ -69,7 +69,7 @@ def test_exec(config):
                 log.info('download object path: %s' % swift_object_download_path)
                 swift_object_downloaded = rgw.get_object(container_name, swift_object_name)
                 with open(swift_object_download_path, 'w') as fp:
-                    fp.write(swift_object_downloaded[1])
+                    fp.write(str(swift_object_downloaded[1]))
                 # modify and re-upload
                 log.info('appending new message to test_data')
                 message_to_append = 'adding new msg after download'
