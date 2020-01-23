@@ -110,7 +110,7 @@ def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_
         # part_upload_response = part.upload(Body=open(each_part))
         part_upload_response = s3lib.resource_op({'obj': part,
                                                   'resource': 'upload',
-                                                  'kwargs': dict(Body=open(each_part))})
+                                                  'kwargs': dict(Body=open(each_part, mode="rb"))})
         if part_upload_response is not False:
             response = HttpResponseParser(part_upload_response)
             if response.status_code == 200:
