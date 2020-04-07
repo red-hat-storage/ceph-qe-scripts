@@ -1,0 +1,56 @@
+#os_type: ubuntu
+run-cm-ansible: True
+#os_version: "7.4"
+#test-mode: true
+coverage: False
+redhat:
+   #set-cdn-repo:
+   #   rhbuild: '3.0'
+   # skip-subscription-manager: True
+   # set-add-repo: http://drop.ceph.com/qa/75.repo
+   #base-repo-url: http://download.eng.bos.redhat.com/composes/auto/ceph-3.1-rhel-7/latest-RHCEPH-3-RHEL-7/
+   rhbuild: '3.3'
+   base-repo-url: http://download.eng.bos.redhat.com/composes/auto/ceph-3.3-rhel-7/latest-RHCEPH-3-RHEL-7/
+   #deb-repo-url: http://download.eng.bos.redhat.com/rcm-guest/ceph-drops/3.3/latest-RHCEPH-3.3-Ubuntu/
+   #deb-gpg-key: http://download.eng.bos.redhat.com/rcm-guest/ceph-drops/3.3/latest-RHCEPH-3.3-Ubuntu/MON/release.asc
+overrides:
+  selinux:
+    whitelist:
+    - '/home/ubuntu/cephtest/'
+    - '/var/lib/ceph/tmp/ceph-disk.activate.lock'
+    - 'comm="sh"'
+    - 'comm="mgr-fin"'
+    - 'comm="msgr-worker-1"'
+  #  - 'comm="ms_dispatch"'
+  ansible.cephlab:
+  #   branch: wip-vaultpass
+      #tags: zap,entitlements,epel,hostname,lvm,partition,secondary-nic
+      tags: zap,epel,hostname,lvm,partition,secondary-nic,packages
+  ceph_ansible:
+    rhbuild: '3.3'
+    vars:
+       ceph_origin: distro
+       ceph_stable: true
+       ceph_stable_release: luminous
+       ceph_stable_rh_storage: true
+       ceph_test: true
+  install:
+   ceph:
+    log-whitelist:
+      - WRN
+      - wrn
+    fs: xfs
+    rhbuild: '3.3'
+    #conf:
+    #  global:
+    #    cluster network: 172.20.20.0/24
+  cbt:
+    repo: 'https://github.com/vasukulkarni/cbt'
+    branch: 'wip-archive'
+  workunit:
+    #branch: ceph-2-rhel-patches
+    branch: rh-luminous
+  s3tests:
+    client.0:
+      force-branch: ceph-luminous
+

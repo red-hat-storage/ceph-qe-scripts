@@ -1,0 +1,49 @@
+run-cm-ansible: True
+coverage: False
+redhat:
+   #set-cdn-repo:
+   #   rhbuild: '4.0'
+   # skip-subscription-manager: True
+   # set-add-repo: http://drop.ceph.com/qa/75.repo
+   rhbuild: '4.0'
+   base-repo-url: http://download.eng.bos.redhat.com/rhel-8/composes/auto/ceph-4.0-rhel-8/latest-RHCEPH-4-RHEL-8/
+overrides:
+  selinux:
+    whitelist:
+    - '/home/ubuntu/cephtest/'
+    - '/var/lib/ceph/tmp/ceph-disk.activate.lock'
+    - 'comm="sh"'
+    - 'comm="mgr-fin"'
+    - 'comm="msgr-worker-1"'
+    - 'comm="rpm"'
+    - 'comm="setroubleshootd"'
+    - 'comm="rhsmcertd-worke"'
+  #  - 'comm="ms_dispatch"'
+  ansible.cephlab:
+  #   branch: wip-vaultpass
+      #tags: zap,entitlements,epel,hostname,lvm,partition,secondary-nic
+      tags: zap,epel,hostname,lvm,partition,secondary-nic,packages
+  install:
+   ceph:
+    log-whitelist:
+      - WRN
+      - wrn
+    fs: xfs
+    rhbuild: '4.0'
+    #conf:
+    #  global:
+    #    cluster network: 172.20.20.0/24
+  ceph_ansible:
+    rhbuild: '4.0'
+#  cbt:
+#    repo: 'https://github.com/vasukulkarni/cbt'
+#    branch: 'wip-archive'
+  workunit:
+    #branch: ceph-2-rhel-patches
+    branch: rh-nautilus
+  s3tests:
+    client.0:
+      force-branch: ceph-nautilus
+  s3readwrite:
+    client.0:
+      force-branch: ceph-nautilus
