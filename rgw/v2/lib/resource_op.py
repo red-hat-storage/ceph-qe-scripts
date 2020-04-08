@@ -5,6 +5,7 @@ import v2.utils.log as log
 from v2.lib.admin import UserMgmt
 # import v2.lib.frontend_configure as frontend_configure
 from v2.lib.frontend_configure import Frontend
+from v2.lib.exceptions import ConfigError
 import names
 import random
 import string
@@ -77,61 +78,57 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph')
 class Config(object):
     def __init__(self, conf_file=None):
         self.doc = None
-        if conf_file is not None:
-            with open(conf_file, 'r') as f:
-                self.doc = yaml.safe_load(f)
-            log.info('got config: \n%s' % self.doc)
+        if not os.path.exists(conf_file):
+            raise ConfigError('config file not given')
+        with open(conf_file, 'r') as f:
+            self.doc = yaml.safe_load(f)
+        log.info('got config: \n%s' % self.doc)
 
     def read(self):
-        try:
-            if self.doc is None:
-                raise Exception('trying to read configs without providing yaml config')
-            self.shards = None
-            self.max_objects = None
-            self.user_count = self.doc['config'].get('user_count')
-            self.bucket_count = self.doc['config'].get('bucket_count')
-            self.objects_count = self.doc['config'].get('objects_count')
-            self.use_aws4 = self.doc['config'].get('use_aws4', None)
-            self.objects_size_range = self.doc['config'].get('objects_size_range')
-            self.sharding_type = self.doc['config'].get('sharding_type')
-            self.split_size = self.doc['config'].get('split_size', 5)
-            self.test_ops = self.doc['config'].get('test_ops')
-            self.mapped_sizes = self.doc['config'].get('mapped_sizes')
-            self.bucket_policy_op = self.doc['config'].get('bucket_policy_op')
-            self.container_count = self.doc['config'].get('container_count')
-            self.version_count = self.doc['config'].get('version_count')
-            self.local_file_delete = self.doc['config'].get('local_file_delete', False)
-            self.ssl = self.doc['config'].get('ssl',)
-            self.frontend = self.doc['config'].get('frontend')
-            self.io_op_config = self.doc.get('io_op_config')
-            frontend_config = Frontend()
 
-            # if frontend is set in config yaml
-            if self.frontend:
-                log.info('frontend is set in config.yaml: {}'.format(self.frontend))
-                if self.ssl is None:
-                    # if ssl is not set in config.yaml
-                    log.info('ssl is not set in config.yaml')
-                    self.ssl = frontend_config.curr_ssl
-                # configuring frontend
-                frontend_config.set_frontend(self.frontend, ssl=self.ssl)
+        if self.doc is None:
+            raise ConfigError('config file not given')
 
-            # if ssl is True or False in config yaml
-            # and if frontend is not set in config yaml,
-            elif self.ssl is not None and not self.frontend:
-                # get the current frontend and add ssl to it.
-                log.info('ssl is set in config.yaml')
-                log.info('frontend is not set in config.yaml')
-                frontend_config.set_frontend(frontend_config.curr_frontend, ssl=self.ssl)
+        self.shards = None
+        self.max_objects = None
+        self.user_count = self.doc['config'].get('user_count')
+        self.bucket_count = self.doc['config'].get('bucket_count')
+        self.objects_count = self.doc['config'].get('objects_count')
+        self.use_aws4 = self.doc['config'].get('use_aws4', None)
+        self.objects_size_range = self.doc['config'].get('objects_size_range')
+        self.sharding_type = self.doc['config'].get('sharding_type')
+        self.split_size = self.doc['config'].get('split_size', 5)
+        self.test_ops = self.doc['config'].get('test_ops')
+        self.mapped_sizes = self.doc['config'].get('mapped_sizes')
+        self.bucket_policy_op = self.doc['config'].get('bucket_policy_op')
+        self.container_count = self.doc['config'].get('container_count')
+        self.version_count = self.doc['config'].get('version_count')
+        self.local_file_delete = self.doc['config'].get('local_file_delete', False)
+        self.ssl = self.doc['config'].get('ssl',)
+        self.frontend = self.doc['config'].get('frontend')
+        self.io_op_config = self.doc.get('io_op_config')
+        frontend_config = Frontend()
 
-            elif self.ssl is None:
-                # if ssl is not set in config yaml, check if ssl_enabled and configured by default,
-                # set sel.ssl = True or False based on ceph conf
+        # if frontend is set in config yaml
+        if self.frontend:
+            log.info('frontend is set in config.yaml: {}'.format(self.frontend))
+            if self.ssl is None:
+                # if ssl is not set in config.yaml
                 log.info('ssl is not set in config.yaml')
                 self.ssl = frontend_config.curr_ssl
+            # configuring frontend
+            frontend_config.set_frontend(self.frontend, ssl=self.ssl)
 
-        except Exception as e:
-            log.info(e)
-            log.info(traceback.format_exc())
-            sys.exit(1)
+        # if ssl is True or False in config yaml
+        # and if frontend is not set in config yaml,
+        elif self.ssl is not None and not self.frontend:
+            # get the current frontend and add ssl to it.
+            log.info('ssl is set in config.yaml')
+            log.info('frontend is not set in config.yaml')
+            frontend_config.set_frontend(frontend_config.curr_frontend, ssl=self.ssl)
 
+        elif self.ssl is None:
+            # if ssl is not set in config yaml, check if ssl_enabled and configured by default,
+            # set sel.ssl = True or False based on ceph conf
+            log.info('ssl is not set in config.yaml')
+            self.ssl = frontend_config.curr_ssl
