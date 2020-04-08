@@ -7,24 +7,42 @@ import v2.utils.utils as utils
 
 
 class RGWBaseException(Exception):
-    pass
+    # RGW Base Exception Class
+    def __init__(self, message=None,):
+        super().__init__(message)
+        self.message = message
+
+
+class ConfigError(RGWBaseException):
+    # exception when config error occurs
+    def __init__(self, message=None):
+        super().__init__(message)
+        self.message = message
 
 
 class RGWIOGenException(RGWBaseException):
     # exception raised when io gen occurs
-    pass
+    def __init__(self, message=None, ):
+        super().__init__(message)
+        self.message = message
 
 
 class TestExecError(RGWBaseException):
     # test execution error
-    pass
+    def __init__(self, message=None, ):
+        super().__init__(message)
+        self.message = message
 
 
 class NFSGaneshaBaseException(Exception):
     # Base exception for NFS-Ganesha
-    pass
+    def __init__(self, message=None, ):
+        super().__init__(message)
+        self.message = message
 
 
 class NFSGaneshaMountError(NFSGaneshaBaseException):
     # NFS Mount error
-    pass
+    def __init__(self, message=None, ):
+        super().__init__(message)
+        self.message = message
