@@ -96,7 +96,7 @@ if __name__ == '__main__':
         test_exec(config, requester)
         test_info.success_status('test passed')
 
-        requester = 'Owner'
+        requester = 'BucketOwner'
         test_exec(config, requester)
         test_info.success_status('test passed')
 
