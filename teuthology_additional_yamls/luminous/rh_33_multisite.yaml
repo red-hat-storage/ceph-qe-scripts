@@ -12,8 +12,8 @@ overrides:
     - 'comm="sh"'
     - 'comm="mgr-fin"'
   ansible.cephlab:
-      tags: zap,epel,hostname,lvm,partition,secondary-nic,packages
-  ceph_ansible:
+      tags: zap,epel,hostname,lvm,partition,secondary-nic,packages,repos
+  rhceph_ansible:
     rhbuild: '3.3'
     setup-clients: true
     # ceph_rhcs: true

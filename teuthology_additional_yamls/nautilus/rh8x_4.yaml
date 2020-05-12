@@ -33,7 +33,7 @@ overrides:
     #conf:
     #  global:
     #    cluster network: 172.20.20.0/24
-  ceph_ansible:
+  rhceph_ansible:
     rhbuild: '4.0'
 #  cbt:
 #    repo: 'https://github.com/vasukulkarni/cbt'

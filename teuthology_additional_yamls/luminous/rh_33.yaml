@@ -25,8 +25,8 @@ overrides:
   ansible.cephlab:
   #   branch: wip-vaultpass
       #tags: zap,entitlements,epel,hostname,lvm,partition,secondary-nic
-      tags: zap,epel,hostname,lvm,partition,secondary-nic,packages
-  ceph_ansible:
+      tags: zap,epel,hostname,lvm,partition,secondary-nic,packages,repos
+  rhceph_ansible:
     rhbuild: '3.3'
     vars:
        ceph_origin: distro

@@ -10,7 +10,7 @@ redhat:
    rhbuild: '4.0'
    base-repo-url: http://download.eng.bos.redhat.com/rhel-7/composes/raw/ceph-4.0-rhel-7/latest-RHCEPH-4-RHEL-7/
 overrides:
-  ceph_ansible:
+  rhceph_ansible:
     rhbuild: '4.0'
   selinux:
     whitelist:
@@ -23,8 +23,8 @@ overrides:
   ansible.cephlab:
   #   branch: wip-vaultpass
       #tags: zap,entitlements,epel,hostname,lvm,partition,secondary-nic
-      tags: zap,epel,hostname,lvm,partition,secondary-nic,packages
-#  ceph_ansible:
+      tags: zap,epel,hostname,lvm,partition,secondary-nic,packages,repos
+#  rhceph_ansible:
 #    rhbuild: '4.0'
 #    vars:
 #       ceph_origin: distro
