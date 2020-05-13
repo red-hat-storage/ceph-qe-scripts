@@ -9,3 +9,4 @@ swiftly
 simplejson
 # for v1
 psutil
+rgwadmin

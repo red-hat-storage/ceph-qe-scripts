@@ -2,6 +2,7 @@ import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import subprocess
+import time
 import v2.utils.log as log
 import v2.utils.utils as utils
 import json
@@ -20,6 +21,42 @@ class UserMgmt(object):
             log.info('cluster name: %s' % cluster_name)
             cmd = 'radosgw-admin user create --uid=%s --display-name=%s --cluster %s' % (
                 user_id, displayname, cluster_name)
+            log.info('cmd to execute:\n%s' % cmd)
+            variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+            v = variable.stdout.read()
+            v_as_json = json.loads(v)
+            log.info(v_as_json)
+            user_details = {}
+            user_details['user_id'] = v_as_json['user_id']
+            user_details['display_name'] = v_as_json['display_name']
+            user_details['access_key'] = v_as_json['keys'][0]['access_key']
+            user_details['secret_key'] = v_as_json['keys'][0]['secret_key']
+            user_info = basic_io_structure.user(**{'user_id': user_details['user_id'],
+                                                   'access_key': user_details['access_key'],
+                                                   'secret_key': user_details['secret_key']})
+            write_user_info.add_user_info(user_info)
+            log.info('access_key: %s' % user_details['access_key'])
+            log.info('secret_key: %s' % user_details['secret_key'])
+            log.info('user_id: %s' % user_details['user_id'])
+            return user_details
+
+        except subprocess.CalledProcessError as e:
+            error = e.output + str(e.returncode)
+            log.error(error)
+            # traceback.print_exc(e)
+            return False
+    def create_rest_admin_user(self, user_id, displayname, cluster_name='ceph'):
+        try:
+            write_user_info = AddUserInfo()
+            basic_io_structure = BasicIOInfoStructure()
+            log.info('cluster name: %s' % cluster_name)
+            cmd = 'radosgw-admin user create --uid=%s --display-name=%s --cluster %s' % (
+                user_id, displayname, cluster_name)
+            log.info('cmd to execute:\n%s' % cmd)
+            variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+            time.sleep(10)
+            cmd = 'radosgw-admin caps add --uid=%s --caps="users=*" --cluster %s' % (
+                user_id, cluster_name)
             log.info('cmd to execute:\n%s' % cmd)
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
             v = variable.stdout.read()
