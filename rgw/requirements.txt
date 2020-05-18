@@ -7,6 +7,6 @@ ConfigParser
 python-swiftclient
 swiftly
 simplejson
-rgwadmin
 # for v1
-# psutil need to check if v1 needs this package
+psutil
+rgwadmin
