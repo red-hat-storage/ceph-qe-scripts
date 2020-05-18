@@ -38,7 +38,7 @@ scripts=("sudo python3 $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_
          "sudo python3 $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_dynamic_resharding.yaml" # need to check
          "sudo python3 $DIR/test_frontends_with_ssl.py -c $DIR/configs/test_ssl_beast.yaml"
          "sudo python3 $DIR/test_frontends_with_ssl.py -c $DIR/configs/test_ssl_civetweb.yaml"
-         "sudo python3 $DIR/user_op_using_rest.py")
+         "sudo python3 $DIR/user_op_using_rest.py -c $DIR/configs/test_user_with_REST.yaml")
 
 for script in "${scripts[@]}"
 do
