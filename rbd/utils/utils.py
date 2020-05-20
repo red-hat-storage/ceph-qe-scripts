@@ -1,4 +1,4 @@
-import log
+import logging as log 
 import shlex
 import random
 import string
@@ -16,6 +16,8 @@ class RbdUtils:
             return 2
         elif self.output == 12:
             return 3
+        elif self.output == 14:
+            return 4
 
     def exec_cmd(self, cmd):
 
@@ -31,19 +33,19 @@ class RbdUtils:
             if pr.returncode == 0:
                 log.info('cmd executed')
                 if out or err:
-                    log.info('output:' + out + err)
-                return out
+                    log.info('output:' + out.decode(encoding="utf-8") + err.decode(encoding="utf-8"))
+                return out.decode(encoding="utf-8")
 
             else:
                 raise Exception("error: %s \nreturncode: %s" % (err, pr.returncode))
 
-        except Exception, e:
+        except Exception as e:
             log.error('cmd execution failed')
             log.error(e)
             return False
 
     def random_string(self, length=8, prefix='', suffix=''):
-        self.temp_str = prefix + ''.join([random.choice(string.ascii_letters) for _ in xrange(length)]) + suffix
+        self.temp_str = prefix + ''.join([random.choice(string.ascii_letters) for _ in range(length)]) + suffix
         return self.temp_str
 
     def create_pool(self, **kw):
@@ -59,7 +61,7 @@ class RbdUtils:
     def clean_up(self, **kw):
         # Pools deletion
         if kw.get('pools'):
-            [self.delete_pool(poolname=val) for key, val in kw.get('pools').iteritems() if val is not None]
+            [self.delete_pool(poolname=val) for key, val in kw.get('pools').items() if val is not None]
 
         # ec profile removal
         if kw.get('profile'):
