@@ -3,7 +3,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 import itertools
 import utils.utils as utils
-
+import utils.log as log
 
 rep_pool = {'arg': '-p', 'val': {}}
 
@@ -68,25 +68,23 @@ stripe_v2 = {'arg': ['--stripe-unit', '--stripe-count'],
                      'size_KB': ['65536', '16'],
                      'size_MB': ['16777216', '16']}}
 
-stripe_v3 = {'arg': ['--stripe-unit', '--stripe-count'],
-             'val': {None: [None, None],
-                     'size_B': ['2048B', '16'],
-                     'size_KB': ['64K', '16'],
-                     'size_MB': ['16M', '16']}}
-
+stripe_v3 = stripe_v4 = {'arg': ['--stripe-unit', '--stripe-count'],
+                         'val': {None: [None, None],
+                                 'size_B': ['2048B', '16'],
+                                 'size_KB': ['64K', '16'],
+                                 'size_MB': ['16M', '16']}}
+             
 io_type_v2 = {'arg': '', 'val': {'write': 'write'}}
 
-io_type_v3 = {'arg': ' --io-type', 'val': {'read': 'read',
-                                           'write': 'write'}}
-
+io_type_v3 = io_type_v4 = {'arg': ' --io-type', 'val': {'read': 'read',
+                                                        'write': 'write'}}
 
 export_format_v2 = {'arg': None, 'val': {None: None}}
 
-export_format_v3 = {'arg': '--export-format',
-                    'val': {None: None,
-                            'export-format 1': '1',
-                            'export-format 2': '2'}}
-
+export_format_v3 = export_format_v4 = {'arg': '--export-format',
+                                       'val': {None: None,
+                                               'export-format 1': '1',
+                                               'export-format 2': '2'}}
 
 class CliParams(object):
 
@@ -100,22 +98,22 @@ class CliParams(object):
         for param in list:
             globals()[param] = globals()['{}_v{}'.format(param,
                                                          self.ceph_version)]
-        for iterator in xrange(0, num_rep_pool):
+        for iterator in range(0, num_rep_pool):
             globals()['rep_pool']['val']['pool'+str(iterator)] = self.rbd.random_string(length=5,prefix='rep_')
 
         if self.ceph_version > 2 and k_m:
             self.rbd.set_ec_profile(k=k_m[0],m=k_m[2],profile=self.ec_profile)
-            for iterator in xrange(0, num_data_pool):
+            for iterator in range(0, num_data_pool):
                 globals()['data_pool']['val']['pool'+str(iterator)] = self.rbd.random_string(length=5,prefix='data_')
 
-            [self.rbd.create_pool(poolname=val) for key, val in rep_pool['val'].iteritems()]
-            [self.rbd.create_ecpool(poolname=val, profile=self.ec_profile) for key, val in data_pool['val'].iteritems() if val!=None]
+            [self.rbd.create_pool(poolname=val) for key, val in rep_pool['val'].items()]
+            [self.rbd.create_ecpool(poolname=val, profile=self.ec_profile) for key, val in data_pool['val'].items() if val!=None]
 
         else:
             globals()['data_pool']['arg'] = ''
-            for iterator in xrange(0, num_rep_pool):
+            for iterator in range(0, num_rep_pool):
                 globals()['data_pool']['val']['pool'+str(iterator)] = ''
-            [self.rbd.create_pool(poolname=val) for key, val in rep_pool['val'].iteritems()]
+            [self.rbd.create_pool(poolname=val) for key, val in rep_pool['val'].items()]
 
     def search_param_val(self, param_arg, str_to_search):
             if str_to_search.find(param_arg) != -1:
@@ -145,11 +143,11 @@ class CliParams(object):
             param_list = []
 
             # Generate values for one parameter
-            for key, val in globals()[param]['val'].iteritems():
+            for key, val in globals()[param]['val'].items():
                 if key:
                     if type(val) is list:
                         string = ''
-                        for x in xrange(0, len(val)):
+                        for x in range(0, len(val)):
                             string = string + globals()[param]['arg'][x] \
                                   + ' ' + val[x] + ' '
                         param_list.append(string)
@@ -162,13 +160,14 @@ class CliParams(object):
         # Generate and store all combinations of parameters in str type
         for param_list in itertools.product(*param_list_all):
             str = ''
-            for index in xrange(0, len(param_list)):
+            for index in range(0, len(param_list)):
                 str = str + ' ' + param_list[index]
                 combined_param_list.append(str)
 
         # Remove Extra Spaces
         combined_param_list = [val.strip() for val in combined_param_list]
 
-        combined_param_list = self.remove_duplicates(combined_param_list)
-
+        combined_param_list = list(set(combined_param_list))
+        for param_list1 in combined_param_list:
+            log.info(param_list1)
         return combined_param_list
