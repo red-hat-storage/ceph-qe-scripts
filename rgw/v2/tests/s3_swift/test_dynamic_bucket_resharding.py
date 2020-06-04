@@ -15,39 +15,13 @@ import yaml
 import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
-from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-import random, time
 from v2.tests.s3_swift import resuables
+from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, BucketIoInfo
+import random, time
 import threading
 import json
 
 TEST_DATA_PATH = None
-
-
-def create_bucket_with_versioning(rgw_conn, user_info, bucket_name):
-    # create buckets
-    bucket = resuables.create_bucket(bucket_name, rgw_conn, user_info)
-    bucket_versioning = s3lib.resource_op({'obj': rgw_conn,
-                                           'resource': 'BucketVersioning',
-                                           'args': [bucket.name]})
-    # checking the versioning status
-    version_status = s3lib.resource_op({'obj': bucket_versioning,
-                                        'resource': 'status',
-                                        'args': None
-                                        })
-    if version_status is None:
-        log.info('bucket versioning still not enabled')
-    # enabling bucket versioning
-    version_enable_status = s3lib.resource_op({'obj': bucket_versioning,
-                                               'resource': 'enable',
-                                               'args': None})
-    response = HttpResponseParser(version_enable_status)
-    if response.status_code == 200:
-        log.info('version enabled')
-    else:
-        raise TestExecError("version enable failed")
-    return bucket
-
 
 def upload_objects(user_info, bucket, config):
     log.info('s3 objects to create: %s' % config.objects_count)
@@ -61,6 +35,7 @@ def test_exec(config):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
+    write_bucket_io_info = BucketIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
@@ -74,11 +49,6 @@ def test_exec(config):
     user_info = user_info[0]
     auth = Auth(user_info, ssl=config.ssl)
     rgw_conn = auth.do_auth()
-    config.bucket_count = 1
-    log.info('no of buckets to create: %s' % config.bucket_count)
-    bucket_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=1)
-    bucket = create_bucket_with_versioning(rgw_conn, user_info, bucket_name)
-    upload_objects(user_info, bucket, config)
     log.info('sharding configuration will be added now.')
     if config.sharding_type == 'dynamic':
         log.info('sharding type is dynamic')
@@ -100,6 +70,14 @@ def test_exec(config):
             raise TestExecError("RGW service restart failed")
         else:
             log.info('RGW service restarted')
+
+    config.bucket_count = 1
+    log.info('no of buckets to create: %s' % config.bucket_count)
+    bucket_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=1)
+    bucket = resuables.create_bucket(bucket_name, rgw_conn, user_info)
+    print(resuables.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info))
+    upload_objects(user_info, bucket, config)
+
     if config.sharding_type == 'manual':
         log.info('sharding type is manual')
         # for manual.
@@ -111,6 +89,7 @@ def test_exec(config):
                                         % (bucket.name, config.no_of_shards))
         if cmd_exec is False:
             raise TestExecError("manual resharding command execution failed")
+
     # upload_objects(user_info, bucket, config)
     log.info('s3 objects to create: %s' % config.objects_count)
     for oc, size in list(config.mapped_sizes.items()):
@@ -172,4 +151,5 @@ if __name__ == '__main__':
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
+
 
