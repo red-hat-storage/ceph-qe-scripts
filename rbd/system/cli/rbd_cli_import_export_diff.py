@@ -8,7 +8,7 @@ import utils.log as log
 FAILED_COUNT = 0
 PASSED_COUNT = 0
 FAILED_COMMANDS = []
-
+PASSED_COMMANDS = []
 
 def exec_cmd(args):
     rc = cli.rbd.exec_cmd(args)
@@ -17,6 +17,7 @@ def exec_cmd(args):
         FAILED_COMMANDS.append(args)
     else:
         globals()['PASSED_COUNT'] += 1
+        PASSED_COMMANDS.append(args)
     return rc
 
 
@@ -41,16 +42,11 @@ if __name__ == "__main__":
     if k_m:
         combinations = cli.generate_combinations('image_size', 'object_size',
                                                  'image_format', 'data_pool')
-        invalid = [val for val in combinations
-                   if (cli.search_param_val('--image-format', val) != 0 and
-                       cli.search_param_val('--image-format', val)
-                       .find('1') != -1)]
-        map(lambda val: combinations.remove(val), invalid)
 
-    combinations = filter(lambda val: cli.search_param_val('-s', val).find('M') != -1 and
+    combinations = list(filter(lambda val: cli.search_param_val('-s', val).find('M') != -1 and
                           cli.search_param_val('--object-size', val) != 0 and
                           cli.search_param_val('--object-size', val).find('B') != -1,
-                          combinations)
+                          combinations))
     [exec_cmd('rbd create {} {}/img{}'.format(param,
                                               parameters.rep_pool['val']['pool0'],
                                               iterator))
@@ -62,7 +58,7 @@ if __name__ == "__main__":
      for iterator in range(0, len(combinations))]
 
     # Export
-    iterator3 = 0
+    iterator = iterator3 = 0
     combinations = cli.generate_combinations('export_format')
     for iterator2 in range(0, iterator + 1):
         for iterator3, param in enumerate(combinations, start=0):
@@ -90,13 +86,13 @@ if __name__ == "__main__":
                        cli.search_param_val('--stripe-unit', val) == 0)]
         map(lambda val: combinations.remove(val), invalid)
 
-    combinations = filter(lambda val: (cli.search_param_val('--image-format', val) == 0 or
+    combinations = list(filter(lambda val: (cli.search_param_val('--image-format', val) == 0 or
                                        cli.search_param_val('--image-format', val) != 0 and
                                        cli.search_param_val('--image-format', val).find('1') == -1) and
                           (cli.search_param_val('--stripe-unit', val) == 0 or
                           (cli.get_byte_size(cli.search_param_val('--stripe-unit', val)) <=
                            cli.get_byte_size(cli.search_param_val('--object-size', val)))),
-                          combinations)
+                          combinations))
     [exec_cmd('rbd import {} {}/img{} {} {}/imgimport{}'
               .format(param, path_list[0], iterator,
                       parameters.data_pool['arg'] + ' ' + parameters.data_pool['val']['pool0'],
@@ -163,7 +159,10 @@ if __name__ == "__main__":
     log.info('Commands Failed: {}'.format(FAILED_COUNT))
 
     if FAILED_COUNT > 0:
+        log.info('Failed commands')
         [log.info(fc) for fc in FAILED_COMMANDS]
+        log.info('Passed commands')
+        [log.info(fc) for fc in PASSED_COMMANDS]
         exit(1)
 
     exit(0)
