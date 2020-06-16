@@ -23,7 +23,7 @@ sample_lifecycle_syntax = {
                     'Key': 'string',
                     'Value': 'string'
                 },
-                'And': {
+                    'And': {
                     'Prefix': 'string',
                     'Tags': [
                         {
@@ -83,11 +83,16 @@ def gen_lifecycle_rules(rule):
         Expiration=rule.get("Expiration", None),
         ID=rule.get("Id", None),
         Prefix=rule.get("Prefix", None),
+        Tag=rule.get("Tag", None),
+        And=rule.get("And", None),
         Filter=rule.get("Filter", None),
         Status=rule.get("Status", None),
-        Transitions=rule.get("Transitions", None),
-        NoncurrentVersionTransitions=rule.get("NoncurrentVersionTransitions", None),
+        Transition=rule.get("Transition", None),
+        NoncurrentVersionTransition=rule.get("NoncurrentVersionTransition", None),
         NoncurrentVersionExpiration=rule.get("NoncurrentVersionExpiration", None),
+        ExpiredObjectDeleteMarker=rule.get("ExpiredObjectDeleteMarker", None),
+        NoncurrentDays=rule.get("NoncurrentDays", None),
+        StorageClass=rule.get("StorageClass", None),
         AbortIncompleteMultipartUpload=rule.get("AbortIncompleteMultipartUpload", None)
     )
     log.info('generated rule:\n%s' % gen_rule)
@@ -114,6 +119,12 @@ gen_prefix = lambda prefix: {'Prefix': prefix}
 gen_status = lambda status: {'Status': status}
 gen_id = lambda id: {'ID': id}
 gen_expiration = lambda: {'Expiration': {}}
+gen_tag = lambda: {'Tag':{}}
+gen_key = lambda key: {'Key': key}
+gen_value = lambda value: {'Value': value}
+gen_and = lambda:{'And':{}}
+gen_noncurrent_version_expiration = lambda: {'NoncurrentVersionExpiration': {}}
+gen_noncurrent_days = lambda days: {'NoncurrentDays': days}
 gen_expiration_date = lambda date: {"Date": date}
 gen_expiration_days = lambda days: {"Days": days}
 gen_expired_object_deleteMarker = lambda bool: {"ExpiredObjectDeleteMarker": bool}
@@ -122,7 +133,7 @@ gen_expired_object_deleteMarker = lambda bool: {"ExpiredObjectDeleteMarker": boo
 
 # keep this code for now
 
-def basic_rule(prefix,days,id,status="Enabled"):
+def basic_rule(id,status="Enabled"):
 
     rule = {}
 
@@ -149,3 +160,8 @@ if __name__ == '__main__':
     print basic_rule(prefix="logs/", days=20, id="rul1")
 
 """
+
+
+
+
+

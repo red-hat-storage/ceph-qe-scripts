@@ -8,7 +8,8 @@ from v2.utils.utils import HttpResponseParser
 from v2.lib.exceptions import TestExecError
 import v2.lib.manage_data as manage_data
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, BucketIoInfo, KeyIoInfo
-
+import random, time
+import datetime
 io_info_initialize = IOInfoInitialize()
 basic_io_structure = BasicIOInfoStructure()
 write_bucket_io_info = BucketIoInfo()
@@ -65,7 +66,22 @@ def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, app
     if object_uploaded_status is None:
         log.info('object uploaded')
 
+def upload_object_with_tagging(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, obj_tag, append_data=False, append_msg=None):
 
+    log.info('s3 object name: %s' % s3_object_name)
+    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    log.info('s3 object path: %s' % s3_object_path)
+    s3_object_size = config.obj_size
+    if append_data is True:
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size, op='append',
+                                             **{'message': '\n%s' % append_msg})
+    else:
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size)
+    if data_info is False:
+        TestExecError("data creation failed")
+    log.info('uploading s3 object: %s' % s3_object_path)
+    print(bucket.put_object(Key=s3_object_name, Body=s3_object_path, Tagging=obj_tag))
+          
 def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, append_data=False,
                             append_msg=None):
     log.info('s3 object name: %s' % s3_object_name)
@@ -160,6 +176,55 @@ def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
     else:
         raise TestExecError("version enable failed")
 
+def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule):
+    bucket_life_cycle = s3lib.resource_op({'obj': rgw_conn,
+                                           'resource': 'BucketLifecycleConfiguration',
+                                           'args': [bucket.name]})
+    put_bucket_life_cycle = s3lib.resource_op({"obj": bucket_life_cycle,
+                                               "resource": "put",
+                                               "kwargs": dict(LifecycleConfiguration=life_cycle_rule)})
+    log.info('put bucket life cycle:\n%s' % put_bucket_life_cycle)
+    if put_bucket_life_cycle is False:
+        raise TestExecError("Resource execution failed: put bucket lifecycle failed")
+    if put_bucket_life_cycle is not None:
+        response = HttpResponseParser(put_bucket_life_cycle)
+        if response.status_code == 200:
+            log.info('bucket life cycle added')
+        else:
+            raise TestExecError("bucket lifecycle addition failed")
+    log.info('trying to retrieve bucket lifecycle config')
+    get_bucket_life_cycle_config = s3lib.resource_op({"obj": rgw_conn2,
+                                                      "resource": 'get_bucket_lifecycle_configuration',
+                                                      "kwargs": dict(Bucket=bucket.name)
+                                                      })
+    if get_bucket_life_cycle_config is False:
+        raise TestExecError("bucket lifecycle config retrieval failed")
+    if get_bucket_life_cycle_config is not None:
+        response = HttpResponseParser(get_bucket_life_cycle_config)
+        if response.status_code == 200:
+            log.info('bucket life cycle retrieved')
+        else:
+            raise TestExecError("bucket lifecycle config retrieval failed")
+    else:
+        raise TestExecError("bucket life cycle retrieved")
+    time.sleep(100)
+    log.info('testing if lc is applied via the radosgw-admin cli')
+    op = utils.exec_shell_cmd("radosgw-admin lc list")
+    json_doc = json.loads(op)
+    for i,entry in enumerate(json_doc):
+        print(i)
+        print(entry['status'])
+        if entry['status'] != 'COMPLETE':
+            log.info('LC is not completed, failed')
+        else:
+            log.info('LC is completed')
+
+def remove_user(user_info, cluster_name='ceph'):
+    log.info('Removing user')
+    cmd =  'radosgw-admin user rm --purge-keys --purge-data --uid=%s' % (user_info['user_id'])
+    out = utils.exec_shell_cmd(cmd)
+    return out
+
 
 def rename_user(old_username, new_username, tenant=False):
     """"""
@@ -172,7 +237,6 @@ def rename_user(old_username, new_username, tenant=False):
     out = utils.exec_shell_cmd(cmd)
     log.info('Renamed user %s to %s' % (old_username, new_username))
     return out
-
 
 def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
     """"""
@@ -238,5 +302,6 @@ def link_chown_to_nontenanted(new_uid, bucket, tenant):
         raise TestExecError("RGW Bucket chown error")
     log.info('output :%s' % out4)
     return
+
 
 

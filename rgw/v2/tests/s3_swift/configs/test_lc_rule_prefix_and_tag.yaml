@@ -1,0 +1,25 @@
+#test_object_expiration.py
+config:
+ user_count: 1
+ bucket_count: 1
+ objects_count: 2
+ objects_size_range:
+  min: 5
+  max: 15
+ test_ops:
+      enable_versioning: false
+      create_object: true
+      delete_marker: false
+      version_count: 0
+ lifecycle_ops:
+    - ID: rule1
+      Filter:
+        And:
+          Prefix: key1
+          Tags:
+            - Key: suffix1
+              Value: WMV1
+      Status: Enabled
+      Expiration:
+        Days: 2
+
