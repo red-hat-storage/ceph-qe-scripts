@@ -42,6 +42,12 @@ if __name__ == "__main__":
     if k_m:
         combinations = cli.generate_combinations('image_size', 'object_size',
                                                  'image_format', 'data_pool')
+        if cli.ceph_version == 3:
+            invalid = [val for val in combinations
+                   if (cli.search_param_val('--image-format', val) != 0 and
+                       cli.search_param_val('--image-format', val)
+                       .find('1') != -1)]
+            map(lambda val: combinations.remove(val), invalid)
 
     combinations = list(filter(lambda val: cli.search_param_val('-s', val).find('M') != -1 and
                           cli.search_param_val('--object-size', val) != 0 and
