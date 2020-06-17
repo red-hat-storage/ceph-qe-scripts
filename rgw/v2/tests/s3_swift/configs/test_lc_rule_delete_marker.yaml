@@ -1,4 +1,4 @@
-# test_object_expiration.py
+# test_bucket_lifecycle_object_expiration.py
 config:
  user_count: 1
  bucket_count: 1
