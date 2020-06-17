@@ -15,8 +15,7 @@ image_format = {'arg': '--image-format',
 
 image_size = {'arg': '-s',
               'val': {'size_MB': '100M',
-                      'size_GB': '10G',
-                      'size_TB': '1T'}}
+                      'size_GB': '10G'}}
 
 object_size = {'arg': '--object-size',
                'val': {None: None,
