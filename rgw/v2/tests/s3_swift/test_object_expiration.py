@@ -1,4 +1,4 @@
-# test s3 bucket_lifecycle operations
+# test s3 bucket_lifecycle: object expiration operations
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
