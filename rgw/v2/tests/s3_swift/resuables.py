@@ -79,8 +79,8 @@ def upload_object_with_tagging(s3_object_name, bucket, TEST_DATA_PATH, config, u
         data_info = manage_data.io_generator(s3_object_path, s3_object_size)
     if data_info is False:
         TestExecError("data creation failed")
-    log.info('uploading s3 object: %s' % s3_object_path)
-    print(bucket.put_object(Key=s3_object_name, Body=s3_object_path, Tagging=obj_tag))
+    log.info('uploading s3 object with object tagging enabled: %s' % s3_object_path)
+    bucket.put_object(Key=s3_object_name, Body=s3_object_path, Tagging=obj_tag)
           
 def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, append_data=False,
                             append_msg=None):
