@@ -19,7 +19,7 @@ class RGWSection(object):
     def __init__(self):
         self._hostname, self._ip = utils.get_hostname_ip()
         self._ssl_port = 443
-        self._non_ssl_port = utils.get_radosgw_port_no()
+        #self._non_ssl_port = utils.get_radosgw_port_no()
         self._ceph_conf = CephConfOp()
         self._rgw_service = RGWService()
 
@@ -48,6 +48,14 @@ class RGWSectionOptions(RGWSection):
         self.rgw_section_options = dict(self._ceph_conf.cfg.items(self.section))
         log.info('options under {}'.format(self.section))
         log.info(self.rgw_section_options)
+
+    def get_port(self):
+        self.rgw_section_options = dict(self._ceph_conf.cfg.items(self.section))
+        port_a = self.rgw_section_options.get('rgw frontends')
+        x = port_a.split(" ")
+        port = [i for i in x if ':' in i][0].split(':')[1]
+        log.info('rgw is running in port: %s' % port)
+        return port
 
 
 class Frontend(RGWSectionOptions):
