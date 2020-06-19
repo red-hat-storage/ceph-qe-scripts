@@ -40,7 +40,6 @@ def test_exec(config):
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
 
-
     log.info('starting IO')
     config.max_objects_per_shard = 10
     config.no_of_shards = 10
@@ -96,7 +95,7 @@ def test_exec(config):
         config.obj_size = size
         s3_object_name = utils.gen_s3_object_name(bucket.name, config.objects_count + oc)
         resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
-    time.sleep(450)
+    time.sleep(600)
     log.info('verification starts')
     op = utils.exec_shell_cmd("radosgw-admin metadata get bucket:%s" % bucket.name)
     json_doc = json.loads(op)
@@ -110,11 +109,14 @@ def test_exec(config):
             raise TestExecError("expected number of shards not created")
         log.info('Expected number of shards created')
     if config.sharding_type == 'dynamic':
-        log.info('for dynamic, '
+        log.info('Verify if resharding list is empty')
+        reshard_list_op = json.loads(utils.exec_shell_cmd("radosgw-admin reshard list"))
+        if not reshard_list_op:
+            log.info('for dynamic, '
                  'number of shards created should be greater than or equal to number of  expected shards')
-        log.info('no_of_shards_expected: %s' % num_shards_expected)
-        if int(num_shards_created) >= int(num_shards_expected):
-            log.info('Expected number of shards created')
+            log.info('no_of_shards_expected: %s' % num_shards_expected)
+            if int(num_shards_created) >= int(num_shards_expected):
+                log.info('Expected number of shards created')
         else:
             raise TestExecError('Expected number of shards not created')
 
