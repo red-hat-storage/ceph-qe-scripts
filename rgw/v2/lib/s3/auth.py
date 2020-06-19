@@ -1,6 +1,7 @@
 import boto3
 import socket
 import os, sys
+from v2.lib.frontend_configure import RGWSectionOptions
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import v2.utils.log as log
@@ -16,7 +17,9 @@ class Auth(object):
         self.hostname = socket.gethostname()
         self.ip = socket.gethostbyname(self.hostname)
         self.ssl = extra_kwargs.get('ssl', False)
-        self.port = utils.get_radosgw_port_no()
+        rgwSection = RGWSectionOptions()
+        self.port = rgwSection.get_port()
+        #self.port = utils.get_radosgw_port_no()
         self.endpoint_url = 'https://{}:{}'.format(self.ip, self.port) if self.ssl \
                                 else 'http://{}:{}'.format(self.ip, self.port)
         self.is_secure = False
