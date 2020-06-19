@@ -13,6 +13,8 @@ class ConfigOpts(object):
     rgw_bucket_default_quota_max_objects = 'rgw_bucket_default_quota_max_objects'
     rgw_dynamic_resharding = 'rgw_dynamic_resharding'
     rgw_max_objs_per_shard = 'rgw_max_objs_per_shard'
+    rgw_lc_debug_interval = 'rgw_lc_debug_interval'
+    rgw_lc_max_worker = 'rgw_lc_max_worker'
     rgw_crypt_require_ssl = 'rgw_crypt_require_ssl'
 
 
@@ -47,3 +49,4 @@ class CephConfOp(FileOps, ConfigParse):
         log.info('value: %s' % value)
         cfg = self.set(section, option, value)
         self.add_data(cfg)
+

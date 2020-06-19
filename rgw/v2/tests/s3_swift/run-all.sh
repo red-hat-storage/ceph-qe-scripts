@@ -38,7 +38,13 @@ scripts=("sudo python3 $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_
          "sudo python3 $DIR/test_dynamic_bucket_resharding.py -c $DIR/configs/test_dynamic_resharding.yaml" # need to check
          "sudo python3 $DIR/test_frontends_with_ssl.py -c $DIR/configs/test_ssl_beast.yaml"
          "sudo python3 $DIR/test_frontends_with_ssl.py -c $DIR/configs/test_ssl_civetweb.yaml"
-         "sudo python3 $DIR/user_op_using_rest.py -c $DIR/configs/test_user_with_REST.yaml")
+         "sudo python3 $DIR/user_op_using_rest.py -c $DIR/configs/test_user_with_REST.yaml"
+         "sudo python3 $DIR/test_bucket_lifecycle_object_expiration.py -c $DIR/configs/test_lc_date.yaml"
+	 "sudo python3 $DIR/test_bucket_lifecycle_object_expiration.py -c $DIR/configs/test_lc_multiple_rule_prefix_current_days.yaml"
+	 "sudo python3 $DIR/test_bucket_lifecycle_object_expiration.py -c $DIR/configs/test_lc_rule_prefix_and_tag.yaml"
+	 "sudo python3 $DIR/test_bucket_lifecycle_object_expiration.py -c $DIR/configs/test_lc_rule_prefix_non_current_days.yaml"
+	 "sudo python3 $DIR/test_bucket_lifecycle_object_expiration.py -c $DIR/configs/test_lc_rule_delete_marker.yaml")
+
 
 for script in "${scripts[@]}"
 do
