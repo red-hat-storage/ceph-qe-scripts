@@ -9,7 +9,7 @@ import utils.log as log
 FAILED_COUNT = 0
 PASSED_COUNT = 0
 FAILED_COMMANDS = []
-
+PASSED_COMMANDS = []
 
 def exec_cmd(args):
     rc = cli.rbd.exec_cmd(args)
@@ -18,6 +18,7 @@ def exec_cmd(args):
         FAILED_COMMANDS.append(args)
     else:
         globals()['PASSED_COUNT'] += 1
+        PASSED_COMMANDS.append(args)
     return rc
 
 
@@ -33,6 +34,7 @@ if __name__ == "__main__":
     combinations = cli.generate_combinations('image_size')
     combinations = filter(lambda val: cli.search_param_val('-s', val)
                           .find('G') != -1, combinations)
+    combinations = list(combinations)
     [exec_cmd('rbd create {} {} {}/img{}'
               .format(combinations[0], parameters.data_pool['arg'] + ' ' + parameters.data_pool['val']['pool0'],
                       parameters.rep_pool['val']['pool0'], iterator))
@@ -53,7 +55,7 @@ if __name__ == "__main__":
 
     # Listing Images and Snapshots In the Pool
     [exec_cmd('rbd ls -l {}'.format(parameters.rep_pool['val'][key]))
-     for key, val in parameters.rep_pool['val'].iteritems()]
+     for key, val in parameters.rep_pool['val'].items()]
 
     # Listing Snap of Images
     exec_cmd('rbd snap ls {}/img{}'.format(parameters.rep_pool['val']['pool0'], iterator))
@@ -90,6 +92,7 @@ if __name__ == "__main__":
                           combinations)
     rem_list = []
     add_list = []
+    combinations = list(combinations)
     for val in combinations:
         if cli.search_param_val('--image-feature', val) != 0 and \
                 cli.search_param_val('--image-feature',
@@ -105,9 +108,12 @@ if __name__ == "__main__":
             tmp_list.append(' --image-feature layering')
             rem_list.append(val)
             add_list.append(''.join(tmp_list))
+ 
+    for val in rem_list:
+        combinations.remove(val)
+    for val in add_list:
+        combinations.append(val)
 
-    map(lambda val: combinations.remove(val), rem_list)
-    map(lambda val: combinations.append(val), add_list)
     for iterator3, param in enumerate(combinations, start=0):
         if iterator3 == 4:
             iterator += 1
@@ -169,6 +175,8 @@ if __name__ == "__main__":
 
     if FAILED_COUNT > 0:
         [log.info(fc) for fc in FAILED_COMMANDS]
+        log.info('list of passed commands')
+        [log.info(fc) for fc in PASSED_COMMANDS]
         exit(1)
 
     exit(0)
