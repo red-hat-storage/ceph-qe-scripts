@@ -1,7 +1,6 @@
 import swiftclient
 import socket
 import os, sys
-from v2.lib.frontend_configure import RGWSectionOptions
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import v2.utils.log as log
@@ -13,9 +12,7 @@ class Auth(object):
     def __init__(self, user_info):
         self.secret_key = user_info['key']
         self.hostname = socket.gethostname()
-        rgwSection = RGWSectionOptions()
-        self.port = int(rgwSection.get_port())
-        #self.port = int(utils.get_radosgw_port_no())
+        self.port = int(utils.get_radosgw_port_no())
         self.is_secure = False
         self.user_id = user_info['user_id']
 

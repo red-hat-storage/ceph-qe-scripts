@@ -45,6 +45,7 @@ scripts=("sudo python3 $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_
 	 "sudo python3 $DIR/test_bucket_lifecycle_object_expiration.py -c $DIR/configs/test_lc_rule_prefix_non_current_days.yaml"
 	 "sudo python3 $DIR/test_bucket_lifecycle_object_expiration.py -c $DIR/configs/test_lc_rule_delete_marker.yaml")
 
+
 for script in "${scripts[@]}"
 do
     eval "$script"
