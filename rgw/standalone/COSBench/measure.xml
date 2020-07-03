@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<workload name="hybridSS" description="RGW testing">
+
+
+<!-- Initialization -->
+  <storage type="swift" config="timeout=900000" retry="3"/>
+  <auth type="swauth" config="username=<User_name>;password=<Secret_key>;auth_url=http://localhost:5000/auth/1.0" />
+
+  <workflow>
+
+    <workstage name="MAIN">
+        <work name="hybrid" workers="40" runtime="3600" >
+            <operation name="writeOP" type="write" ratio="16" config="containers=u(1,2);objects=u(1,500000);sizes=h(
+            1|1|50,64|64|15,8192|8192|15,65536|65536|15,1048576|1048576|5)KB" />
+            <operation name="deleteOP" type="delete" ratio="14" config="containers=u(1,2);objects=u(1,500000);sizes=h(
+            1|1|50,64|64|15,8192|8192|15,65536|65536|15,1048576|1048576|5)KB" />
+	    <operation name="readOP" type="read" ratio="60" config="containers=u(3,5);objects=u(1,500000)" />
+            <operation name="listOP" type="list" ratio="10" config="containers=u(3,5);objects=u(1,500000)" />
+        </work>
+    </workstage>
+
+  </workflow>
+
+</workload>
