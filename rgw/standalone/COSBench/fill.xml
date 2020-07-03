@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<workload name="fillCluster" description="RGW testing">
+
+<!-- Initialization -->
+  <storage type="swift" config="timeout=900000" retry="3"/>
+  <auth type="swauth" config="username=<User_name>;password=<Secret_key>;auth_url=http://localhost:5000/auth/1.0" />
+
+  <workflow>
+
+<!-- Initialization -->
+    <workstage name="init_containers">
+        <work type="init" workers="1" config="containers=r(1,5)"/>
+    </workstage>
+
+    <workstage name="preparing_cluster">
+        <work type="prepare" workers="40" config="containers=r(1,5);objects=r(1,500000);sizes=h(1|1|50,64|64|15,
+        8192|8192|15,65536|65536|15,1048576|1048576|5)KB"/>
+    </workstage>
+
+  </workflow>
+
+</workload>
