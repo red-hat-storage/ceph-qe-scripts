@@ -19,7 +19,7 @@
 
 8. Start drivers from all driver node
     - cd 0.4.2.c4
-    - ./stop-driver.sh
+    - ./start-driver.sh
 
 9. Start controller from controler node
     - cd 0.4.2.c4
