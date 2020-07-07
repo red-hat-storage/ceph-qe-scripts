@@ -1,4 +1,19 @@
-# test user and bucket rename with tenanted and non tenanted users
+"""test_user_bucket_rename - Test with Tenanted and Non-Tenanted User
+
+Usage: test_user_bucket_rename.py -c <input_yaml>
+
+<input_yaml>
+        Note: any one of these yamls can be used
+        test_user_bucket_rename.yaml
+        test_user_rename.yaml 
+
+Operation:
+    Create tenanted and non tenanted user
+    Create buckets for both the users
+    Rename buckets and users
+        Bucket unlink and link from non tenanted to tenanted users
+        Bucket unlink and link from tenanted to non tenanted users
+"""
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
