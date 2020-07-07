@@ -99,6 +99,8 @@ class Config(object):
         self.sharding_type = self.doc['config'].get('sharding_type')
         self.split_size = self.doc['config'].get('split_size', 5)
         self.test_ops = self.doc['config'].get('test_ops')
+        self.lifecycle_ops = self.doc['config'].get('lifecycle_ops')
+        self.delete_marker_ops = self.doc['config'].get('delete_marker_ops')
         self.mapped_sizes = self.doc['config'].get('mapped_sizes')
         self.bucket_policy_op = self.doc['config'].get('bucket_policy_op')
         self.container_count = self.doc['config'].get('container_count')
