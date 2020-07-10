@@ -1,3 +1,18 @@
+"""
+user_op_using_rest - Test user operation using REST API
+
+Usage: user_op_using_rest.py -c <input_yaml>
+
+<input_yaml>
+        test_user_with_REST.yaml
+
+Operation:
+    Create Admin user
+    Using admin user, create new user using REST request
+    Using admin user, Modify existing user using REST request
+    Using admin user, Delete user using REST request
+"""
+
 # test REST api operation
 import os, sys
 import random
