@@ -1,3 +1,18 @@
+"""
+swift_stats - Test swift stat command is working for more than 1000 buckets
+
+Usage: swift_stats.py -c <input_yaml>
+
+<input_yaml>
+        swift_stats.yaml
+
+Operation:
+    Create tenanted user
+    Set max bucket count to 2000
+    Create number of buckets mentioned in swift_stats.yaml
+    Check swift stat command executing and giving status
+"""
+
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
