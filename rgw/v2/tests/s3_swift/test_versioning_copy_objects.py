@@ -1,3 +1,16 @@
+""" test_versioning_copy_objects - Test Copy of objects with Versioned and non-versionsed buckets.
+
+Usage: test_versioning_copy_objects.py -c <input_yaml>
+
+<input_yaml>
+	Note: Any one of these yamls can be used
+	test_versioning_copy_objects.yaml
+Operation:
+	Create a bucket and a versioned bucket
+ 	Copy objects between buckets 
+	verify version ID is created for objects in versioned buckets.
+
+""" 
 # Test Desc:  test of version copy objects to different buckets
 import os, sys
 
