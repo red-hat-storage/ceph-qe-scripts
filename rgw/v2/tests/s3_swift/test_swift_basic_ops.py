@@ -1,3 +1,22 @@
+"""
+test_swift_basic_ops - Test swift operation on cluster
+
+Usage: test_swift_basic_ops.py -c <input_yaml>
+
+<input_yaml>
+    Note: any one of these yamls can be used
+    test_swift_basic_ops.yaml
+
+Operation:
+    Create swift user
+    Create number of container specified in yaml file
+    Upload objects in container
+    Download uploaded objects from container
+    Modify downloaded objects and re-upload it to the container
+    Delete objects from container
+    Delete container
+"""
+
 # test swift basic ops
 import os, sys
 
