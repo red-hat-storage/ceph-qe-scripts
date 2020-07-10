@@ -1,3 +1,22 @@
+"""
+test_dynamic_bucket_resharding - Test resharding operations on bucket
+
+Usage: test_dynamic_bucket_resharding.py -c <input_yaml>
+
+<input_yaml>
+    Note: any one of these yamls can be used
+    test_manual_resharding.yaml
+    test_dynamic_resharding.yaml
+
+Operation:
+    Create user
+    Perform IOs in specific bucket
+    Initiate dynamic or manual sharding on bucket
+    Restart RGW service
+    Perform IOs again
+    Verify created shard numbers of bucket
+"""
+
 # test RGW dynamic bucket resharding
 import os, sys
 
