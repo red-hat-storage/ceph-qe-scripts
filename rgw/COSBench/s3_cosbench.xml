@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<workload name="fillCluster" description="RGW testing">
+
+<!-- Initialization -->
+  <storage type="s3" config="timeout=900000; accesskey=TESTER1; secretkey=test1; endpoint=http://10.8.130.209:8080" retry="3"/>
+
+  <workflow>
+
+
+<!-- Initialization -->
+    <workstage name="init_containers">
+        <work type="init" workers="1" config="containers=r(1,4)"/>
+    </workstage>
+
+<!-- Prepare using container counts, object counts and object sizes from vars.shinc -->
+    <workstage name="preparing_cluster">
+         <work type="prepare" workers="30" config="content=zero;containers=r(1,4);objects=r(1,700000);sizes=c(512)KB"/>
+    </workstage>
+
+  </workflow>
+
+</workload>
+
