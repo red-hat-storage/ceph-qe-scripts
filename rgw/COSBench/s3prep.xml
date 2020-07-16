@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<workload name="s3-sample" description="sample benchmark for s3">
+
+  <storage type="s3" config="accesskey=<access>;secretkey=<secret>;endpoint=http://abc.xyz.com;path_style_access=true" />
+
+  <workflow>
+
+    <workstage name="init">
+      <work type="init" workers="1" config="cprefix=s3testqwer;containers=r(1,5)" />
+    </workstage>
+
+    <workstage name="prepare">
+      <work type="prepare" workers="8" config="cprefix=s3testqwer;containers=r(1,5);objects=r(1,1000000);sizes=h(1|1|50,64|64|15,8192|8192|15,65536|65536|15,1048576|1048576|5)KB" />
+    </workstage>
+  </workflow>
+
+</workload>
