@@ -1,4 +1,17 @@
-# test storage policy
+"""
+# test storage policy for s3 and swift interfaces
+
+Usage : test_storage_policy.py -c configs/input-yaml
+where input-yaml is test_storage_policy_s3.yaml and test_storage_policy_swift.yaml
+
+Operation:
+- Create a pool '.rgw.buckets.special'
+- Create a realm
+- Modify default zonegroup to be added in the realm
+- Modify zonegroup and zone and add a special-placement rule under default-placemnt as mentioned in the 'special_placement_info' in the script.
+- Create user, bucket and objects after modifying the default-placement hence verifying the storage policy.
+
+"""
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -23,12 +36,6 @@ import json
 from v2.tests.s3_swift import resuables
 
 TEST_DATA_PATH = None
-
-
-# create pool wiht name .rgw.buckets.special
-# create a realm
-# modify zonegroup to add realm to it
-
 
 def test_exec(config):
 
