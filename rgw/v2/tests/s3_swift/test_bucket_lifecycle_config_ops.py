@@ -1,4 +1,14 @@
-# test s3 bucket_lifecycle operations
+"""
+# test s3 bucket_lifecycle operations (like read, modify and delete)
+
+Usage: test_bucket_lifecycle_config_ops.py -c configs/<input-yaml>
+where <input-yaml> are test_bucket_lifecycle_config_disable.yaml, test_bucket_lifecycle_config_modify.yaml, test_bucket_lifecycle_config_read.yaml and test_bucket_lifecycle_config_versioning.yaml
+
+Operation:
+- Create a user and a bucket (enable versioning as per the input from the yaml file)
+- Create objects in the bukcet(object count and object size taken from the yaml file)
+- Perform lifecycle operation like read/modify/disable on the bucket and verify they're successful
+"""
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))

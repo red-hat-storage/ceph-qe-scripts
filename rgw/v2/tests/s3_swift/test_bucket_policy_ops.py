@@ -1,4 +1,19 @@
-# test s3 bucket policy operations
+"""
+# test s3 bucket policy operations (create/modify/replace existing policy)
+
+usage : test_bucket_policy_ops.py -c configs/<input-yaml>
+where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml and test_bucket_policy_replace.yaml
+
+Operation:
+- create bucket in tenant1 for user1
+- generate bucket policy to user1 in tenant1, policy: list access to user1 in tenant2
+- add the policy to user1 in bucket1
+- testing
+- modify bucket policy to replace the existing policy - TC 11215
+- add policy to the existing policy - TC 11214
+
+
+"""
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -50,15 +65,6 @@ def test_exec(config):
     rgw_tenant1_user1_c = tenant1_user1_auth.do_auth_using_client()
     rgw_tenant2_user1 = tenant2_user1_auth.do_auth()
     rgw_tenant2_user1_c = tenant2_user1_auth.do_auth_using_client()
-
-    # steps
-    # create bucket in tenant1 for user1
-    # generate bucket policy to user1 in tenant1, policy: list access to user1 in tenant2
-    # add the policy to user1 in bucket1
-    # # testing
-    # modify bucket policy to replace the existing policy - TC 11215
-    # add policy to the existing policy - TC 11214
-
     bucket_name1 = utils.gen_bucket_name_from_userid(tenant1_user1_info['user_id'], rand_no=1)
     t1_u1_bucket1 = resuables.create_bucket(bucket_name1, rgw_tenant1_user1,
                                             tenant1_user1_info,

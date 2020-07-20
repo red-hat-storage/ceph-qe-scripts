@@ -1,4 +1,20 @@
-# test multitenant user access
+"""
+# test multitenant user access: CEPH-9741, CEPH-9740
+
+Usage: test_multitenant_user_access.py -c configs/test_multitenant_access.yaml
+
+Operation:
+1. We have to first create a user with same name in 2 different tenants.
+2. Then we have to create a bucket say b1 and an object say o1 in the bucket via both the users.
+3. We then have to create another user say test2 in tenant2 and retrieve the bucket and object via this user (test2).
+    
+    So, in this test we check two things:
+
+    1. if the bucket and object with same name is created using same user names but in different tenants.
+    2. if we can retrieve bucket created by one user via a different user in same and different tenant.
+
+
+"""
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -17,24 +33,6 @@ from v2.tests.s3_swift import resuables
 from v2.lib.admin import UserMgmt
 
 TEST_DATA_PATH = None
-
-"""
-testing steps:
-
-covers TCs both: CEPH-9741, CEPH-9740
-
-1. We have to first create a user with same name in 2 different tenants.
-2. Then we have to create a bucket say b1 and an object say o1 in the bucket via both the users.
-3. We then have to create another user say test2 in tenant2 and retrieve the bucket and object via this user (test2).
-    
-    So, in this test we check two things:
-
-    1. if the bucket and object with same name is created using same user names but in different tenants.
-    2. if we can retrieve bucket created by one user via a different user in same and different tenant.
-
-
-"""
-
 
 def create_tenant_user(tenant_name, user_id, cluster_name='ceph'):
     # using userid as displayname

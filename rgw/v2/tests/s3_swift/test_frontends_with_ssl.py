@@ -1,4 +1,15 @@
-# test RGW with SSL configured on Beast or Civetweb
+"""
+test RGW with SSL configured on Beast or Civetweb
+
+Usage - test_frontends_with_ssl.py -c configs/<input-yaml>
+where <input-yaml> are test_ssl_civetweb.yaml and test_ssl_beast.yaml
+
+Operation:
+- Create a user taking the inputs for frontends and authentication from the input-yaml
+- Create a bucket for that user and verify 
+
+"""
+
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
