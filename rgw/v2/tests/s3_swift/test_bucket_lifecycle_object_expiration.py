@@ -1,3 +1,23 @@
+"""
+Test bucket lifecycle for object expiration:
+Script tests the s3 object(both versioned and non-versioned) expiration rules based on:
+a) Prefix filters 
+b) ANDing of Prefix and TAG filters
+
+Usage: test_bucket_lifecycle_object_expiration.py -c configs/<input-yaml>
+where : <input-yaml> are test_lc_date.yaml, test_lc_multiple_rule_prefix_current_days.yaml, test_lc_rule_delete_marker.yaml, test_lc_rule_prefix_and_tag.yaml and test_lc_rule_prefix_non_current_days.yaml
+
+Operation:
+
+-Create a user and a bucket
+-Enable versioning on the bucket as per config in the input-yaml file.
+-Put objects (object count and size taken from input-yaml)
+-Enable Lifecycle(lc) rule on the bucket based on the rule created as per the input-yaml
+-Validate the lc rule via lifecycle_validation()
+-Remove the user at successful completion.
+
+"""
+
 # test s3 bucket_lifecycle: object expiration operations
 import os, sys
 
