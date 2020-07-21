@@ -1,3 +1,13 @@
+""" test_tenant_user_secret_key - Test tenanted user with secret key generated using 'gen-secret'.
+
+Usage: test_tenant_user_secret_key.py.py -c <input_yaml>
+
+<input_yaml>
+	Note: Any one of these yamls can be used
+	test_tenantuser_secretkey_gen.yaml
+Operation:
+	Create a tenanted user and create subuser with 'gen-secret' parameter and verify upload objects succeeds.
+""" 
 # test tenant user generate secret key
 import os, sys
 
