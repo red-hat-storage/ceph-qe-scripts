@@ -1,3 +1,30 @@
+""" test_Mbuckets_with_Nobjects.py - Test with M buckets and N objects
+
+Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
+
+<input_yaml>
+	Note: Any one of these yamls can be used
+	test_Mbuckets_with_Nobjects.yaml
+	test_Mbuckets_with_Nobjects_download.yaml
+	test_Mbuckets_with_Nobjects_aws4.yaml
+	test_Mbuckets_with_Nobjects_compression.yaml
+	test_Mbuckets_with_Nobjects_delete.yaml
+	test_Mbuckets_with_Nobjects_enc.yaml
+	test_Mbuckets_with_Nobjects_multipart.yaml
+	test_Mbuckets_with_Nobjects_sharding.yaml
+
+Operation:
+	Creates M bucket and N objects
+	Creates M bucket and N objects. Verify checksum of the downloaded objects
+	Creates M bucket and N objects. Verify authentication signature_version:s3v4
+	Creates M bucket and N objects. With compression enabled.
+	Creates M bucket and N objects. Verify object delete succeeds.
+	Creates M bucket and N objects. With encryption enabled.
+	Creates M bucket and N objects. Upload multipart object.
+	Creates M bucket and N objects. With sharding set to max_shards as specified in the config
+	
+	
+""" 
 # test basic creation of buckets with objects
 import os, sys
 

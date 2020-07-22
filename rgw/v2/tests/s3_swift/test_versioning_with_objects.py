@@ -1,3 +1,27 @@
+""" test_versioning_with_objects - Tests ersioned and non-versionsed buckets.
+
+Usage: test_versioning_with_objects.py -c <input_yaml>
+
+<input_yaml>
+	Note: Any one of these yamls can be used
+	test_versioning_objects_copy.yaml
+	test_versioning_objects_delete.yaml
+	test_versioning_objects_delete_from_another_user.yaml
+	test_versioning_objects_enable.yaml
+	test_versioning_objects_suspend.yaml
+	test_versioning_objects_suspend_from_another_user.yaml
+	test_versioning_objects_suspend_re-upload.yaml
+	test_versioning_suspend.yaml
+Operation:
+	Create a bucket and enable versioning. Verify object versioning after copy operation 
+	Create a bucket and enable versioning. Verify deletion of versioned objects succeeds
+	Create a bucket and enable versioning. Verify deletion of versioned objects does not succeed from another user.
+	Create a bucket and enable versioning. Verify versioning is enabled on the bucket.	
+	Create a bucket and enable versioning. Suspend versioning. Verify versioning is suspended.
+	Create a bucket and enable versioning. Verfiy versioning is not suspended from another user.
+	Create a bucket and enable versioning. Verify versions are not created after versioning.
+	Create a bucket and enable versioning. Verify versioning is suspended on the bucket.
+"""
 # test basic bucket versioning with objects
 import os, sys
 

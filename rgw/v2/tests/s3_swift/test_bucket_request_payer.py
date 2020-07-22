@@ -1,3 +1,16 @@
+""" test_bucket_request_payer.py - Test requester pays buckets.
+
+Usage: test_bucket_request_payer.py -c <input_yaml>
+
+<input_yaml>
+	Note: Any one of these yamls can be used
+	test_bucket_request_payer.yaml
+	test_bucket_request_payer_download.yaml
+
+Operation:
+	Create a bucket. Verify the Requester pays bucket is set to 'Requester' and upload objects
+	Create a bucket. Verify the Requester pays bucket is set to 'Requester'.
+""" 
 # test S3 bucket request payer
 import os, sys
 
