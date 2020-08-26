@@ -1,0 +1,9 @@
+# BZ id : 1837206
+# script: test_gc_list_verification.py
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 10
+  objects_size_range:
+    min: 10
+    max: 15
