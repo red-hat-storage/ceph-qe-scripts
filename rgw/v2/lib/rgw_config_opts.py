@@ -16,6 +16,15 @@ class ConfigOpts(object):
     rgw_lc_debug_interval = 'rgw_lc_debug_interval'
     rgw_lc_max_worker = 'rgw_lc_max_worker'
     rgw_crypt_require_ssl = 'rgw_crypt_require_ssl'
+    bluestore_block_size = 'bluestore_block_size'
+    rgw_gc_max_queue_size = 'rgw_gc_max_queue_size'
+    rgw_gc_processor_max_time = 'rgw_gc_processor_max_time'
+    rgw_gc_max_concurrent_io = 'rgw_gc_max_concurrent_io'
+    rgw_gc_max_trim_chunk = 'rgw_gc_max_trim_chunk'
+    rgw_objexp_gc_interval = 'rgw_objexp_gc_interval'
+    rgw_gc_obj_min_wait = 'rgw_gc_obj_min_wait'
+    rgw_gc_processor_period = 'rgw_gc_processor_period'
+
 
 
 class CephConfOp(FileOps, ConfigParse):
