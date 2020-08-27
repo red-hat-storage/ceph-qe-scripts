@@ -18,11 +18,20 @@ import traceback
 
 @write_io_info.logioinfo
 def resource_op(exec_info):
+    """
+        This function is for resource 
+        
+        Parameters:
+            exec_info: 
+
+        Returns:
+            result: 
+    """
     log.info('resource Name: %s' % exec_info['resource'])
     obj = exec_info['obj']
     resource = exec_info['resource']
     result = None
-    log.info('function tye: %s' % inspect.ismethod(getattr(obj, resource)))
+    log.info('function type: %s' % inspect.ismethod(getattr(obj, resource)))
 
     try:
         if inspect.ismethod(getattr(obj, resource)) or inspect.isfunction(getattr(obj, resource)):
@@ -49,6 +58,16 @@ def resource_op(exec_info):
 
 
 def create_users(no_of_users_to_create, cluster_name='ceph'):
+    """
+        This function is to create n users on the cluster 
+
+        Parameters:
+            no_of_users_to_create(int): users to create
+            cluster_name(char): Name of the ceph cluster. defaults to 'ceph'
+
+        Returns:
+            all_users_details 
+    """
     admin_ops = UserMgmt()
     all_users_details = []
     for i in range(no_of_users_to_create):
@@ -62,6 +81,16 @@ def create_users(no_of_users_to_create, cluster_name='ceph'):
 
 
 def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph'):
+    """
+        This function is to create n users with tenant on the cluster 
+
+        Parameters:
+            no_of_users_to_create(int): users to create with tenant
+            cluster_name(char): Name of the ceph cluster. defaults to 'ceph'
+
+        Returns:
+            all_users_details 
+    """
     admin_ops = UserMgmt()
     all_users_details = []
     for i in range(no_of_users_to_create):
@@ -85,7 +114,9 @@ class Config(object):
         log.info('got config: \n%s' % self.doc)
 
     def read(self):
-
+        """
+            This function reads all the configurations parameters
+        """
         if self.doc is None:
             raise ConfigError('config file not given')
 

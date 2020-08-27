@@ -65,7 +65,13 @@ class Frontend(RGWSectionOptions):
     @decorators.check_pem
     def set_frontend(self, frontend, **kwargs):
         """
-        sets rgw_frontend in ceph conf and restart the services
+            sets rgw_frontend in ceph conf and restart the services
+
+            Parameters:
+                frontend(char) : frontend port to be configured i.e beast or civetweb
+
+            Returns:
+                frontend: configured frontend
         """
         try:
             ssl = kwargs.get('ssl', False)

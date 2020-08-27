@@ -13,6 +13,14 @@ PEM_FILE_PATH = os.path.join(SSL_CERT_PATH,
 
 
 def create_pem():
+    """
+        creates a pem file.
+
+        Parameters:
+
+        Returns:
+        PEM_FILE_PATH :  returns the pem file path
+    """
     try:
         log.info('Creating pem file')
         cmd = 'openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.csr -days 365 -nodes ' \

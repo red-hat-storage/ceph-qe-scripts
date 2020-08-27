@@ -25,7 +25,17 @@ class DoIO(object):
         self.mnt_point = mnt_pont
 
     def write(self, io_type, fname, size=0):
+        """
+            This function is to write IO on the mount point
 
+            Parameters:
+                io_type: basedir | subdir | file
+                fname(char): file name
+                size(int): size
+
+            Returns:
+
+        """
         # io_type should be: basedir | subdir | file
 
         log.info('io_type: %s' % io_type)

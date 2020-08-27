@@ -16,7 +16,13 @@ EXEC_INFO_STRUCTURE = {'obj': None,
 
 
 class BasicIOInfoStructure(object):
+    """
+        This class defines the basic IO structure for the yaml.
+    """
     def __init__(self):
+        """
+            Initializes the variables
+        """
         self.initial = lambda: {'users': list()}
         self.user = lambda **args: {'user_id': args['user_id'],
                                     'access_key': args['access_key'],
@@ -39,6 +45,9 @@ class BasicIOInfoStructure(object):
 
 
 class ExtraIOInfoStructure(object):
+    """
+        This class provides extra information such as current versioning status, version code, op code
+    """
     def __init__(self):
         self.op_code = lambda op_code: {'op_code': op_code}
         self.version_count = lambda version_count: {'version_count': version_count}
@@ -46,30 +55,56 @@ class ExtraIOInfoStructure(object):
 
 
 class TenantInfo(object):
+    """
+        This class provides information on tenant
+    """
     def __init__(self):
         self.tenant = lambda tenant: {'tenant': tenant}
 
 
 class AddIOInfo(object):
+    """
+        This class creates yaml with fname provided
+    """
     def __init__(self, yaml_fname=IO_INFO_FNAME):
         self.yaml_fname = yaml_fname
         self.file_op = FileOps(self.yaml_fname, type='yaml')
 
 
 class IOInfoInitialize(AddIOInfo):
+    """
+        This class initializes data. 
+        The functions here are
+        1. initialize(): Initialize data
+    """
     def __init__(self):
         super(IOInfoInitialize, self).__init__()
 
     def initialize(self, data):
+        """
+            This function is to initialize data
+            Parameter:
+                data
+        """
         log.info('initial_data: %s' % (data))
         self.file_op.add_data(data)
 
 
 class AddUserInfo(AddIOInfo):
+    """
+        This class is to add the user information to the yaml
+        The function/s in this class are
+        1. add_user_info() : Add the user information to the yaml
+    """
     def __init__(self):
         super(AddUserInfo, self).__init__()
 
     def add_user_info(self, user):
+        """
+            This function is to add the user information to the yaml
+            Parameters:
+                user:
+        """
         log.info('got user info structure: %s' % user)
         yaml_data = self.file_op.get_data()
         log.info('got yaml data %s' % yaml_data)
@@ -79,10 +114,23 @@ class AddUserInfo(AddIOInfo):
 
 
 class BucketIoInfo(AddIOInfo):
+    """
+        This class is to add bucket information to the yaml.
+        The function/s in this class are
+        1. add_bucket_info()
+        2. add_versioning_status()
+        3. add_properties()
+    """
     def __init__(self):
         super(BucketIoInfo, self).__init__()
 
     def add_bucket_info(self, access_key, bucket_info):
+        """
+            This function is to add bucket information to the yaml
+            Parameters:
+                access_key:
+                bucket_info:
+        """
         yaml_data = self.file_op.get_data()
         indx = None
         for i, k in enumerate(yaml_data['users']):
@@ -93,6 +141,13 @@ class BucketIoInfo(AddIOInfo):
         self.file_op.add_data(yaml_data)
 
     def add_versioning_status(self, access_key, bucket_name, versioning_status):
+        """
+            This function is add versioning information to the yaml
+            Parameters:
+                access_key:
+                bucket_name:
+                versioning_status:
+        """
         yaml_data = self.file_op.get_data()
         access_key_indx = None
         bucket_indx = None
@@ -108,6 +163,13 @@ class BucketIoInfo(AddIOInfo):
         self.file_op.add_data(yaml_data)
 
     def add_properties(self, access_key, bucket_name, properties):
+        """
+            This function is to add propertirs to the yaml
+            Parameters:
+                access_key:
+                bucket_name:
+                properties:
+        """
         yaml_data = self.file_op.get_data()
         access_key_indx = None
         bucket_indx = None
@@ -124,10 +186,21 @@ class BucketIoInfo(AddIOInfo):
 
 
 class KeyIoInfo(AddIOInfo):
+    """
+        This class is to provide key information
+    """
     def __init__(self):
         super(KeyIoInfo, self).__init__()
 
     def add_keys_info(self, access_key, bucket_name, key_info):
+        """
+            This function is to add key information to the yaml.
+
+            Parameters:
+                access_key: access key
+                bucket_name: Name of the bucket
+                key_info: key information
+        """
         yaml_data = self.file_op.get_data()
         access_key_indx = None
         bucket_indx = None
@@ -143,6 +216,15 @@ class KeyIoInfo(AddIOInfo):
         self.file_op.add_data(yaml_data)
 
     def add_properties(self, access_key, bucket_name, key_name, properties):
+        """
+            This function to add properties to the yaml
+
+            Parameters:
+                access_key: access key
+                bucket_name: name of the bucket
+                key_name: name of the key
+                properties: properties
+        """
         yaml_data = self.file_op.get_data()
         access_key_indx = None
         bucket_indx = None
@@ -163,6 +245,15 @@ class KeyIoInfo(AddIOInfo):
         self.file_op.add_data(yaml_data)
 
     def add_versioning_info(self, access_key, bucket_name, key_name, versioning_info):
+        """
+            This function is to add versioning information to the yaml
+
+            Parameters:
+                access_key: access key
+                bucket_name: name of the bucket
+                key_name: name of the key
+                versioning_info: versioning information               
+        """
         yaml_data = self.file_op.get_data()
         access_key_indx = None
         bucket_indx = None
@@ -184,6 +275,15 @@ class KeyIoInfo(AddIOInfo):
         self.file_op.add_data(yaml_data)
 
     def delete_version_info(self,access_key, bucket_name, key_name, version_id):
+        """
+            This function is remove the versioning information from the yaml
+
+            Parameters:
+                access_key:  access key
+                bucket_name: name of the bucket
+                key_name: name of the key
+                version_id: version id of the object
+        """
         yaml_data = self.file_op.get_data()
         access_key_indx = None
         bucket_indx = None
@@ -214,7 +314,19 @@ class KeyIoInfo(AddIOInfo):
 
 
 def logioinfo(func):
+    """
+        This function is to add IO information
+    """
     def write(exec_info):
+        """
+            This function is to add bucket and object Io information 
+
+            Parameters:
+                exec_info
+
+            Returns:
+                write
+        """
         log.info('in write')
         log.info(exec_info)
         ret_val = func(exec_info)

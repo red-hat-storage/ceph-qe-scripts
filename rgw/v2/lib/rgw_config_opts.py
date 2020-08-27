@@ -19,12 +19,24 @@ class ConfigOpts(object):
 
 
 class CephConfOp(FileOps, ConfigParse):
+    """
+        To check/create ceph.conf file
+    """
     def __init__(self, ceph_conf_path='/etc/ceph/ceph.conf'):
         self.ceph_conf_path = ceph_conf_path
         FileOps.__init__(self, self.ceph_conf_path, type='ceph.conf')
         ConfigParse.__init__(self, self.ceph_conf_path)
 
     def check_if_config_exists(self, config):
+        """
+            This function is to check if the ceph.conf file exists with the config
+
+            Parameters:
+                config(char): config file
+
+            Returns:
+                tmp: if the config file exists, Else returns false
+        """
         log.info('checking if config: %s exists' % config)
         contents = self.get_data()
         config_exists = next((s for s in contents if config in s), None)
@@ -38,11 +50,26 @@ class CephConfOp(FileOps, ConfigParse):
             return tmp
 
     def create_section(self, section):
+        """
+            This function is to create a new section 
+
+            Parameters:
+                section: section to be created
+
+        """
         log.info('creating new section: %s' % section)
         new_section = self.add_section(section)
         self.add_data(new_section)
 
     def set_to_ceph_conf(self, section, option, value=None):
+        """
+            This function is to add section, option, value to the ceph.conf file
+
+            Parameters:
+                section:
+                option:
+                value:
+        """
         log.info('adding to ceph conf')
         log.info('section: %s' % section)
         log.info('option: %s' % option)

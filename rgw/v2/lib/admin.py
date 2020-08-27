@@ -15,6 +15,23 @@ class UserMgmt(object):
         self.exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
     def create_admin_user(self, user_id, displayname, cluster_name='ceph'):
+        """
+            Function to create a S3-interface/admin user
+
+            The S3-interface/admin user is created with the user_id, displayname, cluster_name.
+
+            Parameters:
+                user_id (char): id of the user
+                displayname (char): Display Name of the user
+                cluster_name (char): Name of the ceph cluster. defaults to 'ceph'
+
+            Returns:
+                user details, which contain the following
+                    - user_id
+                    - display_name
+                    - access_key
+                    - secret_key
+        """
         try:
             write_user_info = AddUserInfo()
             basic_io_structure = BasicIOInfoStructure()
@@ -46,6 +63,23 @@ class UserMgmt(object):
             # traceback.print_exc(e)
             return False
     def create_rest_admin_user(self, user_id, displayname, cluster_name='ceph'):
+        """
+            Function to create an user with administrative capabilities
+    
+            To enable a user to exercise administrative functionality via the REST API
+    
+            Parameters:
+                user_id (char): id of the user
+                displayname (char): Display Name of the user
+                cluster_name (char): Name of the ceph cluster. defaults to 'ceph'
+    
+            Returns:
+                user details, which contain the following
+                    - user_id
+                    - display_name
+                    - access_key
+                    - secret_key
+        """
         try:
             write_user_info = AddUserInfo()
             basic_io_structure = BasicIOInfoStructure()
@@ -83,7 +117,25 @@ class UserMgmt(object):
             return False
 
     def create_tenant_user(self, tenant_name, user_id, displayname, cluster_name="ceph"):
-
+        """
+            Function to create an user under a tenant.
+    
+            To create an S3-interface user under tenant.
+    
+            Parameters:
+                tenant_name (char): Name of the tenant
+                user_id (char): id of the user
+                displayname (char): Display Name of the user
+                cluster_name (char): Name of the ceph cluster. defaults to 'ceph'
+        
+            Returns:
+                user details, which contain the following
+                    - user_id
+                    - display_name
+                    - access_key
+                    - secret_key
+                    - tenant
+        """
         try:
             write_user_info = AddUserInfo()
             basic_io_structure = BasicIOInfoStructure()
@@ -119,6 +171,15 @@ class UserMgmt(object):
             return False
 
     def create_subuser(self, tenant_name, user_id, cluster_name="ceph"):
+        """
+           Function to create an subuser under a tenant.
+
+           To create an swift-interface user under tenant.
+           Parameters:
+                tenant_name (char): Name of the tenant
+                user_id (char): id of the user
+                cluster_name (char): Name of the ceph cluster. defaults to 'ceph'
+        """
         try:
             write_user_info = AddUserInfo()
             basic_io_structure = BasicIOInfoStructure()
@@ -156,6 +217,18 @@ class QuotaMgmt(object):
         self.exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
 
     def set_bucket_quota(self, uid, max_objects, cluster_name='ceph'):
+        """
+            Function to set bucket quotas
+            This function sets the quota of the max_objects with quota scope as bucket.
+            
+            Parameters:
+                uid (char): user id
+                max_objects(int): maximum number of objects 
+                cluster_name (char): Name of the ceph cluster. defaults to 'ceph'
+    
+            Returns:
+
+        """
         cmd = 'radosgw-admin quota set --uid=%s --quota-scope=bucket --max-objects=%s --cluster %s' \
               % (uid, max_objects, cluster_name)
         status = utils.exec_shell_cmd(cmd)
@@ -164,6 +237,16 @@ class QuotaMgmt(object):
         log.info('quota set complete')
 
     def enable_bucket_quota(self, uid, cluster_name='ceph'):
+        """
+        Function to enable the quota with quota-scope as bucket
+
+        Parameters:
+            uid (char): user id
+            cluster_name (char): Name of the ceph cluster. defaults to 'ceph'
+
+        Returns:
+
+        """
         cmd = 'radosgw-admin quota enable --quota-scope=bucket --uid=%s --cluster %s' % (uid, cluster_name)
         status = utils.exec_shell_cmd(cmd)
         if not status[0]:

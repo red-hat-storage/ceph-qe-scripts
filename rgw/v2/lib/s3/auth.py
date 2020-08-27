@@ -9,8 +9,16 @@ from botocore.client import Config
 
 
 class Auth(object):
-
+    """
+        This class is used to perform authentication.
+        The functions in this class are
+        1. do_auth() : Authenticate using resource
+        2. do_auth_using_client() : Authenticate using client
+    """
     def __init__(self, user_info, **extra_kwargs):
+        """
+            Initializes the variables of user_info parameter
+        """
         self.access_key = user_info['access_key']
         self.secret_key = user_info['secret_key']
         self.hostname = socket.gethostname()
@@ -31,6 +39,13 @@ class Auth(object):
         log.info('ssl: %s' % self.ssl)
 
     def do_auth(self, **config):
+        """
+            This function is to perform authentication using resource
+            Parameters:
+                **config: Configuration details
+            Returns:
+                rgw: Connection status
+        """
         log.info('performing authentication')
         additional_config = Config(signature_version=config.get('signature_version', None))
         
@@ -48,6 +63,15 @@ class Auth(object):
         return rgw
 
     def do_auth_using_client(self, **config):
+        """
+            This function is to perform authentication using client module
+
+            Parameters:
+                **config: Configuration details
+
+            Returns:
+                rgw: Connection status
+        """
         log.info('performing authentication using client module')
         additional_config = Config(signature_version=config.get('signature_version', None))
         rgw = boto3.client('s3',

@@ -10,7 +10,13 @@ from v2.lib.exceptions import TestExecError
 import v2.lib.manage_data as manage_data
 
 def validate_prefix_rule(bucket, config):
+    """
+        This function is to validate the prefix rule for versioned objects
 
+        Parameters: 
+            bucket(char): Name of the bucket
+            config(list): config
+    """
     log.info('verification starts')
     op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
     op2 = utils.exec_shell_cmd("radosgw-admin bucket list --bucket=%s" % bucket.name)
@@ -30,7 +36,15 @@ def validate_prefix_rule(bucket, config):
             log.info('Lifecycle expiration of current object version validated for prefix filter')
     if objects == objs_diff:
         log.info('Lifecycle expiration of non_current object version validated for prefix filter')
+
 def validate_and_rule(bucket, config):
+    """
+        This function is to validate AND rule 
+
+        Parameters: 
+            bucket(char): Name of the bucket
+            config(list): config
+    """
     log.info('verification starts')
     op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
     json_doc = json.loads(op)

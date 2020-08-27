@@ -78,6 +78,15 @@ lifecycle_configuration_using_for_tests = {
 
 
 def gen_lifecycle_rules(rule):
+    """
+        This function is to generate lifecycle rules
+
+        Parameters:
+            rule(list)
+
+        Return:
+            rule(list)
+    """
     # not using now, but may be used in the later stages
     gen_rule = dict(
         Expiration=rule.get("Expiration", None),
@@ -107,7 +116,15 @@ def gen_lifecycle_configuration(rules):
     :param rules: list
     :return: lifecycle configuration in json format
     """
+    
+    """
+        This function is to display the lifecycle configuration 
+        Parameters:
+            rules(list)
 
+        Returns:
+            lifecycle_config
+    """
     lifecycle_config = {'Rules': rules}
     # lifecycle_config = json.dumps(lifecycle_config)
     log.info('generated rules:\n%s' % rules)

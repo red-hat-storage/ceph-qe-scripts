@@ -10,6 +10,9 @@ import traceback
 
 
 def check_pem(function):
+    """
+        Function checks if the pem file exists and creates one if it doesn't.
+    """
     @wraps(function)
     def wrapper(*args, **kwargs):
         log.info('kwargs: {}'.format(kwargs))

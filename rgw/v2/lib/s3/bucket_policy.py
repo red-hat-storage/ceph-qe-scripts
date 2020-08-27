@@ -6,6 +6,19 @@ import datetime
 
 
 def bucket_policy_dict(version, principals_list, actions_list, resource, effect, sid):
+    """
+        This function is to list the bucket policy
+
+        Parameters:
+            version:
+            principals_list:
+            actions_list:
+            resource:
+            effect:
+            sid:
+        Returns:
+            bucket_policy
+    """
     log.info('version: %s' % version)
     log.info('principal_list: %s' % principals_list)
     log.info('actions_list: %s' % actions_list)
@@ -40,7 +53,19 @@ def gen_bucket_policy(tenants_list, userids_list, actions_list, resources, effec
     :return: bucket_policy
 
     """
+    """
+        This function generates the bucket policy with the parameters provided.
 
+        Parameters:
+            tenants_list
+            userids_list
+            actions_list
+            resources_list
+            effect
+            sid
+        Returns:
+            bucket_policy
+    """
     principals = list(map(gen_principal, tenants_list, userids_list))
     actions = list(map(gen_action, actions_list))
     resources = list(map(gen_resource, resources))
