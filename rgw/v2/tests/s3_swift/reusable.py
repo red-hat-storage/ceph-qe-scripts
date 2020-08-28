@@ -12,13 +12,16 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, Buck
 import random, time
 import datetime
 
+from v2.lib.rgw_config_opts import ConfigOpts
+from v2.utils.utils import RGWService
+
 io_info_initialize = IOInfoInitialize()
 basic_io_structure = BasicIOInfoStructure()
 write_bucket_io_info = BucketIoInfo()
 write_key_io_info = KeyIoInfo()
+rgw_service = RGWService()
 
 log = logging.getLogger()
-
 
 def create_bucket(bucket_name, rgw, user_info):
     log.info('creating bucket with name: %s' % bucket_name)
@@ -507,3 +510,40 @@ def delete_bucket(bucket):
             raise TestExecError("bucket deletion failed")
     else:
         raise TestExecError("bucket deletion failed")
+
+def set_gc_conf(ceph_conf, conf):
+    log.info('making changes to ceph.conf')
+    ceph_conf.set_to_ceph_conf('global', ConfigOpts.bluestore_block_size,
+                               str(conf.get('bluestore_block_size', 1549267441664)))
+    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_gc_max_queue_size,
+                               str(conf.get('rgw_gc_max_queue_size', 367788)))
+    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_gc_processor_max_time,
+                               str(conf.get('rgw_gc_processor_max_time', 3600)))
+    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_gc_max_concurrent_io,
+                               str(conf.get('rgw_gc_max_concurrent_io', 10)))
+    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_objexp_gc_interval,
+                               str(conf.get('rgw_objexp_gc_interval', 10)))
+    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_gc_max_trim_chunk,
+                               str(conf.get('rgw_gc_max_trim_chunk', 32)))
+    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_gc_obj_min_wait,
+                               str(conf.get('rgw_gc_obj_min_wait', 10)))
+    ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_gc_processor_period,
+                               str(conf.get('rgw_gc_processor_period', 10)))
+    log.info('trying to restart services')
+    srv_restarted = rgw_service.restart()
+    time.sleep(30)
+    if srv_restarted is False:
+        raise TestExecError("RGW service restart failed")
+    else:
+        log.info('RGW service restarted')
+    # Delete gc queue
+    pool_name = utils.exec_shell_cmd('ceph df |awk \'{ print $1 }\'| grep rgw.log')
+    pool_name = pool_name.replace("\n", "")
+    for i in range(0, 32):
+        utils.exec_shell_cmd('rados rm gc.%d -p %s -N gc' % (i, pool_name))
+
+def verify_gc():
+    op = utils.exec_shell_cmd('radosgw-admin gc list')
+    # op variable will capture command output such as entire gc list or error like ERROR: failed to list objs: (22) Invalid argument
+    final_op = op.find('ERROR') or op.find('Invalid argument')
+    return final_op
