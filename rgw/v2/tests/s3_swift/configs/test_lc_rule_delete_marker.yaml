@@ -11,13 +11,14 @@ config:
       create_object: true
       version_count: 2
       delete_marker: true
+      date: false
  lifecycle_ops:
       - ID: LC_Rule_1
         Filter:
           Prefix: key2
         Status: Enabled
         Expiration:
-          Days: 2
+          Days: 20
  delete_marker_ops:
       - ID: delete_marker_rule
         Filter:

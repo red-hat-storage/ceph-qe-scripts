@@ -11,12 +11,13 @@ config:
       create_object: true
       version_count: 3
       delete_marker: false
+      date: false
  lifecycle_ops:
       - ID: LC_Rule_2
         Filter:
           Prefix: key1
         Status: Enabled
         NoncurrentVersionExpiration:
-          NoncurrentDays: 2
+          NoncurrentDays: 20
 
 

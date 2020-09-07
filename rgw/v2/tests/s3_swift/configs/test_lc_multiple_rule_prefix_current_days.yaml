@@ -11,18 +11,19 @@ config:
       create_object: true
       version_count: 3
       delete_marker: false
+      date: false
  lifecycle_ops:
       - ID: LC_Rule_1
         Filter:
           Prefix: key1
         Status: Enabled
         Expiration:
-          Days: 2
+          Days: 20
       - ID: LC_Rule_2
         Filter:
           Prefix: key2
         Status: Enabled
         Expiration:
-          Days: 2
+          Days: 20
 
 

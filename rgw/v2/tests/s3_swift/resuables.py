@@ -176,7 +176,7 @@ def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
     else:
         raise TestExecError("version enable failed")
 
-def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule):
+def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, config):
     bucket_life_cycle = s3lib.resource_op({'obj': rgw_conn,
                                            'resource': 'BucketLifecycleConfiguration',
                                            'args': [bucket.name]})
@@ -207,17 +207,29 @@ def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule):
             raise TestExecError("bucket lifecycle config retrieval failed")
     else:
         raise TestExecError("bucket life cycle retrieved")
-    time.sleep(100)
+    objs_total = (config.test_ops['version_count']) * (config.objects_count)
+    if config.test_ops['date'] is False:
+        for time_interval in range(19):
+            bucket_stats_op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
+            json_doc1 = json.loads(bucket_stats_op)
+            obj_pre_lc = json_doc1['usage']['rgw.main']['num_objects']
+            if obj_pre_lc == objs_total:
+                time.sleep(30)
+            else:
+                raise TestExecError("Objects expired before the expected days")
+    else:
+        time.sleep(60)
+    time.sleep(90)
     log.info('testing if lc is applied via the radosgw-admin cli')
     op = utils.exec_shell_cmd("radosgw-admin lc list")
     json_doc = json.loads(op)
     for i,entry in enumerate(json_doc):
         print(i)
         print(entry['status'])
-        if entry['status'] != 'COMPLETE':
-            log.info('LC is not completed, failed')
+        if entry['status'] == 'COMPLETE' or entry['status'] == 'PROCESSING' or entry['status'] == 'UNINITIAL':
+            log.info('LC is apllied in the bucket ')
         else:
-            log.info('LC is completed')
+            raise TestExecError('LC is not applied')
 
 def remove_user(user_info, cluster_name='ceph'):
     log.info('Removing user')

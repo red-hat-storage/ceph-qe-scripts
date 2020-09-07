@@ -11,6 +11,7 @@ config:
       create_object: true
       version_count: 3
       delete_marker: false
+      date: true
  lifecycle_ops:
       - ID: LC_Rule_1
         Filter:
