@@ -1,10 +1,12 @@
 import swiftclient
 import socket
 import os, sys
+import logging
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 import v2.utils.utils as utils
+
+log = logging.getLogger()
 
 
 class Auth(object):

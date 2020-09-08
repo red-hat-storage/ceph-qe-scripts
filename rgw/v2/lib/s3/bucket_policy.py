@@ -1,8 +1,10 @@
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
+import logging
 import datetime
+
+log = logging.getLogger()
 
 
 def bucket_policy_dict(version, principals_list, actions_list, resource, effect, sid):

@@ -2,7 +2,7 @@ import os, sys, glob
 import json
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import v2.lib.resource_op as s3lib
-import v2.utils.log as log
+import logging
 import v2.utils.utils as utils
 from v2.utils.utils import HttpResponseParser
 from v2.lib.exceptions import TestExecError
@@ -14,6 +14,8 @@ io_info_initialize = IOInfoInitialize()
 basic_io_structure = BasicIOInfoStructure()
 write_bucket_io_info = BucketIoInfo()
 write_key_io_info = KeyIoInfo()
+
+log = logging.getLogger()
 
 
 def create_bucket(bucket_name, rgw, user_info):

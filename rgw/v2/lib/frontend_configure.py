@@ -1,7 +1,7 @@
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
+import logging
 from v2.lib.admin import UserMgmt
 from v2.lib.rgw_config_opts import CephConfOp
 import v2.utils.utils as utils
@@ -12,6 +12,7 @@ import traceback
 import time
 
 SUPPORTED = ['beast', 'civetweb']
+log = logging.getLogger()
 
 
 class RGWSection(object):

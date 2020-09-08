@@ -22,7 +22,7 @@ from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
 import v2.utils.utils as utils
-import v2.utils.log as log
+from v2.utils.log import configure_logging
 import traceback
 import argparse
 import yaml
@@ -31,6 +31,10 @@ from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.tests.s3_swift import resuables
 from v2.lib.admin import UserMgmt
+import logging
+
+log = logging.getLogger()
+
 
 TEST_DATA_PATH = None
 
@@ -127,8 +131,14 @@ if __name__ == '__main__':
         parser = argparse.ArgumentParser(description='RGW S3 Automation')
         parser.add_argument('-c', dest="config",
                             help='RGW Test yaml configuration')
+        parser.add_argument('-log_level', dest='log_level',
+                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
+                            default='info')
         args = parser.parse_args()
         yaml_file = args.config
+        log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+        configure_logging(f_name=log_f_name,
+                          set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
         config.user_count = 2

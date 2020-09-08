@@ -1,10 +1,11 @@
-import v2.utils.log as log
+import logging
 import v2.utils.utils as utils
 import os
 from v2.utils.utils import FileOps
 import socket
 import time
 
+log = logging.getLogger()
 
 class ManageNFSServices(object):
 

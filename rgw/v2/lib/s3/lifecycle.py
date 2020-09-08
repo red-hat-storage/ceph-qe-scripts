@@ -3,9 +3,12 @@
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 import datetime
 import json
+import logging
+
+log = logging.getLogger()
+
 
 sample_lifecycle_syntax = {
     'Rules': [

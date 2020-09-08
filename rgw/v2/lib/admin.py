@@ -3,11 +3,13 @@ import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import subprocess
 import time
-import v2.utils.log as log
 import v2.utils.utils as utils
 import json
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, TenantInfo
 from v2.lib.s3.write_io_info import AddUserInfo
+import logging
+
+log = logging.getLogger()
 
 
 class UserMgmt(object):

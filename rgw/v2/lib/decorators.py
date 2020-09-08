@@ -1,12 +1,14 @@
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 from functools import wraps
 import v2.utils.utils as utils
 import v2.lib.pem as pem
 from v2.lib.exceptions import RGWBaseException
 import traceback
+import logging
+
+log = logging.getLogger()
 
 
 def check_pem(function):

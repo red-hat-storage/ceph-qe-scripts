@@ -1,9 +1,8 @@
 import sys
 import os
-
+import logging
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
 
-import v2.utils.log as log
 import v2.utils.utils as utils
 import socket
 from v2.lib.nfs_ganesha.manage_conf import GaneshaConfig
@@ -13,6 +12,8 @@ import yaml
 import v2.lib.resource_op as s3lib
 from v2.lib.exceptions import NFSGaneshaMountError
 from v2.lib.nfs_ganesha.write_io_info import BasicIOInfoStructure, AddUserInfo
+
+log = logging.getLogger()
 
 
 class RGWUserConfigOps(object):

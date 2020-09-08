@@ -3,9 +3,11 @@ import socket
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 import v2.utils.utils as utils
 from botocore.client import Config
+import logging
+
+log = logging.getLogger()
 
 
 class Auth(object):

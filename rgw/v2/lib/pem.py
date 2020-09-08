@@ -2,7 +2,6 @@ import os
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 import v2.utils.utils as utils
 import traceback
 
@@ -10,6 +9,10 @@ SSL_CERT_PATH = '/etc/ssl/certs/'
 PEM_FILE_NAME = 'server.pem'
 PEM_FILE_PATH = os.path.join(SSL_CERT_PATH,
                              PEM_FILE_NAME)
+
+import logging
+
+log = logging.getLogger()
 
 
 def create_pem():

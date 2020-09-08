@@ -24,7 +24,6 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
-import v2.utils.log as log
 import v2.utils.utils as utils
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -32,6 +31,7 @@ import traceback
 import argparse
 import yaml
 import v2.lib.manage_data as manage_data
+from v2.utils.log import configure_logging
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.tests.s3_swift import resuables
@@ -39,8 +39,12 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, Buck
 import random, time
 import threading
 import json
+import logging
+
+log = logging.getLogger()
 
 TEST_DATA_PATH = None
+
 
 def upload_objects(user_info, bucket, config):
     log.info('s3 objects to create: %s' % config.objects_count)
@@ -156,8 +160,14 @@ if __name__ == '__main__':
         parser = argparse.ArgumentParser(description='RGW S3 Automation')
         parser.add_argument('-c', dest="config",
                             help='RGW Test yaml configuration')
+        parser.add_argument('-log_level', dest='log_level',
+                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
+                            default='info')
         args = parser.parse_args()
         yaml_file = args.config
+        log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+        configure_logging(f_name=log_f_name,
+                          set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
         if config.mapped_sizes is None:

@@ -1,7 +1,8 @@
-import os, sys
+import os, sys, logging
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 from v2.utils.utils import FileOps
+
+log = logging.getLogger()
 
 IO_INFO_FNAME = 'io_info.yaml'
 

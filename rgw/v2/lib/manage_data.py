@@ -1,10 +1,12 @@
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 from v2.utils.utils import FileOps
 from v2.lib.exceptions import RGWBaseException, RGWIOGenException
 import v2.utils.utils as utils
+import logging
+
+log = logging.getLogger()
 
 
 def io_generator(fname, size, type='txt', op='create', **kwargs):

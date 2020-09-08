@@ -32,7 +32,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
-import v2.utils.log as log
+from v2.utils.log import configure_logging
 import v2.utils.utils as utils
 from v2.utils.utils import RGWService
 from v2.tests.s3_swift import resuables
@@ -44,8 +44,9 @@ from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import json, time, hashlib
+import logging
 
-
+log = logging.getLogger()
 TEST_DATA_PATH = None
 password = "32characterslongpassphraseneeded".encode('utf-8')
 encryption_key = hashlib.md5(password).hexdigest()
@@ -272,8 +273,16 @@ if __name__ == '__main__':
         parser = argparse.ArgumentParser(description='RGW S3 Automation')
         parser.add_argument('-c', dest="config",
                             help='RGW Test yaml configuration')
+        parser.add_argument('-log_level', dest='log_level',
+                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
+                            default='info')
+
+        # ch.setLevel(logging.getLevelName(console_log_level.upper()))
         args = parser.parse_args()
         yaml_file = args.config
+        log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+        configure_logging(f_name=log_f_name,
+                          set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
         if config.mapped_sizes is None:
