@@ -90,8 +90,9 @@ class Config(object):
 
         if self.doc is None:
             raise ConfigError('config file not given')
-
-        self.shards = None
+        self.shards = self.doc['config'].get('shards')
+        # todo: better suited to be added under ceph_conf
+        self.max_objects_per_shard = self.doc['config'].get('max_objects_per_shard')
         self.max_objects = None
         self.user_count = self.doc['config'].get('user_count')
         self.bucket_count = self.doc['config'].get('bucket_count')
