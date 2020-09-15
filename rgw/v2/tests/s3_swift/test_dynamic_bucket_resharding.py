@@ -64,8 +64,6 @@ def test_exec(config):
     rgw_service = RGWService()
 
     log.info('starting IO')
-    config.max_objects_per_shard = 10
-    config.no_of_shards = 10
     config.user_count = 1
     user_info = s3lib.create_users(config.user_count)
     user_info = user_info[0]
@@ -108,7 +106,7 @@ def test_exec(config):
         log.info('in manual sharding')
         cmd_exec = utils.exec_shell_cmd('radosgw-admin bucket reshard --bucket=%s --num-shards=%s '
                                         '--yes-i-really-mean-it'
-                                        % (bucket.name, config.no_of_shards))
+                                        % (bucket.name, config.shards))
         if cmd_exec is False:
             raise TestExecError("manual resharding command execution failed")
 
@@ -128,7 +126,7 @@ def test_exec(config):
     num_shards_created = json_doc2['data']['bucket_info']['num_shards']
     log.info('no_of_shards_created: %s' % num_shards_created)
     if config.sharding_type == 'manual':
-        if config.no_of_shards != num_shards_created:
+        if config.shards != num_shards_created:
             raise TestExecError("expected number of shards not created")
         log.info('Expected number of shards created')
     if config.sharding_type == 'dynamic':
@@ -142,6 +140,9 @@ def test_exec(config):
                 log.info('Expected number of shards created')
         else:
             raise TestExecError('Expected number of shards not created')
+
+    if config.test_ops['delete_bucket_object'] is True:
+        resuables.delete_bucket_object(bucket)
 
 
 if __name__ == '__main__':
