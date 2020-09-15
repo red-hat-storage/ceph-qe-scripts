@@ -306,4 +306,49 @@ def link_chown_to_nontenanted(new_uid, bucket, tenant):
     return
 
 
+def delete_bucket_object(bucket):
+    """
+    deletes all objects in bucket and bucket too
+    :param bucket: s3Bucket object
 
+    """
+    log.info('listing all objects in bucket: %s' % bucket.name)
+    objects = s3lib.resource_op({'obj': bucket,
+                                 'resource': 'objects',
+                                 'args': None})
+    log.info('objects :%s' % objects)
+    all_objects = s3lib.resource_op({'obj': objects,
+                                     'resource': 'all',
+                                     'args': None})
+    log.info('all objects: %s' % all_objects)
+    for obj in all_objects:
+        log.info('object_name: %s' % obj.key)
+    log.info('deleting all objects in bucket')
+    objects_deleted = s3lib.resource_op({'obj': objects,
+                                         'resource': 'delete',
+                                         'args': None})
+    log.info('objects_deleted: %s' % objects_deleted)
+    if objects_deleted is False:
+        raise TestExecError('Resource execution failed: Object deletion failed')
+    if objects_deleted is not None:
+        response = HttpResponseParser(objects_deleted[0])
+        if response.status_code == 200:
+            log.info('objects deleted ')
+        else:
+            raise TestExecError("objects deletion failed")
+    else:
+        raise TestExecError("objects deletion failed")
+    log.info('deleting bucket: %s' % bucket.name)
+    # bucket_deleted_status = s3_ops.resource_op(bucket, 'delete')
+    bucket_deleted_status = s3lib.resource_op({'obj': bucket,
+                                               'resource': 'delete',
+                                               'args': None})
+    log.info('bucket_deleted_status: %s' % bucket_deleted_status)
+    if bucket_deleted_status is not None:
+        response = HttpResponseParser(bucket_deleted_status)
+        if response.status_code == 204:
+            log.info('bucket deleted ')
+        else:
+            raise TestExecError("bucket deletion failed")
+    else:
+        raise TestExecError("bucket deletion failed")
