@@ -1,7 +1,5 @@
 #test_bucket_lifecycle_object_expiration.py
 config:
- user_count: 1
- bucket_count: 1
  objects_count: 2
  objects_size_range:
   min: 5
@@ -11,7 +9,7 @@ config:
       create_object: true
       delete_marker: false
       version_count: 0
- lifecycle_ops:
+ lifecycle_conf:
     - ID: rule1
       Filter:
         And:

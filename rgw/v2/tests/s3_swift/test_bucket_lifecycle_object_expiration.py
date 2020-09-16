@@ -71,7 +71,9 @@ def test_exec(config):
         raise TestExecError("RGW service restart failed")
     else:
         log.info('RGW service restarted')
-    
+
+    config.user_count = 1
+    config.bucket_count = 1
     # create user
     user_info = s3lib.create_users(config.user_count)
     user_info = user_info[0]
@@ -86,7 +88,7 @@ def test_exec(config):
     prefix = list(map(lambda x: x,
                       [rule['Filter'].get('Prefix') or
                        rule['Filter']['And'].get('Prefix')
-                       for rule in config.lifecycle_ops]))
+                       for rule in config.lifecycle_conf]))
     prefix = prefix if prefix else ['dummy1']
     if config.test_ops['enable_versioning'] is True:
         resuables.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
@@ -108,7 +110,7 @@ def test_exec(config):
                     log.info('s3 objects to create: %s' % config.objects_count)
                     resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
 
-        life_cycle_rule = {"Rules": config.lifecycle_ops}
+        life_cycle_rule = {"Rules": config.lifecycle_conf}
         resuables.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule)
         lc_ops.validate_prefix_rule(bucket, config)
         if config.test_ops['delete_marker'] is True:
@@ -123,7 +125,7 @@ def test_exec(config):
                 s3_object_name = key + '.' + bucket.name + '.' + str(oc)
                 obj_list.append(s3_object_name)
                 resuables.upload_object_with_tagging(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, obj_tag)
-        life_cycle_rule = {"Rules": config.lifecycle_ops}
+        life_cycle_rule = {"Rules": config.lifecycle_conf}
         resuables.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule)
         lc_ops.validate_and_rule(bucket, config) 
     resuables.remove_user(user_info)
