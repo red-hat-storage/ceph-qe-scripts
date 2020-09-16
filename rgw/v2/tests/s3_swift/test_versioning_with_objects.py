@@ -32,6 +32,7 @@ from v2.lib.s3.auth import Auth
 import v2.utils.utils as utils
 from v2.utils.log import configure_logging
 from v2.utils.utils import HttpResponseParser
+from v2.tests.s3_swift import resuables
 import traceback
 import argparse
 import v2.lib.manage_data as manage_data
@@ -409,6 +410,8 @@ def test_exec(config):
                     log.info('s3_object_uploaded_md5: %s' % non_version_data_info['md5'])
                     if config.local_file_delete is True:
                         utils.exec_shell_cmd('sudo rm -rf %s' % s3_object_path)
+            if config.test_ops.get('delete_bucket') is True:
+                resuables.delete_bucket(bucket)
 
 
 if __name__ == '__main__':
