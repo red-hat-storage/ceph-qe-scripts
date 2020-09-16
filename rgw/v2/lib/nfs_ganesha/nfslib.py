@@ -1,11 +1,11 @@
 import os, sys
-
+import logging
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 from v2.lib.nfs_ganesha.write_io_info import IOInfo
 import v2.utils.utils as utils
 import v2.lib.manage_data as manage_date
 
+log = logging.getLogger()
 
 dir_info = {'basedir': 0,
             'files': 10,

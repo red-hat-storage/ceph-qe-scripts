@@ -2,8 +2,10 @@ import boto3
 import socket
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 import v2.utils.utils as utils
+import logging
+
+log = logging.getLogger()
 
 
 class RGWBaseException(Exception):

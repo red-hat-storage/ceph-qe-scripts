@@ -1,8 +1,9 @@
-from . import log
+import logging
+
+log = logging.getLogger(__name__)
 
 
 class Bcolors:
-
     HEADER = '\033[95m'
     OKGREEN = '\033[92m'
     FAIL = '\033[91m'
@@ -12,55 +13,33 @@ class Bcolors:
 
 class AddTestInfo(object):
 
-    def __init__(self, name, id = None):
+    def __init__(self, name, id=None):
         self.id = id
         self.name = name
 
     def started_info(self):
+        colourify = lambda val: Bcolors.HEADER + str(val) + Bcolors.ENDC
 
-        log.info('\n========================================================================================================= \ntest details'
-                 '\n---------\ntest_id:%s\ntest_name:%s\n=============================' %(self.id, self.name))
-
-        print('---------------------------')
-        print(Bcolors.HEADER + 'test_started:%s' % self.name + Bcolors.ENDC)
-        print(Bcolors.HEADER + 'test_id:%s' % self.id + Bcolors.ENDC)
-        print('---------------------------')
+        log.info(f'test_name: {colourify(self.name)}')
+        log.info(f'test_id: {colourify(self.id)}')
 
     def sub_test_info(self, sub_test_id, sub_test_name):
-
         sub_test_id = str(self.id) + '.' + str(sub_test_id)
 
-        log.info('\n========================== \nSub test details'
-                 '\n---------\nsub_test_id:%s\nsub_test_name:%s\n=================' %(sub_test_id, sub_test_name))
-
-        log.info('\n=========================================')
-
-        print('---sub test id: %s' % sub_test_id)
-        print('---sub test name: %s' % sub_test_name)
+        log.info(f'sub_test_id: {sub_test_id}\n')
+        log.info(f'sub_test_name: {sub_test_name}')
 
     def sub_test_completed_info(self):
-
-        log.info("\n========================== Sub Test Completed ====================")
-        print('---sub test completed')
-        print('---------------------------')
+        log.info('sub test completed')
 
     def failed_status(self, status):
-
-        log.info('\n======================================================================\n'
-                 '**********  %s  *********' % status)
-
-        print(Bcolors.FAIL + 'status: %s ' % status + Bcolors.ENDC)
+        failed = Bcolors.FAIL + status + Bcolors.ENDC
+        log.info(f'status: {failed}')
 
     def success_status(self, status):
-
-        log.info('\n======================================================================\n'
-                 '**********  %s  *********' % status)
-
-        print(Bcolors.OKGREEN + 'status: %s ' % status + Bcolors.ENDC)
+        success = Bcolors.OKGREEN + status + Bcolors.ENDC
+        log.info(success)
 
     def completed_info(self):
-        log.info("======================================================\nTest Completed\n======="
-                 "==================================================================================================")
-
-        print(Bcolors.HEADER + 'completed' + Bcolors.ENDC)
-        print('---------------------------')
+        completed = Bcolors.HEADER + 'Test completed' + Bcolors.ENDC
+        log.info(completed)

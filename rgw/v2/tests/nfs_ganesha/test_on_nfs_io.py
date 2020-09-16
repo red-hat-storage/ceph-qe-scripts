@@ -7,10 +7,11 @@ import argparse
 from v2.tests.nfs_ganesha.initialize import PrepNFSGanesha
 import time
 from v2.lib.s3.auth import Auth
-import v2.utils.log as log
+import logging
 from v2.lib.exceptions import TestExecError
 from v2.lib.nfs_ganesha.nfslib import DoIO
 import v2.utils.utils as utils
+from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.nfs_ganesha.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import traceback
@@ -20,7 +21,7 @@ import yaml
 import shutil
 
 SLEEP_TIME = 60
-
+log = logging.getLogger()
 
 def test_exec(rgw_user_info_file, config):
     test_info = AddTestInfo('NFS Basic Ops')
@@ -149,9 +150,15 @@ if __name__ == '__main__':
                         help='RGW user info')
     parser.add_argument('-c', dest="test_config",
                         help='Test Configuration')
+    parser.add_argument('-log_level', dest='log_level',
+                        help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
+                        default='info')
     args = parser.parse_args()
     rgw_user_info_yaml = args.rgw_user_info
     test_config_yaml = args.test_config
+    log_f_name = os.path.basename(os.path.splitext(test_config_yaml)[0])
+    configure_logging(f_name=log_f_name,
+                      set_level=args.log_level.upper())
     with open(test_config_yaml, 'r') as f:
         doc = yaml.safe_load(f)
     test_config = doc

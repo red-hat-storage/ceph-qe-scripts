@@ -1,6 +1,5 @@
 import os, sys, glob
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 from v2.lib.resource_op import Config
 import datetime
 import json
@@ -8,6 +7,10 @@ import v2.utils.utils as utils
 from v2.utils.utils import HttpResponseParser
 from v2.lib.exceptions import TestExecError
 import v2.lib.manage_data as manage_data
+import logging
+
+log = logging.getLogger()
+
 
 def validate_prefix_rule(bucket, config):
 

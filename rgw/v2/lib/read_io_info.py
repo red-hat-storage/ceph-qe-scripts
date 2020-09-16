@@ -3,11 +3,14 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import socket
-from v2.utils import log
 from v2.utils.utils import FileOps
 from v2.utils import utils
 import boto3
 from v2.lib.exceptions import TestExecError
+import logging
+
+log = logging.getLogger()
+
 
 IO_INFO_FNAME = 'io_info.yaml'
 

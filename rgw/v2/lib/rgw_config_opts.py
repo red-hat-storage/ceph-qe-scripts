@@ -1,8 +1,9 @@
 import os, sys
-
+import logging
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 from v2.utils.utils import FileOps, ConfigParse
-import v2.utils.log as log
+
+log = logging.getLogger()
 
 
 class ConfigOpts(object):

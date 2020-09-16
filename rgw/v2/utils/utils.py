@@ -1,7 +1,7 @@
 import os
 import hashlib
 import subprocess
-from . import log
+import logging
 import json
 from random import randint
 import configparser
@@ -12,6 +12,7 @@ import socket
 
 BUCKET_NAME_PREFIX = 'bucky' + '-' + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = 'key'
+log = logging.getLogger()
 
 
 def exec_shell_cmd(cmd):

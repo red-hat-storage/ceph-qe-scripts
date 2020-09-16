@@ -1,7 +1,9 @@
-import v1.utils.log as log
+import logging
 import v1.utils.utils as utils
 import os
 from v1.utils.utils import FileOps
+
+log = logging.getLogger()
 
 
 def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname, nfs_version):

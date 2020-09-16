@@ -1,7 +1,6 @@
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
-import v2.utils.log as log
 from v2.lib.admin import UserMgmt
 # import v2.lib.frontend_configure as frontend_configure
 from v2.lib.frontend_configure import Frontend
@@ -14,6 +13,9 @@ import yaml
 import v2.lib.s3.write_io_info as write_io_info
 import v2.lib.pem as pem
 import traceback
+import logging
+
+log = logging.getLogger()
 
 
 @write_io_info.logioinfo
@@ -88,8 +90,9 @@ class Config(object):
 
         if self.doc is None:
             raise ConfigError('config file not given')
-
-        self.shards = None
+        self.shards = self.doc['config'].get('shards')
+        # todo: better suited to be added under ceph_conf
+        self.max_objects_per_shard = self.doc['config'].get('max_objects_per_shard')
         self.max_objects = None
         self.user_count = self.doc['config'].get('user_count')
         self.bucket_count = self.doc['config'].get('bucket_count')

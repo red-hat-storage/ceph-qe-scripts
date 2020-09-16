@@ -16,8 +16,8 @@ Operation:
 import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
-import v2.utils.log as log
 import v2.utils.utils as utils
+from v2.utils.log import configure_logging
 import traceback
 import argparse
 import yaml
@@ -29,6 +29,10 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.lib.swift.auth import Auth
 import v2.lib.manage_data as manage_data
 from v2.lib.admin import UserMgmt
+import logging
+
+log = logging.getLogger()
+
 
 def test_exec(config):
 
@@ -83,6 +87,7 @@ def test_exec(config):
         test_info.failed_status('test failed')
         sys.exit(1)
 
+
 if __name__ == '__main__':
 
     test_info = AddTestInfo('swift stats')
@@ -98,8 +103,17 @@ if __name__ == '__main__':
         parser = argparse.ArgumentParser(description='RGW S3 Automation')
         parser.add_argument('-c', dest="config",
                             help='RGW Test yaml configuration')
+        parser.add_argument('-log_level', dest='log_level',
+                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
+                            default='info')
         args = parser.parse_args()
         yaml_file = args.config
+        log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+        configure_logging(f_name=log_f_name,
+                          set_level=args.log_level.upper())
+        log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+        configure_logging(f_name=log_f_name,
+                          set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
 

@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import socket
-import v2.utils.log as log
+import logging
 from v2.utils.utils import FileOps
 import v2.utils.utils as utils
 import boto3
@@ -10,7 +10,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.exceptions import TestExecError
 
 IO_INFO_FNAME = 'io_info.yaml'
-
+log = logging.getLogger()
 
 class ReadIOInfoOnS3(object):
     def __init__(self, yaml_fname=IO_INFO_FNAME):

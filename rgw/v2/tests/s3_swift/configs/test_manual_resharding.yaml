@@ -5,3 +5,6 @@ config:
   min: 15
   max: 20
  sharding_type: manual
+ shards: 97
+ test_ops:
+  delete_bucket_object: true

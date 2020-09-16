@@ -24,7 +24,6 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
-import v2.utils.log as log
 import v2.utils.utils as utils
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -32,6 +31,7 @@ import traceback
 import argparse
 import yaml
 import v2.lib.manage_data as manage_data
+from v2.utils.log import configure_logging
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.tests.s3_swift import resuables
@@ -39,8 +39,12 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, Buck
 import random, time
 import threading
 import json
+import logging
+
+log = logging.getLogger()
 
 TEST_DATA_PATH = None
+
 
 def upload_objects(user_info, bucket, config):
     log.info('s3 objects to create: %s' % config.objects_count)
@@ -60,8 +64,6 @@ def test_exec(config):
     rgw_service = RGWService()
 
     log.info('starting IO')
-    config.max_objects_per_shard = 10
-    config.no_of_shards = 10
     config.user_count = 1
     user_info = s3lib.create_users(config.user_count)
     user_info = user_info[0]
@@ -104,7 +106,7 @@ def test_exec(config):
         log.info('in manual sharding')
         cmd_exec = utils.exec_shell_cmd('radosgw-admin bucket reshard --bucket=%s --num-shards=%s '
                                         '--yes-i-really-mean-it'
-                                        % (bucket.name, config.no_of_shards))
+                                        % (bucket.name, config.shards))
         if cmd_exec is False:
             raise TestExecError("manual resharding command execution failed")
 
@@ -124,7 +126,7 @@ def test_exec(config):
     num_shards_created = json_doc2['data']['bucket_info']['num_shards']
     log.info('no_of_shards_created: %s' % num_shards_created)
     if config.sharding_type == 'manual':
-        if config.no_of_shards != num_shards_created:
+        if config.shards != num_shards_created:
             raise TestExecError("expected number of shards not created")
         log.info('Expected number of shards created')
     if config.sharding_type == 'dynamic':
@@ -138,6 +140,9 @@ def test_exec(config):
                 log.info('Expected number of shards created')
         else:
             raise TestExecError('Expected number of shards not created')
+
+    if config.test_ops['delete_bucket_object'] is True:
+        resuables.delete_bucket_object(bucket)
 
 
 if __name__ == '__main__':
@@ -156,8 +161,14 @@ if __name__ == '__main__':
         parser = argparse.ArgumentParser(description='RGW S3 Automation')
         parser.add_argument('-c', dest="config",
                             help='RGW Test yaml configuration')
+        parser.add_argument('-log_level', dest='log_level',
+                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
+                            default='info')
         args = parser.parse_args()
         yaml_file = args.config
+        log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+        configure_logging(f_name=log_f_name,
+                          set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
         if config.mapped_sizes is None:

@@ -32,7 +32,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
-import v2.utils.log as log
+from v2.utils.log import configure_logging
 import v2.utils.utils as utils
 from v2.utils.utils import RGWService
 from v2.tests.s3_swift import resuables
@@ -44,8 +44,9 @@ from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import json, time, hashlib
+import logging
 
-
+log = logging.getLogger()
 TEST_DATA_PATH = None
 password = "32characterslongpassphraseneeded".encode('utf-8')
 encryption_key = hashlib.md5(password).hexdigest()
@@ -196,46 +197,7 @@ def test_exec(config):
                         cmd = 'radosgw-admin bucket stats --bucket=%s' % bucket.name
                         out = utils.exec_shell_cmd(cmd)
                     if config.test_ops['delete_bucket_object'] is True:
-                        log.info('listing all objects in bucket: %s' % bucket.name)
-                        objects = s3lib.resource_op({'obj': bucket,
-                                                     'resource': 'objects',
-                                                     'args': None})
-                        log.info('objects :%s' % objects)
-                        all_objects = s3lib.resource_op({'obj': objects,
-                                                         'resource': 'all',
-                                                         'args': None})
-                        log.info('all objects: %s' % all_objects)
-                        for obj in all_objects:
-                            log.info('object_name: %s' % obj.key)
-                        log.info('deleting all objects in bucket')
-                        objects_deleted = s3lib.resource_op({'obj': objects,
-                                                             'resource': 'delete',
-                                                             'args': None})
-                        log.info('objects_deleted: %s' % objects_deleted)
-                        if objects_deleted is False:
-                            raise TestExecError('Resource execution failed: Object deletion failed')
-                        if objects_deleted is not None:
-                            response = HttpResponseParser(objects_deleted[0])
-                            if response.status_code == 200:
-                                log.info('objects deleted ')
-                            else:
-                                raise TestExecError("objects deletion failed")
-                        else:
-                            raise TestExecError("objects deletion failed")
-                        log.info('deleting bucket: %s' % bucket.name)
-                        # bucket_deleted_status = s3_ops.resource_op(bucket, 'delete')
-                        bucket_deleted_status = s3lib.resource_op({'obj': bucket,
-                                                                   'resource': 'delete',
-                                                                   'args': None})
-                        log.info('bucket_deleted_status: %s' % bucket_deleted_status)
-                        if bucket_deleted_status is not None:
-                            response = HttpResponseParser(bucket_deleted_status)
-                            if response.status_code == 204:
-                                log.info('bucket deleted ')
-                            else:
-                                raise TestExecError("bucket deletion failed")
-                        else:
-                            raise TestExecError("bucket deletion failed")
+                        resuables.delete_bucket_object(bucket)
         # disable compression after test
         if config.test_ops['compression']['enable'] is True:
             log.info('disable compression')
@@ -272,8 +234,16 @@ if __name__ == '__main__':
         parser = argparse.ArgumentParser(description='RGW S3 Automation')
         parser.add_argument('-c', dest="config",
                             help='RGW Test yaml configuration')
+        parser.add_argument('-log_level', dest='log_level',
+                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
+                            default='info')
+
+        # ch.setLevel(logging.getLevelName(console_log_level.upper()))
         args = parser.parse_args()
         yaml_file = args.config
+        log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+        configure_logging(f_name=log_f_name,
+                          set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
         if config.mapped_sizes is None:
