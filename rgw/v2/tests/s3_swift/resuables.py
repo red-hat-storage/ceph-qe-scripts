@@ -306,11 +306,10 @@ def link_chown_to_nontenanted(new_uid, bucket, tenant):
     return
 
 
-def delete_bucket_object(bucket):
+def delete_objects(bucket):
     """
-    deletes all objects in bucket and bucket too
-    :param bucket: s3Bucket object
-
+    deletes the objects in a given bucket
+    :param bucket: S3Bucket object
     """
     log.info('listing all objects in bucket: %s' % bucket.name)
     objects = s3lib.resource_op({'obj': bucket,
@@ -338,6 +337,14 @@ def delete_bucket_object(bucket):
             raise TestExecError("objects deletion failed")
     else:
         raise TestExecError("objects deletion failed")
+
+
+def delete_bucket(bucket):
+    """
+    deletes a given bucket
+    :param bucket: s3Bucket object
+    """
+
     log.info('deleting bucket: %s' % bucket.name)
     # bucket_deleted_status = s3_ops.resource_op(bucket, 'delete')
     bucket_deleted_status = s3lib.resource_op({'obj': bucket,

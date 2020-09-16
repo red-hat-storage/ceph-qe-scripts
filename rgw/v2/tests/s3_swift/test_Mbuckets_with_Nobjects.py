@@ -197,7 +197,8 @@ def test_exec(config):
                         cmd = 'radosgw-admin bucket stats --bucket=%s' % bucket.name
                         out = utils.exec_shell_cmd(cmd)
                     if config.test_ops['delete_bucket_object'] is True:
-                        resuables.delete_bucket_object(bucket)
+                        resuables.delete_objects(bucket)
+                        resuables.delete_bucket(bucket)
         # disable compression after test
         if config.test_ops['compression']['enable'] is True:
             log.info('disable compression')
