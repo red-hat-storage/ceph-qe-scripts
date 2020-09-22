@@ -141,8 +141,9 @@ def test_exec(config):
         else:
             raise TestExecError('Expected number of shards not created')
 
-    if config.test_ops['delete_bucket_object'] is True:
-        resuables.delete_bucket_object(bucket)
+    if config.test_ops.get('delete_bucket_object', False):
+        resuables.delete_objects(bucket)
+        resuables.delete_bucket(bucket)
 
 
 if __name__ == '__main__':
