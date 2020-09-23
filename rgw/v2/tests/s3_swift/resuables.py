@@ -361,13 +361,12 @@ def delete_bucket(bucket):
     """
 
     log.info('deleting bucket: %s' % bucket.name)
-    # bucket_deleted_status = s3_ops.resource_op(bucket, 'delete')
-    bucket_deleted_status = s3lib.resource_op({'obj': bucket,
-                                               'resource': 'delete',
-                                               'args': None})
-    log.info('bucket_deleted_status: %s' % bucket_deleted_status)
-    if bucket_deleted_status is not None:
-        response = HttpResponseParser(bucket_deleted_status)
+    bucket_deleted_response = s3lib.resource_op({'obj': bucket,
+                                                 'resource': 'delete',
+                                                 'args': None})
+    log.info('bucket_deleted_status: %s' % bucket_deleted_response)
+    if bucket_deleted_response is not None and isinstance(bucket_deleted_response, dict):
+        response = HttpResponseParser(bucket_deleted_response)
         if response.status_code == 204:
             log.info('bucket deleted ')
         else:
