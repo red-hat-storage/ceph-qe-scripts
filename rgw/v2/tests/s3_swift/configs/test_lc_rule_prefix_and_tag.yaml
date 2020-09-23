@@ -8,7 +8,7 @@ config:
       enable_versioning: false
       create_object: true
       delete_marker: false
-      version_count: 0
+      version_count: 1
  lifecycle_conf:
     - ID: rule1
       Filter:
@@ -19,5 +19,4 @@ config:
               Value: WMV1
       Status: Enabled
       Expiration:
-        Days: 2
-
+        Days: 20

@@ -15,12 +15,11 @@ config:
           Prefix: key1
         Status: Enabled
         Expiration:
-          Days: 2
+          Days: 20
       - ID: LC_Rule_2
         Filter:
           Prefix: key2
         Status: Enabled
         Expiration:
-          Days: 2
-
+          Days: 20
 

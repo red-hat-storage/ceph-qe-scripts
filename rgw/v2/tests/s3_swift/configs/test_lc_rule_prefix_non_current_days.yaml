@@ -15,6 +15,5 @@ config:
           Prefix: key1
         Status: Enabled
         NoncurrentVersionExpiration:
-          NoncurrentDays: 2
-
+          NoncurrentDays: 20
 

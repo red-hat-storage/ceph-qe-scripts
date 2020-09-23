@@ -111,11 +111,11 @@ def test_exec(config):
                     resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
 
         life_cycle_rule = {"Rules": config.lifecycle_conf}
-        resuables.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule)
+        resuables.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, config)
         lc_ops.validate_prefix_rule(bucket, config)
         if config.test_ops['delete_marker'] is True:
             life_cycle_rule_new = {"Rules": config.delete_marker_ops}
-            resuables.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule_new)
+            resuables.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule_new, config)
     if config.test_ops['enable_versioning'] is False:
         if config.test_ops['create_object'] is True:
             for oc, size in list(config.mapped_sizes.items()):
@@ -126,8 +126,8 @@ def test_exec(config):
                 obj_list.append(s3_object_name)
                 resuables.upload_object_with_tagging(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, obj_tag)
         life_cycle_rule = {"Rules": config.lifecycle_conf}
-        resuables.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule)
-        lc_ops.validate_and_rule(bucket, config) 
+        resuables.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, config)
+        lc_ops.validate_and_rule(bucket, config)
     resuables.remove_user(user_info)
 
 
@@ -169,5 +169,3 @@ if __name__ == '__main__':
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
-
-
