@@ -15,7 +15,7 @@ config:
           Prefix: key2
         Status: Enabled
         Expiration:
-          Days: 2
+          Days: 20
  delete_marker_ops:
       - ID: delete_marker_rule
         Filter:
