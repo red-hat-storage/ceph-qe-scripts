@@ -359,6 +359,13 @@ def delete_bucket(bucket):
     deletes a given bucket
     :param bucket: s3Bucket object
     """
+    log.info('listing objects if any')
+    objs = bucket.objects.all()
+    count = sum(1 for _ in bucket.objects.all())
+    if objs:
+        log.info(f'objects not deleted, count is:{count}')
+        for ob in objs:
+            log.info(f'object: {ob.key}')
 
     log.info('deleting bucket: %s' % bucket.name)
     bucket_deleted_response = s3lib.resource_op({'obj': bucket,

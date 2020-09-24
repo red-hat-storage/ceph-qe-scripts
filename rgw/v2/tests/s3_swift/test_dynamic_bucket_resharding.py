@@ -13,7 +13,6 @@ Operation:
     Perform IOs in specific bucket
     Initiate dynamic or manual sharding on bucket
     Restart RGW service
-    Perform IOs again
     Verify created shard numbers of bucket
 """
 
@@ -110,14 +109,9 @@ def test_exec(config):
         if cmd_exec is False:
             raise TestExecError("manual resharding command execution failed")
 
-    # upload_objects(user_info, bucket, config)
-    log.info('s3 objects to create: %s' % config.objects_count)
-    for oc, size in list(config.mapped_sizes.items()):
-        config.obj_size = size
-        s3_object_name = utils.gen_s3_object_name(bucket.name, config.objects_count + oc)
-        resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
-    time.sleep(600)
-    log.info('verification starts')
+    sleep_time = 600
+    log.info(f'verification starts after waiting for {sleep_time} seconds')
+    time.sleep(sleep_time)
     op = utils.exec_shell_cmd("radosgw-admin metadata get bucket:%s" % bucket.name)
     json_doc = json.loads(op)
     bucket_id = json_doc['data']['bucket']['bucket_id']
