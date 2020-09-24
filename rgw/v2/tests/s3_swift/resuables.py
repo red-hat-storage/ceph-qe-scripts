@@ -211,7 +211,7 @@ def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, 
         raise TestExecError("bucket life cycle retrieved")
     objs_total = (config.test_ops['version_count']) * (config.objects_count)
     for rule in config.lifecycle_conf:
-        if rule.get('Expiration', {}).get('Date', True):
+        if rule.get('Expiration', {}).get('Date', False):
             #todo: need to get the interval value from yaml file
             log.info("wait for 60 seconds")
             time.sleep(60)
