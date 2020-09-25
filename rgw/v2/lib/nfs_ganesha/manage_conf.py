@@ -7,7 +7,19 @@ log = logging.getLogger()
 
 
 def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname, nfs_version):
+    """
+        This function is to get the ganesha configuration 
 
+        Parameters:
+            user_id(char): uid of the user
+            access_key(char):
+            secret_key(char):
+            rgw_hostname(char): name of the rgw host running ganesha
+            nfs_version(char): version of nfs 
+    
+        Returns:
+            ganesha_conf: returns the ganesha configuration
+    """
     ganesha_conf = '''
                 EXPORT
                 {
@@ -46,9 +58,22 @@ def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname, nfs_versio
 
 
 class GaneshaConfig(object):
+    """
+    This class has functions 
+        1. create ganesha configuration
+        2. To backup existing ganesha configuration
+    """
 
     def __init__(self, rgw_user_info):
+        """
+        Initializes the variables
+        
+        Parameter:
+            rgw_user_info:
+        
+        Returns:
 
+        """
         self.conf_path = '/etc/ganesha'
         self.fname = 'ganesha.conf'
         self.nfS_version = rgw_user_info['nfs_version']
@@ -61,7 +86,13 @@ class GaneshaConfig(object):
     def backup(self, uname):
 
         """
-        backup existing config  
+            This function is to backup existing ganesha config with the user name provided 
+    
+            Parameters:
+                uname(char): user name provided to backup the ganesha config file.
+            
+            Returns:
+
         """
 
         original_fname = os.path.join(self.conf_path, self.fname)
@@ -76,7 +107,10 @@ class GaneshaConfig(object):
         utils.exec_shell_cmd(cmd)
 
     def create(self):
-
+        """
+            This function is to create a ganesha configuration
+            
+        """
         conf_fname = os.path.join(self.conf_path, self.fname)
 
         ganesha_config = get_ganesha_config(access_key=self.access_key, secret_key=self.secret_key,

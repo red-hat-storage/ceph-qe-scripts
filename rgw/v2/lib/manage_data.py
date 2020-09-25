@@ -10,6 +10,17 @@ log = logging.getLogger()
 
 
 def io_generator(fname, size, type='txt', op='create', **kwargs):
+    """
+        Function to generate IOs
+
+        This function helps in creating file with random data
+
+        Parameters:
+            op(char): create or append.
+
+        Returns:
+            finfo : file information is returned.
+    """
     finfo = {'name': fname,
              'size': None,
              'md5': None}

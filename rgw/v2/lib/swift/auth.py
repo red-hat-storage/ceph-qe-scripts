@@ -10,8 +10,16 @@ log = logging.getLogger()
 
 
 class Auth(object):
+    """
+        This class is used to authenticate using swift
 
+        The functions in this class are
+        1. do_auth()
+    """
     def __init__(self, user_info):
+        """
+            Initializes the user_info variables
+        """
         self.secret_key = user_info['key']
         self.hostname = socket.gethostname()
         self.port = int(utils.get_radosgw_port_no())
@@ -19,7 +27,15 @@ class Auth(object):
         self.user_id = user_info['user_id']
 
     def do_auth(self):
-        log.info('performing authentication usinf swift')
+        """
+            This function is to perform authentication using swift
+
+            Parameters:
+
+            Returns:
+                rgw: returns the connection details
+        """
+        log.info('performing authentication using swift')
         # user = 'tenant3$tuffy3:swift'
         # key = 'm4NsRGjghOpUPX3OZZFeIYUylNjO22lMVDXATnNi' -- secret key
 

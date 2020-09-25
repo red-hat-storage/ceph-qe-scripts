@@ -55,12 +55,26 @@ class IOInfoInitialize(AddIOInfo):
 
 
 class AddUserInfo(AddIOInfo):
+    """
+        This class is used to add the user information to the yaml
+        The functions in this class are
+        1. add_user_info()
 
+    """
     def __init__(self):
 
         super(AddUserInfo, self).__init__()
 
     def add_user_info(self, user):
+        """
+            Function to add the user information to the yaml
+
+            Parameters:
+                user: user details
+
+            Returns:
+
+        """
 
         log.info('got user info structure: %s' % user)
 
@@ -76,12 +90,26 @@ class AddUserInfo(AddIOInfo):
 
 
 class IOInfo(AddIOInfo):
-
+    """
+        This class is add IO information to the yaml
+        The functions in this class are
+        1. add_io_info()
+        2. add_properties()
+    """
     def __init__(self):
         super(IOInfo, self).__init__()
 
     def add_io_info(self, access_key, io_info):
+        """
+            Function to add user and access key information on IO
+            
+            Parameters:
+                access_key(char):
+                io_info:
 
+            Return:
+        
+        """
         yaml_data = self.file_op.get_data()
 
         indx = None
@@ -96,7 +124,14 @@ class IOInfo(AddIOInfo):
         self.file_op.add_data(yaml_data)
 
     def add_properties(self, access_key, io_name, properties):
+        """
+            Function to add properties 
 
+            Parameters:
+                access_key(char):
+                io_name(char): 
+                properties(char):
+        """
         yaml_data = self.file_op.get_data()
 
         access_key_indx = None

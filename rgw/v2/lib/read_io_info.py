@@ -16,6 +16,16 @@ IO_INFO_FNAME = 'io_info.yaml'
 
 
 def verify_key(each_key, bucket):
+    """
+        This function verifies data of each key in the bucket
+
+        Parameters:
+            key(char): key to be verified
+            bucket(char): bucket name
+        
+        Retuns:
+
+    """
     log.info('verifying data for key: %s' % os.path.basename(each_key['name']))
     key_from_s3 = bucket.Object(os.path.basename(each_key['name']))
     log.info('verifying size')
@@ -35,6 +45,16 @@ def verify_key(each_key, bucket):
 
 
 def verify_key_with_version(each_key, bucket):
+    """
+        This function verifies data of each key in a versioned bucket
+
+        Parameters:
+            key(char): key to be verified
+            bucket(char): name of the versoiined bucket
+        
+        Returns:
+
+    """
     log.info('verifying data for key: %s' % os.path.basename(each_key['name']))
     key_from_s3 = bucket.Object(os.path.basename(each_key['name']))
     no_of_versions = len(each_key['versioning_info'])
@@ -66,6 +86,15 @@ class ReadIOInfo(object):
         self.file_op = FileOps(self.yaml_fname, type='yaml')
 
     def verify_io(self):
+        """
+            This function to verify the data of buckets owned by a user
+
+            Data verification happens to all the buckets of a particular user for both versioned and normal buckets
+            Parameters:
+
+            Returns:
+
+        """
         log.info('***************Starting Verification*****************')
         data = self.file_op.get_data()
         users = data['users']
