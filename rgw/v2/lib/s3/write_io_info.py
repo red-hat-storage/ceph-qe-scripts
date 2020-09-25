@@ -374,7 +374,7 @@ def logioinfo(func):
                            'md5_local': None,
                            'upload_type': extra_info.get('upload_type','normal')})
                     write_key_info.add_keys_info(access_key, obj.bucket_name, key_upload_info)
-        print('writing log for %s' % resource_name)
+        log.debug('writing log for %s' % resource_name)
         return ret_val
 
     return write
