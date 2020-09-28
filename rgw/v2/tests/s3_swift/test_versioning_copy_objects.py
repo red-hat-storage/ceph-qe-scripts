@@ -29,7 +29,7 @@ from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure,  BucketIoInfo, KeyIoInfo
 import random
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 import logging
 
 log = logging.getLogger()
@@ -58,19 +58,19 @@ def test_exec(config):
     b2_name = 'bucky.2e'  # bucket 2
     b2_k1_name = b2_name + ".key.1"  # key1
     b2_k2_name = b2_name + ".key.2"  # key2
-    b1 = resuables.create_bucket(b1_name, rgw_conn, s3_user)
-    b2 = resuables.create_bucket(b2_name, rgw_conn, s3_user)
+    b1 = reusable.create_bucket(b1_name, rgw_conn, s3_user)
+    b2 = reusable.create_bucket(b2_name, rgw_conn, s3_user)
     # enable versioning on b1
-    resuables.enable_versioning(b1, rgw_conn, s3_user, write_bucket_io_info)
+    reusable.enable_versioning(b1, rgw_conn, s3_user, write_bucket_io_info)
     # upload object to version enabled bucket b1
     obj_sizes = list(config.mapped_sizes.values())
     config.obj_size = obj_sizes[0]
     for vc in range(version_count):
-        resuables.upload_object(b1_k1_name, b1, TEST_DATA_PATH, config, s3_user, append_data=True,
-                                append_msg='hello vc count: %s' % str(vc))
+        reusable.upload_object(b1_k1_name, b1, TEST_DATA_PATH, config, s3_user, append_data=True,
+                               append_msg='hello vc count: %s' % str(vc))
     # upload object to non version bucket b2
     config.obj_size = obj_sizes[1]
-    resuables.upload_object(b2_k1_name, b2, TEST_DATA_PATH, config, s3_user)
+    reusable.upload_object(b2_k1_name, b2, TEST_DATA_PATH, config, s3_user)
     # copy b2_k1 to b1 and check if version id is created, expectation: version id should be created
     # copy b1_k1 to b2 and check if version id is created, expectation: version id should not be present
     b1_k2 = s3lib.resource_op({'obj': rgw_conn,

@@ -33,7 +33,7 @@ import v2.lib.manage_data as manage_data
 from v2.utils.log import configure_logging
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, BucketIoInfo
 import random, time
 import threading
@@ -86,20 +86,20 @@ def test_exec(config):
     objects_created_list = []
     log.info('no of buckets to create: %s' % config.bucket_count)
     bucket_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=1)
-    bucket = resuables.create_bucket(bucket_name, rgw_conn, user_info)
+    bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info)
     if config.test_ops.get('enable_version', False):
         log.info('enable bucket version')
-        resuables.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
+        reusable.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
     log.info('s3 objects to create: %s' % config.objects_count)
     for oc, size in list(config.mapped_sizes.items()):
         config.obj_size = size
         s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
         s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
         if config.test_ops.get('enable_version', False):
-            resuables.upload_version_object(config, user_info, rgw_conn, s3_object_name, config.obj_size, bucket,
-                                            TEST_DATA_PATH)
+            reusable.upload_version_object(config, user_info, rgw_conn, s3_object_name, config.obj_size, bucket,
+                                           TEST_DATA_PATH)
         else:
-            resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
+            reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
         objects_created_list.append((s3_object_name, s3_object_path))
 
     if config.sharding_type == 'manual':
@@ -143,10 +143,10 @@ def test_exec(config):
     if config.test_ops.get('delete_bucket_object', False):
         if config.test_ops.get('enable_version', False):
             for name, path in objects_created_list:
-                resuables.delete_version_object(bucket, name, path, rgw_conn, user_info)
+                reusable.delete_version_object(bucket, name, path, rgw_conn, user_info)
         else:
-            resuables.delete_objects(bucket)
-        resuables.delete_bucket(bucket)
+            reusable.delete_objects(bucket)
+        reusable.delete_bucket(bucket)
 
 
 if __name__ == '__main__':

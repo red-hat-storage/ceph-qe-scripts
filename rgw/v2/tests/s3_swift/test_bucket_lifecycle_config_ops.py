@@ -24,7 +24,7 @@ import yaml
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 from v2.lib.s3 import lifecycle as lc
 import logging
 
@@ -67,7 +67,7 @@ def test_exec(config):
             log.info('no of buckets to create: %s' % config.bucket_count)
             for bc in range(config.bucket_count):
                 bucket_name = utils.gen_bucket_name_from_userid(each_user['user_id'], rand_no=1)
-                bucket = resuables.create_bucket(bucket_name, rgw_conn, each_user)
+                bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
                 if config.test_ops['enable_versioning'] is True:
                     log.info('bucket versionig test on bucket: %s' % bucket.name)
                     # bucket_versioning = s3_ops.resource_op(rgw_conn, 'BucketVersioning', bucket.name)
@@ -98,12 +98,12 @@ def test_exec(config):
                             for vc in range(config.test_ops['version_count']):
                                 log.info('version count for %s is %s' % (s3_object_name, str(vc)))
                                 log.info('modifying data: %s' % s3_object_name)
-                                resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user,
-                                                        append_data=True,
-                                                        append_msg='hello object for version: %s\n' % str(vc))
+                                reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user,
+                                                       append_data=True,
+                                                       append_msg='hello object for version: %s\n' % str(vc))
                         else:
                             log.info('s3 objects to create: %s' % config.objects_count)
-                            resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
+                            reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
                 bucket_life_cycle = s3lib.resource_op({'obj': rgw_conn,
                                                        'resource': 'BucketLifecycleConfiguration',
                                                        'args': [bucket.name]})

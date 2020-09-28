@@ -33,7 +33,7 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.lib.admin import UserMgmt
 import time
 import json
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 import logging
 
 log = logging.getLogger()
@@ -144,10 +144,10 @@ def test_exec(config):
         rgw_conn = auth.do_auth()
         # create bucket
         bucket_name = utils.gen_bucket_name_from_userid(rgw_user_info['user_id'], 0)
-        bucket = resuables.create_bucket(bucket_name, rgw_conn, rgw_user_info)
+        bucket = reusable.create_bucket(bucket_name, rgw_conn, rgw_user_info)
         # create object
         s3_object_name = utils.gen_s3_object_name(bucket_name, 0)
-        resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, rgw_user_info)
+        reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, rgw_user_info)
     if config.rgw_client == 'swift':
         log.info('client type is swift')
         user_names = ['tuffy', 'scooby', 'max']

@@ -31,7 +31,7 @@ import json
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 import botocore.exceptions as boto3exception
 import logging
 
@@ -70,13 +70,13 @@ def test_exec(config):
     rgw_tenant2_user1 = tenant2_user1_auth.do_auth()
     rgw_tenant2_user1_c = tenant2_user1_auth.do_auth_using_client()
     bucket_name1 = utils.gen_bucket_name_from_userid(tenant1_user1_info['user_id'], rand_no=1)
-    t1_u1_bucket1 = resuables.create_bucket(bucket_name1, rgw_tenant1_user1,
-                                            tenant1_user1_info,
-                                            )
+    t1_u1_bucket1 = reusable.create_bucket(bucket_name1, rgw_tenant1_user1,
+                                           tenant1_user1_info,
+                                           )
     bucket_name2 = utils.gen_bucket_name_from_userid(tenant1_user1_info['user_id'], rand_no=2)
-    t1_u1_bucket2 = resuables.create_bucket(bucket_name2, rgw_tenant1_user1,
-                                            tenant1_user1_info,
-                                            )
+    t1_u1_bucket2 = reusable.create_bucket(bucket_name2, rgw_tenant1_user1,
+                                           tenant1_user1_info,
+                                           )
     bucket_policy_generated = s3_bucket_policy.gen_bucket_policy(tenants_list=[tenant1],
                                                                  userids_list=[tenant2_user1_info['user_id']],
                                                                  actions_list=['CreateBucket'],
