@@ -1,5 +1,6 @@
 import os, sys, glob
 import json
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import v2.lib.resource_op as s3lib
 import logging
@@ -10,6 +11,7 @@ import v2.lib.manage_data as manage_data
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, BucketIoInfo, KeyIoInfo
 import random, time
 import datetime
+
 io_info_initialize = IOInfoInitialize()
 basic_io_structure = BasicIOInfoStructure()
 write_bucket_io_info = BucketIoInfo()
@@ -68,8 +70,90 @@ def upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, app
     if object_uploaded_status is None:
         log.info('object uploaded')
 
-def upload_object_with_tagging(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, obj_tag, append_data=False, append_msg=None):
 
+def upload_version_object(config, user_info, rgw_conn, s3_object_name, object_size, bucket, TEST_DATA_PATH ):
+    # versioning upload
+    log.info('versioning count: %s' % config.version_count)
+    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    original_data_info = manage_data.io_generator(s3_object_path, object_size)
+    if original_data_info is False:
+        TestExecError("data creation failed")
+    created_versions_count = 0
+    for vc in range(config.version_count):
+        log.info('version count for %s is %s' % (s3_object_name, str(vc)))
+        log.info('modifying data: %s' % s3_object_name)
+        modified_data_info = manage_data.io_generator(s3_object_path, object_size,
+                                                      op='append',
+                                                      **{'message': '\nhello for version: %s\n'
+                                                                    % str(vc)})
+        if modified_data_info is False:
+            TestExecError("data modification failed")
+        log.info('uploading s3 object: %s' % s3_object_path)
+        upload_info = dict({'access_key': user_info['access_key'],
+                            'versioning_status': 'enabled',
+                            'version_count_no': vc}, **modified_data_info)
+        s3_obj = s3lib.resource_op({'obj': bucket,
+                                    'resource': 'Object',
+                                    'args': [s3_object_name],
+                                    'extra_info': upload_info, })
+        object_uploaded_status = s3lib.resource_op({'obj': s3_obj,
+                                                    'resource': 'upload_file',
+                                                    'args': [modified_data_info['name']],
+                                                    'extra_info': upload_info})
+        if object_uploaded_status is False:
+            raise TestExecError("Resource execution failed: object upload failed")
+        if object_uploaded_status is None:
+            log.info('object uploaded')
+            s3_obj = rgw_conn.Object(bucket.name, s3_object_name)
+            log.info('current_version_id: %s' % s3_obj.version_id)
+            key_version_info = basic_io_structure.version_info(
+                **{'version_id': s3_obj.version_id,
+                   'md5_local': upload_info['md5'],
+                   'count_no': vc,
+                   'size': upload_info['size']})
+            log.info('key_version_info: %s' % key_version_info)
+            write_key_io_info.add_versioning_info(user_info['access_key'], bucket.name,
+                                                  s3_object_path, key_version_info)
+            created_versions_count += 1
+            log.info('created_versions_count: %s' % created_versions_count)
+            log.info('adding metadata')
+            metadata1 = {"m_data1": "this is the meta1 for this obj"}
+            s3_obj.metadata.update(metadata1)
+            metadata2 = {"m_data2": "this is the meta2 for this obj"}
+            s3_obj.metadata.update(metadata2)
+            log.info('metadata for this object: %s' % s3_obj.metadata)
+            log.info('metadata count for object: %s' % (len(s3_obj.metadata)))
+            if not s3_obj.metadata:
+                raise TestExecError('metadata not created even adding metadata')
+            versions = bucket.object_versions.filter(Prefix=s3_object_name)
+            created_versions_count_from_s3 = len([v.version_id for v in versions])
+            log.info('created versions count on s3: %s' % created_versions_count_from_s3)
+            if created_versions_count is created_versions_count_from_s3:
+                log.info('no new versions are created when added metdata')
+            else:
+                raise TestExecError("version count missmatch, "
+                                    "possible creation of version on adding metadata")
+        s3_object_download_path = os.path.join(TEST_DATA_PATH, s3_object_name + ".download")
+        object_downloaded_status = s3lib.resource_op({'obj': bucket,
+                                                      'resource': 'download_file',
+                                                      'args': [s3_object_name,
+                                                               s3_object_download_path],
+                                                      })
+        if object_downloaded_status is False:
+            raise TestExecError("Resource execution failed: object download failed")
+        if object_downloaded_status is None:
+            log.info('object downloaded')
+        # checking md5 of the downloaded file
+        s3_object_downloaded_md5 = utils.get_md5(s3_object_download_path)
+        log.info('downloaded_md5: %s' % s3_object_downloaded_md5)
+        log.info('uploaded_md5: %s' % modified_data_info['md5'])
+        log.info('deleting downloaded version file')
+        utils.exec_shell_cmd('sudo rm -rf %s' % s3_object_download_path)
+    log.info('all versions for the object: %s\n' % s3_object_name)
+
+
+def upload_object_with_tagging(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, obj_tag, append_data=False,
+                               append_msg=None):
     log.info('s3 object name: %s' % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
     log.info('s3 object path: %s' % s3_object_path)
@@ -83,9 +167,10 @@ def upload_object_with_tagging(s3_object_name, bucket, TEST_DATA_PATH, config, u
         TestExecError("data creation failed")
     log.info('uploading s3 object with object tagging enabled: %s' % s3_object_path)
     bucket.put_object(Key=s3_object_name, Body=s3_object_path, Tagging=obj_tag)
-          
+
+
 def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, append_data=False,
-                            append_msg=None):
+                           append_msg=None):
     log.info('s3 object name: %s' % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
     log.info('s3 object path: %s' % s3_object_path)
@@ -105,7 +190,7 @@ def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_
     mkdir = utils.exec_shell_cmd('sudo mkdir %s' % mp_dir)
     if mkdir is False:
         raise TestExecError('mkdir failed creating mp_dir_name')
-    utils.split_file(s3_object_path, split_size, mp_dir+"/")
+    utils.split_file(s3_object_path, split_size, mp_dir + "/")
     parts_list = sorted(glob.glob(mp_dir + '/' + '*'))
     log.info('parts_list: %s' % parts_list)
     log.info('uploading s3 object: %s' % s3_object_path)
@@ -178,6 +263,7 @@ def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
     else:
         raise TestExecError("version enable failed")
 
+
 def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, config):
     bucket_life_cycle = s3lib.resource_op({'obj': rgw_conn,
                                            'resource': 'BucketLifecycleConfiguration',
@@ -212,7 +298,7 @@ def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, 
     objs_total = (config.test_ops['version_count']) * (config.objects_count)
     for rule in config.lifecycle_conf:
         if rule.get('Expiration', {}).get('Date', False):
-            #todo: need to get the interval value from yaml file
+            # todo: need to get the interval value from yaml file
             log.info("wait for 60 seconds")
             time.sleep(60)
         else:
@@ -229,16 +315,18 @@ def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, 
     log.info('testing if lc is applied via the radosgw-admin cli')
     op = utils.exec_shell_cmd("radosgw-admin lc list")
     json_doc = json.loads(op)
-    for i,entry in enumerate(json_doc):
+    for i, entry in enumerate(json_doc):
         print(i)
         print(entry['status'])
         if entry['status'] == 'COMPLETE' or entry['status'] == 'PROCESSING':
             log.info('LC is applied on the bucket')
         else:
             log.info('LC is not applied')
+
+
 def remove_user(user_info, cluster_name='ceph'):
     log.info('Removing user')
-    cmd =  'radosgw-admin user rm --purge-keys --purge-data --uid=%s' % (user_info['user_id'])
+    cmd = 'radosgw-admin user rm --purge-keys --purge-data --uid=%s' % (user_info['user_id'])
     out = utils.exec_shell_cmd(cmd)
     return out
 
@@ -255,6 +343,7 @@ def rename_user(old_username, new_username, tenant=False):
     log.info('Renamed user %s to %s' % (old_username, new_username))
     return out
 
+
 def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
     """"""
     validate = 'radosgw-admin bucket list'
@@ -270,9 +359,8 @@ def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
     response = utils.exec_shell_cmd(validate)
     if old_bucket in json.loads(response):
         raise TestExecError("RGW Bucket rename validation error")
-    log.info('Renamed bucket %s to %s' % (old_bucket, new_bucket)) 
+    log.info('Renamed bucket %s to %s' % (old_bucket, new_bucket))
     return out
-
 
 
 def unlink_bucket(curr_uid, bucket, tenant=False):
@@ -354,6 +442,45 @@ def delete_objects(bucket):
         raise TestExecError("objects deletion failed")
 
 
+def delete_version_object(bucket, s3_object_name, s3_object_path, rgw_conn, user_info, ):
+    """
+    deletes single object and its versions
+    :param bucket: S3bucket object
+    :param s3_object_name: s3 object name
+    :param s3_object_path: path of the object created in the client
+    :param rgw_conn: rgw connection
+    :param user_info: user info dict containing access_key, secret_key and user_id
+
+    """
+    versions = bucket.object_versions.filter(Prefix=s3_object_name)
+    log.info('deleting s3_obj keys and its versions')
+    s3_obj = s3lib.resource_op({'obj': rgw_conn,
+                                'resource': 'Object',
+                                'args': [bucket.name, s3_object_name]})
+    log.info('deleting versions for s3 obj: %s' % s3_object_name)
+    for version in versions:
+        log.info('trying to delete obj version: %s' % version.version_id)
+        del_obj_version = s3lib.resource_op({'obj': s3_obj,
+                                             'resource': 'delete',
+                                             'kwargs': dict(VersionId=version.version_id)})
+        log.info('response:\n%s' % del_obj_version)
+        if del_obj_version is not None:
+            response = HttpResponseParser(del_obj_version)
+            if response.status_code == 204:
+                log.info('version deleted ')
+                write_key_io_info.delete_version_info(user_info['access_key'], bucket.name,
+                                                      s3_object_path, version.version_id)
+            else:
+                raise TestExecError("version  deletion failed")
+        else:
+            raise TestExecError("version deletion failed")
+    log.info('available versions for the object')
+    versions = bucket.object_versions.filter(Prefix=s3_object_name)
+    for version in versions:
+        log.info('key_name: %s --> version_id: %s' % (
+            version.object_key, version.version_id))
+
+
 def delete_bucket(bucket):
     """
     deletes a given bucket
@@ -362,7 +489,7 @@ def delete_bucket(bucket):
     log.info('listing objects if any')
     objs = bucket.objects.all()
     count = sum(1 for _ in bucket.objects.all())
-    if objs:
+    if count > 0:
         log.info(f'objects not deleted, count is:{count}')
         for ob in objs:
             log.info(f'object: {ob.key}')
