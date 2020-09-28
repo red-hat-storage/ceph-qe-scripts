@@ -45,14 +45,6 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def upload_objects(user_info, bucket, config):
-    log.info('s3 objects to create: %s' % config.objects_count)
-    for oc, size in list(config.mapped_sizes.items()):
-        config.obj_size = size
-        s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
-        resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
-
-
 def test_exec(config):
 
     io_info_initialize = IOInfoInitialize()
@@ -91,11 +83,24 @@ def test_exec(config):
             log.info('RGW service restarted')
 
     config.bucket_count = 1
+    objects_created_list = []
     log.info('no of buckets to create: %s' % config.bucket_count)
     bucket_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=1)
     bucket = resuables.create_bucket(bucket_name, rgw_conn, user_info)
-    print(resuables.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info))
-    upload_objects(user_info, bucket, config)
+    if config.test_ops.get('enable_version', False):
+        log.info('enable bucket version')
+        resuables.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
+    log.info('s3 objects to create: %s' % config.objects_count)
+    for oc, size in list(config.mapped_sizes.items()):
+        config.obj_size = size
+        s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
+        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+        if config.test_ops.get('enable_version', False):
+            resuables.upload_version_object(config, user_info, rgw_conn, s3_object_name, config.obj_size, bucket,
+                                            TEST_DATA_PATH)
+        else:
+            resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_info)
+        objects_created_list.append((s3_object_name, s3_object_path))
 
     if config.sharding_type == 'manual':
         log.info('sharding type is manual')
@@ -127,8 +132,8 @@ def test_exec(config):
         log.info('Verify if resharding list is empty')
         reshard_list_op = json.loads(utils.exec_shell_cmd("radosgw-admin reshard list"))
         if not reshard_list_op:
-            log.info('for dynamic, '
-                 'number of shards created should be greater than or equal to number of  expected shards')
+            log.info(
+                'for dynamic number of shards created should be greater than or equal to number of expected shards')
             log.info('no_of_shards_expected: %s' % num_shards_expected)
             if int(num_shards_created) >= int(num_shards_expected):
                 log.info('Expected number of shards created')
@@ -136,7 +141,11 @@ def test_exec(config):
             raise TestExecError('Expected number of shards not created')
 
     if config.test_ops.get('delete_bucket_object', False):
-        resuables.delete_objects(bucket)
+        if config.test_ops.get('enable_version', False):
+            for name, path in objects_created_list:
+                resuables.delete_version_object(bucket, name, path, rgw_conn, user_info)
+        else:
+            resuables.delete_objects(bucket)
         resuables.delete_bucket(bucket)
 
 
