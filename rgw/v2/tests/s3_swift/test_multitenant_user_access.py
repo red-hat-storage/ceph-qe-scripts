@@ -29,7 +29,7 @@ import yaml
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 from v2.lib.admin import UserMgmt
 import logging
 
@@ -66,19 +66,19 @@ def test_exec(config):
     t2_u1_info = create_tenant_user(tenant_name=tenant2, user_id=user_names[0])
     t2_u1_auth = Auth(t2_u1_info, ssl=config.ssl)
     t2_u1 = t2_u1_auth.do_auth()
-    t1_u1_b1 = resuables.create_bucket(bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info)
-    t2_u1_b1 = resuables.create_bucket(bucket_name=Bucket_names[0], rgw=t2_u1, user_info=t2_u1_info)
+    t1_u1_b1 = reusable.create_bucket(bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info)
+    t2_u1_b1 = reusable.create_bucket(bucket_name=Bucket_names[0], rgw=t2_u1, user_info=t2_u1_info)
     obj_sizes = list(config.mapped_sizes.values())
     config.obj_size = obj_sizes[0]
-    resuables.upload_object(s3_object_name=object_names[0],
-                            bucket=t1_u1_b1,
-                            TEST_DATA_PATH=TEST_DATA_PATH,
-                            config=config, user_info=t1_u1_info)
+    reusable.upload_object(s3_object_name=object_names[0],
+                           bucket=t1_u1_b1,
+                           TEST_DATA_PATH=TEST_DATA_PATH,
+                           config=config, user_info=t1_u1_info)
     config.obj_size = obj_sizes[1]
-    resuables.upload_object(s3_object_name=object_names[0],
-                            bucket=t2_u1_b1,
-                            TEST_DATA_PATH=TEST_DATA_PATH,
-                            config=config, user_info=t1_u1_info)
+    reusable.upload_object(s3_object_name=object_names[0],
+                           bucket=t2_u1_b1,
+                           TEST_DATA_PATH=TEST_DATA_PATH,
+                           config=config, user_info=t1_u1_info)
     t2_u2_info = create_tenant_user(tenant_name=tenant2, user_id=user_names[1])
     t2_u2_auth = Auth(t2_u2_info, ssl=config.ssl)
     t2_u2 = t2_u2_auth.do_auth()

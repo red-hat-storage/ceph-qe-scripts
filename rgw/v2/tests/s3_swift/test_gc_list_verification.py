@@ -31,7 +31,7 @@ import yaml
 import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, BucketIoInfo
 import random, time
 import threading
@@ -102,7 +102,7 @@ def test_exec(config):
         for bc in range(config.bucket_count):
             bucket_name_to_create = utils.gen_bucket_name_from_userid(each_user['user_id'], rand_no=bc)
             log.info('creating bucket with name: %s' % bucket_name_to_create)
-            bucket = resuables.create_bucket(bucket_name_to_create, rgw_conn, each_user)
+            bucket = reusable.create_bucket(bucket_name_to_create, rgw_conn, each_user)
             # uploading data
             log.info('s3 objects to create: %s' % config.objects_count)
             for oc, size in list(config.mapped_sizes.items()):
@@ -111,7 +111,7 @@ def test_exec(config):
                 log.info('s3 object name: %s' % s3_object_name)
                 s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                 log.info('s3 object path: %s' % s3_object_path)
-                resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
+                reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
                 # delete local object file
                 utils.exec_shell_cmd('rm -rf %s' % s3_object_path)
 

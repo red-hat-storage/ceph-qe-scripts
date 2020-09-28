@@ -14,7 +14,7 @@ from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, AddUserInfo
 import time
-import v2.tests.s3_swift.resuables as s3_reusables
+import v2.tests.s3_swift.reusable as s3_reusables
 from v2.tests.nfs_ganesha.verify_on_nfs import ReadIOInfoOnNFS
 import v2.lib.resource_op as s3lib
 from v2.utils.utils import HttpResponseParser

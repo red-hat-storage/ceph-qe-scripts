@@ -35,7 +35,7 @@ from v2.lib.s3.auth import Auth
 from v2.utils.log import configure_logging
 import v2.utils.utils as utils
 from v2.utils.utils import RGWService
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.utils.utils import HttpResponseParser
 import traceback
@@ -123,7 +123,7 @@ def test_exec(config):
             for bc in range(config.bucket_count):
                 bucket_name_to_create = utils.gen_bucket_name_from_userid(each_user['user_id'], rand_no=bc)
                 log.info('creating bucket with name: %s' % bucket_name_to_create)
-                bucket = resuables.create_bucket(bucket_name_to_create, rgw_conn, each_user)
+                bucket = reusable.create_bucket(bucket_name_to_create, rgw_conn, each_user)
                 if config.test_ops['create_object'] is True:
                     # uploading data
                     log.info('s3 objects to create: %s' % config.objects_count)
@@ -135,11 +135,11 @@ def test_exec(config):
                         log.info('s3 object path: %s' % s3_object_path)
                         if config.test_ops.get('upload_type') == 'multipart':
                             log.info('upload type: multipart')
-                            resuables.upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config,
-                                                             each_user)
+                            reusable.upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config,
+                                                            each_user)
                         else:
                             log.info('upload type: normal')
-                            resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
+                            reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
                         if config.test_ops['download_object'] is True:
                             log.info('trying to download object: %s' % s3_object_name)
                             s3_object_download_name = s3_object_name + "." + "download"
@@ -197,8 +197,8 @@ def test_exec(config):
                         cmd = 'radosgw-admin bucket stats --bucket=%s' % bucket.name
                         out = utils.exec_shell_cmd(cmd)
                     if config.test_ops['delete_bucket_object'] is True:
-                        resuables.delete_objects(bucket)
-                        resuables.delete_bucket(bucket)
+                        reusable.delete_objects(bucket)
+                        reusable.delete_bucket(bucket)
         # disable compression after test
         if config.test_ops['compression']['enable'] is True:
             log.info('disable compression')

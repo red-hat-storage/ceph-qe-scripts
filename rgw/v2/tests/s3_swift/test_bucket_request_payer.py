@@ -25,7 +25,7 @@ import argparse
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 from v2.utils.utils import HttpResponseParser
 import yaml
 import logging
@@ -55,7 +55,7 @@ def test_exec(config, requester):
             bucket_name_to_create = utils.gen_bucket_name_from_userid(each_user['user_id'], rand_no=bc)
             log.info('creating bucket with name: %s' % bucket_name_to_create)
             # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
-            bucket = resuables.create_bucket(bucket_name=bucket_name_to_create, rgw=rgw_conn, user_info=each_user)
+            bucket = reusable.create_bucket(bucket_name=bucket_name_to_create, rgw=rgw_conn, user_info=each_user)
             bucket_request_payer = s3lib.resource_op({'obj': rgw_conn,
                                                       'resource': 'BucketRequestPayment',
                                                       'args': [bucket.name]
@@ -83,7 +83,7 @@ def test_exec(config, requester):
                 for oc, size in list(config.mapped_sizes.items()):
                     config.obj_size = size
                     s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
-                    resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
+                    reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
 
 
 if __name__ == '__main__':

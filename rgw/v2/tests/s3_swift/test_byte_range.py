@@ -26,7 +26,7 @@ from v2.lib.exceptions import TestExecError
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import v2.lib.manage_data as manage_data
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 import logging
 
 log = logging.getLogger()
@@ -53,13 +53,13 @@ def test_exec(config):
         log.info('no of buckets to create: %s' % config.bucket_count)
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(each_user['user_id'], rand_no=1)
-            bucket = resuables.create_bucket(bucket_name, rgw_conn, each_user)
+            bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
             # uploading data
             log.info('s3 objects to create: %s' % config.objects_count)
             for oc, size in config.mapped_sizes.items():
                 config.obj_size = size
                 s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
-                resuables.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
+                reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
                 log.info('testing for negative range')
                 response = rgw_conn2.get_object(Bucket=bucket.name, Key=s3_object_name, Range='-2--1')
                 log.info('response: %s\n' % response)

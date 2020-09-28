@@ -29,7 +29,7 @@ from v2.lib.s3.write_io_info import AddUserInfo, BucketIoInfo
 from v2.lib.read_io_info import ReadIOInfo
 from v2.lib.s3.auth import Auth
 from v2.lib import pem
-from v2.tests.s3_swift import resuables
+from v2.tests.s3_swift import reusable
 import v2.lib.resource_op as s3lib
 import logging
 
@@ -50,7 +50,7 @@ def test_exec(config):
         rgw_conn = auth.do_auth()
         bucket_name_to_create2 = utils.gen_bucket_name_from_userid(each_user['user_id'])
         log.info('creating bucket with name: %s' % bucket_name_to_create2)
-        bucket = resuables.create_bucket(bucket_name_to_create2, rgw_conn, each_user)
+        bucket = reusable.create_bucket(bucket_name_to_create2, rgw_conn, each_user)
 
 
 if __name__ == '__main__':
