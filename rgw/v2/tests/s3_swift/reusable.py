@@ -31,7 +31,7 @@ def create_bucket(bucket_name, rgw, user_info):
                                  'args': None,
                                  'extra_info': {'access_key': user_info['access_key']}})
     if created is False:
-        raise TestExecError("Resource execution failed: bucket creation faield")
+        raise TestExecError("Resource execution failed: bucket creation failed")
     if created is not None:
         response = HttpResponseParser(created)
         if response.status_code == 200:
@@ -237,7 +237,7 @@ def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_
 
 
 def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
-    log.info('bucket versionig test on bucket: %s' % bucket.name)
+    log.info('bucket versioning test on bucket: %s' % bucket.name)
     # bucket_versioning = s3_ops.resource_op(rgw_conn, 'BucketVersioning', bucket.name)
     bucket_versioning = s3lib.resource_op({'obj': rgw_conn,
                                            'resource': 'BucketVersioning',
@@ -507,3 +507,21 @@ def delete_bucket(bucket):
             raise TestExecError("bucket deletion failed")
     else:
         raise TestExecError("bucket deletion failed")
+
+def check_default_num_shards(bucket):
+    """
+    checks the num_shards on a newly created bucket
+    :param bucket: s3Bucket
+    """
+    # verify the num_shards. The default bucket-index shards increased to 11. Ref: https://bugzilla.redhat.com/show_bug.cgi?id=1813349
+    ceph_version=utils.get_ceph_version()
+    if ceph_version == 'nautilus':
+        bucket_stats = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket)
+        bucket_stats_json = json.loads(bucket_stats)
+        bkt_num_shards = bucket_stats_json['num_shards']
+        default_num_shards = 11
+        if bkt_num_shards == default_num_shards:
+             log.info('From Ceph Nautilus 4.1 onwards the default num_shards is 11. Verified for %s' % bucket)
+        else:
+            raise TestExecError('The num_shards is not equal to 11')
+

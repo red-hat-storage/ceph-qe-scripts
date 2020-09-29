@@ -263,3 +263,12 @@ def get_hostname_ip():
 def cmp(val1, val2):
     return (val1 > val2) - (val1 < val2)
 
+def get_ceph_version():
+    """
+    get the current ceph version
+    """
+    log.info('get ceph version')
+    ceph_version= exec_shell_cmd('sudo ceph version')
+    version_info = ceph_version.split()[4]
+    return (version_info)
+
