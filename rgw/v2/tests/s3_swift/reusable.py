@@ -36,6 +36,7 @@ def create_bucket(bucket_name, rgw, user_info):
         response = HttpResponseParser(created)
         if response.status_code == 200:
             log.info('bucket created')
+            check_default_num_shards(bucket_name)
         else:
             raise TestExecError("bucket creation failed")
     else:

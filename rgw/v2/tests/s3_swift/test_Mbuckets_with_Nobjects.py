@@ -124,7 +124,6 @@ def test_exec(config):
                 bucket_name_to_create = utils.gen_bucket_name_from_userid(each_user['user_id'], rand_no=bc)
                 log.info('creating bucket with name: %s' % bucket_name_to_create)
                 bucket = reusable.create_bucket(bucket_name_to_create, rgw_conn, each_user)
-                reusable.check_default_num_shards(bucket_name_to_create)
                 if config.test_ops['create_object'] is True:
                     # uploading data
                     log.info('s3 objects to create: %s' % config.objects_count)
