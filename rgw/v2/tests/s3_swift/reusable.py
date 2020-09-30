@@ -514,8 +514,8 @@ def check_default_num_shards(bucket):
     :param bucket: s3Bucket
     """
     # verify the num_shards. The default bucket-index shards increased to 11. Ref: https://bugzilla.redhat.com/show_bug.cgi?id=1813349
-    ceph_version=utils.get_ceph_version()
-    if ceph_version == 'nautilus':
+    ceph_version_id, ceph_version_name = utils.get_ceph_version()
+    if ceph_version_name == 'nautilus':
         bucket_stats = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket)
         bucket_stats_json = json.loads(bucket_stats)
         bkt_num_shards = bucket_stats_json['num_shards']
