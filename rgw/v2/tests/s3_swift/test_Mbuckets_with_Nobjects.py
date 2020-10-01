@@ -12,6 +12,8 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
 	test_Mbuckets_with_Nobjects_enc.yaml
 	test_Mbuckets_with_Nobjects_multipart.yaml
 	test_Mbuckets_with_Nobjects_sharding.yaml
+	test_gc_list.yaml
+	test_gc_list_multipart.yaml
 
 Operation:
 	Creates M bucket and N objects
@@ -22,8 +24,7 @@ Operation:
 	Creates M bucket and N objects. With encryption enabled.
 	Creates M bucket and N objects. Upload multipart object.
 	Creates M bucket and N objects. With sharding set to max_shards as specified in the config
-	
-	
+	Verify gc command
 """ 
 # test basic creation of buckets with objects
 import os, sys
@@ -117,6 +118,10 @@ def test_exec(config):
                 raise TestExecError("RGW service restart failed")
             else:
                 log.info('RGW service restarted')
+        if config.gc_verification is True:
+            conf = config.ceph_conf
+            reusable.set_gc_conf(ceph_conf, conf)
+
         # create buckets
         if config.test_ops['create_bucket'] is True:
             log.info('no of buckets to create: %s' % config.bucket_count)
@@ -216,6 +221,11 @@ def test_exec(config):
             else:
                 log.info('RGW service restarted')
 
+        if config.gc_verification is True:
+            final_op = reusable.verify_gc()
+            if final_op != -1:
+                test_info.failed_status('test failed')
+                sys.exit(1)
 
 if __name__ == '__main__':
 

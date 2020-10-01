@@ -140,6 +140,8 @@ class Config(object):
         self.container_count = self.doc['config'].get('container_count')
         self.version_count = self.doc['config'].get('version_count')
         self.local_file_delete = self.doc['config'].get('local_file_delete', False)
+        self.ceph_conf = self.doc['config'].get('ceph_conf')
+        self.gc_verification = self.doc['config'].get('gc_verification', False)
         self.ssl = self.doc['config'].get('ssl',)
         self.frontend = self.doc['config'].get('frontend')
         self.io_op_config = self.doc.get('io_op_config')

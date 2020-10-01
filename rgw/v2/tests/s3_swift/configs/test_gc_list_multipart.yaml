@@ -3,9 +3,10 @@
 config:
  user_count: 1
  bucket_count: 2
- objects_count: 10
+ objects_count: 5
  gc_verification: true
  local_file_delete: true
+ split_size: 100
  ceph_conf:
       bluestore_block_size: 1549267441664
       rgw_gc_max_queue_size: 367788
@@ -16,12 +17,13 @@ config:
       rgw_gc_obj_min_wait: 10
       rgw_gc_processor_period: 10
  objects_size_range:
-  min: 5
-  max: 15
+  min: 100
+  max: 300
  test_ops:
       create_bucket: true
       create_object: true
       download_object: false
+      upload_type: multipart
       delete_bucket_object: true
       sharding:
         enable: false
