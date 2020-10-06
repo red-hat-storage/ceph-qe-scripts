@@ -1,3 +1,10 @@
+"""
+This script will try to search for a parameter "uid+anonymous" from the log file.
+The ceph.conf has been set a parameter of debug rgw = 20.
+If the object have public-read permission, the rgw try to access metadata of anonymous user and try to cache every req.
+Install boto package on machine to run this script from the rgw node and user=root.
+"""
+
 #!/usr/bin/python3
 import boto.s3.connection
 import boto
