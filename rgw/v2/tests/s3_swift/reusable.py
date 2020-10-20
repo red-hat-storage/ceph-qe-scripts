@@ -34,7 +34,7 @@ def create_bucket(bucket_name, rgw, user_info):
                                  'args': None,
                                  'extra_info': {'access_key': user_info['access_key']}})
     if created is False:
-        raise TestExecError("Resource execution failed: bucket creation faield")
+        raise TestExecError("Resource execution failed: bucket creation failed")
     if created is not None:
         response = HttpResponseParser(created)
         if response.status_code == 200:
@@ -132,9 +132,9 @@ def upload_version_object(config, user_info, rgw_conn, s3_object_name, object_si
             created_versions_count_from_s3 = len([v.version_id for v in versions])
             log.info('created versions count on s3: %s' % created_versions_count_from_s3)
             if created_versions_count is created_versions_count_from_s3:
-                log.info('no new versions are created when added metdata')
+                log.info('no new versions are created when added metadata')
             else:
-                raise TestExecError("version count missmatch, "
+                raise TestExecError("version count mismatch, "
                                     "possible creation of version on adding metadata")
         s3_object_download_path = os.path.join(TEST_DATA_PATH, s3_object_name + ".download")
         object_downloaded_status = s3lib.resource_op({'obj': bucket,
@@ -240,7 +240,7 @@ def upload_mutipart_object(s3_object_name, bucket, TEST_DATA_PATH, config, user_
 
 
 def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
-    log.info('bucket versionig test on bucket: %s' % bucket.name)
+    log.info('bucket versioning test on bucket: %s' % bucket.name)
     # bucket_versioning = s3_ops.resource_op(rgw_conn, 'BucketVersioning', bucket.name)
     bucket_versioning = s3lib.resource_op({'obj': rgw_conn,
                                            'resource': 'BucketVersioning',
@@ -547,3 +547,26 @@ def verify_gc():
     # op variable will capture command output such as entire gc list or error like ERROR: failed to list objs: (22) Invalid argument
     final_op = op.find('ERROR') or op.find('Invalid argument')
     return final_op
+
+def check_for_crash():
+    """
+    check for crash on cluster
+    """
+    ceph_version_id, ceph_version_name = utils.get_ceph_version()
+    if ceph_version_name == 'nautilus':
+        log.info('check for any new crashes on the ceph cluster ')
+        ceph_crash = utils.exec_shell_cmd('ceph crash ls-new')
+        if ceph_crash:
+            ceph_crash_all = ceph_crash.split()
+            no_of_crashes=len(ceph_crash_all)
+            for i in range(3,no_of_crashes):
+                if(i%3==0):
+                    ceph_crash_id, ceph_crash_entity = ceph_crash_all[i] ,ceph_crash_all[i+1]
+                    log.info(f'ceph daemon %s crashed!'% ceph_crash_entity)
+                    crash_info=utils.exec_shell_cmd('ceph crash info %s' % ceph_crash_id)
+            log.info('archiving the crashes to silence health warnings! to view the crashes use the command: ceph crash ls')
+            utils.exec_shell_cmd('ceph crash archive-all') 
+        else:
+            log.info('No ceph daemon crash found')
+        return ceph_crash
+

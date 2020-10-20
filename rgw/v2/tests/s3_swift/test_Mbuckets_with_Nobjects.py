@@ -226,6 +226,11 @@ def test_exec(config):
             if final_op != -1:
                 test_info.failed_status('test failed')
                 sys.exit(1)
+    
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("Crash found")
 
 if __name__ == '__main__':
 
