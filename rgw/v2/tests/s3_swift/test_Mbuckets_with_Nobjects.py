@@ -103,12 +103,18 @@ def test_exec(config):
             cmd = 'radosgw-admin zone placement modify --rgw-zone=%s ' \
                   '--placement-id=default-placement --compression=%s' % (zone,compression_type)
             out = utils.exec_shell_cmd(cmd)
+            ceph_version = utils.exec_shell_cmd("ceph version").split()[4]
             try:
                 data = json.loads(out)
-                if data['placement_pools'][0]['val']['storage_classes']['STANDARD']['compression_type'] == compression_type:
-                    log.info('Compression enabled successfully')
+                if ceph_version == 'luminous':
+                    if data['placement_pools'][0]['val']['compression'] == compression_type:
+                        log.info('Compression enabled successfully')
+
                 else:
-                    raise ValueError('failed to enable compression')
+                    if ceph_version in ['nautilus', 'octopus']:
+                        if data['placement_pools'][0]['val']['storage_classes']['STANDARD'][
+                            'compression_type'] == compression_type:
+                            log.info('Compression enabled successfully')
             except ValueError as e:
                 exit(str(e))
             log.info('trying to restart rgw services ')
@@ -203,6 +209,17 @@ def test_exec(config):
                         out = utils.exec_shell_cmd(cmd)
                     if config.test_ops['delete_bucket_object'] is True:
                         reusable.delete_objects(bucket)
+                        log.info('set debug_rgw to 20 before delete the bucket')
+                        config.debug_rgw = 20
+                        ceph_conf.set_to_ceph_conf('global', ConfigOpts.debug_rgw,
+                                                   str(config.debug_rgw))
+                        log.info('trying to restart services')
+                        srv_restarted = rgw_service.restart()
+                        time.sleep(20)
+                        if srv_restarted is False:
+                            raise TestExecError("RGW service restart failed")
+                        else:
+                            log.info('RGW service restarted')
                         reusable.delete_bucket(bucket)
         # disable compression after test
         if config.test_ops['compression']['enable'] is True:

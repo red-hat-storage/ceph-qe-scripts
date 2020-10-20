@@ -16,6 +16,7 @@ class ConfigOpts(object):
     rgw_max_objs_per_shard = 'rgw_max_objs_per_shard'
     rgw_lc_debug_interval = 'rgw_lc_debug_interval'
     rgw_lc_max_worker = 'rgw_lc_max_worker'
+    debug_rgw = 'debug_rgw'
     rgw_crypt_require_ssl = 'rgw_crypt_require_ssl'
     bluestore_block_size = 'bluestore_block_size'
     rgw_gc_max_queue_size = 'rgw_gc_max_queue_size'
