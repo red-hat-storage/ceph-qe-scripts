@@ -562,7 +562,7 @@ def check_for_crash():
             for i in range(3,no_of_crashes):
                 if(i%3==0):
                     ceph_crash_id, ceph_crash_entity = ceph_crash_all[i] ,ceph_crash_all[i+1]
-                    log.info(f'ceph daemon %s crashed!'% ceph_crash_entity)
+                    log.info(f'ceph daemon {ceph_crash_entity} crashed!')
                     crash_info=utils.exec_shell_cmd('ceph crash info %s' % ceph_crash_id)
             log.info('archiving the crashes to silence health warnings! to view the crashes use the command: ceph crash ls')
             utils.exec_shell_cmd('ceph crash archive-all') 
