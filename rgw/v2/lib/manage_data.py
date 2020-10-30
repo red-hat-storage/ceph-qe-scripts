@@ -30,7 +30,7 @@ def io_generator(fname, size, type='txt', op='create', **kwargs):
         if op == 'create':
             log.info('in create')
             if type == 'txt':
-                fcreate = 'base64 /dev/urandom | head -c %sM > %s' % (size, fname)
+                fcreate = 'base64 /dev/urandom | head -c %s > %s' % (size, fname)
                 created = utils.exec_shell_cmd(fcreate)
                 finfo['md5'] = utils.get_md5(fname)
                 finfo['size'] = os.stat(fname).st_size
