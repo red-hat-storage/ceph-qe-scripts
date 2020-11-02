@@ -2,6 +2,7 @@
 # script: test_Mbuckets_with_Nobjects.py
 config:
  user_count: 1
+ user_create: false
  bucket_count: 2
  objects_count: 5
  gc_verification: true

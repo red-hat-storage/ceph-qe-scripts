@@ -17,12 +17,14 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
 import v2.lib.resource_op as s3lib
 from v2.lib.s3.auth import Auth
+from v2.utils.log import configure_logging
 import v2.utils.utils as utils
 from v2.utils.utils import HttpResponseParser
 import traceback
 import argparse
 import yaml
-from v2.lib.exceptions import TestExecError
+import json
+from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 import v2.lib.manage_data as manage_data
@@ -31,9 +33,7 @@ import logging
 
 log = logging.getLogger()
 
-
 TEST_DATA_PATH = None
-
 
 def test_exec(config):
     test_info = AddTestInfo('Test Byte range')
@@ -43,7 +43,16 @@ def test_exec(config):
 
     test_info.started_info()
     # create user
-    all_users_info = s3lib.create_users(config.user_count)
+    # use an already existing user
+    all_users_info = None
+    if config.user_create is False:
+        log.info('Using an already existing user')
+        with open('user_details') as f:
+            all_users_info = json.load(f)
+            all_users_info = s3lib.create_users(config.user_count, users_info_list=all_users_info)
+    else:
+        log.info('create a new user')
+        all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
         # authenticate
         auth = Auth(each_user)
@@ -77,20 +86,40 @@ def test_exec(config):
 
 
 if __name__ == '__main__':
-    project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
-    test_data_dir = 'test_data'
-    TEST_DATA_PATH = (os.path.join(project_dir, test_data_dir))
-    log.info('TEST_DATA_PATH: %s' % TEST_DATA_PATH)
-    if not os.path.exists(TEST_DATA_PATH):
-        log.info('test data dir not exists, creating.. ')
-        os.makedirs(TEST_DATA_PATH)
-    parser = argparse.ArgumentParser(description='RGW S3 Automation')
-    parser.add_argument('-c', dest="config",
-                        help='RGW Test yaml configuration')
-    args = parser.parse_args()
-    yaml_file = args.config
-    config = Config(yaml_file)
-    config.read()
-    if config.mapped_sizes is None:
-        config.mapped_sizes = utils.make_mapped_sizes(config)
-    test_exec(config)
+
+    test_info = AddTestInfo('test_byte_range ')
+    test_info.started_info()
+
+    try:
+        project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
+        test_data_dir = 'test_data'
+        TEST_DATA_PATH = (os.path.join(project_dir, test_data_dir))
+        log.info('TEST_DATA_PATH: %s' % TEST_DATA_PATH)
+        if not os.path.exists(TEST_DATA_PATH):
+            log.info('test data dir not exists, creating.. ')
+            os.makedirs(TEST_DATA_PATH)
+        parser = argparse.ArgumentParser(description='RGW S3 Automation')
+        parser.add_argument('-c', dest="config",
+                            help='RGW Test yaml configuration')
+        parser.add_argument('-log_level', dest='log_level',
+                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
+                            default='info')
+        args = parser.parse_args()
+        yaml_file = args.config
+        log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+        configure_logging(f_name=log_f_name,
+                          set_level=args.log_level.upper())
+        config = Config(yaml_file)
+        config.read()
+        if config.mapped_sizes is None:
+            config.mapped_sizes = utils.make_mapped_sizes(config)
+
+        test_exec(config)
+        test_info.success_status('test passed')
+        sys.exit(0)
+
+    except (RGWBaseException, Exception) as e:
+        log.info(e)
+        log.info(traceback.format_exc())
+        test_info.failed_status('test failed')
+        sys.exit(1)

@@ -44,7 +44,17 @@ def test_exec(config):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
 
-    all_users_info = s3lib.create_users(config.user_count)
+    # create user
+    # use an already existing user
+    all_users_info = None
+    if config.user_create is False:
+        log.info('Using an already existing user')
+        with open('user_details') as f:
+            all_users_info = json.load(f)
+            all_users_info = s3lib.create_users(config.user_count, users_info_list=all_users_info)
+    else:
+        log.info('create a new user')
+        all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
         auth = Auth(each_user, ssl=config.ssl)
         rgw_conn = auth.do_auth()

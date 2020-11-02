@@ -1,6 +1,7 @@
 #test_bucket_lifecycle_object_expiration.py
 config:
  objects_count: 2
+ user_create: false
  objects_size_range:
   min: 5
   max: 15

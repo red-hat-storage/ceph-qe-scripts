@@ -4,6 +4,7 @@ config:
  user_count: 1
  frontend: beast
  ssl: true
+ user_create: false
 
 
 # supported config options for frontends and SSL

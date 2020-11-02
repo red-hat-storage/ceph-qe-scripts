@@ -59,7 +59,7 @@ def resource_op(exec_info):
         return False
 
 
-def create_users(no_of_users_to_create, cluster_name='ceph'):
+def create_users(no_of_users_to_create, cluster_name='ceph', users_info_list=None):
     """
         This function is to create n users on the cluster 
 
@@ -72,17 +72,24 @@ def create_users(no_of_users_to_create, cluster_name='ceph'):
     """
     admin_ops = UserMgmt()
     all_users_details = []
-    for i in range(no_of_users_to_create):
-        user_details = admin_ops.create_admin_user(
-            user_id=names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." + str(
-                random.randint(1, 1000)),
-            displayname=names.get_full_name().lower(),
-            cluster_name=cluster_name)
-        all_users_details.append(user_details)
+    if users_info_list:
+        for each in users_info_list:
+            user_id = each['user_id'],
+            display_name = each['display_name']
+            cluster_name = cluster_name
+            user_details = admin_ops.create_admin_user(each['user_id'], display_name, cluster_name)
+            all_users_details.append(user_details)
+    else:
+        for i in range(no_of_users_to_create):
+            user_details = admin_ops.create_admin_user(
+                user_id=names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." + str(
+                    random.randint(1, 1000)),
+                displayname=names.get_full_name().lower(),
+                cluster_name=cluster_name)
+            all_users_details.append(user_details)
     return all_users_details
 
-
-def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph'):
+def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph', users_info_list=None):
     """
         This function is to create n users with tenant on the cluster 
 
@@ -95,16 +102,25 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph')
     """
     admin_ops = UserMgmt()
     all_users_details = []
-    for i in range(no_of_users_to_create):
-        user_details = admin_ops.create_tenant_user(
-            user_id=names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." + str(
-                random.randint(1, 1000)),
-            displayname=names.get_full_name().lower(),
-            cluster_name=cluster_name,
-            tenant_name=tenant_name)
-        all_users_details.append(user_details)
+    if users_info_list:
+        for each in users_info_list:
+            user_id = each['user_id'],
+            display_name = each['display_name']
+            cluster_name = cluster_name
+            tenant_name = each['tenant']
+            user_details = admin_ops.create_tenant_user(tenant_name, each['user_id'], display_name, cluster_name)
+            all_users_details.append(user_details)
+    else:
+        for i in range(no_of_users_to_create):
+            user_details = admin_ops.create_tenant_user(
+                user_id=names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." + str(
+                    random.randint(1, 1000)),
+                displayname=names.get_full_name().lower(),
+                cluster_name=cluster_name,
+                tenant_name=tenant_name)
+            all_users_details.append(user_details)
     return all_users_details
-
+		
 
 class Config(object):
     def __init__(self, conf_file=None):
@@ -126,6 +142,8 @@ class Config(object):
         self.max_objects_per_shard = self.doc['config'].get('max_objects_per_shard')
         self.max_objects = None
         self.user_count = self.doc['config'].get('user_count')
+        self.user_create = self.doc['config'].get('user_create')
+        self.user_type = self.doc['config'].get('user_type')
         self.bucket_count = self.doc['config'].get('bucket_count')
         self.objects_count = self.doc['config'].get('objects_count')
         self.use_aws4 = self.doc['config'].get('use_aws4', None)

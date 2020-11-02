@@ -21,6 +21,7 @@ from v2.utils.utils import HttpResponseParser
 import traceback
 import argparse
 import yaml
+import json
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
@@ -30,9 +31,7 @@ import logging
 
 log = logging.getLogger()
 
-
 TEST_DATA_PATH = None
-
 
 def basic_lifecycle_config(prefix, days, id, status="Enabled"):
     rule = {}
@@ -48,15 +47,22 @@ def basic_lifecycle_config(prefix, days, id, status="Enabled"):
     log.info('life_cycle config:\n%s' % lifecycle_config)
     return lifecycle_config
 
-
 def test_exec(config):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-
     # create user
-    all_users_info = s3lib.create_users(config.user_count)
+    all_users_info = None
+    # To use an already existing user, information of which is present in user_details file
+    if config.user_create is False:
+        log.info('Using an already existing user')
+        with open('user_details') as f:
+            all_users_info = json.load(f)
+            all_users_info = s3lib.create_users(config.user_count, users_info_list=all_users_info)
+    else:
+        log.info('creating a new user')
+        all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
         # authenticate
         auth = Auth(each_user, ssl=config.ssl)

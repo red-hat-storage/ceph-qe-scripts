@@ -3,4 +3,5 @@
 # TC 11213
 config:
  bucket_policy_op: delete
+ user_create: false
 

@@ -3,6 +3,7 @@
 # CEPH - 9190
 config:
  user_count: 1
+ user_create: false
  bucket_count: 1
  objects_count: 2
  version_count: 2

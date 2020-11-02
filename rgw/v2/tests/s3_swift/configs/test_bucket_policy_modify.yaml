@@ -3,4 +3,5 @@
 # TC 11214
 config:
  bucket_policy_op: modify
+ user_create: false
 

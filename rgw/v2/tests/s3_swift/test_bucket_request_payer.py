@@ -21,6 +21,7 @@ from v2.lib.s3.auth import Auth
 import v2.utils.utils as utils
 from v2.utils.log import configure_logging
 import traceback
+import json
 import argparse
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
@@ -32,9 +33,7 @@ import logging
 
 log = logging.getLogger()
 
-
 TEST_DATA_PATH = None
-
 
 def test_exec(config, requester):
 
@@ -44,7 +43,16 @@ def test_exec(config, requester):
     log.info('requester type: %s' % requester)
 
     # create user
-    all_users_info = s3lib.create_users(config.user_count)
+    # use an already existing user
+    all_users_info = None
+    if config.user_create is False:
+        log.info('Using an already existing user')
+        with open('user_details') as f:
+            all_users_info = json.load(f)
+            all_users_info = s3lib.create_users(config.user_count, users_info_list=all_users_info)
+    else:
+        log.info('create a new user')
+        all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
         # authenticate
         auth = Auth(each_user, ssl=config.ssl)

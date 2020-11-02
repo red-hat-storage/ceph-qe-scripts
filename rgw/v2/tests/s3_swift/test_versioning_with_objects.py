@@ -34,6 +34,7 @@ from v2.utils.log import configure_logging
 from v2.utils.utils import HttpResponseParser
 from v2.tests.s3_swift import reusable
 import traceback
+import json
 import argparse
 import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError, RGWBaseException
@@ -61,7 +62,16 @@ def test_exec(config):
     io_info_initialize.initialize(basic_io_structure.initial())
 
     # create user
-    all_users_info = s3lib.create_users(config.user_count)
+    # use an already existing user
+    all_users_info = None
+    if config.user_create is False:
+        log.info('Using an already existing user')
+        with open('user_details') as f:
+            all_users_info = json.load(f)
+            all_users_info = s3lib.create_users(config.user_count, users_info_list=all_users_info)
+    else:
+        log.info('create a new user')
+        all_users_info = s3lib.create_users(config.user_count)
     extra_user = s3lib.create_users(1)[0]
     extra_user_auth = Auth(extra_user, ssl=config.ssl)
     extra_user_conn = extra_user_auth.do_auth()

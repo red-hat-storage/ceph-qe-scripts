@@ -11,8 +11,6 @@ Operation:
 - testing
 - modify bucket policy to replace the existing policy - TC 11215
 - add policy to the existing policy - TC 11214
-
-
 """
 import os, sys
 
@@ -57,12 +55,29 @@ def test_exec(config):
 
     # create user
     config.user_count = 1
-    tenant1 = 'MountEverest'
-    tenant2 = 'Himalayas'
-    tenant1_user_info = s3lib.create_tenant_users(tenant_name=tenant1, no_of_users_to_create=config.user_count)
-    tenant1_user1_info = tenant1_user_info[0]
-    tenant2_user_info = s3lib.create_tenant_users(tenant_name=tenant2, no_of_users_to_create=config.user_count)
-    tenant2_user1_info = tenant2_user_info[0]
+    user_info = None
+    # use existing tenanted users with the name tenant0 and tenant1
+    if config.user_create is False:
+        log.info('Using an already existing tenanted user')
+        for each in range(2):
+            with open('tenanted_user_details') as f:
+                user_info = json.load(f)
+                tenant_name = 'tenant' + str(each)
+                user_info = s3lib.create_tenant_users(config.user_count, tenant_name=tenant_name, users_info_list=user_info)
+                if each == 0:
+                    tenant1_user1_info = user_info[0]
+                    tenant1 = 'tenant' + str(each)
+                else:
+                    tenant2_user1_info = user_info[0]
+                    tenant2 = 'tenant' + str(each)
+    else:
+        log.info ('create new tenanted users')
+        tenant1 = 'MountEverest'
+        tenant2 = 'Himalayas'
+        tenant1_user_info = s3lib.create_tenant_users(tenant_name=tenant1, no_of_users_to_create=config.user_count)
+        tenant1_user1_info = tenant1_user_info[0]
+        tenant2_user_info = s3lib.create_tenant_users(tenant_name=tenant2, no_of_users_to_create=config.user_count)
+        tenant2_user1_info = tenant2_user_info[0]
     tenant1_user1_auth = Auth(tenant1_user1_info, ssl=config.ssl)
     tenant2_user1_auth = Auth(tenant2_user1_info, ssl=config.ssl)
     rgw_tenant1_user1 = tenant1_user1_auth.do_auth()

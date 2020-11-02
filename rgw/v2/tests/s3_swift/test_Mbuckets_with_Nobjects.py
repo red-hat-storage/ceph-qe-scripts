@@ -62,7 +62,16 @@ def test_exec(config):
     rgw_service = RGWService()
 
     # create user
-    all_users_info = s3lib.create_users(config.user_count)
+    # use an already existing user
+    all_users_info = None
+    if config.user_create is False:
+        log.info('Using an already existing user')
+        with open('user_details') as f:
+            all_users_info = json.load(f)
+            all_users_info = s3lib.create_users(config.user_count, users_info_list=all_users_info)
+    else:
+        log.info('create a new user')
+        all_users_info = s3lib.create_users(config.user_count)
     if config.test_ops.get('encryption_algorithm', None) is not None:
         log.info('encryption enabled, making ceph config changes')
         ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_crypt_require_ssl, "false")

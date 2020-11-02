@@ -4,3 +4,4 @@ config:
  user_count: 1
  frontend: civetweb
  ssl: true
+ user_create: false

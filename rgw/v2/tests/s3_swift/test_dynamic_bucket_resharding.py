@@ -55,8 +55,19 @@ def test_exec(config):
     rgw_service = RGWService()
 
     log.info('starting IO')
+
     config.user_count = 1
-    user_info = s3lib.create_users(config.user_count)
+    # create user
+    # use an already existing user
+    user_info = None
+    if config.user_create is False:
+        log.info('Using an already existing user')
+        with open('user_details') as f:
+            user_info = json.load(f)
+            user_info = s3lib.create_users(config.user_count, users_info_list=user_info)
+    else:
+        log.info('create a new user')
+        user_info = s3lib.create_users(config.user_count)
     user_info = user_info[0]
     auth = Auth(user_info, ssl=config.ssl)
     rgw_conn = auth.do_auth()

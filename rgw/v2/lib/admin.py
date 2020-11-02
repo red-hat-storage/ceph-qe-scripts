@@ -38,8 +38,18 @@ class UserMgmt(object):
             write_user_info = AddUserInfo()
             basic_io_structure = BasicIOInfoStructure()
             log.info('cluster name: %s' % cluster_name)
-            cmd = 'radosgw-admin user create --uid=%s --display-name=%s --cluster %s' % (
-                user_id, displayname, cluster_name)
+            log.info('Verify if the cluster is a secondary or primary site via radosgw-admin sync status')
+            sync_status_cmd = 'radosgw-admin sync status'
+            pr = subprocess.Popen(sync_status_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+                                  shell=True)
+            out, err = pr.communicate()
+            primary_site = out.find('zone is master')
+            if primary_site:
+                cmd = 'radosgw-admin user create --uid=%s --display-name=%s --cluster %s' % (
+                    user_id, displayname, cluster_name)
+            else:
+                cmd = 'radosgw-admin user create --uid=%s --yes-i-really-mean-it --display-name=%s --cluster %s' % (
+                    user_id, displayname, cluster_name)
             log.info('cmd to execute:\n%s' % cmd)
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
             v = variable.stdout.read()
@@ -143,9 +153,20 @@ class UserMgmt(object):
             basic_io_structure = BasicIOInfoStructure()
             tenant_info = TenantInfo()
             keys = utils.gen_access_key_secret_key(user_id)
-            cmd = 'radosgw-admin --tenant %s --uid %s --display-name "%s" ' \
-                  '--access_key %s --secret %s user create --cluster %s' % \
-                  (tenant_name, user_id, displayname, keys['access_key'], keys['secret_key'], cluster_name)
+            log.info('Verify if the cluster is a secondary or primary site via radosgw-admin sync status')
+            sync_status_cmd = 'radosgw-admin sync status'
+            pr = subprocess.Popen(sync_status_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+                                  shell=True)
+            out, err = pr.communicate()
+            primary_site = out.find('zone is master')
+            if primary_site:
+                cmd = 'radosgw-admin --tenant %s --uid %s --display-name "%s" ' \
+                      '--access_key %s --secret %s user create --cluster %s' % \
+                      (tenant_name, user_id, displayname, keys['access_key'], keys['secret_key'], cluster_name)
+            else:
+                cmd = 'radosgw-admin --tenant %s --uid %s --display-name "%s" ' \
+                      '--yes-i-really-mean-it --access_key %s --secret %s user create --cluster %s' % \
+                      (tenant_name, user_id, displayname, keys['access_key'], keys['secret_key'], cluster_name)
             log.info('cmd to execute:\n%s' % cmd)
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
             v = variable.stdout.read()
