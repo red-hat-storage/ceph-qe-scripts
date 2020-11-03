@@ -183,6 +183,28 @@ def gen_s3_object_name(bucket_name, rand_no=0):
     log.info('s3 object name to create generated: %s' % s3_object_name_to_create)
     return s3_object_name_to_create
 
+def create_psuedo_dir(s3_pseudo_dir, bucket):
+    """
+    creates a psuedo directory object structure
+    :param s3_pseudo_dir_name: name of the pseudo structure to create
+    :param bucket: S3Bucket object
+    """
+    s3_pseudo_dir_created = bucket.put_object(Key=s3_pseudo_dir+'/')
+    s3_pseudo_dir_name = s3_pseudo_dir + "/"
+    print(s3_pseudo_dir_name)
+    return s3_pseudo_dir_created , s3_pseudo_dir_name
+
+def gen_s3_pseudo_object_name(pseudo_dir_name, rand_no=0):
+    """
+    creates an s3 object in a pseudo directory
+    :param s3_pseudo_dir_name: name of the pseudo structure
+    :return: s3_pseudo_object_name_to_create
+    """
+    log.info('generating s3 pseudo object name to create')
+    s3_pseudo_object_name_to_create = pseudo_dir_name + "/" + S3_OBJECT_NAME_PREFIX + "." + str(rand_no)
+    log.info('s3 pseudo object name to create generated: %s' % s3_pseudo_object_name_to_create)
+    return s3_pseudo_object_name_to_create
+
 
 class HttpResponseParser(object):
     def __init__(self, http_response):

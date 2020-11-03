@@ -1,0 +1,16 @@
+config:
+ user_count: 1
+ bucket_count: 1
+ objects_count: 30
+ objects_size_range:
+  min: 14
+  max: 15
+ test_ops:
+      create_bucket: true
+      create_object: true
+      object_structure: flat
+      radosgw_listing_ordered : true
+      radoslist: true
+      delete_bucket_object: true
+
+

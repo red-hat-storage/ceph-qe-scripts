@@ -309,7 +309,7 @@ class KeyIoInfo(AddIOInfo):
             if k['version_id'] == version_id:
                 version_info_indx = i
                 break
-        yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys'][key_indx]['versioning_info'].pop(
+            yaml_data['users'][access_key_indx]['bucket'][bucket_indx]['keys'][key_indx]['versioning_info'].pop(
                                                                                                     version_info_indx)
         self.file_op.add_data(yaml_data)
 

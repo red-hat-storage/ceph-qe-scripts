@@ -11,6 +11,7 @@ import v2.lib.manage_data as manage_data
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, BucketIoInfo, KeyIoInfo
 import random, time
 import datetime
+import timeit
 
 from v2.lib.rgw_config_opts import ConfigOpts
 from v2.utils.utils import RGWService
@@ -569,4 +570,38 @@ def check_for_crash():
         else:
             log.info('No ceph daemon crash found')
         return ceph_crash
+def time_to_list_via_radosgw(bucket_name,listing):
+    """
+    Time taken to list via radosgw-admin command.
+    :param bucket: s3Bucket object
+    :param listing: ordered or unordered listing
+
+    """
+    if listing == 'ordered':
+        log.info('listing via radosgw-admin bucket list --max-entries=.. --bucket <>')
+        cmd = 'radosgw-admin bucket list --max-entries=100000 --bucket=%s ' % (bucket_name)
+        time_taken=(timeit.timeit(utils.exec_shell_cmd(cmd),globals=globals()))
+        return time_taken
+
+    if listing == 'unordered':
+        log.info('listing via radosgw-admin bucket list --max-entries=.. --bucket <> --allow-unordered')
+        cmd = 'radosgw-admin bucket list --max-entries=100000 --bucket=%s --allow-unordered' % (bucket_name)
+        time_taken=(timeit.timeit(utils.exec_shell_cmd(cmd),globals=globals()))
+        return time_taken
+
+def time_to_list_via_boto(bucket_name,rgw):
+    """
+    Time taken to list via boto
+    :param bucket: s3Bucket object
+    """
+    bucket = s3lib.resource_op({'obj': rgw,
+                                'resource': 'Bucket',
+                                'args': [bucket_name]})
+
+    log.info('listing all objects in bucket: %s' % bucket)
+    objects = s3lib.resource_op({'obj': bucket,
+                                 'resource': 'objects',
+                                 'args': None})
+    time_taken=( timeit.timeit(lambda: bucket.objects.all(),globals=globals()))
+    return time_taken
 
