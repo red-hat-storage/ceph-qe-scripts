@@ -51,3 +51,18 @@ def io_generator(fname, size, type='txt', op='create', **kwargs):
     except RGWIOGenException as e:
         log.error(e)
         return False
+
+def pseudo_dir_generator(fname,size=0):
+    """
+    Function to create pseduo directories
+    :param fname: Name of the pseudo directory to create
+    """
+    try:
+        log.info('creating pseudo directory')
+
+        os.makedirs(fname)
+    except RGWIOGenException as e:
+        log.error(e)
+        return False
+
+

@@ -128,6 +128,7 @@ class Config(object):
         self.user_count = self.doc['config'].get('user_count')
         self.bucket_count = self.doc['config'].get('bucket_count')
         self.objects_count = self.doc['config'].get('objects_count')
+        self.pseudo_dir_count = self.doc['config'].get('pseudo_dir_count')
         self.use_aws4 = self.doc['config'].get('use_aws4', None)
         self.objects_size_range = self.doc['config'].get('objects_size_range')
         self.sharding_type = self.doc['config'].get('sharding_type')
