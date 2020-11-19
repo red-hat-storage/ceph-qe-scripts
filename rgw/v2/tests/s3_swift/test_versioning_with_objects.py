@@ -267,8 +267,7 @@ def test_exec(config):
                                     response = HttpResponseParser(del_obj_version)
                                     if response.status_code == 204:
                                         log.info('version deleted ')
-                                        write_key_io_info.delete_version_info(each_user['access_key'], bucket.name,
-                                                                              s3_object_path, version.version_id)
+                                        reusable.delete_version_object(bucket,version.version_id, s3_object_path, rgw_conn, each_user)
                                     else:
                                         raise TestExecError("version  deletion failed")
                                 else:
