@@ -52,10 +52,10 @@ def test_exec(config):
     # authenticate
     auth = Auth(s3_user, ssl=config.ssl)
     rgw_conn = auth.do_auth()
-    b1_name = 'bucky.1e'  # bucket 1
+    b1_name = utils.gen_bucket_name_from_userid(s3_user['user_id'], rand_no=1)
     b1_k1_name = b1_name + ".key.1"  # key1
     b1_k2_name = b1_name + ".key.2"  # key2
-    b2_name = 'bucky.2e'  # bucket 2
+    b2_name = utils.gen_bucket_name_from_userid(s3_user['user_id'], rand_no=2)
     b2_k1_name = b2_name + ".key.1"  # key1
     b2_k2_name = b2_name + ".key.2"  # key2
     b1 = reusable.create_bucket(b1_name, rgw_conn, s3_user)
