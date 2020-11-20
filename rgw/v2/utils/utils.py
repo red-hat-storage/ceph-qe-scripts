@@ -37,11 +37,9 @@ def get_md5(fname):
     return hashlib.md5(open(fname, 'rb').read()).hexdigest()
     # return "@424242"
 
-
 def get_file_size(min, max):
     size = lambda x: x if x % 5 == 0 else size(randint(min, max))
     return size(randint(min, max))
-
 
 def create_file(fname, size):
     # give the size in mega bytes.
@@ -249,12 +247,47 @@ def gen_access_key_secret_key(base_str, access_key_len=20, secret_key_len=40):
     return {'access_key': access_key,
             'secret_key': secret_key}
 
+def validate_unit(min_u, max_u, min_s, max_s):
+    unit = {"K" : 1024, "M" : 1024*1024, "G" : 1024*1024*1024}
+    min_u = unit.get(min_u)
+    max_u = unit.get(max_u)
+    min_size = min_u * min_s
+    max_size = max_u * max_s
+    if min_size > max_size:
+        log.error("MIN size and MAX size is not defined correctly")
+    else:
+        return min_size, max_size
 
 def make_mapped_sizes(config):
     log.info('did not get mapped sizes')
-    mapped_sizes = {i: get_file_size(config.objects_size_range['min'],
-                                     config.objects_size_range['max'])
-                    for i in range(config.objects_count)}
+    min = config.objects_size_range['min']
+    max = config.objects_size_range['max']
+    unit = "M"
+    if type(min) and type(max) is str:
+        min_unit = min[-1]  #gives min unit
+        max_unit = max[-1]  #gives max unit
+        min = int(min[:-1])  # gives min number
+        max = int(max[:-1])  # gives max number
+        min, max = validate_unit(min_unit, max_unit, min, max)
+
+    elif type(min) is not str and type(max) is str:
+        min_unit = max[-1]  # gives min unit
+        max_unit = max[-1]  # gives max unit
+        max = int(max[:-1])  # gives max number
+        min, max = validate_unit(min_unit, max_unit, min, max)
+
+    elif type(min) is str and type(max) is not str:
+        min_unit = min[-1]  # gives min unit
+        max_unit = min[-1]  # gives max unit
+        min = int(min[:-1])  # gives min number
+        min, max = validate_unit(min_unit, max_unit, min, max)
+
+    else:
+        min, max = validate_unit(unit, unit, min, max)
+
+
+    mapped_sizes = {i: (get_file_size(min, max))
+                        for i in range(config.objects_count)}
     log.info('mapped_sizes: %s' % mapped_sizes)
     return mapped_sizes
 
