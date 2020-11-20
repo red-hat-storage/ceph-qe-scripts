@@ -100,6 +100,10 @@ def test_exec(config):
                                 log.info('upload type: normal')
                                 reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
                             objects_created_list.append((s3_object_name, s3_object_path))
+                            #deleting the local file created after upload
+                            if config.local_file_delete is True:
+                                log.info('deleting local file created after the upload')
+                                utils.exec_shell_cmd('rm -rf %s' % s3_object_path)
 
                     #this covers listing of a bucket with pseudo directories and objects in it ; Unable to list contents of large buckets https://bugzilla.redhat.com/show_bug.cgi?id=1874645#c72
                     if config.test_ops['object_structure'] == 'pseudo':
@@ -121,6 +125,11 @@ def test_exec(config):
                                 else:
                                     log.info('upload type: normal')
                                     reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
+                                #deleting the local file created after upload
+                                if config.local_file_delete is True:
+                                    log.info('deleting local file created after the upload')
+                                    utils.exec_shell_cmd('rm -rf %s' % s3_object_path)
+
 
                 # listing bucket with only pseudo directories ; Bug allows ordered bucket listing to get stuck -- 4.1 https://bugzilla.redhat.com/show_bug.cgi?id=1853052#c0
                 if config.test_ops['create_object'] is False:
@@ -140,7 +149,7 @@ def test_exec(config):
                         raise TestExecError ("Radoslist command execution failed")
                 
                 # get the configuration parameter 
-                cmd = 'ceph daemon `ls /var/run/ceph/ceph-client.rgw.*.asok|tail -1` config show |grep  rgw_bucket_index_max_aio'
+                cmd = 'ceph daemon `ls -t /var/run/ceph/ceph-client.rgw.*.asok|head -1` config show |grep  rgw_bucket_index_max_aio'
                 max_aio_output = utils.exec_shell_cmd(cmd)
                 max_aio = max_aio_output.split()[1] 
                 
