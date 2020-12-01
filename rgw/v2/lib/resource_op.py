@@ -145,7 +145,7 @@ class Config(object):
         self.gc_verification = self.doc['config'].get('gc_verification', False)
         self.ssl = self.doc['config'].get('ssl',)
         self.frontend = self.doc['config'].get('frontend')
-        self.io_op_config = self.doc.get('io_op_config')
+        self.io_op_config = self.doc.get('config').get('io_op_config')
         frontend_config = Frontend()
 
         # if frontend is set in config yaml
