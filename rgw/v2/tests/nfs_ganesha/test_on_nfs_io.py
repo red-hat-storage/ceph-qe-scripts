@@ -26,11 +26,11 @@ log = logging.getLogger()
 def test_exec(rgw_user_info_file, config):
     test_info = AddTestInfo('NFS Basic Ops')
     test_info.started_info()
-    log.info('io_config:\n%s' % config['config'])
+    log.info('config:\n%s' % config['config'])
     log.info('rgw_user_info_file: %s' % rgw_user_info_file)
-    log.info('io_op_config: %s' % config['io_op_config'])
     io_config = config['config']
-    io_op_config = config['io_op_config']
+    io_op_config = io_config['io_op_config']
+    log.info('io_op_config: %s' % io_op_config)
     log.info('initiating nfs ganesha')
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
