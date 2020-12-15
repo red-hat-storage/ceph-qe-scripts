@@ -170,14 +170,14 @@ def get_all_in_dir(path):
 
 def gen_bucket_name_from_userid(user_id, rand_no=0):
     log.info('generating bucket name or basedir to create')
-    bucket_name_to_create = user_id + "." + BUCKET_NAME_PREFIX + "." + str(rand_no)
+    bucket_name_to_create = user_id + "_" + BUCKET_NAME_PREFIX + "_" + str(rand_no)
     log.info('bucket or basedir name to create generated: %s' % bucket_name_to_create)
     return bucket_name_to_create
 
 
 def gen_s3_object_name(bucket_name, rand_no=0):
     log.info('generating s3 object name to create')
-    s3_object_name_to_create = S3_OBJECT_NAME_PREFIX + "." + bucket_name + "." + str(rand_no)
+    s3_object_name_to_create = S3_OBJECT_NAME_PREFIX + "_" + bucket_name + "_" + str(rand_no)
     log.info('s3 object name to create generated: %s' % s3_object_name_to_create)
     return s3_object_name_to_create
 
@@ -199,7 +199,7 @@ def gen_s3_pseudo_object_name(pseudo_dir_name, rand_no=0):
     :return: s3_pseudo_object_name_to_create
     """
     log.info('generating s3 pseudo object name to create')
-    s3_pseudo_object_name_to_create = pseudo_dir_name + "/" + S3_OBJECT_NAME_PREFIX + "." + str(rand_no)
+    s3_pseudo_object_name_to_create = pseudo_dir_name + "/" + S3_OBJECT_NAME_PREFIX + "_" + str(rand_no)
     log.info('s3 pseudo object name to create generated: %s' % s3_pseudo_object_name_to_create)
     return s3_pseudo_object_name_to_create
 
