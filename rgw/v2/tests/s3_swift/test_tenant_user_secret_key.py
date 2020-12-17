@@ -24,6 +24,7 @@ from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.lib.swift.auth import Auth
 import v2.lib.manage_data as manage_data
+from v2.tests.s3_swift import reusable
 
 TEST_DATA_PATH = None
 import logging
@@ -94,7 +95,10 @@ def test_exec(config):
                 rgw.put_object(container_name, swift_object_name,
                                contents=fp.read(),
                                content_type='text/plain')
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 

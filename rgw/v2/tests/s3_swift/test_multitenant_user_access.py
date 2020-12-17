@@ -113,7 +113,10 @@ def test_exec(config):
     if t1_u1_b1_o1_download is None:
         raise TestExecError('object downloaded\n'
                             'downloaded tenant2->user1->bucket1->object1, this should not happen')
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 

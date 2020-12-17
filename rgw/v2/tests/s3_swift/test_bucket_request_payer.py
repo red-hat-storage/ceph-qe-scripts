@@ -84,7 +84,10 @@ def test_exec(config, requester):
                     config.obj_size = size
                     s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
                     reusable.upload_object(s3_object_name, bucket, TEST_DATA_PATH, config, each_user)
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 

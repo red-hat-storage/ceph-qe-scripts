@@ -124,7 +124,10 @@ def test_exec(config):
         for version in versions:
             log.info(
                 'key_name: %s --> version_id: %s' % (version.object_key, version.version_id))
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 
