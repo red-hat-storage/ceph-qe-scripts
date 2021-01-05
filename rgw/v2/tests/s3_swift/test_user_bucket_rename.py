@@ -117,7 +117,10 @@ def test_exec(config):
             raise TestExecError("RGW Bucket unlink error")
         log.info('output :%s' % out5)
         reusable.link_chown_to_nontenanted(non_ten_users[0]['user_id'], ten_buckets[ten_users[0]['user_id']], tenant1)
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 

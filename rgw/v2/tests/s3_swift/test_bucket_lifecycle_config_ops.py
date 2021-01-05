@@ -250,7 +250,10 @@ def test_exec(config):
                             raise TestExecError("bucket lifecycle config retrieval failed after disabled")
                     else:
                         raise TestExecError("bucket lifecycle config retrieval failed after disabled")
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 

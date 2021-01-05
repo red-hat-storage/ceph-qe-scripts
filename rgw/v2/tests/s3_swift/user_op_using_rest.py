@@ -32,6 +32,7 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.lib.swift.auth import Auth
 from v2.lib.admin import UserMgmt
 from rgwadmin import RGWAdmin
+from v2.tests.s3_swift import reusable
 import logging
 
 log = logging.getLogger()
@@ -135,7 +136,10 @@ def test_exec(config):
             test_info.failed_status('test failed')
             sys.exit(1)
         log.info("Verification for Delete operation completed")
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 

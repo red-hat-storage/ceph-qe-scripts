@@ -129,7 +129,10 @@ def test_exec(config):
         reusable.put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, config)
         lc_ops.validate_and_rule(bucket, config)
     reusable.remove_user(user_info)
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 

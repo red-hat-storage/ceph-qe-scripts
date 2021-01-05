@@ -33,6 +33,7 @@ from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.utils.test_desc import AddTestInfo
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.lib.swift.auth import Auth
+from v2.tests.s3_swift import reusable
 import v2.lib.manage_data as manage_data
 from v2.lib.admin import UserMgmt
 import logging
@@ -108,7 +109,10 @@ def test_exec(config):
         # delete container
         log.info('deleting swift container')
         rgw.delete_container(container_name)
-
+    # check for any crashes during the execution
+    crash_info=reusable.check_for_crash()
+    if crash_info:
+        raise TestExecError("ceph daemon crash found!")
 
 if __name__ == '__main__':
 
