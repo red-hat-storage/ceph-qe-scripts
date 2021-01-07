@@ -445,6 +445,32 @@ def delete_objects(bucket):
     else:
         raise TestExecError("objects deletion failed")
 
+def list_objects(bucket):
+    """
+    list the objects in a given bucket
+    :param bucket: S3Bucket object
+    """
+    log.info('listing all objects in bucket: %s' % bucket.name)
+    objects = s3lib.resource_op({'obj': bucket,
+                                 'resource': 'objects',
+                                 'args': None})
+    log.info('objects :%s' % objects)
+    all_objects = s3lib.resource_op({'obj': objects,
+                                     'resource': 'all',
+                                     'args': None})
+    log.info('all objects: %s' % all_objects)
+    for obj in all_objects:
+        log.info('object_name: %s' % obj.key)
+
+def list_versioned_objects(bucket,s3_object_name,s3_object_path,rgw_conn):
+    """
+    list all versions of the objects in a given bucket
+    :param bucket: S3Bucket object
+    """
+    versions=bucket.object_versions.filter(Prefix=s3_object_name)
+    log.info(f'listing all the versions of objects {s3_object_name}')
+    for version in versions:
+        log.info(f'key_name: {version.object_key} --> version_id: {version.version_id}')
 
 def delete_version_object(bucket, s3_object_name, s3_object_path, rgw_conn, user_info, ):
     """

@@ -48,7 +48,9 @@ scripts=("python3 $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_Mbuck
          "python3 $DIR/test_bucket_listing.py -c $DIR/configs/test_bucket_listing_flat_unordered.yaml"
          "python3 $DIR/test_bucket_listing.py -c $DIR/configs/test_bucket_listing_flat_ordered_versionsing.yaml"
          "python3 $DIR/test_bucket_listing.py -c $DIR/configs/test_bucket_listing_pseudo_ordered.yaml"
-         "python3 $DIR/test_bucket_listing.py -c $DIR/configs/test_bucket_listing_pseudo_ordered_dir_only.yaml")
+         "python3 $DIR/test_bucket_listing.py -c $DIR/configs/test_bucket_listing_pseudo_ordered_dir_only.yaml"
+	 "python3 $DIR/test_gc_with_resharding.py -c $DIR/configs/test_gc_resharding_bucket.yaml"
+	 "python3 $DIR/test_gc_with_resharding.py -c $DIR/configs/test_gc_resharding_versioned_bucket.yaml")
 
 
 
