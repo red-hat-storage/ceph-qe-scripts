@@ -143,6 +143,7 @@ class Config(object):
         self.local_file_delete = self.doc['config'].get('local_file_delete', False)
         self.ceph_conf = self.doc['config'].get('ceph_conf')
         self.gc_verification = self.doc['config'].get('gc_verification', False)
+        self.rgw_gc_obj_min_wait = self.doc['config'].get('rgw_gc_obj_min_wait',False)
         self.ssl = self.doc['config'].get('ssl',)
         self.frontend = self.doc['config'].get('frontend')
         self.io_op_config = self.doc.get('config').get('io_op_config')
