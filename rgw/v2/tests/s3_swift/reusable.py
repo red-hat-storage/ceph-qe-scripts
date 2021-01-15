@@ -155,6 +155,32 @@ def upload_version_object(config, user_info, rgw_conn, s3_object_name, object_si
         utils.exec_shell_cmd('sudo rm -rf %s' % s3_object_download_path)
     log.info('all versions for the object: %s\n' % s3_object_name)
 
+def download_object(s3_object_name, bucket, TEST_DATA_PATH, s3_object_path, config):
+    log.info('s3 object name to download: %s' % s3_object_name)
+    s3_object_download_name = s3_object_name + "." + "download"
+    s3_object_download_path = os.path.join(TEST_DATA_PATH, s3_object_download_name)
+    object_downloaded_status = s3lib.resource_op({'obj': bucket,
+                                                  'resource': 'download_file',
+                                                  'args': [s3_object_name,
+                                                           s3_object_download_path],
+                                                  })
+    if object_downloaded_status is False:
+        raise TestExecError("Resource execution failed: object download failed")
+    if object_downloaded_status is None:
+        log.info('object downloaded')
+
+    s3_object_downloaded_md5 = utils.get_md5(s3_object_download_path)
+    s3_object_uploaded_md5 = utils.get_md5(s3_object_path)
+    log.info('s3_object_downloaded_md5: %s' % s3_object_downloaded_md5)
+    log.info('s3_object_uploaded_md5: %s' % s3_object_uploaded_md5)
+    if str(s3_object_uploaded_md5) == str(s3_object_downloaded_md5):
+        log.info('md5 match')
+        utils.exec_shell_cmd('rm -rf %s' % s3_object_download_path)
+    else:
+        raise TestExecError('md5 mismatch')
+    if config.local_file_delete is True:
+        log.info('deleting local file created after the upload')
+        utils.exec_shell_cmd('rm -rf %s' % s3_object_path)
 
 def upload_object_with_tagging(s3_object_name, bucket, TEST_DATA_PATH, config, user_info, obj_tag, append_data=False,
                                append_msg=None):
@@ -480,7 +506,6 @@ def delete_version_object(bucket, s3_object_name, s3_object_path, rgw_conn, user
     :param s3_object_path: path of the object created in the client
     :param rgw_conn: rgw connection
     :param user_info: user info dict containing access_key, secret_key and user_id
-
     """
     versions = bucket.object_versions.filter(Prefix=s3_object_name)
     log.info('deleting s3_obj keys and its versions')
@@ -601,7 +626,6 @@ def time_to_list_via_radosgw(bucket_name,listing):
     Time taken to list via radosgw-admin command.
     :param bucket: s3Bucket object
     :param listing: ordered or unordered listing
-
     """
     if listing == 'ordered':
         log.info('listing via radosgw-admin bucket list --max-entries=.. --bucket <>')
