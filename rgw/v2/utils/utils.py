@@ -326,3 +326,18 @@ def get_ceph_version():
     ceph_version=exec_shell_cmd('sudo ceph version')
     version_id, version_name = ceph_version.split()[2], ceph_version.split()[4]
     return version_id, version_name
+
+
+def is_cluster_primary():
+    # checks if the cluster is primary or not
+    # if primary return True or return False if not, assume as secondary
+    log.info('verify if cluster is primary or not')
+    cmd = 'sudo radosgw-admin sync status'
+    out = exec_shell_cmd(cmd)
+    if "zone is master" in out:
+        log.info('cluster is primary')
+        return True
+    log.info('cluster is not primary')
+    return False
+
+
