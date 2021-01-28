@@ -8,15 +8,19 @@ from v2.lib.exceptions import ConfigError
 import names
 import random
 import string
+import json
 import inspect
 import yaml
 import v2.lib.s3.write_io_info as write_io_info
+import v2.utils.utils as utils
+from v2.lib.admin import AddUserInfo, BasicIOInfoStructure, TenantInfo
 import v2.lib.pem as pem
 import traceback
 import logging
 
 log = logging.getLogger()
 
+lib_dir = os.path.abspath(os.path.join(__file__, "../"))
 
 @write_io_info.logioinfo
 def resource_op(exec_info):
@@ -72,13 +76,30 @@ def create_users(no_of_users_to_create, cluster_name='ceph'):
     """
     admin_ops = UserMgmt()
     all_users_details = []
-    for i in range(no_of_users_to_create):
-        user_details = admin_ops.create_admin_user(
-            user_id=names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." + str(
-                random.randint(1, 1000)),
-            displayname=names.get_full_name().lower(),
-            cluster_name=cluster_name)
-        all_users_details.append(user_details)
+    primary = utils.is_cluster_primary()
+    user_detail_file = os.path.join(lib_dir, 'user_details.json')
+    if primary:
+        for i in range(no_of_users_to_create):
+            user_details = admin_ops.create_admin_user(
+                user_id=names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." + str(
+                    random.randint(1, 1000)),
+                displayname=names.get_full_name().lower(),
+                cluster_name=cluster_name)
+            all_users_details.append(user_details)
+        with open(user_detail_file, 'w') as fout:
+            json.dump(all_users_details, fout)
+    elif not primary:
+        if not os.path.exists(user_detail_file):
+            raise FileNotFoundError("user_details.json missing, this is needed in multisite setup")
+        with open(user_detail_file, 'r') as fout:
+            all_users_details = json.load(fout)
+        for each_user_info in all_users_details:
+            write_user_info = AddUserInfo()
+            basic_io_structure = BasicIOInfoStructure()
+            user_info = basic_io_structure.user(**{'user_id': each_user_info['user_id'],
+                                                   'access_key': each_user_info['access_key'],
+                                                   'secret_key': each_user_info['secret_key']})
+            write_user_info.add_user_info(user_info)
     return all_users_details
 
 
@@ -95,14 +116,33 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name='ceph')
     """
     admin_ops = UserMgmt()
     all_users_details = []
-    for i in range(no_of_users_to_create):
-        user_details = admin_ops.create_tenant_user(
-            user_id=names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." + str(
-                random.randint(1, 1000)),
-            displayname=names.get_full_name().lower(),
-            cluster_name=cluster_name,
-            tenant_name=tenant_name)
-        all_users_details.append(user_details)
+    primary = utils.is_cluster_primary()
+    user_detail_file = os.path.join(lib_dir, 'user_details.json')
+    if primary:
+        for i in range(no_of_users_to_create):
+            user_details = admin_ops.create_tenant_user(
+                user_id=names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." + str(
+                    random.randint(1, 1000)),
+                displayname=names.get_full_name().lower(),
+                cluster_name=cluster_name,
+                tenant_name=tenant_name)
+            all_users_details.append(user_details)
+        with open(user_detail_file, 'w') as fout:
+            json.dump(all_users_details, fout)
+    elif not primary:
+        if not os.path.exists(user_detail_file):
+            raise FileNotFoundError("user_details.json missing, this is needed in multisite setup")
+        with open(user_detail_file, 'r') as fout:
+            all_users_details = json.load(fout)
+        log.info('dump user_info into io_info.yaml')
+        for each_user_info in all_users_details:
+            write_user_info = AddUserInfo()
+            basic_io_structure = BasicIOInfoStructure()
+            tenant_info = TenantInfo()
+            user_info = basic_io_structure.user(**{'user_id': each_user_info['user_id'],
+                                                   'access_key': each_user_info['access_key'],
+                                                   'secret_key': each_user_info['secret_key']})
+            write_user_info.add_user_info(dict(user_info, **tenant_info.tenant(each_user_info['tenant'])))
     return all_users_details
 
 
