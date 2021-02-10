@@ -1,0 +1,20 @@
+# BZ id : 1892644#c52
+# script: test_LargeObjGet_1892644.py
+config:
+ user_count: 1
+ bucket_count: 1
+ objects_count: 1
+ gc_verification: true
+ local_file_delete: false
+ split_size: 5
+ objects_size_range:
+  min: 1G
+  max: 2G
+ test_ops:
+      create_bucket: true
+      create_object: true
+      upload_type: normal
+      delete_bucket_object: true
+
+
+
