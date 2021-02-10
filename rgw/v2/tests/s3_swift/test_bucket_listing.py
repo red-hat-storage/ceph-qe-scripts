@@ -203,7 +203,8 @@ def test_exec(config):
     crash_info=reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
-    reusable.remove_user(each_user)
+    if config.user_remove is True:
+    	reusable.remove_user(each_user)
     
 
 if __name__ == '__main__':

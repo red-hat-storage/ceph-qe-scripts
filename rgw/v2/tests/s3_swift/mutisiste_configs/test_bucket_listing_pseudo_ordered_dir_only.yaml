@@ -1,0 +1,17 @@
+config:
+ user_count: 1
+ bucket_count: 1
+ pseudo_dir_count: 50
+ objects_count: 0
+ objects_size_range:
+  min: 1
+  max: 1
+ local_file_delete: true
+ test_ops:
+      create_bucket: true
+      create_object: false
+      object_structure: pseudo-dir-only
+      radosgw_listing_ordered : true
+      radoslist : true  
+      delete_bucket_object: true
+
