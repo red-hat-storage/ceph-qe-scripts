@@ -167,6 +167,7 @@ class Config(object):
         self.max_objects = None
         self.user_count = self.doc['config'].get('user_count')
         self.user_remove = self.doc['config'].get('user_remove', True)
+        self.user_type = self.doc['config'].get('user_type')
         self.bucket_count = self.doc['config'].get('bucket_count')
         self.objects_count = self.doc['config'].get('objects_count')
         self.pseudo_dir_count = self.doc['config'].get('pseudo_dir_count')
