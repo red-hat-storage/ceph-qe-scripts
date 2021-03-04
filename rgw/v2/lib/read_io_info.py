@@ -7,6 +7,7 @@ from v2.utils.utils import FileOps
 from v2.utils import utils
 import boto3
 from v2.lib.exceptions import TestExecError
+from v2.utils.log import configure_logging
 import logging
 
 log = logging.getLogger()
@@ -22,9 +23,6 @@ def verify_key(each_key, bucket):
         Parameters:
             key(char): key to be verified
             bucket(char): bucket name
-        
-        Retuns:
-
     """
     log.info('verifying data for key: %s' % os.path.basename(each_key['name']))
     key_from_s3 = bucket.Object(os.path.basename(each_key['name']))
@@ -132,5 +130,7 @@ class ReadIOInfo(object):
 
 
 if __name__ == '__main__':
+    log_f_name = os.path.basename(os.path.splitext(__file__)[0])
+    configure_logging(f_name=log_f_name)
     read_io_info = ReadIOInfo()
     read_io_info.verify_io()
