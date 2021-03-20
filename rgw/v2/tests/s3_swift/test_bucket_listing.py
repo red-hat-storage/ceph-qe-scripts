@@ -134,12 +134,10 @@ def test_exec(config):
                 # listing bucket with only pseudo directories ; Bug allows ordered bucket listing to get stuck -- 4.1 https://bugzilla.redhat.com/show_bug.cgi?id=1853052#c0
                 if config.test_ops['create_object'] is False:
                     if config.test_ops['object_structure'] == 'pseudo-dir-only':
-                        ceph_version_id, ceph_version_name = utils.get_ceph_version()
-                        if ceph_version_name == 'nautilus':
-                            log.info(f'pseudo directories to create {config.pseudo_dir_count}')
-                            for count in range(config.pseudo_dir_count):
-                                s3_pseudo_dir_name = utils.gen_s3_object_name(bucket_name_to_create, count)
-                                utils.create_psuedo_dir(s3_pseudo_dir_name, bucket)
+                        log.info(f'pseudo directories to create {config.pseudo_dir_count}')
+                        for count in range(config.pseudo_dir_count):
+                            s3_pseudo_dir_name = utils.gen_s3_object_name(bucket_name_to_create, count)
+                            utils.create_psuedo_dir(s3_pseudo_dir_name, bucket)
 
                 # radoslist listing of the bucket
                 if config.test_ops['radoslist'] is True:
