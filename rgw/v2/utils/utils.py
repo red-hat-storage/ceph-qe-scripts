@@ -133,16 +133,31 @@ class RGWService(object):
         pass
 
     def restart(self):
-        executed = exec_shell_cmd('sudo systemctl restart ceph-radosgw.target')
-        return executed
+        ceph_version_id, ceph_version_name = get_ceph_version()
+        if ceph_version_name in ['luminous','nautilus']:
+            executed = exec_shell_cmd('sudo systemctl restart ceph-radosgw.target')
+            return executed
+        if ceph_version_name == 'pacific':
+            executed = exec_shell_cmd('sudo ceph orch restart rgw')
+            return executed
 
     def stop(self):
-        executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
-        return executed
-
+        ceph_version_id, ceph_version_name = get_ceph_version()
+        if ceph_version_name in ['luminous','nautilus']:
+            executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
+            return executed
+        if ceph_version_name == 'pacific':
+            executed = exec_shell_cmd('sudo ceph orch stop rgw')
+            return executed
+    
     def start(self):
-        executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
-        return executed
+        ceph_version_id, ceph_version_name = get_ceph_version()
+        if ceph_version_name in ['luminous','nautilus']:
+            executed = exec_shell_cmd('sudo systemctl start ceph-radosgw.target')
+            return executed
+        if ceph_version_name == 'pacific':
+            executed = exec_shell_cmd('sudo ceph orch start rgw')
+            return executed
 
 
 def get_radosgw_port_no():
@@ -169,8 +184,9 @@ def get_all_in_dir(path):
 
 
 def gen_bucket_name_from_userid(user_id, rand_no=0):
-    log.info('generating bucket name or basedir to create')
-    bucket_name_to_create = user_id + "_" + BUCKET_NAME_PREFIX + "_" + str(rand_no)
+    log.info('generating bucket name or basedir to create') 
+    # BZ1942136 : In pacific,bucket creation with underscore( _ ) fails with 'InvalidBucketName'
+    bucket_name_to_create = user_id + "-" + BUCKET_NAME_PREFIX + "-" + str(rand_no) 
     log.info('bucket or basedir name to create generated: %s' % bucket_name_to_create)
     return bucket_name_to_create
 
