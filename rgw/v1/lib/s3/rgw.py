@@ -15,8 +15,8 @@ def create_users(no_of_users_to_create, cluster_name='ceph'):
     all_users_details = []
     for i in range(no_of_users_to_create):
         user_details = admin_ops.create_admin_user(
-            names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "." +
-            str(random.randint(1, 1000)) + ".",
+            names.get_first_name().lower() + random.choice(string.ascii_lowercase) + "-" +
+            str(random.randint(1, 1000)),
             names.get_full_name().lower(), cluster_name)
         all_users_details.append(user_details)
     return all_users_details
@@ -59,7 +59,8 @@ class BucketOps(BaseOp):
         log.info('buckets_creating......')
         for bucket_no in range(self.bucket_create_nos):
             log.debug('iter: %s' % bucket_no)
-            bucket_name = self.user_id + "." + str('bucky') + "." + str(bucket_no)
+            # BZ1942136 : In pacific,bucket creation with ( . ) fails with 'InvalidBucketName'
+            bucket_name = self.user_id + "-" + str('bucky') + "-" + str(bucket_no)
             self.bucket_names.append(bucket_name)
             log.info('bucket_name: %s' % bucket_name)
             bucket_created = self.bucket_ops.create(bucket_name, self.json_file_upload)

@@ -351,7 +351,7 @@ def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, 
         if entry['status'] == 'COMPLETE' or entry['status'] == 'PROCESSING':
             log.info('LC is applied on the bucket')
         else:
-            log.info('LC is not applied')
+            raise TestExecError('LC is not applied')
 
 
 def remove_user(user_info, cluster_name='ceph'):

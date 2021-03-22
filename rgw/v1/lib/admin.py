@@ -12,7 +12,7 @@ class UserMgmt(object):
     def create_admin_user(self, username, displayname, cluster_name='ceph'):
         try:
             add_io_info = AddIOInfo()
-            cmd = 'radosgw-admin user create --uid=%s --display-name=%s --cluster %s' % (
+            cmd = 'radosgw-admin user create --uid="%s" --display-name="%s" --cluster %s' % (
             username, displayname, cluster_name)
             log.info('cmd: %s' % cmd)
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)

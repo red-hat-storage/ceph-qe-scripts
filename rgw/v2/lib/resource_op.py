@@ -3,7 +3,7 @@ import os, sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 from v2.lib.admin import UserMgmt
 # import v2.lib.frontend_configure as frontend_configure
-from v2.lib.frontend_configure import Frontend
+from v2.lib.frontend_configure import Frontend,Frontend_CephAdm
 from v2.lib.exceptions import ConfigError
 import names
 import random
@@ -182,6 +182,7 @@ class Config(object):
         self.bucket_policy_op = self.doc['config'].get('bucket_policy_op')
         self.container_count = self.doc['config'].get('container_count')
         self.version_count = self.doc['config'].get('version_count')
+        self.version_enable = self.doc['config'].get('version_enable', False)
         self.local_file_delete = self.doc['config'].get('local_file_delete', False)
         self.ceph_conf = self.doc['config'].get('ceph_conf')
         self.gc_verification = self.doc['config'].get('gc_verification', False)
@@ -189,7 +190,11 @@ class Config(object):
         self.ssl = self.doc['config'].get('ssl',)
         self.frontend = self.doc['config'].get('frontend')
         self.io_op_config = self.doc.get('config').get('io_op_config')
-        frontend_config = Frontend()
+        ceph_version_id, ceph_version_name = utils.get_ceph_version()
+        if ceph_version_name in ['luminous','nautilus']:
+            frontend_config = Frontend()
+        if ceph_version_name == 'pacific':
+            frontend_config = Frontend_CephAdm()
 
         # if frontend is set in config yaml
         if self.frontend:

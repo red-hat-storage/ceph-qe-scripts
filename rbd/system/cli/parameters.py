@@ -1,9 +1,13 @@
 import os
 import sys
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../..")))
+
 import itertools
 import utils.utils as utils
 import utils.log as log
+
+from copy import deepcopy
 
 rep_pool = {'arg': '-p', 'val': {}}
 
@@ -71,11 +75,15 @@ stripe_v3 = stripe_v4 = {'arg': ['--stripe-unit', '--stripe-count'],
                                  'size_B': ['2048B', '16'],
                                  'size_KB': ['64K', '16'],
                                  'size_MB': ['16M', '16']}}
+
+stripe_v5 = deepcopy(stripe_v4)
              
 io_type_v2 = {'arg': '', 'val': {'write': 'write'}}
 
 io_type_v3 = io_type_v4 = {'arg': ' --io-type', 'val': {'read': 'read',
                                                         'write': 'write'}}
+
+io_type_v5 = deepcopy(io_type_v4)
 
 export_format_v2 = {'arg': None, 'val': {None: None}}
 
@@ -83,6 +91,9 @@ export_format_v3 = export_format_v4 = {'arg': '--export-format',
                                        'val': {None: None,
                                                'export-format 1': '1',
                                                'export-format 2': '2'}}
+
+export_format_v5 = deepcopy(export_format_v4)
+
 
 class CliParams(object):
 

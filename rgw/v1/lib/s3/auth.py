@@ -2,6 +2,7 @@ import boto.s3.connection
 import boto.exception as exception
 import v1.utils.log as log
 import v1.utils.utils as utils
+import v2.utils.utils as utils_v2
 import socket
 import os
 import json
@@ -27,7 +28,7 @@ class Authenticate(object):
         self.access_key = access_key
         self.secret_key = secret_key
         self.hostname = socket.gethostname()
-        self.port = 8080
+        self.port = int(utils_v2.get_radosgw_port_no())
         self.is_secure = False
         self.user_id = user_id
         self.json_file_upload = self.user_id + "." + "upload" + "." + "json"
