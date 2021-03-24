@@ -189,7 +189,11 @@ class Config(object):
         self.ssl = self.doc['config'].get('ssl',)
         self.frontend = self.doc['config'].get('frontend')
         self.io_op_config = self.doc.get('config').get('io_op_config')
-        frontend_config = Frontend()
+        ceph_version_id, ceph_version_name = utils.get_ceph_version()
+        if ceph_version_name in ['luminous','nautilus']:
+            frontend_config = Frontend()
+        if ceph_version_name == 'Pacific':
+            frontend_config = Frontend_CephAdm()
 
         # if frontend is set in config yaml
         if self.frontend:
