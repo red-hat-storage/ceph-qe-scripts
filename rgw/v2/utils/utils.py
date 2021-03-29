@@ -127,6 +127,16 @@ def make_copy_of_file(f1, f2):
     else:
         return os.path.abspath(f2)
 
+def get_cluster_fsid():
+    cluster_fsid=exec_shell_cmd('sudo ceph config get mon fsid')
+    return cluster_fsid.rstrip("\n")
+
+def get_rgw_service_name():
+    rgw_orch_ls=exec_shell_cmd('sudo ceph orch ls rgw -f json-pretty')
+    rgw_service=json.loads(rgw_orch_ls)
+    rgw_service_name=rgw_service[0]['service_name']
+    return rgw_service_name
+
 
 class RGWService(object):
     def __init__(self):
@@ -138,7 +148,8 @@ class RGWService(object):
             executed = exec_shell_cmd('sudo systemctl restart ceph-radosgw.target')
             return executed
         if ceph_version_name == 'pacific':
-            executed = exec_shell_cmd('sudo ceph orch restart rgw')
+            cmd='sudo ceph orch restart %s' %get_rgw_service_name()
+            executed = exec_shell_cmd(cmd)
             return executed
 
     def stop(self):
@@ -147,7 +158,8 @@ class RGWService(object):
             executed = exec_shell_cmd('sudo systemctl stop ceph-radosgw.target')
             return executed
         if ceph_version_name == 'pacific':
-            executed = exec_shell_cmd('sudo ceph orch stop rgw')
+            cmd='sudo ceph orch stop %s' %get_rgw_service_name()
+            executed = exec_shell_cmd(cmd)
             return executed
     
     def start(self):
@@ -156,7 +168,8 @@ class RGWService(object):
             executed = exec_shell_cmd('sudo systemctl start ceph-radosgw.target')
             return executed
         if ceph_version_name == 'pacific':
-            executed = exec_shell_cmd('sudo ceph orch start rgw')
+            cmd='sudo ceph orch start  %s' %get_rgw_service_name()
+            executed = exec_shell_cmd(cmd)
             return executed
 
 
