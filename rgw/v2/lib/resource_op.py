@@ -182,6 +182,7 @@ class Config(object):
         self.bucket_policy_op = self.doc['config'].get('bucket_policy_op')
         self.container_count = self.doc['config'].get('container_count')
         self.version_count = self.doc['config'].get('version_count')
+        self.version_enable = self.doc['config'].get('version_enable', False)
         self.local_file_delete = self.doc['config'].get('local_file_delete', False)
         self.ceph_conf = self.doc['config'].get('ceph_conf')
         self.gc_verification = self.doc['config'].get('gc_verification', False)
