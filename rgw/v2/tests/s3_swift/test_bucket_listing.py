@@ -146,10 +146,16 @@ def test_exec(config):
                     if radoslist is False:
                         raise TestExecError ("Radoslist command execution failed")
                 
-                # get the configuration parameter 
-                cmd = 'ceph daemon `ls -t /var/run/ceph/ceph-client.rgw.*.asok|head -1` config show |grep  rgw_bucket_index_max_aio'
-                max_aio_output = utils.exec_shell_cmd(cmd)
-                max_aio = max_aio_output.split()[1] 
+                # get the configuration parameter - rgw_bucket_index_max_aio
+                ceph_version_id, ceph_version_name = utils.get_ceph_version()
+                if ceph_version_name in ['luminous','nautilus']:
+                    cmd = 'ceph daemon `ls -t /var/run/ceph/ceph-client.rgw.*.asok|head -1` config show |grep  rgw_bucket_index_max_aio'
+                    max_aio_output = utils.exec_shell_cmd(cmd)
+                    max_aio = max_aio_output.split()[1] 
+                if ceph_version_name == 'pacific':
+                    cmd = 'ceph config get mon rgw_bucket_index_max_aio'
+                    max_aio_output = utils.exec_shell_cmd(cmd)
+                    max_aio = max_aio_output.rstrip("\n")
                 
                 # bucket stats to get the num_objects of the bucket
                 bucket_stats=utils.exec_shell_cmd("radosgw-admin bucket stats --bucket  %s" % bucket_name_to_create)
