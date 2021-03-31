@@ -62,7 +62,7 @@ def test_exec(config):
     ceph_version = utils.exec_shell_cmd("ceph version")
     op = ceph_version.split()
     for i in op:
-        if i == 'nautilus':
+        if i in ['nautilus','pacific']:
                 ceph_conf.set_to_ceph_conf('global', ConfigOpts.rgw_lc_max_worker, str(config.rgw_lc_max_worker))
     log.info('trying to restart services')
     srv_restarted = rgw_service.restart()
