@@ -12,6 +12,7 @@ PASSED_COUNT = 0
 FAILED_COMMANDS = []
 PASSED_COMMANDS = []
 
+
 def exec_cmd(args):
     rc = cli.rbd.exec_cmd(args)
     log.info(args)
