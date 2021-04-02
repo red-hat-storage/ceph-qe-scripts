@@ -11,6 +11,7 @@ PASSED_COUNT = 0
 FAILED_COMMANDS = []
 PASSED_COMMANDS = []
 
+
 def exec_cmd(args):
     rc = cli.rbd.exec_cmd(args)
     if rc is False:
@@ -92,8 +93,10 @@ if __name__ == "__main__":
 
     # Mapping Images to block-device
     iterator += 1
-    if 'ubuntu' in exec_cmd('lsb_release -is').lower():
+    ubuntu_rel = exec_cmd('lsb_release -is')
+    if isinstance(ubuntu_rel, str) and 'ubuntu' in ubuntu_rel.lower():
         exec_cmd('ceph osd crush tunables hammer')
+
     exec_cmd('rbd create -s 5G --image-feature layering {}/img{}'
              .format(parameters.rep_pool['val']['pool0'], iterator))
     exec_cmd('rbd snap create {}/img{}@snapmapimg'

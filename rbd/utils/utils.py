@@ -18,6 +18,8 @@ class RbdUtils:
             return 3
         elif self.output == 14:
             return 4
+        elif self.output == 16:
+            return 5
 
     def exec_cmd(self, cmd):
 
