@@ -24,6 +24,7 @@ from v2.lib.s3.auth import Auth
 import v2.utils.utils as utils
 from v2.utils.log import configure_logging
 import traceback
+import random 
 import argparse
 import yaml
 from v2.lib.exceptions import TestExecError, RGWBaseException
@@ -58,8 +59,8 @@ def test_exec(config):
     user_names = ['user1', 'user2', 'user3']
     Bucket_names = ['bucket1', 'bucket2', 'bucket3']
     object_names = ['o1', 'o2']
-    tenant1 = 'tenant1'
-    tenant2 = 'tenant2'
+    tenant1 = 'tenant1'+'_'+str(random.randrange(1, 100))
+    tenant2 = 'tenant2'+'_'+str(random.randrange(1, 100))
     t1_u1_info = create_tenant_user(tenant_name=tenant1, user_id=user_names[0])
     t1_u1_auth = Auth(t1_u1_info, ssl=config.ssl)
     t1_u1 = t1_u1_auth.do_auth()
