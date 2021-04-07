@@ -7,6 +7,7 @@
         test_indexless_buckets_s3.yaml
 """
 
+=======
 import os, sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -111,7 +112,7 @@ def test_exec(config):
     restart_service = rgw_service.restart()
     if restart_service is False:
         raise TestExecError("RGW service restart failed")
-
+    
     # check for any crashes during the execution
     crash_info=reusable.check_for_crash()
     if crash_info:
@@ -158,3 +159,7 @@ if __name__ == '__main__':
         log.info(traceback.format_exc())
         test_info.failed_status('test failed')
         sys.exit(1)
+<<<<<<< HEAD
+=======
+
+>>>>>>> 964eb83... Add test on indexless(blind) buckets
