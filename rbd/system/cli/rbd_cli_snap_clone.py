@@ -121,6 +121,7 @@ if __name__ == "__main__":
     combinations = cli.generate_combinations(
         "object_size", "stripe", "image_feature", "image_shared"
     )
+
     if cli.ceph_version == 2:
         invalid = [
             val
@@ -132,6 +133,21 @@ if __name__ == "__main__":
             )
         ]
         map(lambda val: combinations.remove(val), invalid)
+
+    if cli.ceph_version == 5:
+        invalid = [
+            val
+            for val in combinations
+            if (
+                cli.search_param_val("--object-size", val) != 0
+                and (
+                    cli.search_param_val("--stripe-count", val) == 0
+                    or cli.search_param_val("--stripe-unit", val) == 0
+                )
+            )
+        ]
+        for val in invalid:
+            combinations.remove(val)
 
     combinations = filter(
         lambda val: cli.get_byte_size(cli.search_param_val("--stripe-unit", val))
@@ -160,12 +176,14 @@ if __name__ == "__main__":
 
     for val in rem_list:
         combinations.remove(val)
+
     for val in add_list:
         combinations.append(val)
 
     for iterator3, param in enumerate(combinations, start=0):
         if iterator3 == 4:
             iterator += 1
+
         exec_cmd(
             "rbd clone {} {pool}/img{}@snapimg{} {} {pool}/cloneimg{}".format(
                 param,
