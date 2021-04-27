@@ -114,7 +114,6 @@ def test_exec(config):
     ip_and_port = rgw.authurl.split('/')[2]
     url = 'http://{}/swift/v1/?bulk-delete'.format(ip_and_port)
     test_file = open("test.txt", "r")
-    
     headers = {"Accept": "application/json", "Content-Type": "text/plain",
                "X-Auth-Token": token}
     response = requests.delete(url, headers=headers,
