@@ -1,0 +1,66 @@
+nuke-on-error: true
+overrides:
+  admin_socket:
+    branch: pacific
+  ansible.cephlab:
+    tags: zap,epel,hostname,lvm,partition,secondary-nic,packages,repos
+  rhceph_ansible:
+    rhbuild: '5.0'
+    vars:
+      ceph_origin: distro
+      ceph_repository: rhcs
+      ceph_stable: true
+      ceph_stable_release: nautilus
+      ceph_stable_rh_storage: true
+      ceph_test: true
+      journal_size: 1024
+      osd_auto_discovery: false
+      dashboard_enabled: false
+      osd_objectstore: bluestore
+      osd_scenario: collocated
+  rhcephadm:
+    containers:
+      image: "registry-proxy.engineering.redhat.com/rh-osbs/rhceph:ceph-5.0-rhel-8-containers-candidate-71136-20200701211034"
+      cephadm_branch: "rh-octopus"
+    conf:
+      mgr:
+        debug mgr: 20
+        debug ms: 1
+      mon:
+        debug mon: 20
+        debug ms: 1
+        debug paxos: 20
+      osd:
+        debug filestore: 20
+        debug journal: 20
+        debug ms: 1
+        debug osd: 25
+    log-whitelist:
+      - \(MDS_ALL_DOWN\)
+      - \(MDS_UP_LESS_THAN_MAX\)
+      - slow request
+  cbt:
+    repo: 'https://github.com/vasukulkarni/cbt'
+    branch: 'wip-archive'
+  install:
+    ceph:
+      log-whitelist:
+        - WRN
+        - wrn
+      fs: xfs
+      rhbuild: '5.0'
+  selinux:
+    whitelist:
+      - /home/ubuntu/cephtest/
+      - /var/lib/ceph/tmp/ceph-disk.activate.lock
+      - comm="sh"
+      - comm="mgr-fin"
+      - comm="msgr-worker-1"
+      - comm="userdel"
+redhat:
+  base-repo-url: http://download.eng.bos.redhat.com/rhel-8/composes/raw/ceph-5.0-rhel-8/latest-RHCEPH-5-RHEL-8/
+  rhbuild: 5.0
+  registries:
+    insecure: ["registry-proxy.engineering.redhat.com"]
+run-cm-ansible: true
+suite_relpath: qa
