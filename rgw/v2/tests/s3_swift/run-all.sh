@@ -12,6 +12,7 @@ scripts=("python3 $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_Mbuck
          "python3 $DIR/test_Mbuckets_with_Nobjects.py -c $DIR/configs/test_Mbuckets_with_Nobjects_sharding.yaml"
          "python3 $DIR/test_multitenant_user_access.py -c $DIR/configs/test_multitenant_access.yaml"
          "python3 $DIR/test_swift_basic_ops.py -c $DIR/configs/test_swift_basic_ops.yaml" # needs to check
+         "python3 $DIR/test_swift_bulk_delete.py -c $DIR/configs/test_swift_bulk_delete.yaml" # needs to check
          "python3 $DIR/test_tenant_user_secret_key.py -c $DIR/configs/test_tenantuser_secretkey_gen.yaml"
          "python3 $DIR/test_versioning_copy_objects.py -c $DIR/configs/test_versioning_copy_objects.yaml"
          "python3 $DIR/test_versioning_with_objects.py -c $DIR/configs/test_versioning_enable.yaml"
