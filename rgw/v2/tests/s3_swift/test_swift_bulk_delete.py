@@ -15,29 +15,32 @@ Operation:
     Delete container
 """
 
-# test swift bulk delete
-import os, sys
-import requests
 
-sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
-from v2.lib.resource_op import Config
-import v2.utils.utils as utils
-from v2.utils.log import configure_logging
-import traceback
 import argparse
-import yaml
-from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
-from v2.utils.utils import HttpResponseParser, RGWService
 import json
-import v2.lib.resource_op as swiftlib
+import logging
+import os
+import requests
+import sys
+import time
+import traceback
+import yaml
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
+
+
+from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import TestExecError, RGWBaseException
-from v2.utils.test_desc import AddTestInfo
+from v2.lib import manage_data
+from v2.lib import resource_op as swiftlib
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.lib.swift.auth import Auth
+from v2.utils import utils
+from v2.utils.log import configure_logging
+from v2.utils.utils import HttpResponseParser, RGWService
+from v2.utils.test_desc import AddTestInfo
 from v2.tests.s3_swift import reusable
-import v2.lib.manage_data as manage_data
-from v2.lib.admin import UserMgmt
-import logging, time
+from v2.tests.s3_swift.test_swift_basic_ops import fill_container
 
 log = logging.getLogger()
 
@@ -45,11 +48,17 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-# create user
-# create subuser
-# create container
-# upload object
 def fill_container(rgw, container_name, user_id, oc, cc, size):
+    """
+    Uploads objects to the container
+    Args:
+        rgw(object): RGW object
+        container_name(str): Container name
+        user_id(str): User ID
+        oc(int): object count
+        cc(int): container count
+        size(int): Object size
+    """
     swift_object_name = utils.gen_s3_object_name('%s.container.%s' % (user_id, cc), oc)
     log.info('object name: %s' % swift_object_name)
     object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
@@ -64,8 +73,13 @@ def fill_container(rgw, container_name, user_id, oc, cc, size):
                        contents=fp.read(),
                        content_type='text/plain')
     return swift_object_name
-def test_exec(config):
 
+def test_exec(config):
+    """
+    Executes test based on configuration passed
+    Args:
+        config(object): Test configuration
+    """
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -81,7 +95,7 @@ def test_exec(config):
     auth = Auth(user_info)
     rgw = auth.do_auth()
 
-    container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
+    container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=0)
     container = swiftlib.resource_op({'obj': rgw,
                                       'resource': 'put_container',
                                       'args': [container_name]})
@@ -89,10 +103,9 @@ def test_exec(config):
         raise TestExecError("Resource execution failed: container creation faield")
     for oc, size in list(config.mapped_sizes.items()):
         # upload objects to the container
-        swift_object_name = fill_container(rgw, container_name, user_names[0], oc, cc, size)
+        swift_object_name = fill_container(rgw, container_name, user_names[0], oc, 0, size)
         # delete all uploaded objects
         log.info('deleting all swift objects')
-    # delete container
     auth_response = rgw.get_auth()
     token = auth_response[1]
     # test.txt file should contain container_name
@@ -106,11 +119,9 @@ def test_exec(config):
     response = requests.delete(url, headers=headers,
                                files={"form_field_name": test_file})
     if response.status_code == 200:
-        print('Bulk delete succeeded')
+        log.info('Bulk delete succeeded')
     else:
-        print('Bulk delete failed with status code: %d' response.status_code)
-    log.info('deleting swift container')
-    rgw.delete_container(container_name)
+        raise TestExecError('Bulk delete failed with status code: %d' % response.status_code)
 
     # check for any crashes during the execution
     crash_info=reusable.check_for_crash()
@@ -140,7 +151,7 @@ if __name__ == '__main__':
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name,
                           set_level=args.log_level.upper())
-        config = Config(yaml_file)
+        config = swiftlib.Config(yaml_file)
         config.read()
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
