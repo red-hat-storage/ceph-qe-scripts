@@ -87,11 +87,11 @@ def test_exec(config):
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
     # preparing data
-    user_names = ['tuffy', 'scooby', 'max']
+    user_names = ['tom', 'ram', 'sam']
     tenant = 'tenant'
-    tenant_user_info = umgmt.create_tenant_user(tenant_name=tenant, user_id=user_names[0],
-                                                displayname=user_names[0])
-    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[0])
+    tenant_user_info = umgmt.create_tenant_user(tenant_name=tenant, user_id=user_names[1],
+                                                displayname=user_names[1])
+    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[1])
     auth = Auth(user_info)
     rgw = auth.do_auth()
 
@@ -103,7 +103,7 @@ def test_exec(config):
         raise TestExecError("Resource execution failed: container creation faield")
     for oc, size in list(config.mapped_sizes.items()):
         # upload objects to the container
-        swift_object_name = fill_container(rgw, container_name, user_names[0], oc, 0, size)
+        swift_object_name = fill_container(rgw, container_name, user_names[1], oc, 0, size)
         # delete all uploaded objects
         log.info('deleting all swift objects')
     auth_response = rgw.get_auth()
