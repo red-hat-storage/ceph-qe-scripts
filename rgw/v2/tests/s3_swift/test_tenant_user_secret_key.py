@@ -25,6 +25,7 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.lib.swift.auth import Auth
 import v2.lib.manage_data as manage_data
 from v2.tests.s3_swift import reusable
+import random
 
 TEST_DATA_PATH = None
 import logging
@@ -47,7 +48,7 @@ def test_exec(config):
 
     # preparing data
     user_names = ['tuffy', 'scooby', 'max']
-    tenant1 = 'tenant'
+    tenant1 = 'tenant' + '_' + str(random.randrange(1, 100))
     cmd = 'radosgw-admin user create --uid=%s --display-name="%s" --tenant=%s' % (
     user_names[0], user_names[0], tenant1)
     out = utils.exec_shell_cmd(cmd)
