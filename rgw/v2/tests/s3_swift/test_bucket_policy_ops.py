@@ -97,7 +97,7 @@ def test_exec(config):
         raise TestExecError("Resource execution failed: bucket creation faield")
     if put_policy is not None:
         response = HttpResponseParser(put_policy)
-        if response.status_code == 200:
+        if response.status_code == 200 or response.status_code == 204:
             log.info('bucket policy created')
         else:
             raise TestExecError("bucket policy creation failed")
