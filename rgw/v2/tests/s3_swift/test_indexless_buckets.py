@@ -42,7 +42,7 @@ def test_exec(config):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     rgw_service = RGWService()
-
+    
     log.info('adding indexless placement to placement target of default zonegroup')
     zonegroup_set = utils.exec_shell_cmd('radosgw-admin zonegroup placement add --rgw-zonegroup="default" --placement-id="indexless-placement"')
     
@@ -56,6 +56,8 @@ def test_exec(config):
     restart_service = rgw_service.restart()
     if restart_service is False:
         raise TestExecError("RGW service restart failed")
+    log.info('sleep for 20 seconds after RGW service restart')
+    time.sleep(20)
 
     # perform s3 operations
     all_users_info = s3lib.create_users(config.user_count)
@@ -115,6 +117,8 @@ def test_exec(config):
     restart_service = rgw_service.restart()
     if restart_service is False:
         raise TestExecError("RGW service restart failed")
+    log.info('sleep for 20 seconds after RGW service restart')
+    time.sleep(20)
 
     # check for any crashes during the execution
     crash_info=reusable.check_for_crash()
