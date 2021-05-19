@@ -103,7 +103,7 @@ def test_exec(config):
         raise TestExecError("Resource execution failed: container creation faield")
     for oc, size in list(config.mapped_sizes.items()):
         # upload objects to the container
-        swift_object_name = fill_container(rgw, container_name, user_names[0], oc, 0, size)
+        swift_object_name = fill_container(rgw, container_name, user_names[1], oc, 0, size)
         # delete all uploaded objects
         log.info('deleting all swift objects')
     auth_response = rgw.get_auth()

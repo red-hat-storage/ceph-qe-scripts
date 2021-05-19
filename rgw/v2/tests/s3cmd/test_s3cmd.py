@@ -21,10 +21,10 @@ import json
 import logging
 import os
 import requests
+import socket
 import sys
 import time
 import traceback
-import uuid
 import yaml
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
@@ -32,18 +32,17 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import TestExecError, RGWBaseException
 from v2.lib import manage_data
-from v2.lib import resource_op as swiftlib
+from v2.lib import resource_op
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
-from v2.lib.swift.auth import Auth
-from v2.lib.s3.s3cmd import auth as s3_auth
-from v2.lib.s3.s3cmd.resource_op import S3CMD
+from v2.lib.s3cmd import auth as s3_auth
+from v2.lib.s3cmd.resource_op import S3CMD
 from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
 from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.utils import HttpResponseParser, RGWService
 from v2.utils.test_desc import AddTestInfo
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.tests.s3_swift import reusable
-from v2.tests.s3_swift.test_swift_basic_ops import fill_container
 
 log = logging.getLogger()
 
@@ -61,60 +60,37 @@ def test_exec(config):
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
     # preparing data
-    user_name = str(uuid.uuid1()).split('-')[0]
+    user_name = resource_op.create_users(no_of_users_to_create=1)[0]['user_id']
     tenant = 'tenant'
     tenant_user_info = umgmt.create_tenant_user(tenant_name=tenant,
                                                 user_id=user_name,
                                                 displayname=user_name)
     user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_name)
 
-    auth = Auth(user_info)
-    rgw = auth.do_auth()
+    hostname = socket.gethostname()
+    ip = socket.gethostbyname(hostname)
+    port = utils.get_radosgw_port_no()
 
-    ip_and_port = rgw.authurl.split('/')[2]
+    ip_and_port = '%s:%s' % (ip, port)
     s3_auth.do_auth(tenant_user_info, ip_and_port)
 
     bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
 
     #Create a bucket
-    create_bucket = S3CMD(operation="mb")
-    create_bucket.command(params=["s3://{}".format(bucket_name)])
-    create_bucket_response = str(create_bucket.execute())
-    expected_response = "Bucket 's3://{}/' created".format(bucket_name)
-    error_message = 'Expected: %s, Actual: %s' % (
-        expected_response, create_bucket_response)
-    assert expected_response in create_bucket_response, error_message 
-
-    #Create a file to upload to bucket
-    file_name = 'test_s3cmd.txt'
-    with open(file_name, 'w') as f:
-        f.write('Test file')
+    s3cmd_reusable.create_bucket(bucket_name)
+    log.info('Bucket %s created' % bucket_name)
 
     #Upload file to bucket
-    upload_file = S3CMD(operation="put")
-    remote_s3_path = "s3://{}/{}".format(bucket_name,file_name)
-    upload_file.command(params=[file_name, remote_s3_path])
-    upload_file_response = upload_file.execute()
-    assert '100%' in str(upload_file_response), 'upload file operation not succeeded'
+    uploaded_file = s3cmd_reusable.upload_file(bucket_name)
+    log.info('Uploaded file %s to bucket %s' %(uploaded_file, bucket_name))
 
     #Delete file from bucket
-    delete_file = S3CMD(operation="del")
-    delete_file.command(params=[remote_s3_path])
-    delete_file_response = str(delete_file.execute())
-    expected_response = "delete: '{}'".format(remote_s3_path)
-    error_message = 'Expected: %s, Actual: %s' % (
-        expected_response, delete_file_response)
-    assert expected_response in delete_file_response, error_message
+    s3cmd_reusable.delete_file(bucket_name, uploaded_file)
+    log.info('Deleted file %s from bucket %s' %(uploaded_file, bucket_name))
 
     #Delete bucket
-    delete_bucket = S3CMD(operation="rb")
-    delete_bucket.command(params=["s3://{}".format(bucket_name)])
-    delete_bucket_response = str(delete_bucket.execute())
-    expected_response = "Bucket 's3://{}/' removed".format(bucket_name)
-    error_message = 'Expected: %s, Actual: %s' % (
-        expected_response, delete_file_response)
-    assert expected_response in delete_bucket_response, error_message
-
+    s3cmd_reusable.delete_bucket(bucket_name)
+    log.info('Bucket %s deleted' % bucket_name)
 
     # check for any crashes during the execution
     crash_info=reusable.check_for_crash()
@@ -144,7 +120,7 @@ if __name__ == '__main__':
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name,
                           set_level=args.log_level.upper())
-        config = swiftlib.Config(yaml_file)
+        config = resource_op.Config(yaml_file)
         config.read()
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
