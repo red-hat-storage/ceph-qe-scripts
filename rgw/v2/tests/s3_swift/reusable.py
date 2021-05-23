@@ -293,6 +293,43 @@ def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
     else:
         raise TestExecError("version enable failed")
 
+def generate_totp(seed):
+    cmd='oathtool -d6 --totp %s' %seed
+    totp_token=utils.exec_shell_cmd(cmd)
+    return totp_token.rstrip("\n")
+
+def enable_mfa_versioning(bucket, rgw_conn, SEED, serial, user_info, write_bucket_io_info):
+    log.info('bucket MFA and versioning test on bucket: %s' % bucket.name)
+    bucket_versioning = s3lib.resource_op({'obj': rgw_conn,
+                                           'resource': 'BucketVersioning',
+                                           'args': [bucket.name]})
+    # checking the versioning status
+    version_status = s3lib.resource_op({'obj': bucket_versioning,
+                                        'resource': 'status',
+                                        'args': None
+                                        })
+    if version_status is None:
+        log.info('bucket mfa and versioning still not enabled')
+    
+    # generate MFA token to authenticate
+    token=generate_totp(SEED)
+    mfa_token=serial +" "+token
+
+    # put mfa and bucket versioning
+    mfa_version_put = s3lib.resource_op({'obj': bucket_versioning,
+                                               'resource': 'put',
+                                               'kwargs': dict(MFA=(mfa_token),
+                                                            VersioningConfiguration = {'MFADelete' : 'Enabled','Status' : 'Enabled'},
+                                                            ExpectedBucketOwner=user_info['user_id'])})
+
+    if mfa_version_put is False:
+        return token, mfa_version_put
+
+    response = HttpResponseParser(mfa_version_put)
+    if response.status_code == 200:
+        log.info('MFA and version enabled')
+    else:
+        raise MFAVersionError('bucket mfa and versioning enable failed')
 
 def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, config):
     bucket_life_cycle = s3lib.resource_op({'obj': rgw_conn,
