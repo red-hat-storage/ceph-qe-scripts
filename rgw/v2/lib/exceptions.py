@@ -48,3 +48,10 @@ class NFSGaneshaMountError(NFSGaneshaBaseException):
     def __init__(self, message=None, ):
         super().__init__(message)
         self.message = message
+
+
+class InvalidCephConfigOption(RGWBaseException):
+    # Invalid ceph config error
+    def __init__(self, message=None, ):
+        super().__init__(message)
+        self.message = message
