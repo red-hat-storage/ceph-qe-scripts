@@ -7,6 +7,7 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     Note: any one of these yamls can be used
     test_swift_basic_ops.yaml
     test_swift_versioning.yaml
+    test_swift_version_copy_op.yaml
 
 Operation:
     Create swift user
@@ -17,6 +18,7 @@ Operation:
     Modify downloaded objects and re-upload it to the container
     Delete objects from container
     Delete container
+    Copy versioned object
 """
 
 # test swift basic ops
@@ -107,26 +109,41 @@ def test_exec(config):
                                               'args': [container_name, {'X-Versions-Location': container_name_old}]})
             if container is False:
                 raise TestExecError("Resource execution failed: container creation failed")
+            ls = []
+            swift_object_name = ""
             for version_count in range(config.version_count):
                 for oc, size in list(config.mapped_sizes.items()):
                     swift_object_name = fill_container(rgw, container_name, user_names[0], oc, cc, size)
-            current_count = 'radosgw-admin bucket stats --uid={uid} --tenant={tenant} --bucket=\'{bucket}\' ' \
-                            .format(uid=user_names[0], tenant=tenant, bucket=container_name)
-            num_obj_current = utils.exec_shell_cmd(current_count)
-            num_obj_current = json.loads(num_obj_current)
-            num_obj_current = num_obj_current[0].get('usage').get('rgw.main').get('num_objects')
-            old_count = 'radosgw-admin bucket stats --uid={uid} --tenant={tenant} --bucket=\'{bucket}\' '\
-                .format(uid=user_names[0], tenant=tenant, bucket=container_name_old)
-            num_obj_old = utils.exec_shell_cmd(old_count)
-            num_obj_old = json.loads(num_obj_old)
-            num_obj_old = num_obj_old[0].get('usage').get('rgw.main').get('num_objects')
-            version_count_from_config = (config.objects_count * config.version_count) - config.objects_count
-            if (num_obj_current == config.objects_count) and (num_obj_old == version_count_from_config):
-                test_info.success_status('test passed')
-                sys.exit(0)
+                ls = rgw.get_container(container_name_old)
+                ls = list(ls)
+            if config.copy_version_object is True:
+                old_obj_name = ls[1][config.version_count-2]['name']
+                log.info(old_obj_name)
+                container = swiftlib.resource_op({'obj': rgw,
+                                                  'resource': 'copy_object',
+                                                  'kwargs': dict(container=container_name_old, obj=old_obj_name,
+                                                                 destination=container_name+'/'+swift_object_name)})
+                if container is False:
+                    raise TestExecError("Resource execution failed")
+                log.info("Successfully copied item")
             else:
-                test_info.failed_status('test failed')
-                sys.exit(1)
+                current_count = 'radosgw-admin bucket stats --uid={uid} --tenant={tenant} --bucket=\'{bucket}\' ' \
+                                .format(uid=user_names[0], tenant=tenant, bucket=container_name)
+                num_obj_current = utils.exec_shell_cmd(current_count)
+                num_obj_current = json.loads(num_obj_current)
+                num_obj_current = num_obj_current[0].get('usage').get('rgw.main').get('num_objects')
+                old_count = 'radosgw-admin bucket stats --uid={uid} --tenant={tenant} --bucket=\'{bucket}\' '\
+                    .format(uid=user_names[0], tenant=tenant, bucket=container_name_old)
+                num_obj_old = utils.exec_shell_cmd(old_count)
+                num_obj_old = json.loads(num_obj_old)
+                num_obj_old = num_obj_old[0].get('usage').get('rgw.main').get('num_objects')
+                version_count_from_config = (config.objects_count * config.version_count) - config.objects_count
+                if (num_obj_current == config.objects_count) and (num_obj_old == version_count_from_config):
+                    test_info.success_status('test passed')
+                    sys.exit(0)
+                else:
+                    test_info.failed_status('test failed')
+                    sys.exit(1)
         else:
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
             container = swiftlib.resource_op({'obj': rgw,
