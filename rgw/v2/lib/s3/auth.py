@@ -31,6 +31,7 @@ class Auth(object):
                                 else 'http://{}:{}'.format(self.ip, self.port)
         self.is_secure = False
         self.user_id = user_info['user_id']
+        self.session_token = user_info.get('session_token')
 
         log.info('access_key: %s' % self.access_key)
         log.info('secret_key: %s' % self.secret_key)
@@ -39,6 +40,7 @@ class Auth(object):
         log.info('user_id: %s' % self.user_id)
         log.info('endpoint url: %s' % self.endpoint_url)
         log.info('ssl: %s' % self.ssl)
+        log.info('session_token: %s' % self.session_token)
 
     def do_auth(self, **config):
         """
@@ -58,6 +60,7 @@ class Auth(object):
                              use_ssl=self.ssl,
                              verify=False,
                              config=additional_config,
+                             aws_session_token=self.session_token if self.session_token else None,
                              )
 
         log.info('connected')
@@ -81,6 +84,36 @@ class Auth(object):
                            aws_secret_access_key=self.secret_key,
                            endpoint_url=self.endpoint_url,
                            config=additional_config,
+                           aws_session_token=self.session_token if self.session_token else None,
                            )
         return rgw
 
+    def do_auth_iam_client(self, **extra_config):
+        """
+        perform authentication using iam client
+        :param extra_config: extra config for config key
+        :return: rgw connection object
+        """
+
+        log.info('performing authentication using sts client')
+        rgw = boto3.client('iam',
+                           aws_access_key_id=self.access_key,
+                           aws_secret_access_key=self.secret_key,
+                           endpoint_url=self.endpoint_url,
+                           region_name="")
+
+        return rgw
+
+    def do_auth_sts_client(self, ):
+        """
+        :return: connection object
+        """
+
+        sts_client = boto3.client('sts',
+                                  aws_access_key_id=self.access_key,
+                                  aws_secret_access_key=self.secret_key,
+                                  endpoint_url=self.endpoint_url,
+                                  region_name=""
+                                  )
+
+        return sts_client
