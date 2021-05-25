@@ -1,7 +1,10 @@
 import os, sys
 import logging
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
+from v2.lib.exceptions import InvalidCephConfigOption
 from v2.utils.utils import FileOps, ConfigParse
+import v2.utils.utils as utils
 
 log = logging.getLogger()
 
@@ -27,13 +30,15 @@ class ConfigOpts(object):
     rgw_gc_obj_min_wait = 'rgw_gc_obj_min_wait'
     rgw_gc_processor_period = 'rgw_gc_processor_period'
     rgw_swift_versioning_enabled = 'rgw_swift_versioning_enabled'
-
+    rgw_sts_key = 'rgw_sts_key'
+    rgw_s3_auth_use_sts = "rgw_s3_auth_use_sts"
 
 
 class CephConfOp(FileOps, ConfigParse):
     """
         To check/create ceph.conf file
     """
+
     def __init__(self, ceph_conf_path='/etc/ceph/ceph.conf'):
         self.ceph_conf_path = ceph_conf_path
         FileOps.__init__(self, self.ceph_conf_path, type='ceph.conf')
@@ -89,3 +94,25 @@ class CephConfOp(FileOps, ConfigParse):
         cfg = self.set(section, option, value)
         self.add_data(cfg)
 
+
+class CephConfigSet:
+    def __init__(self):
+        # use ceph config set cli to set the config via commandline,
+        # unlike the above function which is set in ceph.conf
+        self.prefix = "sudo ceph config set"
+        self.who = "client.rgw"  # naming convention as ceph conf
+
+    def set(self, key, value):
+        log.info('setting key and value using ceph config set cli')
+        if value is True:
+            value = "true"
+        log.info(f'got key: {key}')
+        log.info(f'got value: {value}')
+        cmd_list = [self.prefix,
+                    self.who,
+                    key,
+                    str(value)]
+        cmd = ' '.join(cmd_list)
+        config_set = utils.exec_shell_cmd(cmd)
+        if config_set is False:
+            raise InvalidCephConfigOption("Invalid ceph config options")

@@ -1,0 +1,10 @@
+# polarion test case id: CEPH-83572938
+config:
+ bucket_count: 2
+ objects_count: 5
+ objects_size_range:
+  min: 5
+  max: 15
+ test_ops:
+      create_bucket: true
+      create_object: true
