@@ -54,7 +54,7 @@ TEST_DATA_PATH = None
 # create subuser
 # create container
 # upload object
-def fill_container(rgw, container_name, user_id, oc, cc, size):
+def fill_container(rgw, container_name, user_id, oc, cc, size, header=None):
     swift_object_name = utils.gen_s3_object_name('%s.container.%s' % (user_id, cc), oc)
     log.info('object name: %s' % swift_object_name)
     object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
@@ -67,7 +67,7 @@ def fill_container(rgw, container_name, user_id, oc, cc, size):
     with open(object_path, 'r') as fp:
         rgw.put_object(container_name, swift_object_name,
                        contents=fp.read(),
-                       content_type='text/plain')
+                       content_type='text/plain', headers=header)
     return swift_object_name
 def test_exec(config):
 
@@ -76,6 +76,7 @@ def test_exec(config):
     io_info_initialize.initialize(basic_io_structure.initial())
     umgmt = UserMgmt()
     ceph_conf = CephConfOp()
+    log.info(type(ceph_conf))
     rgw_service = RGWService()
     # preparing data
     user_names = ['tuffy', 'scooby', 'max']
@@ -144,13 +145,33 @@ def test_exec(config):
                 else:
                     test_info.failed_status('test failed')
                     sys.exit(1)
+        elif config.object_expire is True:
+            container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
+            container = swiftlib.resource_op({'obj': rgw,
+                                              'resource': 'put_container',
+                                              'args': [container_name]})
+            if container is False:
+                raise TestExecError("Resource execution failed: container creation failed")
+            for oc, size in list(config.mapped_sizes.items()):
+                swift_object_name = fill_container(rgw, container_name, user_names[0], oc, cc, size,
+                                                   header={'X-Delete-After': 5})
+                time.sleep(7)
+                container_exists = swiftlib.resource_op({'obj': rgw,
+                                                  'resource': 'get_object',
+                                                  'args': [container_name, swift_object_name]})
+                log.info(container_exists)
+                if container_exists:
+                    msg = "test failed as the objects are still present"
+                    test_info.failed_status(msg)
+                    raise TestExecError(msg)
+
         else:
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
             container = swiftlib.resource_op({'obj': rgw,
                                               'resource': 'put_container',
                                               'args': [container_name]})
             if container is False:
-                raise TestExecError("Resource execution failed: container creation faield")
+                raise TestExecError("Resource execution failed: container creation failed")
             for oc, size in list(config.mapped_sizes.items()):
                 swift_object_name = fill_container(rgw, container_name, user_names[0], oc, cc, size)
                 # download object
