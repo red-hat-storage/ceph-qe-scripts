@@ -354,9 +354,12 @@ def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, 
             raise TestExecError('LC is not applied')
 
 
-def remove_user(user_info, cluster_name='ceph'):
+def remove_user(user_info, cluster_name='ceph', tenant=False):
     log.info('Removing user')
-    cmd = 'radosgw-admin user rm --purge-keys --purge-data --uid=%s' % (user_info['user_id'])
+    if tenant:
+        cmd = 'radosgw-admin user rm --purge-keys --purge-data --uid=%s --tenant=%s' % (user_info['user_id'], tenant)
+    else:
+        cmd = 'radosgw-admin user rm --purge-keys --purge-data --uid=%s' % (user_info['user_id'])
     out = utils.exec_shell_cmd(cmd)
     return out
 

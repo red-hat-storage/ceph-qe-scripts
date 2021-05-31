@@ -178,10 +178,12 @@ def test_exec(config):
             log.info('deleting swift container')
             rgw.delete_container(container_name)
 
+
     # check for any crashes during the execution
     crash_info=reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
+    reusable.remove_user(tenant_user_info, tenant=tenant)
 
 if __name__ == '__main__':
 
