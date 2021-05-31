@@ -1,4 +1,9 @@
 # IDE files
 *.idea/
 *.xml
+*.vscode
+
+# Byte-compiled
+__pycache__/
+*.py[cod]
 
