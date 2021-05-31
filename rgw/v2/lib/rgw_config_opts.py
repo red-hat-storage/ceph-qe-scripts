@@ -87,12 +87,18 @@ class CephConfOp(FileOps, ConfigParse):
                 option:
                 value:
         """
-        log.info('adding to ceph conf')
-        log.info('section: %s' % section)
-        log.info('option: %s' % option)
-        log.info('value: %s' % value)
-        cfg = self.set(section, option, value)
-        self.add_data(cfg)
+        ceph_version_id, ceph_version_name = utils.get_ceph_version()
+        if ceph_version_name == 'pacific':
+            cmd = 'sudo ceph config set {section} {option} {value}'.format(section=section, option=option, value=value)
+            executed = utils.exec_shell_cmd(cmd)
+            return executed
+        else:
+            log.info('adding to ceph conf')
+            log.info('section: %s' % section)
+            log.info('option: %s' % option)
+            log.info('value: %s' % value)
+            cfg = self.set(section, option, value)
+            self.add_data(cfg)
 
 
 class CephConfigSet:
