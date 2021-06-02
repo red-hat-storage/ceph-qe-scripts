@@ -7,6 +7,7 @@ ConfigParser
 python-swiftclient
 swiftly
 simplejson
+s3cmd
 # for v1
 #psutil
 rgwadmin

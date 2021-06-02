@@ -35,6 +35,17 @@ class TestExecError(RGWBaseException):
         super().__init__(message)
         self.message = message
 
+class S3CMDConfigFileNotFound(RGWBaseException):
+    # s3cmd file not exists
+    def __init__(self, message=None, ):
+        super().__init__(message)
+        self.message = message
+
+class S3CommandExecError(RGWBaseException):
+    # s3cmd Command execution error
+    def __init__(self, message=None, ):
+        super().__init__(message)
+        self.message = message
 
 class NFSGaneshaBaseException(Exception):
     # Base exception for NFS-Ganesha
