@@ -34,7 +34,8 @@ class ConfigOpts(object):
     rgw_s3_auth_use_sts = "rgw_s3_auth_use_sts"
 
 
-class CephConfOp(FileOps, ConfigParse):
+
+class CephConfFileOP(FileOps, ConfigParse):
     """
         To check/create ceph.conf file
     """
@@ -78,7 +79,7 @@ class CephConfOp(FileOps, ConfigParse):
         new_section = self.add_section(section)
         self.add_data(new_section)
 
-    def set_to_ceph_conf(self, section, option, value=None):
+    def set_to_ceph_conf_file(self, section, option, value=None):
         """
             This function is to add section, option, value to the ceph.conf file
 
@@ -116,3 +117,23 @@ class CephConfigSet:
         config_set = utils.exec_shell_cmd(cmd)
         if config_set is False:
             raise InvalidCephConfigOption("Invalid ceph config options")
+
+
+
+class CephConfOp(CephConfFileOP, CephConfigSet):
+    def __init__(self) -> None:
+        super().__init__(self, CephConfFileOP)
+        super().__init__(self, CephConfigSet)
+
+    
+    def set_to_ceph_conf(self, section, option, value=None):
+        version_id, version_name  = utils.get_ceph_version()
+        log.info(f"ceph version id {version_id}")
+        log.info(f"version name: {version_name}")
+        
+        if version_id < float(16):
+            log.info("using ceph_conf to config values")
+            self.set_to_ceph_conf_file(section, option, value)
+        else:
+            log.info("using ceph config cli to set the config values")
+            self.set_to_conf(section, option, value)
