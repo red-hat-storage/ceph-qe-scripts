@@ -103,8 +103,10 @@ class CephConfigSet:
         self.prefix = "sudo ceph config set"
         self.who = "client.rgw"  # naming convention as ceph conf
 
-    def set(self, key, value):
+    def set_to_ceph_cli(self, key, value):
         log.info('setting key and value using ceph config set cli')
+        self.prefix = "sudo ceph config set"
+        self.who = "client.rgw"  # naming convention as ceph conf
         if value is True:
             value = "true"
         log.info(f'got key: {key}')
@@ -122,18 +124,20 @@ class CephConfigSet:
 
 class CephConfOp(CephConfFileOP, CephConfigSet):
     def __init__(self) -> None:
-        super().__init__(self, CephConfFileOP)
-        super().__init__(self, CephConfigSet)
+        super().__init__()
 
-    
+
     def set_to_ceph_conf(self, section, option, value=None):
-        version_id, version_name  = utils.get_ceph_version()
-        log.info(f"ceph version id {version_id}")
+        version_id, version_name = utils.get_ceph_version()
+        log.info(f"ceph version id: {version_id}")
         log.info(f"version name: {version_name}")
         
-        if version_id < float(16):
+        if version_name in ['luminous','nautilus']:
             log.info("using ceph_conf to config values")
             self.set_to_ceph_conf_file(section, option, value)
         else:
             log.info("using ceph config cli to set the config values")
-            self.set_to_conf(section, option, value)
+            log.info(option)
+            log.info(value)
+            self.set_to_ceph_cli(option, value)
+
