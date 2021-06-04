@@ -34,7 +34,8 @@ class ConfigOpts(object):
     rgw_s3_auth_use_sts = "rgw_s3_auth_use_sts"
 
 
-class CephConfOp(FileOps, ConfigParse):
+
+class CephConfFileOP(FileOps, ConfigParse):
     """
         To check/create ceph.conf file
     """
@@ -78,7 +79,7 @@ class CephConfOp(FileOps, ConfigParse):
         new_section = self.add_section(section)
         self.add_data(new_section)
 
-    def set_to_ceph_conf(self, section, option, value=None):
+    def set_to_ceph_conf_file(self, section, option, value=None):
         """
             This function is to add section, option, value to the ceph.conf file
 
@@ -102,8 +103,10 @@ class CephConfigSet:
         self.prefix = "sudo ceph config set"
         self.who = "client.rgw"  # naming convention as ceph conf
 
-    def set(self, key, value):
+    def set_to_ceph_cli(self, key, value):
         log.info('setting key and value using ceph config set cli')
+        self.prefix = "sudo ceph config set"
+        self.who = "client.rgw"  # naming convention as ceph conf
         if value is True:
             value = "true"
         log.info(f'got key: {key}')
@@ -116,3 +119,25 @@ class CephConfigSet:
         config_set = utils.exec_shell_cmd(cmd)
         if config_set is False:
             raise InvalidCephConfigOption("Invalid ceph config options")
+
+
+
+class CephConfOp(CephConfFileOP, CephConfigSet):
+    def __init__(self) -> None:
+        super().__init__()
+
+
+    def set_to_ceph_conf(self, section, option, value=None):
+        version_id, version_name = utils.get_ceph_version()
+        log.info(f"ceph version id: {version_id}")
+        log.info(f"version name: {version_name}")
+        
+        if version_name in ['luminous','nautilus']:
+            log.info("using ceph_conf to config values")
+            self.set_to_ceph_conf_file(section, option, value)
+        else:
+            log.info("using ceph config cli to set the config values")
+            log.info(option)
+            log.info(value)
+            self.set_to_ceph_cli(option, value)
+

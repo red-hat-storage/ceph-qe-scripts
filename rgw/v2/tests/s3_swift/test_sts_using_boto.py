@@ -32,7 +32,7 @@ from v2.utils.log import configure_logging
 import v2.utils.utils as utils
 from v2.utils.utils import RGWService
 from v2.tests.s3_swift import reusable
-from v2.lib.rgw_config_opts import CephConfigSet, ConfigOpts
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.utils.utils import HttpResponseParser
 import traceback
 import argparse
@@ -50,7 +50,7 @@ def test_exec(config):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ceph_config_set = CephConfigSet()
+    ceph_config_set = CephConfOp()
     rgw_service = RGWService()
 
     # create users
@@ -60,8 +60,8 @@ def test_exec(config):
     user1, user2 = users_info[0], users_info[1]
     log.info('adding sts config to ceph.conf')
     sesison_encryption_token = 'abcdefghijklmnoq'
-    ceph_config_set.set(ConfigOpts.rgw_sts_key, sesison_encryption_token)
-    ceph_config_set.set(ConfigOpts.rgw_s3_auth_use_sts, True)
+    ceph_config_set.set_to_ceph_conf('global', ConfigOpts.rgw_sts_key, sesison_encryption_token)
+    ceph_config_set.set_to_ceph_conf('global', ConfigOpts.rgw_s3_auth_use_sts, True)
     srv_restarted = rgw_service.restart()
     time.sleep(30)
     if srv_restarted is False:
