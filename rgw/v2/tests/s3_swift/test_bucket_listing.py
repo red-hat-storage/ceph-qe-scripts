@@ -203,6 +203,10 @@ def test_exec(config):
                 reusable.delete_objects(bucket)
                 time.sleep(30)
                 reusable.delete_bucket(bucket)
+
+    #check sync status if a multisite cluster
+    reusable.check_sync_status()
+
     # check for any crashes during the execution
     crash_info=reusable.check_for_crash()
     if crash_info:

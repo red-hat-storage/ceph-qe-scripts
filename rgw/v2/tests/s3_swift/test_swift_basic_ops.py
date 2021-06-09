@@ -8,6 +8,7 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     test_swift_basic_ops.yaml
     test_swift_versioning.yaml
     test_swift_version_copy_op.yaml
+    test_swift_large_upload.yaml
 
 Operation:
     Create swift user
@@ -19,10 +20,11 @@ Operation:
     Delete objects from container
     Delete container
     Copy versioned object
+    Multipart upload
 """
 
 # test swift basic ops
-import os, sys
+import os, sys, glob
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib.resource_op import Config
@@ -54,21 +56,41 @@ TEST_DATA_PATH = None
 # create subuser
 # create container
 # upload object
-def fill_container(rgw, container_name, user_id, oc, cc, size, header=None):
+def fill_container(rgw, container_name, user_id, oc, cc, size, multipart=False, split_size=0, header=None):
     swift_object_name = utils.gen_s3_object_name('%s.container.%s' % (user_id, cc), oc)
     log.info('object name: %s' % swift_object_name)
     object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
     log.info('object path: %s' % object_path)
     data_info = manage_data.io_generator(object_path, size)
     # upload object
-    if data_info is False:
-        raise TestExecError("data creation failed")
-    log.info('uploading object: %s' % object_path)
-    with open(object_path, 'r') as fp:
-        rgw.put_object(container_name, swift_object_name,
+    if multipart==True:
+        mp_dir = os.path.join(TEST_DATA_PATH, swift_object_name + '.mp.parts')
+        log.info(f"mp part dir: {mp_dir}")
+        log.info('making multipart object part dir')
+        mkdir = utils.exec_shell_cmd('sudo mkdir %s' % mp_dir)
+        if mkdir is False:
+            raise TestExecError('mkdir failed creating mp_dir_name')
+        utils.split_file(object_path, split_size, mp_dir + "/")
+        parts_list = sorted(glob.glob(mp_dir + '/' + '*'))
+        log.info('parts_list: %s' % parts_list)
+        log.info('no of parts: %s' % len(parts_list))
+        for each_part in parts_list:
+            log.info('trying to upload part: %s' % each_part)
+            with open(each_part, 'r') as fp:
+                etag=rgw.put_object(container_name, swift_object_name+'/'+each_part,
                        contents=fp.read(),
                        content_type='text/plain', headers=header)
-    return swift_object_name
+        return swift_object_name
+    else:
+        if data_info is False:
+            raise TestExecError("data creation failed")
+        log.info('uploading object: %s' % object_path)
+        with open(object_path, 'r') as fp:
+            rgw.put_object(container_name, swift_object_name,
+                       contents=fp.read(),
+                       content_type='text/plain', headers=header)
+        return swift_object_name
+
 def test_exec(config):
 
     io_info_initialize = IOInfoInitialize()
@@ -141,10 +163,9 @@ def test_exec(config):
                 version_count_from_config = (config.objects_count * config.version_count) - config.objects_count
                 if (num_obj_current == config.objects_count) and (num_obj_old == version_count_from_config):
                     test_info.success_status('test passed')
-                    sys.exit(0)
                 else:
                     test_info.failed_status('test failed')
-                    sys.exit(1)
+        
         elif config.object_expire is True:
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
             container = swiftlib.resource_op({'obj': rgw,
@@ -164,6 +185,46 @@ def test_exec(config):
                     msg = "test failed as the objects are still present"
                     test_info.failed_status(msg)
                     raise TestExecError(msg)
+
+        elif config.large_object_upload is True:
+            container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
+            container = swiftlib.resource_op({'obj': rgw,
+                                              'resource': 'put_container',
+                                              'args': [container_name]})
+            if container is False:
+                raise TestExecError("Resource execution failed: container creation failed")
+            for oc, size in list(config.mapped_sizes.items()):
+                swift_object_name = fill_container(rgw, container_name, user_names[0], oc, cc, size,
+                                                   multipart=True, split_size=config.split_size)
+                container_name_new = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=str(cc) + 'New')
+                container = swiftlib.resource_op({'obj': rgw,
+                                              'resource': 'put_container',
+                                              'kwargs': dict(container=container_name_new)})
+                if container is False:
+                    raise TestExecError("Resource execution failed: container creation failed")
+                container = swiftlib.resource_op({'obj': rgw,
+                                              'resource': 'put_object',
+                                              'kwargs': dict(container=container_name_new, obj=swift_object_name, contents=None, headers={'X-Object-Manifest': container_name+'/'+swift_object_name+'/'})})
+                if container is False:
+                    raise TestExecError("Resource execution failed: container creation failed")
+                if config.large_object_download is True:
+                    swift_old_object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
+                    swift_object_download_fname = swift_object_name + ".download"
+                    log.info('download object name: %s' % swift_object_download_fname)
+                    swift_object_download_path = os.path.join(TEST_DATA_PATH, swift_object_download_fname)
+                    log.info('download object path: %s' % swift_object_download_path)
+                    swift_object_downloaded = rgw.get_object(container_name_new, swift_object_name)
+                    with open(swift_object_download_path, 'wb') as fp:
+                        fp.write(swift_object_downloaded[1])
+                    old_object = utils.get_md5(swift_old_object_path)
+                    downloaded_obj = utils.get_md5(swift_object_download_path)
+                    log.info('s3_object_downloaded_md5: %s' % old_object)
+                    log.info('s3_object_uploaded_md5: %s' % downloaded_obj)
+                    if str(old_object) == str(downloaded_obj):
+                        log.info('md5 match')
+                        utils.exec_shell_cmd('rm -rf %s' % swift_object_download_path)
+                    else:
+                        raise TestExecError('md5 mismatch')
 
         else:
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)

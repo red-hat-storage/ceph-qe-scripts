@@ -44,6 +44,7 @@ def test_exec(config):
                 with open(user_detail_file, 'w') as fout:
                     json.dump(all_users_info, fout)
                 test_info.success_status('tenanted users creation completed')
+
         test_info.success_status('test passed')
         sys.exit(0)
     except Exception as e:

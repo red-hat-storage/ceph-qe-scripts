@@ -72,3 +72,9 @@ class MFAVersionError(Exception):
         super().__init__(message)
         self.message = message
 
+class SyncFailedError(Exception):
+    # exception raised when there is sync error in multisite 
+    def __init__(self, message=None, ):
+        super().__init__(message)
+        self.message = message
+

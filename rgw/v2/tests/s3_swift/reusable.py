@@ -12,7 +12,7 @@ from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure, Buck
 import random, time
 import datetime
 import timeit
-
+from v2.lib.sync_status import sync_status
 from v2.lib.rgw_config_opts import ConfigOpts
 from v2.utils.utils import RGWService
 
@@ -694,4 +694,13 @@ def time_to_list_via_boto(bucket_name,rgw):
                                  'args': None})
     time_taken=( timeit.timeit(lambda: bucket.objects.all(),globals=globals()))
     return time_taken
+
+def check_sync_status(retry=None,delay=None):
+    """
+    Check sync status if its a multisite cluster
+    """
+    is_multisite = utils.is_cluster_multisite()
+    if is_multisite:
+        sync_status()
+
 

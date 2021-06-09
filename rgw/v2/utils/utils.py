@@ -370,3 +370,16 @@ def is_cluster_primary():
     return False
 
 
+def is_cluster_multisite():
+    """
+    checks if the cluster is single site or multisite
+    return: True is multisite else False for single site
+    """
+    log.info('verify if the cluster is singlesite or multisite')
+    cmd = 'sudo radosgw-admin sync status'
+    out = exec_shell_cmd(cmd)
+    if "realm  ()" in out:
+        log.info('the cluster is single site')
+        return False
+    log.info('the cluster is multisite')
+    return True
