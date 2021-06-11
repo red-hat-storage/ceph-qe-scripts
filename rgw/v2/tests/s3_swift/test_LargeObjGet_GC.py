@@ -89,6 +89,9 @@ def test_exec(config):
                             log.info('Object download should not error out in 404 NoSuchKey error')
                             reusable.download_object(s3_object_name, bucket, TEST_DATA_PATH, s3_object_path, config)
 
+        #check sync status if a multisite cluster
+        reusable.check_sync_status()
+
         reusable.remove_user(user_info)
 
 

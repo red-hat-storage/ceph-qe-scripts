@@ -411,6 +411,10 @@ def test_exec(config):
                         utils.exec_shell_cmd('sudo rm -rf %s' % s3_object_path)
             if config.test_ops.get('delete_bucket') is True:
                 reusable.delete_bucket(bucket)
+
+    #check sync status if a multisite cluster
+    reusable.check_sync_status()
+
     # check for any crashes during the execution
     crash_info=reusable.check_for_crash()
     if crash_info:

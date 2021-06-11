@@ -195,6 +195,10 @@ def test_exec(config):
             else:
                 raise TestExecError("bucket policy did not get deleted")
         # log.info('get_policy after deletion: %s' % get_policy)
+
+    #check sync status if a multisite cluster
+    reusable.check_sync_status()
+
     # check for any crashes during the execution
     crash_info=reusable.check_for_crash()
     if crash_info:
