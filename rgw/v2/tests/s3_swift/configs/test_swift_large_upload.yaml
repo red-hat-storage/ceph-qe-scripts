@@ -1,0 +1,9 @@
+config:
+ container_count: 1
+ objects_count: 1
+ large_object: true
+ split_size: 100
+ objects_size_range:
+  min: 300
+  max: 500
+

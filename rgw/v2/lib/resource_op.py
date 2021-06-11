@@ -185,6 +185,7 @@ class Config(object):
         self.version_enable = self.doc['config'].get('version_enable', False)
         self.copy_version_object = self.doc['config'].get('copy_version_object', False)
         self.object_expire = self.doc['config'].get('object_expire', False)
+        self.large_object = self.doc['config'].get('large_object', False)
         self.local_file_delete = self.doc['config'].get('local_file_delete', False)
         self.ceph_conf = self.doc['config'].get('ceph_conf')
         self.gc_verification = self.doc['config'].get('gc_verification', False)
