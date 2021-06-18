@@ -163,10 +163,8 @@ def test_exec(config):
                 version_count_from_config = (config.objects_count * config.version_count) - config.objects_count
                 if (num_obj_current == config.objects_count) and (num_obj_old == version_count_from_config):
                     test_info.success_status('test passed')
-                    sys.exit(0)
                 else:
                     test_info.failed_status('test failed')
-                    sys.exit(1)
         
         elif config.object_expire is True:
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
