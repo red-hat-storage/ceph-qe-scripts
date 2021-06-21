@@ -186,7 +186,7 @@ def test_exec(config):
                     test_info.failed_status(msg)
                     raise TestExecError(msg)
 
-        elif config.large_object is True:
+        elif config.config.large_object_upload is True:
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
             container = swiftlib.resource_op({'obj': rgw,
                                               'resource': 'put_container',
@@ -207,6 +207,24 @@ def test_exec(config):
                                               'kwargs': dict(container=container_name_new, obj=swift_object_name, contents=None, headers={'X-Object-Manifest': container_name+'/'+swift_object_name+'/'})})
                 if container is False:
                     raise TestExecError("Resource execution failed: container creation failed")
+                if config.large_object_download is True:	
+                    swift_old_object_path = os.path.join(TEST_DATA_PATH, swift_object_name)	
+                    swift_object_download_fname = swift_object_name + ".download"	
+                    log.info('download object name: %s' % swift_object_download_fname)	
+                    swift_object_download_path = os.path.join(TEST_DATA_PATH, swift_object_download_fname)	
+                    log.info('download object path: %s' % swift_object_download_path)	
+                    swift_object_downloaded = rgw.get_object(container_name_new, swift_object_name)	
+                    with open(swift_object_download_path, 'wb') as fp:	
+                        fp.write(swift_object_downloaded[1])	
+                    old_object = utils.get_md5(swift_old_object_path)	
+                    downloaded_obj = utils.get_md5(swift_object_download_path)	
+                    log.info('s3_object_downloaded_md5: %s' % old_object)	
+                    log.info('s3_object_uploaded_md5: %s' % downloaded_obj)	
+                    if str(old_object) == str(downloaded_obj):	
+                        log.info('md5 match')	
+                        utils.exec_shell_cmd('rm -rf %s' % swift_object_download_path)	
+                    else:	
+                        raise TestExecError('md5 mismatch')
 
         else:
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
