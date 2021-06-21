@@ -162,7 +162,7 @@ def test_exec(config):
                 num_obj_old = num_obj_old[0].get('usage').get('rgw.main').get('num_objects')
                 version_count_from_config = (config.objects_count * config.version_count) - config.objects_count
                 if (num_obj_current == config.objects_count) and (num_obj_old == version_count_from_config):
-                    test_info.success_status('test passed')
+                    log.info("objects and versioned obbjects are correct")
                 else:
                     test_info.failed_status('test failed')
         
