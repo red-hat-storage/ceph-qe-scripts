@@ -1,33 +1,37 @@
 # input:  OSP Server hostname
-import subprocess
 import argparse
-import socket
 import logging
+import socket
+import subprocess
 import sys
+
 # step 2
 
 
-logging.basicConfig(format='%(asctime)s : %(levelname)s: %(message)s',
-                    datefmt='[%m/%d/%Y - %I:%M:%S %p]',
-                    filename='conf_admin.log',level=logging.DEBUG)
+logging.basicConfig(
+    format="%(asctime)s : %(levelname)s: %(message)s",
+    datefmt="[%m/%d/%Y - %I:%M:%S %p]",
+    filename="conf_admin.log",
+    level=logging.DEBUG,
+)
 
 
 def log_msgs(msgs):
     logging.info(msgs)
     print msgs
-    
-    
+
+
 def log_errors(msgs):
     logging.error(msgs)
     print msgs
-    
+
 
 class Bcolors:
-    HEADER = '\033[95m'
-    OKGREEN = '\033[92m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
+    HEADER = "\033[95m"
+    OKGREEN = "\033[92m"
+    FAIL = "\033[91m"
+    ENDC = "\033[0m"
+    BOLD = "\033[1m"
 
 
 def onscreen(text):
@@ -35,7 +39,15 @@ def onscreen(text):
 
 
 class ConfigureOSPClients(object):
-    def __init__(self, ceph_install ,osp_hostname, volumes_pool, images_pool, backups_pool, vms_pools):
+    def __init__(
+        self,
+        ceph_install,
+        osp_hostname,
+        volumes_pool,
+        images_pool,
+        backups_pool,
+        vms_pools,
+    ):
         self.osp_hostname = osp_hostname
         self.volumes_p = volumes_pool
         self.images_p = images_pool
@@ -50,64 +62,83 @@ class ConfigureOSPClients(object):
         self.all_pools.append(self.backups_p)
         self.all_pools.append(self.vms_p)
 
-        self.exec_cmd = lambda cmd: subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+        self.exec_cmd = lambda cmd: subprocess.check_output(
+            cmd, shell=True, stderr=subprocess.STDOUT
+        )
         # self.exec_cmd = lambda cmd: cmd
 
     def install_ceph_clients(self):
 
         try:
 
-
             # create pools
             for each_pool in self.all_pools:
-                create_pool_cmd = 'sudo ceph osd pool create %s 128' % each_pool
+                create_pool_cmd = "sudo ceph osd pool create %s 128" % each_pool
                 print create_pool_cmd
                 log_msgs(create_pool_cmd)
                 self.exec_cmd(create_pool_cmd)
 
             # enable ceph cline in osp node
-            enable_tools = "ssh %s " % self.osp_hostname + " 'sudo subscription-manager repos --enable=rhel-7-server-rhceph-1.3-tools-rpms' "
+            enable_tools = (
+                "ssh %s " % self.osp_hostname
+                + " 'sudo subscription-manager repos --enable=rhel-7-server-rhceph-1.3-tools-rpms' "
+            )
             log_msgs(enable_tools)
             self.exec_cmd(enable_tools)
 
             if self.ceph_install == "y":
 
-                log_msgs('ceph installation required')
+                log_msgs("ceph installation required")
 
-                log_msgs('removing old python rbd')
-                remove_python_rbd = "ssh %s 'sudo yum remove python-rbd -y' " % self.osp_hostname
+                log_msgs("removing old python rbd")
+                remove_python_rbd = (
+                    "ssh %s 'sudo yum remove python-rbd -y' " % self.osp_hostname
+                )
                 log_msgs(remove_python_rbd)
                 self.exec_cmd(remove_python_rbd)
 
-                install_python_rbd = "ssh %s 'sudo yum install python-rbd -y' " % self.osp_hostname
+                install_python_rbd = (
+                    "ssh %s 'sudo yum install python-rbd -y' " % self.osp_hostname
+                )
                 log_msgs(install_python_rbd)
                 self.exec_cmd(install_python_rbd)
 
-                install_ceph = "ssh %s 'sudo yum install ceph-common -y' " % self.osp_hostname
+                install_ceph = (
+                    "ssh %s 'sudo yum install ceph-common -y' " % self.osp_hostname
+                )
                 log_msgs(install_ceph)
                 self.exec_cmd(install_ceph)
 
-                mkdir_ceph = "ssh %s " % self.osp_hostname + "'sudo mkdir -p /etc/ceph '"
+                mkdir_ceph = (
+                    "ssh %s " % self.osp_hostname + "'sudo mkdir -p /etc/ceph '"
+                )
                 log_msgs(mkdir_ceph)
                 self.exec_cmd(mkdir_ceph)
 
-                scp_conf_file_cmd = 'scp /etc/ceph/ceph.conf %s:' % self.osp_hostname
+                scp_conf_file_cmd = "scp /etc/ceph/ceph.conf %s:" % self.osp_hostname
                 log_msgs(scp_conf_file_cmd)
                 self.exec_cmd(scp_conf_file_cmd)
 
-                copy_conf_file_cmd = "ssh %s " % self.osp_hostname + 'sudo cp ceph.conf /etc/ceph/'
-                #copy_conf_file_cmd = 'ssh %s ' % self.osp_hostname + " 'sudo tee /etc/ceph/ceph.conf </etc/ceph/ceph.conf' "
+                copy_conf_file_cmd = (
+                    "ssh %s " % self.osp_hostname + "sudo cp ceph.conf /etc/ceph/"
+                )
+                # copy_conf_file_cmd = 'ssh %s ' % self.osp_hostname + " 'sudo tee /etc/ceph/ceph.conf </etc/ceph/ceph.conf' "
                 log_msgs(copy_conf_file_cmd)
                 self.exec_cmd(copy_conf_file_cmd)
 
-            elif self.ceph_install == 'n':
-                log_msgs('skipping ceph installation')
-                pass
+            elif self.ceph_install == "n":
+                log_msgs("skipping ceph installation")
 
             return True, 0
 
         except subprocess.CalledProcessError as e:
-            error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
+            error = (
+                Bcolors.FAIL
+                + Bcolors.BOLD
+                + e.output
+                + str(e.returncode)
+                + Bcolors.ENDC
+            )
             print error
             log_errors(error)
             return False, e.returncode
@@ -116,115 +147,172 @@ class ConfigureOSPClients(object):
 
         try:
 
-            ceph_auth_pool1 = "ceph auth get-or-create client.cinder mon 'allow r' " \
-                              "osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s, " \
-                              "allow rwx pool=%s, allow rwx pool=%s' " %(self.volumes_p, self.vms_p, self.images_p)
+            ceph_auth_pool1 = (
+                "ceph auth get-or-create client.cinder mon 'allow r' "
+                "osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s, "
+                "allow rwx pool=%s, allow rwx pool=%s' "
+                % (self.volumes_p, self.vms_p, self.images_p)
+            )
 
             log_msgs(ceph_auth_pool1)
             self.exec_cmd(ceph_auth_pool1)
 
-            ceph_auth_pool2 = "ceph auth get-or-create client.glance mon " \
-                              "'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s, allow rwx pool=%s'" % (self.images_p, self.vms_p)
+            ceph_auth_pool2 = (
+                "ceph auth get-or-create client.glance mon "
+                "'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s, allow rwx pool=%s'"
+                % (self.images_p, self.vms_p)
+            )
 
             log_msgs(ceph_auth_pool2)
             self.exec_cmd(ceph_auth_pool2)
 
-            ceph_auth_pool3 = "ceph auth get-or-create client.cinder-backup mon " \
-                              "'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s' " % str(self.backups_p)
+            ceph_auth_pool3 = (
+                "ceph auth get-or-create client.cinder-backup mon "
+                "'allow r' osd 'allow class-read object_prefix rbd_children, allow rwx pool=%s' "
+                % str(self.backups_p)
+            )
 
             log_msgs(ceph_auth_pool3)
             self.exec_cmd(ceph_auth_pool3)
 
             # adding the client keyring
-            create_glance_keyring = "ceph auth get-or-create client.glance | " \
-                                    "ssh %s 'sudo tee /etc/ceph/ceph.client.glance.keyring ' " %(self.osp_hostname)
+            create_glance_keyring = (
+                "ceph auth get-or-create client.glance | "
+                "ssh %s 'sudo tee /etc/ceph/ceph.client.glance.keyring ' "
+                % (self.osp_hostname)
+            )
             log_msgs(create_glance_keyring)
             self.exec_cmd(create_glance_keyring)
 
-            change_glance_keyring_perms = "ssh %s 'sudo chown glance:glance /etc/ceph/ceph.client.glance.keyring' " % self.osp_hostname
+            change_glance_keyring_perms = (
+                "ssh %s 'sudo chown glance:glance /etc/ceph/ceph.client.glance.keyring' "
+                % self.osp_hostname
+            )
             log_msgs(change_glance_keyring_perms)
             self.exec_cmd(change_glance_keyring_perms)
 
-            create_cinder_keyring = "ceph auth get-or-create client.cinder |" \
-                                    " ssh %s ' sudo tee /etc/ceph/ceph.client.cinder.keyring ' " % self.osp_hostname
+            create_cinder_keyring = (
+                "ceph auth get-or-create client.cinder |"
+                " ssh %s ' sudo tee /etc/ceph/ceph.client.cinder.keyring ' "
+                % self.osp_hostname
+            )
             log_msgs(create_cinder_keyring)
             self.exec_cmd(create_cinder_keyring)
 
-            change_cinder_keyring = "ssh %s ' sudo chown cinder:cinder /etc/ceph/ceph.client.cinder.keyring ' " % self.osp_hostname
+            change_cinder_keyring = (
+                "ssh %s ' sudo chown cinder:cinder /etc/ceph/ceph.client.cinder.keyring ' "
+                % self.osp_hostname
+            )
             log_msgs(change_cinder_keyring)
             self.exec_cmd(change_cinder_keyring)
 
-            create_cinder_backup = "ceph auth get-or-create client.cinder-backup | " \
-                                   "ssh %s ' sudo tee /etc/ceph/ceph.client.cinder-backup.keyring' " % self.osp_hostname
+            create_cinder_backup = (
+                "ceph auth get-or-create client.cinder-backup | "
+                "ssh %s ' sudo tee /etc/ceph/ceph.client.cinder-backup.keyring' "
+                % self.osp_hostname
+            )
             log_msgs(create_cinder_backup)
             self.exec_cmd(create_cinder_backup)
 
-            change_cinder_backup = "ssh %s ' sudo chown cinder:cinder /etc/ceph/ceph.client.cinder-backup.keyring ' " % self.osp_hostname
+            change_cinder_backup = (
+                "ssh %s ' sudo chown cinder:cinder /etc/ceph/ceph.client.cinder-backup.keyring ' "
+                % self.osp_hostname
+            )
             log_msgs(change_cinder_backup)
             self.exec_cmd(change_cinder_backup)
 
-            create_nova_compute_keyring = "ceph auth get-or-create client.cinder | " \
-                                          "ssh %s ' sudo tee /etc/ceph/ceph.client.cinder.keyring ' " % self.osp_hostname
+            create_nova_compute_keyring = (
+                "ceph auth get-or-create client.cinder | "
+                "ssh %s ' sudo tee /etc/ceph/ceph.client.cinder.keyring ' "
+                % self.osp_hostname
+            )
             log_msgs(create_nova_compute_keyring)
             self.exec_cmd(create_nova_compute_keyring)
 
-            copy_nova_keyring = "ceph auth get-key client.cinder | ssh %s 'tee /tmp/client.cinder.key ' " % self.osp_hostname
+            copy_nova_keyring = (
+                "ceph auth get-key client.cinder | ssh %s 'tee /tmp/client.cinder.key ' "
+                % self.osp_hostname
+            )
             log_msgs(copy_nova_keyring)
             self.exec_cmd(copy_nova_keyring)
 
             return True, 0
 
         except subprocess.CalledProcessError as e:
-            error = Bcolors.FAIL + Bcolors.BOLD + e.output + str(e.returncode) + Bcolors.ENDC
+            error = (
+                Bcolors.FAIL
+                + Bcolors.BOLD
+                + e.output
+                + str(e.returncode)
+                + Bcolors.ENDC
+            )
             print error
             log_errors(error)
             return False, e.returncode
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    onscreen('Admin Configuration Started')
-    log_msgs('Admin Configuration completed')
+    onscreen("Admin Configuration Started")
+    log_msgs("Admin Configuration completed")
 
-    parser = argparse.ArgumentParser(description='Configure OSP Admin')
+    parser = argparse.ArgumentParser(description="Configure OSP Admin")
 
-    parser.add_argument('-ospn', "--osp_node", dest = "ospn", default=socket.gethostname(), help= 'Give the OSP hostname, shortname[hostname -s]')
-    parser.add_argument('-vp', '--volumes_pool', dest='vp', help= 'Enter pool name for volumes')
-    parser.add_argument('-ip', '--images_pool', dest='ip', help='Enter pool name for images')
-    parser.add_argument('-bp', '--backup_pool', dest='bp', help= 'Enter pool name for backup')
-    parser.add_argument('-vmp', '--vms_pool', dest='vmp', help='Enter pool name for vms')
-    parser.add_argument('-ci', '--ceph_install', dest='ci', default= 'n',  help='Enter n or y, "n" - for skip and "y" - install')
-
-
+    parser.add_argument(
+        "-ospn",
+        "--osp_node",
+        dest="ospn",
+        default=socket.gethostname(),
+        help="Give the OSP hostname, shortname[hostname -s]",
+    )
+    parser.add_argument(
+        "-vp", "--volumes_pool", dest="vp", help="Enter pool name for volumes"
+    )
+    parser.add_argument(
+        "-ip", "--images_pool", dest="ip", help="Enter pool name for images"
+    )
+    parser.add_argument(
+        "-bp", "--backup_pool", dest="bp", help="Enter pool name for backup"
+    )
+    parser.add_argument(
+        "-vmp", "--vms_pool", dest="vmp", help="Enter pool name for vms"
+    )
+    parser.add_argument(
+        "-ci",
+        "--ceph_install",
+        dest="ci",
+        default="n",
+        help='Enter n or y, "n" - for skip and "y" - install',
+    )
 
     args = parser.parse_args()
 
-    log_msgs('recieved args: \n'
-                  'ceph installation : %s\n'
-                 'osp_hostanme : %s\n'
-                 'volumes_pool : %s \n'
-                 'images pool : %s \n'
-                 'backup_pool : %s \n'
-                 'vms_pool : %s' % (args.ci, args.ospn, args.vp, args.ip, args.bp, args.vmp))
+    log_msgs(
+        "recieved args: \n"
+        "ceph installation : %s\n"
+        "osp_hostanme : %s\n"
+        "volumes_pool : %s \n"
+        "images pool : %s \n"
+        "backup_pool : %s \n"
+        "vms_pool : %s" % (args.ci, args.ospn, args.vp, args.ip, args.bp, args.vmp)
+    )
 
     try:
-        configure = ConfigureOSPClients(args.ci, args.ospn, args.vp, args.ip, args.bp, args.vmp)
-        installed,ret_code = configure.install_ceph_clients()
+        configure = ConfigureOSPClients(
+            args.ci, args.ospn, args.vp, args.ip, args.bp, args.vmp
+        )
+        installed, ret_code = configure.install_ceph_clients()
 
         assert installed, ret_code
 
         configured, err_code = configure.client_authx()
 
         assert configure, err_code
-        log_msgs('Admin Configuration completed')
-        onscreen('Admin Configuration completed')
+        log_msgs("Admin Configuration completed")
+        onscreen("Admin Configuration completed")
 
     except AssertionError, e:
         log_errors(e)
-        log_errors('Admin Confiuguration failed')
-        onscreen('Admin Configuration failed')
+        log_errors("Admin Confiuguration failed")
+        onscreen("Admin Configuration failed")
         sys.exit(1)
-
-
-
-

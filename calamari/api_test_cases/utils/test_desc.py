@@ -1,6 +1,8 @@
-from libs import log
+import inspect
+import os
 from shutil import copyfile, move
-import inspect, os
+
+from libs import log
 
 
 class AddTestInfo(object):
@@ -13,43 +15,45 @@ class AddTestInfo(object):
 
     def started_info(self):
         log.info(
-            '\n==========================================================================================='
-            '============== \ntest details'
-            '\n---------\ntest_id:%s\ntest_name:%s\n=============================' % (self.id, self.name))
+            "\n==========================================================================================="
+            "============== \ntest details"
+            "\n---------\ntest_id:%s\ntest_name:%s\n============================="
+            % (self.id, self.name)
+        )
 
-        print '---------------------------'
-        print 'test_started:%s' % self.name
-        print 'test_id:%s' % self.id
+        print "---------------------------"
+        print "test_started:%s" % self.name
+        print "test_id:%s" % self.id
 
     def success(self, status):
         self.msg = "success"
-        log.info('**********  %s  *********' % status)
-        print '**********  %s  *********' % status
+        log.info("**********  %s  *********" % status)
+        print "**********  %s  *********" % status
         self.status = True
 
     def failed(self, status):
         self.msg = "failed"
-        log.info('!!!!!!!!!!! %s !!!!!!!!!!!!' % status)
-        print '!!!!!!!!!!! %s !!!!!!!!!!!!' % status
+        log.info("!!!!!!!!!!! %s !!!!!!!!!!!!" % status)
+        print "!!!!!!!!!!! %s !!!!!!!!!!!!" % status
         self.status = False
 
     def completed_info(self, log_path):
         log.info(
-            "\n======================================================\nTest Completed\n===============================")
+            "\n======================================================\nTest Completed\n==============================="
+        )
 
-        print 'test completed'
-        print '--------------------------'
+        print "test completed"
+        print "--------------------------"
 
-        test_details = dict(status=self.status,
-                            id=self.id,
-                            name=self.name
-                            )
+        test_details = dict(status=self.status, id=self.id, name=self.name)
 
         frame = inspect.stack()[1]
         module = inspect.getmodule(frame[0])
         destination_file = os.path.basename(os.path.splitext(module.__file__)[0])
 
-        destination_file = "test_id_" + str(self.id) + "_" + str(self.msg) + "_" + destination_file
+        destination_file = (
+            "test_id_" + str(self.id) + "_" + str(self.msg) + "_" + destination_file
+        )
 
         log_copy_file = os.path.join(log_path, destination_file)
 

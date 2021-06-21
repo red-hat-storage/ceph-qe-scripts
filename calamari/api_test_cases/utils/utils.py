@@ -1,8 +1,9 @@
 import json
 import time
 
-from libs import log
 import yaml
+from libs import log
+
 
 class Machines(object):
     def __init__(self, ip, hostname):
@@ -20,7 +21,7 @@ def pretty_ressponse(response):
 
     pretty_response = json.dumps(response.json(), indent=2)
 
-    log.debug('pretty json response from  api\n%s' % pretty_response)
+    log.debug("pretty json response from  api\n%s" % pretty_response)
 
     json_data = json.loads(pretty_response)
     return json_data
@@ -45,16 +46,16 @@ def check_request_id(api_request, request_id):
     status = api_request.check_completed(request_id)
 
     # asserts is status['error'] is true
-    assert status['error'] != "true", status['error_message']
+    assert status["error"] != "true", status["error_message"]
 
-    log.debug('checking the state %s' % status['state'])
+    log.debug("checking the state %s" % status["state"])
 
-    if status['state'] == 'complete':
-        log.debug('action complete')
+    if status["state"] == "complete":
+        log.debug("action complete")
         return True
     else:
         time.sleep(10)
-        log.debug('entered recursive mode')
+        log.debug("entered recursive mode")
         return check_request_id(api_request, request_id)
 
 
@@ -75,21 +76,21 @@ def clean_response(response):
 
 def get_calamari_config(yaml_file):
 
-    with open(yaml_file, 'r') as f:
+    with open(yaml_file, "r") as f:
         doc = yaml.load(f)
 
-    http = doc['calamari']['http']
-    ip = doc['calamari']['ip']
-    port = doc['calamari']['port']
-    username = doc['calamari']['username']
-    password = doc['calamari']['password']
-    log_copy_location = doc['calamari']['log_copy_location']
+    http = doc["calamari"]["http"]
+    ip = doc["calamari"]["ip"]
+    port = doc["calamari"]["port"]
+    username = doc["calamari"]["username"]
+    password = doc["calamari"]["password"]
+    log_copy_location = doc["calamari"]["log_copy_location"]
 
-    return dict(username=username,
-                password=password,
-                ip=ip,
-                port=port,
-                http=http,
-                log_copy_location=log_copy_location)
-
-
+    return dict(
+        username=username,
+        password=password,
+        ip=ip,
+        port=port,
+        http=http,
+        log_copy_location=log_copy_location,
+    )

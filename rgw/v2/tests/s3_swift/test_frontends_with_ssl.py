@@ -10,28 +10,23 @@ Operation:
 
 """
 
-import os, sys
+import os
+import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
-from v2.lib.resource_op import Config
-import v2.utils.utils as utils
-from v2.utils.log import configure_logging
-import traceback
 import argparse
-import time
-import json
-from v2.lib.exceptions import TestExecError, RGWBaseException
-from v2.utils.utils import RGWService
-from v2.utils.test_desc import AddTestInfo
-from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-from v2.lib.rgw_config_opts import CephConfOp
-from v2.lib.s3.write_io_info import AddUserInfo, BucketIoInfo
-from v2.lib.read_io_info import ReadIOInfo
-from v2.lib.s3.auth import Auth
-from v2.lib import pem
-from v2.tests.s3_swift import reusable
-import v2.lib.resource_op as s3lib
 import logging
+import traceback
+
+import v2.lib.resource_op as s3lib
+import v2.utils.utils as utils
+from v2.lib.exceptions import RGWBaseException
+from v2.lib.resource_op import Config
+from v2.lib.s3.auth import Auth
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.tests.s3_swift import reusable
+from v2.utils.log import configure_logging
+from v2.utils.test_desc import AddTestInfo
 
 log = logging.getLogger()
 
@@ -48,44 +43,45 @@ def test_exec(config):
     for each_user in all_users_info:
         auth = Auth(each_user, ssl=config.ssl)
         rgw_conn = auth.do_auth()
-        bucket_name_to_create2 = utils.gen_bucket_name_from_userid(each_user['user_id'])
-        log.info('creating bucket with name: %s' % bucket_name_to_create2)
+        bucket_name_to_create2 = utils.gen_bucket_name_from_userid(each_user["user_id"])
+        log.info("creating bucket with name: %s" % bucket_name_to_create2)
         bucket = reusable.create_bucket(bucket_name_to_create2, rgw_conn, each_user)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    test_info = AddTestInfo('test frontends configuration')
+    test_info = AddTestInfo("test frontends configuration")
     test_info.started_info()
 
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
-        test_data_dir = 'test_data'
-        TEST_DATA_PATH = (os.path.join(project_dir, test_data_dir))
-        log.info('TEST_DATA_PATH: %s' % TEST_DATA_PATH)
+        test_data_dir = "test_data"
+        TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
+        log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
         if not os.path.exists(TEST_DATA_PATH):
-            log.info('test data dir not exists, creating.. ')
+            log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
-        parser = argparse.ArgumentParser(description='RGW S3 Automation')
-        parser.add_argument('-c', dest="config",
-                            help='RGW Test yaml configuration')
-        parser.add_argument('-log_level', dest='log_level',
-                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
-                            default='info')
+        parser = argparse.ArgumentParser(description="RGW S3 Automation")
+        parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
+        parser.add_argument(
+            "-log_level",
+            dest="log_level",
+            help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
+            default="info",
+        )
         args = parser.parse_args()
         yaml_file = args.config
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
-        configure_logging(f_name=log_f_name,
-                          set_level=args.log_level.upper())
+        configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
         test_exec(config)
 
-        test_info.success_status('test passed')
+        test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
         log.info(e)
         log.info(traceback.format_exc())
-        test_info.failed_status('test failed')
+        test_info.failed_status("test failed")
         sys.exit(1)

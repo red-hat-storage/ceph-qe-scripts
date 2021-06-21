@@ -1,18 +1,21 @@
 import os
 import sys
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
-import v1.lib.s3.rgw as rgw_lib
-from v1.lib.s3.rgw import Config
-import v1.utils.log as log
-from v1.utils.test_desc import AddTestInfo
 import argparse
-import yaml
 import json
+
+import v1.lib.s3.rgw as rgw_lib
+import v1.utils.log as log
+import yaml
 from v1.lib.io_info import AddIOInfo
+from v1.lib.s3.rgw import Config
+from v1.utils.test_desc import AddTestInfo
+
 
 def test_exec(config):
 
-    test_info = AddTestInfo('create users')
+    test_info = AddTestInfo("create users")
 
     add_io_info = AddIOInfo()
     add_io_info.initialize()
@@ -24,42 +27,42 @@ def test_exec(config):
 
         # dump the list of users into a file
 
-        with open('user_details', 'w') as fout:
+        with open("user_details", "w") as fout:
             json.dump(all_user_details, fout)
 
-        test_info.success_status('user creation completed')
+        test_info.success_status("user creation completed")
 
         sys.exit(0)
 
     except AssertionError as e:
         log.error(e)
-        test_info.failed_status('user creation failed: %s' % e)
+        test_info.failed_status("user creation failed: %s" % e)
         sys.exit(1)
 
-if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='RGW Automation')
+if __name__ == "__main__":
 
-    parser.add_argument('-c', dest="config",
-                        help='RGW Test yaml configuration')
+    parser = argparse.ArgumentParser(description="RGW Automation")
 
-    parser.add_argument('-p', dest="port", default='8080',
-                        help='port number where RGW is running')
+    parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
+
+    parser.add_argument(
+        "-p", dest="port", default="8080", help="port number where RGW is running"
+    )
 
     args = parser.parse_args()
 
     yaml_file = args.config
     config = Config()
     if yaml_file is None:
-        config.cluster_name = 'ceph'
+        config.cluster_name = "ceph"
         config.user_count = 2
     else:
-        with open(yaml_file, 'r') as f:
+        with open(yaml_file, "r") as f:
             doc = yaml.load(f)
-        config.cluster_name = doc['config']['cluster_name']
-        config.user_count = doc['config']['user_count']
+        config.cluster_name = doc["config"]["cluster_name"]
+        config.user_count = doc["config"]["user_count"]
 
-    log.info('user_count:%s\n' % (
-                 config.user_count))
+    log.info("user_count:%s\n" % (config.user_count))
 
     test_exec(config)

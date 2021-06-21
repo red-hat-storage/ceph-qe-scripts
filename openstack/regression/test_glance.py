@@ -2,15 +2,15 @@
 Sample test case. Create glance image
 """
 
-from lib.glance import GlanceAuth, GlanceActions
-import lib.log as log
-from lib.test_desc import AddTestInfo
-from utils import wait, uuid
 import sys
+
+import lib.log as log
+from lib.glance import GlanceActions, GlanceAuth
+from lib.test_desc import AddTestInfo
+from utils import uuid, wait
 
 
 class GlanceCycle(object):
-
     def __init__(self, glance, add_test_info):
 
         self.timer = wait.Wait()
@@ -20,21 +20,21 @@ class GlanceCycle(object):
 
     def img_create(self, name):
 
-        self.add_test_info.sub_test_info('1', 'create_image')
+        self.add_test_info.sub_test_info("1", "create_image")
         create_image = self.glance_img.upload_images(name=name)
         assert create_image.status, "Image create initialize error"
-        log.info('image name: %s' % create_image.image.name)
-        self.timer.wait_for_state_change(create_image.image.status, 'creating')
+        log.info("image name: %s" % create_image.image.name)
+        self.timer.wait_for_state_change(create_image.image.status, "creating")
         image = self.glance_img.get_image(create_image.image)
         self.image = image.image
-        log.info('Image exists')
+        log.info("Image exists")
 
 
 def exec_test():
 
     uuid.set_env()
 
-    add_test_info = AddTestInfo(6, 'Glance image create Test')
+    add_test_info = AddTestInfo(6, "Glance image create Test")
 
     try:
 
@@ -45,11 +45,11 @@ def exec_test():
         assert auth.status, "Authentication Failed"
 
         image_cycle = GlanceCycle(auth.glance, add_test_info)
-        image_cycle.img_create('test-img')
+        image_cycle.img_create("test-img")
 
     except AssertionError, e:
         log.error(e)
-        add_test_info.failed_status('error')
+        add_test_info.failed_status("error")
         sys.exit(1)
 
     add_test_info.completed_info()

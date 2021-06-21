@@ -1,8 +1,4 @@
-import utils.log as log
-import os
-
 class rgw_install(object):
-
     def __init__(self, username, password, admin_node, mons, osds):
         self.username = username
         self.password = password
@@ -10,6 +6,4 @@ class rgw_install(object):
         self.mons = mons
         self.osds = osds
 
-
         self.repoadd = " ceph-deploy install --repo "
-

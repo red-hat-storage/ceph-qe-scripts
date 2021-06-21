@@ -15,38 +15,41 @@ Operation:
 
 
 """
-import os, sys
+import os
+import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
-from v2.lib.resource_op import Config
-import v2.lib.resource_op as s3lib
-from v2.lib.s3.auth import Auth
-import v2.utils.utils as utils
-from v2.utils.log import configure_logging
-import traceback
-import random 
 import argparse
-import yaml
-from v2.lib.exceptions import TestExecError, RGWBaseException
-from v2.utils.test_desc import AddTestInfo
-from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
-from v2.tests.s3_swift import reusable
-from v2.lib.admin import UserMgmt
 import logging
+import random
+import traceback
+
+import v2.lib.resource_op as s3lib
+import v2.utils.utils as utils
+from v2.lib.admin import UserMgmt
+from v2.lib.exceptions import RGWBaseException, TestExecError
+from v2.lib.resource_op import Config
+from v2.lib.s3.auth import Auth
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.tests.s3_swift import reusable
+from v2.utils.log import configure_logging
+from v2.utils.test_desc import AddTestInfo
 
 log = logging.getLogger()
 
 
 TEST_DATA_PATH = None
 
-def create_tenant_user(tenant_name, user_id, cluster_name='ceph'):
+
+def create_tenant_user(tenant_name, user_id, cluster_name="ceph"):
     # using userid as displayname
     admin_ops = UserMgmt()
     return admin_ops.create_tenant_user(
         user_id=user_id,
         displayname=user_id,
         cluster_name=cluster_name,
-        tenant_name=tenant_name)
+        tenant_name=tenant_name,
+    )
 
 
 def test_exec(config):
@@ -56,93 +59,117 @@ def test_exec(config):
     io_info_initialize.initialize(basic_io_structure.initial())
 
     # preparing data
-    user_names = ['user1', 'user2', 'user3']
-    Bucket_names = ['bucket1', 'bucket2', 'bucket3']
-    object_names = ['o1', 'o2']
-    tenant1 = 'tenant1'+'_'+str(random.randrange(1, 100))
-    tenant2 = 'tenant2'+'_'+str(random.randrange(1, 100))
+    user_names = ["user1", "user2", "user3"]
+    Bucket_names = ["bucket1", "bucket2", "bucket3"]
+    object_names = ["o1", "o2"]
+    tenant1 = "tenant1" + "_" + str(random.randrange(1, 100))
+    tenant2 = "tenant2" + "_" + str(random.randrange(1, 100))
     t1_u1_info = create_tenant_user(tenant_name=tenant1, user_id=user_names[0])
     t1_u1_auth = Auth(t1_u1_info, ssl=config.ssl)
     t1_u1 = t1_u1_auth.do_auth()
     t2_u1_info = create_tenant_user(tenant_name=tenant2, user_id=user_names[0])
     t2_u1_auth = Auth(t2_u1_info, ssl=config.ssl)
     t2_u1 = t2_u1_auth.do_auth()
-    t1_u1_b1 = reusable.create_bucket(bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info)
-    t2_u1_b1 = reusable.create_bucket(bucket_name=Bucket_names[0], rgw=t2_u1, user_info=t2_u1_info)
+    t1_u1_b1 = reusable.create_bucket(
+        bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info
+    )
+    t2_u1_b1 = reusable.create_bucket(
+        bucket_name=Bucket_names[0], rgw=t2_u1, user_info=t2_u1_info
+    )
     obj_sizes = list(config.mapped_sizes.values())
     config.obj_size = obj_sizes[0]
-    reusable.upload_object(s3_object_name=object_names[0],
-                           bucket=t1_u1_b1,
-                           TEST_DATA_PATH=TEST_DATA_PATH,
-                           config=config, user_info=t1_u1_info)
+    reusable.upload_object(
+        s3_object_name=object_names[0],
+        bucket=t1_u1_b1,
+        TEST_DATA_PATH=TEST_DATA_PATH,
+        config=config,
+        user_info=t1_u1_info,
+    )
     config.obj_size = obj_sizes[1]
-    reusable.upload_object(s3_object_name=object_names[0],
-                           bucket=t2_u1_b1,
-                           TEST_DATA_PATH=TEST_DATA_PATH,
-                           config=config, user_info=t1_u1_info)
+    reusable.upload_object(
+        s3_object_name=object_names[0],
+        bucket=t2_u1_b1,
+        TEST_DATA_PATH=TEST_DATA_PATH,
+        config=config,
+        user_info=t1_u1_info,
+    )
     t2_u2_info = create_tenant_user(tenant_name=tenant2, user_id=user_names[1])
     t2_u2_auth = Auth(t2_u2_info, ssl=config.ssl)
     t2_u2 = t2_u2_auth.do_auth()
     # will try to access the bucket and objects in both tenants
     # access t1_u1_b1
-    log.info('trying to access tenant1->user1->bucket1')
-    t1_u1_b1_from_t2_u2 = s3lib.resource_op({'obj': t2_u2,
-                                             'resource': 'Bucket',
-                                             'args': [Bucket_names[0]]})
-    log.info('trying to download tenant1->user1->bucket1->object1 from tenant2->user2' )
+    log.info("trying to access tenant1->user1->bucket1")
+    t1_u1_b1_from_t2_u2 = s3lib.resource_op(
+        {"obj": t2_u2, "resource": "Bucket", "args": [Bucket_names[0]]}
+    )
+    log.info("trying to download tenant1->user1->bucket1->object1 from tenant2->user2")
     download_path1 = TEST_DATA_PATH + "/t1_u1_b1_%s.download" % object_names[0]
-    t1_u1_b1_o1_download = s3lib.resource_op({'obj': t1_u1_b1_from_t2_u2,
-                                              'resource': 'download_file',
-                                              'args': [object_names[0], download_path1 ]})
+    t1_u1_b1_o1_download = s3lib.resource_op(
+        {
+            "obj": t1_u1_b1_from_t2_u2,
+            "resource": "download_file",
+            "args": [object_names[0], download_path1],
+        }
+    )
     if t1_u1_b1_o1_download is False:
-        log.info('object not downloaded\n')
+        log.info("object not downloaded\n")
     if t1_u1_b1_o1_download is None:
-        raise TestExecError("object downloaded for tenant1->user1->bucket1->object1, this should not happen")
+        raise TestExecError(
+            "object downloaded for tenant1->user1->bucket1->object1, this should not happen"
+        )
 
-    log.info('trying to access tenant2->user1->bucket1 from user2 in tenant 2')
+    log.info("trying to access tenant2->user1->bucket1 from user2 in tenant 2")
 
-    t2_u1_b1_from_t2_u2 = s3lib.resource_op({'obj': t2_u2,
-                                             'resource': 'Bucket',
-                                             'args': [Bucket_names[0]]})
-    log.info('trying to download tenant2->user1->bucket1->object1 from tenant2->user2')
+    t2_u1_b1_from_t2_u2 = s3lib.resource_op(
+        {"obj": t2_u2, "resource": "Bucket", "args": [Bucket_names[0]]}
+    )
+    log.info("trying to download tenant2->user1->bucket1->object1 from tenant2->user2")
     download_path2 = TEST_DATA_PATH + "/t2_u1_b1_%s.download" % object_names[0]
-    t2_u1_b1_o1_download = s3lib.resource_op({'obj': t2_u1_b1_from_t2_u2,
-                                              'resource': 'download_file',
-                                              'args': [object_names[0], download_path2]})
+    t2_u1_b1_o1_download = s3lib.resource_op(
+        {
+            "obj": t2_u1_b1_from_t2_u2,
+            "resource": "download_file",
+            "args": [object_names[0], download_path2],
+        }
+    )
     if t2_u1_b1_o1_download is False:
-        log.info('object did not download, worked as expected')
+        log.info("object did not download, worked as expected")
     if t1_u1_b1_o1_download is None:
-        raise TestExecError('object downloaded\n'
-                            'downloaded tenant2->user1->bucket1->object1, this should not happen')
+        raise TestExecError(
+            "object downloaded\n"
+            "downloaded tenant2->user1->bucket1->object1, this should not happen"
+        )
     # check for any crashes during the execution
-    crash_info=reusable.check_for_crash()
+    crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
 
-if __name__ == '__main__':
 
-    test_info = AddTestInfo('test bucket policy')
+if __name__ == "__main__":
+
+    test_info = AddTestInfo("test bucket policy")
     test_info.started_info()
 
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
-        test_data_dir = 'test_data'
-        TEST_DATA_PATH = (os.path.join(project_dir, test_data_dir))
-        log.info('TEST_DATA_PATH: %s' % TEST_DATA_PATH)
+        test_data_dir = "test_data"
+        TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
+        log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
         if not os.path.exists(TEST_DATA_PATH):
-            log.info('test data dir not exists, creating.. ')
+            log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
-        parser = argparse.ArgumentParser(description='RGW S3 Automation')
-        parser.add_argument('-c', dest="config",
-                            help='RGW Test yaml configuration')
-        parser.add_argument('-log_level', dest='log_level',
-                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
-                            default='info')
+        parser = argparse.ArgumentParser(description="RGW S3 Automation")
+        parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
+        parser.add_argument(
+            "-log_level",
+            dest="log_level",
+            help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
+            default="info",
+        )
         args = parser.parse_args()
         yaml_file = args.config
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
-        configure_logging(f_name=log_f_name,
-                          set_level=args.log_level.upper())
+        configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
         config.user_count = 2
@@ -151,11 +178,11 @@ if __name__ == '__main__':
             config.mapped_sizes = utils.make_mapped_sizes(config)
 
         test_exec(config)
-        test_info.success_status('test passed')
+        test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
         log.info(e)
         log.info(traceback.format_exc())
-        test_info.failed_status('test failed')
+        test_info.failed_status("test failed")
         sys.exit(1)

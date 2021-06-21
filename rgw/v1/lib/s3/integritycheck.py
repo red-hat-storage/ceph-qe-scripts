@@ -4,7 +4,7 @@ def cmp(val1, val2):
 
 
 def check_object_cmp(k1, k2):
-# compare key names
+    # compare key names
     cmp(k1.name, k2.name)
     cmp(k1.get_contents_as_string(), k2.get_contents_as_string())
     cmp(k1.metadata, k2.metadata)
@@ -16,7 +16,7 @@ def check_object_cmp(k1, k2):
 def check_bucket_cmp(zone1, zone2, bucket_name):
     b1 = get_bucket(zone1, bucket_name)
     b2 = get_bucket(zone2, bucket_name)
-# compare buckets across zones
+    # compare buckets across zones
 
     for k1, k2 in zip_longest(b1.get_all_versions(), b2.get_all_versions()):
         if k1 is None:

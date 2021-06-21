@@ -1,11 +1,7 @@
+import utils.log as log
 from AdminPrereq import DoAdminSettings
 from MonPrereq import DoMonSettings
 from OSDPrereq import DoOSDSetting
-import utils.log as log
-
-
-import os
-import subprocess
 
 
 class Prerequisites(object):
@@ -16,7 +12,7 @@ class Prerequisites(object):
 
     def execute(self):
 
-        log.debug('prereq execute functions')
+        log.debug("prereq execute functions")
 
         self.admin_settings.do_settings()
         self.mon_settings.do_settings()

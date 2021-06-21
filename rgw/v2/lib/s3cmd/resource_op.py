@@ -7,6 +7,7 @@ import logging
 
 log = logging.getLogger()
 
+
 class S3CMD:
     def __init__(self, operation, options=None):
         """
@@ -30,8 +31,7 @@ class S3CMD:
         if params is None:
             params = []
         command_list = [self.prefix, self.options, self.operation] + params
-        cmd = list(filter(lambda cmd: len(cmd) >0, command_list))
+        cmd = list(filter(lambda cmd: len(cmd) > 0, command_list))
         cmd = " ".join(cmd)
         log.info('S3CMD command "%s" created' % cmd)
         return cmd
-

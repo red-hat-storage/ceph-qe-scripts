@@ -7,4 +7,3 @@ def download_image():
     download_loc = "/tmp/image.img"
     urllib.urlretrieve(image_loc, download_loc)
     return download_loc
-

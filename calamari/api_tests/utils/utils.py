@@ -16,7 +16,7 @@ class Machines(object):
 def validate_http(response):
 
     status_code = response.status_code
-    log.info('status_code %s' % status_code)
+    log.info("status_code %s" % status_code)
 
     if status_code <= 400:
         content = response.json()
@@ -25,5 +25,5 @@ def validate_http(response):
 
     else:
         # here content will not be in json, so no json convertion
-        log.error('content %s' % response.content)
+        log.error("content %s" % response.content)
         return False
