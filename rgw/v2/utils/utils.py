@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import random
+import shutil
 import socket
 import string
 import subprocess
@@ -67,6 +68,23 @@ def split_file(fname, size_to_split=5, splitlocation=""):
         "split" + " " + "-b" + str(size_to_split) + "m " + fname + " " + splitlocation
     )
     exec_shell_cmd(split_cmd)
+
+
+def cleanup_test_data_path(test_data_path):
+    """
+    Deletes all files and directories in mentioned test_data_path
+    Args:
+        test_data_path(str): Test data path
+    """
+    for filename in os.listdir(test_data_path):
+        file_path = os.path.join(test_data_path, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            log.error("Failed to delete %s. Reason: %s" % (file_path, e))
 
 
 class FileOps(object):
