@@ -1,7 +1,8 @@
 import os
+
 import cinderclient.exceptions as c_exceptions
-from cinderclient.v2 import client as c_client
 import log
+from cinderclient.v2 import client as c_client
 
 
 class CinderReturnStack(object):
@@ -10,12 +11,11 @@ class CinderReturnStack(object):
 
 
 class CinderAuth(object):
-
     def __init__(self):
-        self.os_username = os.environ['OS_USERNAME']
-        self.os_api_key = os.environ['OS_PASSWORD']
-        self.os_auth_url = os.environ['OS_AUTH_URL']
-        self.os_tenant = os.environ['OS_TENANT_NAME']
+        self.os_username = os.environ["OS_USERNAME"]
+        self.os_api_key = os.environ["OS_PASSWORD"]
+        self.os_auth_url = os.environ["OS_AUTH_URL"]
+        self.os_tenant = os.environ["OS_TENANT_NAME"]
 
     def auth(self):
 
@@ -29,26 +29,30 @@ class CinderAuth(object):
 
         auth_stack = CinderReturnStack()
 
-        log.info('in lib: auth')
+        log.info("in lib: auth")
 
         try:
-            cinder = c_client.Client(auth_url=self.os_auth_url, username=self.os_username, api_key=self.os_api_key,
-                                     project_id=self.os_tenant, service_type='volumev2')
+            cinder = c_client.Client(
+                auth_url=self.os_auth_url,
+                username=self.os_username,
+                api_key=self.os_api_key,
+                project_id=self.os_tenant,
+                service_type="volumev2",
+            )
 
             auth_stack.cinder, auth_stack.status = cinder, True
 
-            log.info('Cinder Auth successful')
+            log.info("Cinder Auth successful")
 
         except c_exceptions.AuthorizationFailure, e:
             auth_stack.cinder, auth_stack.status = None, False
-            log.error('cinder auth failed')
+            log.error("cinder auth failed")
             log.error(e.message)
 
         return auth_stack
 
 
 class CinderVolumes(object):
-
     def __init__(self, cinder_auth):
         self.cinder = cinder_auth
 
@@ -68,7 +72,7 @@ class CinderVolumes(object):
         volume_create = CinderReturnStack()
 
         try:
-            log.info('initialized volume creation')
+            log.info("initialized volume creation")
             volume = self.cinder.volumes.create(name=name, size=size, imageRef=image_id)
             volume_create.vol, volume_create.status = volume, True
 
@@ -98,7 +102,7 @@ class CinderVolumes(object):
             if volumes:
                 volumes_list.volumes = volumes
 
-        except (c_exceptions.NotFound, c_exceptions.ClientException),  e:
+        except (c_exceptions.NotFound, c_exceptions.ClientException), e:
             log.error(e)
             volumes_list.status = False
 
@@ -123,7 +127,7 @@ class CinderVolumes(object):
             each_volume.volume = volume
             each_volume.status = True
 
-        except (c_exceptions.NotFound, c_exceptions.ClientException),  e:
+        except (c_exceptions.NotFound, c_exceptions.ClientException), e:
             log.error(e)
             each_volume.status = False
 
@@ -159,14 +163,14 @@ class CinderVolumes(object):
                  - volume_delete.execute: True or False
         """
 
-        log.info('in lib of delete volume')
+        log.info("in lib of delete volume")
         volume_delete = CinderReturnStack()
         volume_delete.execute = False
 
         try:
             self.cinder.volumes.delete(volume)
             volume_delete.execute = True
-            log.info('delete volume executed')
+            log.info("delete volume executed")
         except (c_exceptions.NotFound, c_exceptions.ClientException), e:
             log.error(e)
 
@@ -174,7 +178,6 @@ class CinderVolumes(object):
 
 
 class CinderBackup(object):
-
     def __init__(self, cinder_auth):
         self.cinder = cinder_auth
 
@@ -192,7 +195,9 @@ class CinderBackup(object):
         backup = CinderReturnStack()
         backup.volume_backup = None
         try:
-            volume_backup = self.cinder.backups.create(volume.id, name=name, incremental=incremental)
+            volume_backup = self.cinder.backups.create(
+                volume.id, name=name, incremental=incremental
+            )
             backup.volume_backup, backup.status = volume_backup, True
 
         except c_exceptions.ClientException, e:
@@ -243,7 +248,7 @@ class CinderBackup(object):
             if backups:
                 backups_list.backups = backups
 
-        except (c_exceptions.NotFound, c_exceptions.ClientException),  e:
+        except (c_exceptions.NotFound, c_exceptions.ClientException), e:
             log.error(e)
             backups_list.status = False
 
@@ -294,8 +299,7 @@ class CinderBackup(object):
 
 
 class CinderSnapshot(object):
-
-    def __init__(self,cinder_auth):
+    def __init__(self, cinder_auth):
         self.cinder = cinder_auth
 
     def create_snapshot(self, volume, snapshot_name):
@@ -308,7 +312,7 @@ class CinderSnapshot(object):
                 - snapshot.status           : True or False
         """
 
-        log.info('in lib: create snapshots')
+        log.info("in lib: create snapshots")
 
         snapshot = CinderReturnStack()
         snapshot.volume_snapshot = None
@@ -320,13 +324,15 @@ class CinderSnapshot(object):
         elif volume.status == "in-use":
             ftype = True
 
-        log.info('setting force type: %s' % ftype)
+        log.info("setting force type: %s" % ftype)
 
         try:
-            volume_snapshot = self.cinder.volume_snapshots.create(volume.id, name=snapshot_name, force=ftype)
+            volume_snapshot = self.cinder.volume_snapshots.create(
+                volume.id, name=snapshot_name, force=ftype
+            )
             snapshot.volume_snapshot = volume_snapshot
             snapshot.status = True
-            log.info('volume snapshot creation executed')
+            log.info("volume snapshot creation executed")
         except c_exceptions.ClientException, e:
             log.error(e)
             snapshot.status = False
@@ -343,7 +349,7 @@ class CinderSnapshot(object):
 
         """
 
-        log.info('in lib of list snapshot')
+        log.info("in lib of list snapshot")
 
         snapshots_list = CinderReturnStack()
         snapshots_list.snapshots = []
@@ -354,12 +360,12 @@ class CinderSnapshot(object):
 
             snapshots_list.status = True
             if snapshots:
-                log.info('got snapshots')
+                log.info("got snapshots")
                 snapshots_list.snapshots = snapshots
 
-            log.error('got no snapshots')
+            log.error("got no snapshots")
 
-        except (c_exceptions.NotFound, c_exceptions.ClientException),  e:
+        except (c_exceptions.NotFound, c_exceptions.ClientException), e:
             log.error(e)
             snapshots_list.status = False
 
@@ -374,13 +380,13 @@ class CinderSnapshot(object):
                 - snapshot_delete.execute: True or False
         """
 
-        log.info('in lib of delete snapshot')
+        log.info("in lib of delete snapshot")
         snapshot_delete = CinderReturnStack()
         snapshot_delete.execute = False
         try:
             self.cinder.volume_snapshots.delete(snapshot)
             snapshot_delete.execute = True
-            log.info('delete snapshot executed')
+            log.info("delete snapshot executed")
         except (c_exceptions.NotFound, c_exceptions.ClientException), e:
             log.error(e)
 
@@ -405,7 +411,7 @@ class CinderSnapshot(object):
             each_snap.snapshot = volume_snap
             each_snap.status = True
 
-        except (c_exceptions.NotFound, c_exceptions.ClientException),  e:
+        except (c_exceptions.NotFound, c_exceptions.ClientException), e:
             log.error(e)
             each_snap.status = False
 
@@ -422,20 +428,20 @@ class CinderSnapshot(object):
                  - snapshot_volume.status: True or False
         """
 
-        log.info('in lib of create vol from snapshot')
+        log.info("in lib of create vol from snapshot")
 
         snapshot_volume = CinderReturnStack()
         snapshot_volume.volume = None
 
         try:
-            volume = self.cinder.volumes.create(size=size, name=name, snapshot_id=snapshot)
+            volume = self.cinder.volumes.create(
+                size=size, name=name, snapshot_id=snapshot
+            )
             snapshot_volume.status = True
             snapshot_volume.volume = volume
-            log.info('snapshot volume created')
+            log.info("snapshot volume created")
         except c_exceptions.ClientException, e:
             log.error(e)
             snapshot_volume.status = False
 
         return snapshot_volume
-
-

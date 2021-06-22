@@ -1,22 +1,24 @@
 import boto.exception as exception
 import v1.utils.log as log
-from .json_ops import JBucket
 from v1.lib.io_info import AddIOInfo
+
+from .json_ops import JBucket
+
 
 class Bucket(object):
     def __init__(self, connection):
 
-        log.debug('class: %s' % self.__class__.__name__)
+        log.debug("class: %s" % self.__class__.__name__)
 
         self.connection = connection
         self.add_io_info = AddIOInfo()
-        self.test_op_code = 'create'
+        self.test_op_code = "create"
 
     def create(self, bucket_name, json_file):
 
-        log.debug('function: %s' % self.create.__name__)
+        log.debug("function: %s" % self.create.__name__)
 
-        log.info('in create bucket')
+        log.info("in create bucket")
 
         """
         :param bucket_name: string
@@ -32,30 +34,34 @@ class Bucket(object):
 
             bucket = self.connection.create_bucket(bucket_name)
 
-            create_bucket_stack = {'status': True,
-                                   'bucket': bucket}
+            create_bucket_stack = {"status": True, "bucket": bucket}
 
             add_bucket_to_json = JBucket(json_file)
 
             add_bucket_to_json.add(bucket_name)
 
-            self.add_io_info.add_bucket_info(self.connection.access_key, **{'bucket_name': bucket_name,
-                                                                            'test_op_code': self.test_op_code})
+            self.add_io_info.add_bucket_info(
+                self.connection.access_key,
+                **{"bucket_name": bucket_name, "test_op_code": self.test_op_code}
+            )
 
-
-        except (exception.AWSConnectionError, exception.BotoClientError, exception.S3ResponseError,
-                exception.S3CreateError, IOError) as e:
+        except (
+            exception.AWSConnectionError,
+            exception.BotoClientError,
+            exception.S3ResponseError,
+            exception.S3CreateError,
+            IOError,
+        ) as e:
             log.error(e)
-            create_bucket_stack = {'status': False,
-                                   'msgs': e}
+            create_bucket_stack = {"status": False, "msgs": e}
 
         return create_bucket_stack
 
     def get(self, bucket_name, json_file=None):
 
-        log.debug('function: %s' % self.get.__name__)
+        log.debug("function: %s" % self.get.__name__)
 
-        log.info('in get bucket')
+        log.info("in get bucket")
 
         """
 
@@ -76,22 +82,20 @@ class Bucket(object):
                 add_bucket_to_json = JBucket(json_file)
                 add_bucket_to_json.add(bucket_name)
 
-            get_bucket_stack = {'status': True,
-                                'bucket': bucket}
+            get_bucket_stack = {"status": True, "bucket": bucket}
 
         except (exception.S3ResponseError, exception.AWSConnectionError) as e:
 
             log.error(e)
-            get_bucket_stack = {'status': False,
-                                'msgs': e}
+            get_bucket_stack = {"status": False, "msgs": e}
 
         return get_bucket_stack
 
     def delete(self, bucket_name):
 
-        log.debug('function: %s' % self.delete.__name__)
+        log.debug("function: %s" % self.delete.__name__)
 
-        log.info('in delete bucket')
+        log.info("in delete bucket")
 
         """
 
@@ -107,12 +111,11 @@ class Bucket(object):
 
             self.connection.delete_bucket(bucket_name)
 
-            delete_bucket_stack = {'status': True}
+            delete_bucket_stack = {"status": True}
 
         except exception.S3ResponseError as e:
             log.error(e)
-            delete_bucket_stack = {'status': False,
-                                   'msgs': e}
+            delete_bucket_stack = {"status": False, "msgs": e}
 
         return delete_bucket_stack
 
@@ -135,7 +138,6 @@ class Bucket(object):
 
     def set_user_grant(self, bucket, grants):
 
-
         """
 
         :param acls:
@@ -151,14 +153,17 @@ class Bucket(object):
 
             try:
 
-                log.debug('setting grants %s' % grants)
+                log.debug("setting grants %s" % grants)
 
-                bucket.add_user_grant(permission=grants['permission'], user_id=grants['user_id'],
-                                      recursive=grants['recursive'])
+                bucket.add_user_grant(
+                    permission=grants["permission"],
+                    user_id=grants["user_id"],
+                    recursive=grants["recursive"],
+                )
 
                 acp = bucket.get_acl()
                 for grant in acp.acl.grants:
-                    log.info('grants set: %s on %s' % (grant.permission, grant.id))
+                    log.info("grants set: %s on %s" % (grant.permission, grant.id))
 
                 return True
             except (exception.S3ResponseError, exception.BotoClientError) as e:
@@ -167,7 +172,7 @@ class Bucket(object):
 
                 return False
         else:
-            log.info('not setting any acls')
+            log.info("not setting any acls")
 
     def set_acls(self, bucket, acls):
 
@@ -181,12 +186,12 @@ class Bucket(object):
 
             try:
 
-                log.info('got acl: %s' % acls)
+                log.info("got acl: %s" % acls)
                 bucket.set_acl(acls)
 
                 acp = bucket.get_acl()
                 for grant in acp.acl.grants:
-                    log.info('canned acls set: %s on %s' % (grant.permission, grant.id))
+                    log.info("canned acls set: %s on %s" % (grant.permission, grant.id))
 
                 return True
             except (exception.S3ResponseError, exception.BotoClientError) as e:
@@ -196,16 +201,16 @@ class Bucket(object):
             return False
 
         else:
-            log.info('not setting any acls')
+            log.info("not setting any acls")
 
 
 def check_if_bucket_empty(bucket):
 
-        log.debug('function: %s' % check_if_bucket_empty.__name__)
+    log.debug("function: %s" % check_if_bucket_empty.__name__)
 
-        log.info('checking if bucket is empty')
+    log.info("checking if bucket is empty")
 
-        """
+    """
 
         :param bucket: bucket object
         :rtype: dict
@@ -215,24 +220,23 @@ def check_if_bucket_empty(bucket):
                         2.msgs: error messages
         """
 
-        try:
-            bucket_contents = bucket.list()
+    try:
+        bucket_contents = bucket.list()
 
-            check_for_empty_stack = {'contents': bucket_contents}
+        check_for_empty_stack = {"contents": bucket_contents}
 
-        except (exception.S3ResponseError, exception.AWSConnectionError) as e:
-            log.error(e)
-            check_for_empty_stack = {'contents': [],
-                                     'msgs': e}
+    except (exception.S3ResponseError, exception.AWSConnectionError) as e:
+        log.error(e)
+        check_for_empty_stack = {"contents": [], "msgs": e}
 
-        return check_for_empty_stack
+    return check_for_empty_stack
 
 
 def list_all_buckets(connection):
 
-    log.debug('function: %s' % list_all_buckets.__name__)
+    log.debug("function: %s" % list_all_buckets.__name__)
 
-    log.info('listing all buckets')
+    log.info("listing all buckets")
 
     """
 
@@ -247,17 +251,11 @@ def list_all_buckets(connection):
     try:
 
         all_buckets = connection.get_all_buckets()
-        list_buckets_stack = {'all_buckets': all_buckets}
+        list_buckets_stack = {"all_buckets": all_buckets}
 
     except (exception.S3ResponseError, exception.AWSConnectionError) as e:
         log.error(e)
 
-        list_buckets_stack = {'all_buckets': None,
-                              'msgs': e
-                              }
+        list_buckets_stack = {"all_buckets": None, "msgs": e}
 
     return list_buckets_stack
-
-
-
-

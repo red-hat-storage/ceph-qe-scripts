@@ -1,11 +1,12 @@
+import os
+
 import v1.utils.log as log
 import v1.utils.utils as utils
-import os
 from v1.utils.utils import FileOps
 
 
 def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname, nfs_version):
-    ganesha_conf = '''
+    ganesha_conf = """
                 EXPORT
                 {
                         Export_ID=77;
@@ -34,17 +35,20 @@ def get_ganesha_config(user_id, access_key, secret_key, rgw_hostname, nfs_versio
                     ceph_conf = "/etc/ceph/ceph.conf";
                     init_args = "-d --debug-rgw=16";
                 }
-        ''' % (nfs_version, user_id,
-               access_key,
-               secret_key,
-               rgw_hostname)
+        """ % (
+        nfs_version,
+        user_id,
+        access_key,
+        secret_key,
+        rgw_hostname,
+    )
     return ganesha_conf
 
 
 class GaneshaConfig(object):
     def __init__(self, user_id, access_key, secret_key, rgw_hostname, nfs_version=4):
-        self.conf_path = '/etc/ganesha'
-        self.fname = 'ganesha.conf'
+        self.conf_path = "/etc/ganesha"
+        self.fname = "ganesha.conf"
         self.nfS_version = nfs_version
         self.user_id = user_id
         self.access_key = access_key
@@ -53,19 +57,25 @@ class GaneshaConfig(object):
 
     def backup(self, uname):
         """
-        backup existing config  
+        backup existing config
         """
         original_fname = os.path.join(self.conf_path, self.fname)
-        log.info('original file name: %s' % original_fname)
-        backup_fname = os.path.join(str(self.conf_path), str(self.fname) + '.%s' % uname + '.bkp')
-        log.info('backup file name: %s' % backup_fname)
-        cmd = 'sudo mv %s %s' % (original_fname, backup_fname)
+        log.info("original file name: %s" % original_fname)
+        backup_fname = os.path.join(
+            str(self.conf_path), str(self.fname) + ".%s" % uname + ".bkp"
+        )
+        log.info("backup file name: %s" % backup_fname)
+        cmd = "sudo mv %s %s" % (original_fname, backup_fname)
         utils.exec_shell_cmd(cmd)
 
     def create(self):
         conf_fname = os.path.join(self.conf_path, self.fname)
-        ganesha_config = get_ganesha_config(access_key=self.access_key, secret_key=self.secret_key,
-                                            user_id=self.user_id, rgw_hostname=self.rgw_hostname,
-                                            nfs_version=self.nfS_version)
-        create_conf = FileOps(filename=conf_fname, type='txt')
+        ganesha_config = get_ganesha_config(
+            access_key=self.access_key,
+            secret_key=self.secret_key,
+            user_id=self.user_id,
+            rgw_hostname=self.rgw_hostname,
+            nfs_version=self.nfS_version,
+        )
+        create_conf = FileOps(filename=conf_fname, type="txt")
         create_conf.add_data(ganesha_config)

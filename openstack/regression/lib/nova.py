@@ -1,7 +1,8 @@
 import os
-import novaclient.v2.client as nv_client
-import novaclient.exceptions as nv_exceptions
+
 import log
+import novaclient.exceptions as nv_exceptions
+import novaclient.v2.client as nv_client
 
 
 class NovaReturnStack(object):
@@ -10,14 +11,13 @@ class NovaReturnStack(object):
 
 
 class NovaAuth(object):
-
     def __init__(self):
 
         self.nv = {}
-        self.nv['username'] = os.environ['OS_USERNAME']
-        self.nv['api_key'] = os.environ['OS_PASSWORD']
-        self.nv['auth_url'] = os.environ['OS_AUTH_URL']
-        self.nv['project_id'] = os.environ['OS_TENANT_NAME']
+        self.nv["username"] = os.environ["OS_USERNAME"]
+        self.nv["api_key"] = os.environ["OS_PASSWORD"]
+        self.nv["auth_url"] = os.environ["OS_AUTH_URL"]
+        self.nv["project_id"] = os.environ["OS_TENANT_NAME"]
 
     def auth(self):
 
@@ -31,30 +31,29 @@ class NovaAuth(object):
 
         auth_stack = NovaReturnStack()
 
-        log.info('Authenticating nova')
+        log.info("Authenticating nova")
 
         try:
             nova = nv_client.Client(**self.nv)
 
             auth_stack.nova, auth_stack.status = nova, True
 
-            log.info('Nova Auth successful')
+            log.info("Nova Auth successful")
 
         except nv_exceptions.AuthorizationFailure, e:
             auth_stack.nova, auth_stack.status = None, False
-            log.error('Nova auth failed')
+            log.error("Nova auth failed")
             log.error(e.message)
 
         return auth_stack
 
 
 class NovaActions(object):
-
     def __init__(self, nova_auth):
         self.nova = nova_auth
-        self.flavor = self.nova.flavors.findall(name='m1.small')[0]
-        network = self.nova.networks.findall(label='private')[0]
-        self.nics = [{'net-id': network.id}]
+        self.flavor = self.nova.flavors.findall(name="m1.small")[0]
+        network = self.nova.networks.findall(label="private")[0]
+        self.nics = [{"net-id": network.id}]
 
     def boot_vm(self, name, image=None, volume_id=None, **kwargs):
 
@@ -75,27 +74,41 @@ class NovaActions(object):
         boot_kwargs = dict(**kwargs)
 
         if image:
-            boot_kwargs['image'] = image
+            boot_kwargs["image"] = image
         else:
-            boot_kwargs['volume_id'] = volume_id
+            boot_kwargs["volume_id"] = volume_id
 
         try:
-            log.info('Initializing vm creating')
+            log.info("Initializing vm creating")
 
             if volume_id:
-                log.info('Booting vm from volume')
+                log.info("Booting vm from volume")
                 bdm = [
-                    {'source_type': 'volume', 'uuid': volume_id, 'destination_type': 'volume',
-                     'boot_index': '0'}
+                    {
+                        "source_type": "volume",
+                        "uuid": volume_id,
+                        "destination_type": "volume",
+                        "boot_index": "0",
+                    }
                 ]
-                server = self.nova.servers.create(name=name, image='',
-                                                  block_device_mapping_v2=bdm, nics=self.nics, availability_zone='nova',
-                                                  flavor=self.flavor)
+                server = self.nova.servers.create(
+                    name=name,
+                    image="",
+                    block_device_mapping_v2=bdm,
+                    nics=self.nics,
+                    availability_zone="nova",
+                    flavor=self.flavor,
+                )
                 nova_boot.server, nova_boot.status = server, True
             else:
-                log.info('Booting vm from image')
-                server = self.nova.servers.create(name=name, image=image, nics=self.nics, availability_zone='nova',
-                                                  flavor=self.flavor)
+                log.info("Booting vm from image")
+                server = self.nova.servers.create(
+                    name=name,
+                    image=image,
+                    nics=self.nics,
+                    availability_zone="nova",
+                    flavor=self.flavor,
+                )
                 nova_boot.server, nova_boot.status = server, True
 
         except nv_exceptions.ClientException, e:
@@ -147,7 +160,7 @@ class NovaActions(object):
             log.info("Deleting nova instance")
             self.nova.servers.delete(server)
             vm_delete.execute = True
-            log.info('delete instance executed')
+            log.info("delete instance executed")
 
         except (nv_exceptions.ClientException, nv_exceptions.NotFound), e:
             log.error(e)
@@ -223,8 +236,13 @@ class NovaActions(object):
 
         try:
             log.info("Creating instance from nova snapshot")
-            server = self.nova.servers.create(name=name, image=snap, flavor=self.flavor, availability_zone='nova',
-                                              nics=self.nics)
+            server = self.nova.servers.create(
+                name=name,
+                image=snap,
+                flavor=self.flavor,
+                availability_zone="nova",
+                nics=self.nics,
+            )
             snap_vm.server, snap_vm.status = server, True
 
         except nv_exceptions.ClientException, e:
@@ -246,7 +264,7 @@ class NovaActions(object):
         snap_info.snap = None
 
         try:
-            log.info('Get snap details')
+            log.info("Get snap details")
             snapshot = self.nova.images.get(image=image)
             snap_info.snap, snap_info.status = snapshot, True
 
@@ -271,7 +289,7 @@ class NovaActions(object):
             log.info("Deleting VM snap")
             self.nova.images.delete(image)
             delete_snap.execute = True
-            log.info('delete snap executed')
+            log.info("delete snap executed")
 
         except (nv_exceptions.ClientException, nv_exceptions.NotFound), e:
             log.error(e)
@@ -296,7 +314,9 @@ class NovaActions(object):
 
         try:
             log.info("Attaching volume to server")
-            volume = self.nova.volumes.create_server_volume(server, volume, device=device)
+            volume = self.nova.volumes.create_server_volume(
+                server, volume, device=device
+            )
             volume_attach.vol, volume_attach.status = volume, True
         except (nv_exceptions.ClientException, nv_exceptions.ResourceNotFound), e:
             log.error(e)
@@ -324,14 +344,3 @@ class NovaActions(object):
             volume_detach.status = False
 
         return volume_detach
-
-
-
-
-
-
-
-
-
-
-

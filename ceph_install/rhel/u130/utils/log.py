@@ -1,7 +1,12 @@
 import logging
 
-LOG_FILENAME = 'clog.txt'
-logging.basicConfig(format='%(asctime)s : %(levelname)s: %(message)s', datefmt='[%m/%d/%Y - %I:%M:%S %p]',filename=LOG_FILENAME,level=logging.DEBUG)
+LOG_FILENAME = "clog.txt"
+logging.basicConfig(
+    format="%(asctime)s : %(levelname)s: %(message)s",
+    datefmt="[%m/%d/%Y - %I:%M:%S %p]",
+    filename=LOG_FILENAME,
+    level=logging.DEBUG,
+)
 
 
 def debug(debug_msg):

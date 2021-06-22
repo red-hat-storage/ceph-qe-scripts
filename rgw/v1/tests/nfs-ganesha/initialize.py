@@ -1,17 +1,15 @@
-import v1.utils.log as log
-import v1.utils.utils as utils
 import os
 import socket
+
+import v1.lib.s3.rgw as rgw
+import v1.utils.log as log
+import v1.utils.utils as utils
+import yaml
 from v1.lib.nfs_ganesha.manage_conf import GaneshaConfig
 from v1.lib.nfs_ganesha.manage_services import ManageNFSServices
-import v1.lib.s3.rgw as rgw
-import yaml
-import subprocess
-from v1.lib.io_info import AddIOInfo
 
 
 class RGWUserConfigOps(object):
-
     def __init__(self, yaml_fname):
 
         self.fname = yaml_fname
@@ -24,47 +22,47 @@ class RGWUserConfigOps(object):
 
         self.ganesha_config_exists = False
         self.already_mounted = False
-        self.nfs_version = 4                   # default nfs_version is always 4
+        self.nfs_version = 4  # default nfs_version is always 4
 
     def read_config(self):
 
         yaml_file = os.path.abspath(self.fname)
 
-        with open(yaml_file, 'r') as f:
+        with open(yaml_file, "r") as f:
             rgw_user_details = yaml.safe_load(f)
 
-        log.info('got configuration: %s' % rgw_user_details)
+        log.info("got configuration: %s" % rgw_user_details)
 
-        self.user_id = rgw_user_details['user_id']
-        self.access_key = rgw_user_details['access_key']
-        self.secret_key = rgw_user_details['secret_key']
+        self.user_id = rgw_user_details["user_id"]
+        self.access_key = rgw_user_details["access_key"]
+        self.secret_key = rgw_user_details["secret_key"]
 
-        self.rgw_hostname = rgw_user_details['rgw_hostname']
+        self.rgw_hostname = rgw_user_details["rgw_hostname"]
 
-        self.ganesha_config_exists = rgw_user_details['ganesha_config_exists']
-        self.already_mounted = rgw_user_details['already_mounted']
-        self.nfs_version = rgw_user_details['nfs_version']
+        self.ganesha_config_exists = rgw_user_details["ganesha_config_exists"]
+        self.already_mounted = rgw_user_details["already_mounted"]
+        self.nfs_version = rgw_user_details["nfs_version"]
 
         return rgw_user_details
 
     def update_config(self):
 
-        rgw_user_details_structure = dict(user_id=self.user_id,
-                                          access_key=self.access_key,
-                                          secret_key=self.secret_key,
-                                          rgw_hostname=self.rgw_hostname,
-                                          ganesha_config_exists=self.ganesha_config_exists,
-                                          already_mounted=self.already_mounted,
-                                          nfs_version = self.nfs_version
-                                          )
+        rgw_user_details_structure = dict(
+            user_id=self.user_id,
+            access_key=self.access_key,
+            secret_key=self.secret_key,
+            rgw_hostname=self.rgw_hostname,
+            ganesha_config_exists=self.ganesha_config_exists,
+            already_mounted=self.already_mounted,
+            nfs_version=self.nfs_version,
+        )
 
-        with open(self.fname, 'w') as fp:
+        with open(self.fname, "w") as fp:
             yaml.dump(rgw_user_details_structure, fp, default_flow_style=False)
 
 
 class PrepNFSGanesha(RGWUserConfigOps):
-
-    def __init__(self, mount_point, yaml_fname='yaml/rgw_user.yaml'):
+    def __init__(self, mount_point, yaml_fname="yaml/rgw_user.yaml"):
 
         super(PrepNFSGanesha, self).__init__(yaml_fname)
 
@@ -76,13 +74,13 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
     def create_rgw_user(self):
 
-        log.info('creating rgw user')
+        log.info("creating rgw user")
 
         rgw_user = rgw.create_users(1)[0]
 
-        self.user_id = rgw_user['user_id']
-        self.access_key = rgw_user['access_key']
-        self.secret_key = rgw_user['secret_key']
+        self.user_id = rgw_user["user_id"]
+        self.access_key = rgw_user["access_key"]
+        self.secret_key = rgw_user["secret_key"]
 
         self.rgw_hostname = socket.gethostname()
         self.ganesha_config_exists = False
@@ -90,13 +88,18 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
     def create_ganesha_config(self):
 
-        log.info('creating ganesha config')
+        log.info("creating ganesha config")
 
         self.nfs_service.ganesha_stop()
 
-        nfs_ganesha_config = GaneshaConfig(self.user_id, self.access_key, self.secret_key, self.rgw_hostname,
-                                           self.nfs_version)
-        nfs_ganesha_config.backup(uname='default')
+        nfs_ganesha_config = GaneshaConfig(
+            self.user_id,
+            self.access_key,
+            self.secret_key,
+            self.rgw_hostname,
+            self.nfs_version,
+        )
+        nfs_ganesha_config.backup(uname="default")
         nfs_ganesha_config.create()
 
         self.nfs_service.ganesha_start()
@@ -105,26 +108,32 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
     def do_mount(self):
 
-        log.info('mounting on a dir: %s' % self.mount_point)
+        log.info("mounting on a dir: %s" % self.mount_point)
 
         self.nfs_service.ganesha_restart()
 
         if not os.path.exists(self.mount_point):
             os.makedirs(self.mount_point)
 
-        mnt_cmd = 'sudo mount -v -t nfs -o nfsvers=%s,sync,rw,noauto,soft,proto=tcp %s:/  %s' % \
-                  (self.nfs_version, self.rgw_hostname, self.mount_point, )
+        mnt_cmd = (
+            "sudo mount -v -t nfs -o nfsvers=%s,sync,rw,noauto,soft,proto=tcp %s:/  %s"
+            % (
+                self.nfs_version,
+                self.rgw_hostname,
+                self.mount_point,
+            )
+        )
 
-        log.info('mnt_command: %s' % mnt_cmd)
+        log.info("mnt_command: %s" % mnt_cmd)
 
         mounted = utils.exec_shell_cmd(mnt_cmd)
         return mounted
 
     def do_un_mount(self):
 
-        log.info('un_mounting dir: %s' % self.mount_point)
+        log.info("un_mounting dir: %s" % self.mount_point)
 
-        un_mount_cmd = 'sudo umount %s' % self.mount_point
+        un_mount_cmd = "sudo umount %s" % self.mount_point
 
         un_mounted = utils.exec_shell_cmd(un_mount_cmd)
 
@@ -139,13 +148,13 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
     def initialize(self):
 
-        log.info('initializing NFS Ganesha')
+        log.info("initializing NFS Ganesha")
 
         self.read_config()
 
         if self.user_id is None:
 
-            log.info('rgw user does not exists')
+            log.info("rgw user does not exists")
 
             self.create_rgw_user()
 
@@ -155,7 +164,7 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
         if not self.ganesha_config_exists:
 
-            log.info('ganesha config does not exists')
+            log.info("ganesha config does not exists")
 
             self.create_ganesha_config()
 
@@ -165,12 +174,12 @@ class PrepNFSGanesha(RGWUserConfigOps):
 
         if not self.already_mounted:
 
-            log.info('mount needed')
+            log.info("mount needed")
 
             mounted = self.do_mount()
 
             if not mounted:
-                log.error('mount failed')
+                log.error("mount failed")
                 exit(1)
 
             self.already_mounted = True
@@ -178,4 +187,3 @@ class PrepNFSGanesha(RGWUserConfigOps):
             self.update_config()
 
             self.read_config()
-

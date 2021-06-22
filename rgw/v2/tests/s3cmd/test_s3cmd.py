@@ -17,32 +17,27 @@ Operation:
 
 
 import argparse
-import json
 import logging
 import os
-import requests
 import socket
 import sys
-import time
 import traceback
-import yaml
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
 
-from v2.lib.admin import UserMgmt
-from v2.lib.exceptions import TestExecError, RGWBaseException
-from v2.lib import manage_data
 from v2.lib import resource_op
-from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
+from v2.lib.admin import UserMgmt
+from v2.lib.exceptions import RGWBaseException, TestExecError
+from v2.lib.rgw_config_opts import CephConfOp
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.lib.s3cmd import auth as s3_auth
-from v2.lib.s3cmd.resource_op import S3CMD
-from v2.lib.s3.write_io_info import IOInfoInitialize, BasicIOInfoStructure
+from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils import utils
 from v2.utils.log import configure_logging
-from v2.utils.utils import HttpResponseParser, RGWService
 from v2.utils.test_desc import AddTestInfo
-from v2.tests.s3cmd import reusable as s3cmd_reusable
-from v2.tests.s3_swift import reusable
+from v2.utils.utils import RGWService
 
 log = logging.getLogger()
 
@@ -60,77 +55,79 @@ def test_exec(config):
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
     # preparing data
-    user_name = resource_op.create_users(no_of_users_to_create=1)[0]['user_id']
-    tenant = 'tenant'
-    tenant_user_info = umgmt.create_tenant_user(tenant_name=tenant,
-                                                user_id=user_name,
-                                                displayname=user_name)
+    user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
+    tenant = "tenant"
+    tenant_user_info = umgmt.create_tenant_user(
+        tenant_name=tenant, user_id=user_name, displayname=user_name
+    )
     user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_name)
 
     hostname = socket.gethostname()
     ip = socket.gethostbyname(hostname)
     port = utils.get_radosgw_port_no()
 
-    ip_and_port = '%s:%s' % (ip, port)
+    ip_and_port = "%s:%s" % (ip, port)
     s3_auth.do_auth(tenant_user_info, ip_and_port)
 
     bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
 
-    #Create a bucket
+    # Create a bucket
     s3cmd_reusable.create_bucket(bucket_name)
-    log.info('Bucket %s created' % bucket_name)
+    log.info("Bucket %s created" % bucket_name)
 
-    #Upload file to bucket
+    # Upload file to bucket
     uploaded_file = s3cmd_reusable.upload_file(bucket_name)
-    log.info('Uploaded file %s to bucket %s' %(uploaded_file, bucket_name))
+    log.info("Uploaded file %s to bucket %s" % (uploaded_file, bucket_name))
 
-    #Delete file from bucket
+    # Delete file from bucket
     s3cmd_reusable.delete_file(bucket_name, uploaded_file)
-    log.info('Deleted file %s from bucket %s' %(uploaded_file, bucket_name))
+    log.info("Deleted file %s from bucket %s" % (uploaded_file, bucket_name))
 
-    #Delete bucket
+    # Delete bucket
     s3cmd_reusable.delete_bucket(bucket_name)
-    log.info('Bucket %s deleted' % bucket_name)
+    log.info("Bucket %s deleted" % bucket_name)
 
     # check for any crashes during the execution
-    crash_info=reusable.check_for_crash()
+    crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
 
-if __name__ == '__main__':
 
-    test_info = AddTestInfo('test swift user key gen')
+if __name__ == "__main__":
+
+    test_info = AddTestInfo("test swift user key gen")
 
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
-        test_data_dir = 'test_data'
-        TEST_DATA_PATH = (os.path.join(project_dir, test_data_dir))
-        log.info('TEST_DATA_PATH: %s' % TEST_DATA_PATH)
+        test_data_dir = "test_data"
+        TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
+        log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
         if not os.path.exists(TEST_DATA_PATH):
-            log.info('test data dir not exists, creating.. ')
+            log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
-        parser = argparse.ArgumentParser(description='RGW Swift Automation')
-        parser.add_argument('-c', dest="config",
-                            help='RGW Test yaml configuration')
-        parser.add_argument('-log_level', dest='log_level',
-                            help='Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]',
-                            default='info')
+        parser = argparse.ArgumentParser(description="RGW Swift Automation")
+        parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
+        parser.add_argument(
+            "-log_level",
+            dest="log_level",
+            help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
+            default="info",
+        )
         args = parser.parse_args()
         yaml_file = args.config
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
-        configure_logging(f_name=log_f_name,
-                          set_level=args.log_level.upper())
+        configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = resource_op.Config(yaml_file)
         config.read()
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
 
         test_exec(config)
-        test_info.success_status('test passed')
+        test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
         log.info(e)
         log.info(traceback.format_exc())
-        test_info.failed_status('test failed')
+        test_info.failed_status("test failed")
         sys.exit(1)

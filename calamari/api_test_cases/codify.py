@@ -1,19 +1,39 @@
-from utils.utils import get_calamari_config
-import argparse, os
-import libs.log as log
-import test_cli, test_config, test_crush_map, test_crush_rule, test_crush_rule_set, test_crush_type, test_event, \
-    test_log, test_info, test_mon, test_osd, test_osd_config, test_pool, test_salt_key, test_server, test_sync, \
-    test_user
-from shutil import copyfile
+import argparse
+import os
 import sys
 import time
+from shutil import copyfile
 
-if __name__ == '__main__':
+import libs.log as log
+import test_cli
+import test_config
+import test_crush_map
+import test_crush_rule
+import test_crush_rule_set
+import test_crush_type
+import test_event
+import test_info
+import test_log
+import test_mon
+import test_osd
+import test_osd_config
+import test_pool
+import test_salt_key
+import test_server
+import test_sync
+import test_user
+from utils.utils import get_calamari_config
 
-    parser = argparse.ArgumentParser(description='Calamari API Automation')
+if __name__ == "__main__":
 
-    parser.add_argument('-c', dest="config", default='config.yaml',
-                        help='calamari config file: yaml file')
+    parser = argparse.ArgumentParser(description="Calamari API Automation")
+
+    parser.add_argument(
+        "-c",
+        dest="config",
+        default="config.yaml",
+        help="calamari config file: yaml file",
+    )
 
     args = parser.parse_args()
 
@@ -50,25 +70,32 @@ if __name__ == '__main__':
 
     all_tests_exec = [test for test in tests]
 
-    log.info('-------------------- Summary -------------------------')
+    log.info("-------------------- Summary -------------------------")
 
-    log.info('--------- Passed ----------')
+    log.info("--------- Passed ----------")
 
-    passed = [log.info('\nTest id: %s\nAPI: %s\n---------' % (passed['id'], passed['name']))
-              for passed in all_tests_exec if passed['status']]
+    passed = [
+        log.info("\nTest id: %s\nAPI: %s\n---------" % (passed["id"], passed["name"]))
+        for passed in all_tests_exec
+        if passed["status"]
+    ]
 
-    log.info('--------- Failed ----------')
+    log.info("--------- Failed ----------")
 
-    failed = [log.info('\nTest id: %s\nAPI: %s\n---------' % (failed['id'], failed['name']))
-              for failed in all_tests_exec if not failed['status']]
+    failed = [
+        log.info("\nTest id: %s\nAPI: %s\n---------" % (failed["id"], failed["name"]))
+        for failed in all_tests_exec
+        if not failed["status"]
+    ]
 
-    log.info('--------------->Total Tests Passed: %s' % len(passed))
-    log.info('--------------->Total Tests Failed: %s' % len(failed))
+    log.info("--------------->Total Tests Passed: %s" % len(passed))
+    log.info("--------------->Total Tests Failed: %s" % len(failed))
 
-    print 'copying the log file to the log location defined'
+    print "copying the log file to the log location defined"
 
-    copyfile(log.LOG_NAME,
-             os.path.join(calamari_config['log_copy_location'], log.LOG_NAME))
+    copyfile(
+        log.LOG_NAME, os.path.join(calamari_config["log_copy_location"], log.LOG_NAME)
+    )
 
     if len(failed) > 0:
         sys.exit(1)

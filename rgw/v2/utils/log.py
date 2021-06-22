@@ -1,14 +1,13 @@
-import os
 import logging
+import os
 
-LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'logs'))
+LOG_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "logs"))
 
 
-def configure_logging(f_name="rgw_test",
-                      set_level='info'):
+def configure_logging(f_name="rgw_test", set_level="info"):
 
     set_level = logging.getLevelName(set_level.upper())
-    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+    formatter = logging.Formatter("%(asctime)s %(levelname)s: %(message)s")
 
     c_fnane = os.path.join(LOG_DIR, f_name + ".console.log")
     v_fname = os.path.join(LOG_DIR, f_name + ".verbose.log")

@@ -2,7 +2,6 @@ import time
 
 
 class Wait(object):
-
     def __init__(self):
         pass
 
@@ -11,4 +10,3 @@ class Wait(object):
             if expected_status != from_status:
                 break
             time.sleep(1)
-
