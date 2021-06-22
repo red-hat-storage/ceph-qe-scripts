@@ -33,16 +33,17 @@ def create_bucket(bucket_name):
     assert expected_response in mb_response, error_message
 
 
-def upload_file(bucket_name):
+def upload_file(bucket_name, file_name=None):
     """
     Uploads file to the bucket
     Args:
         bucket_name(str): Name of the bucket
     Returns: Name of the uploaded file
     """
-    file_name = "test_s3cmd.txt"
-    with open(file_name, "w") as f:
-        f.write("Test file")
+    if file_name is None:
+        file_name = "test_s3cmd.txt"
+        with open(file_name, "w") as f:
+            f.write("Test file")
 
     upload_file_method = S3CMD(operation="put")
     remote_s3_path = "s3://{}/{}".format(bucket_name, file_name)
@@ -54,6 +55,32 @@ def upload_file(bucket_name):
         raise S3CommandExecError(message=str(e))
     assert "100%" in str(upload_file_response), "upload file operation not succeeded"
     return file_name
+
+
+def download_file(bucket_name, remote_file_name, local_file_name=None):
+    """
+    Downloads file from the bucket
+    Args:
+        bucket_name(str): Name of the bucket
+        remote_file_name(str): Name of the remote file
+        local_file_name(str): Name of the local file to be set
+    Returns: Name of the downloaded file
+    """
+    if local_file_name is None:
+        local_file_name = "test_s3cmd.txt"
+
+    download_file_method = S3CMD(operation="get")
+    remote_s3_path = "s3://{}/{}".format(bucket_name, remote_file_name)
+    command = download_file_method.command(params=[remote_s3_path, local_file_name])
+    try:
+        download_file_response = exec_shell_cmd(command)
+        log.debug("Response for upload file command: %s" % download_file_response)
+    except Exception as e:
+        raise S3CommandExecError(message=str(e))
+    assert "100%" in str(
+        download_file_response
+    ), "download file operation not succeeded"
+    return local_file_name
 
 
 def delete_file(bucket_name, file_name):
@@ -98,3 +125,23 @@ def delete_bucket(bucket_name):
         delete_bucket_response,
     )
     assert expected_response in delete_bucket_response, error_message
+
+
+def create_local_file(file_size, file_name):
+    """
+    Creates a local file with specified size
+    Args:
+        file_size(str): Size of the file to be created
+        file_name(Str): Name of the file to be created
+    """
+    exec_shell_cmd("fallocate -l %s %s" % (file_size, file_name))
+
+
+def get_file_size(file_name):
+    """
+    Returns size of the file in bytes
+    Args:
+        file_name(Str): Name of the file to be created
+    Returns: File size in bytes
+    """
+    return os.path.getsize(file_name)
