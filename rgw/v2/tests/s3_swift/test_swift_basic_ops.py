@@ -186,7 +186,7 @@ def test_exec(config):
                     test_info.failed_status(msg)
                     raise TestExecError(msg)
 
-        elif config.config.large_object_upload is True:
+        elif config.large_object_upload is True:
             container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=cc)
             container = swiftlib.resource_op({'obj': rgw,
                                               'resource': 'put_container',
