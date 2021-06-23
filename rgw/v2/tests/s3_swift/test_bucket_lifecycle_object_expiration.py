@@ -60,9 +60,8 @@ def test_exec(config):
     ceph_conf.set_to_ceph_conf(
         "global", ConfigOpts.rgw_lc_debug_interval, str(config.rgw_lc_debug_interval)
     )
-    ceph_version = utils.exec_shell_cmd("ceph version")
-    op = ceph_version.split()
-    if ["nautilus", "luminous"] in op:
+    _, version_name = utils.get_ceph_version()
+    if "nautilus" in version_name:
         ceph_conf.set_to_ceph_conf(
             "global", ConfigOpts.rgw_lc_max_worker, str(config.rgw_lc_max_worker)
         )
