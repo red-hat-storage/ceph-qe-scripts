@@ -11,6 +11,7 @@ log = logging.getLogger()
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../../")))
 
+from v2.lib.exceptions import S3CommandExecError
 from v2.lib.s3cmd.resource_op import S3CMD
 from v2.utils.utils import exec_shell_cmd
 

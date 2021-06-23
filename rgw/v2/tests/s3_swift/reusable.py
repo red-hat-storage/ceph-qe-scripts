@@ -11,7 +11,7 @@ import timeit
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
-from v2.lib.exceptions import TestExecError
+from v2.lib.exceptions import MFAVersionError, TestExecError
 from v2.lib.rgw_config_opts import ConfigOpts
 from v2.lib.s3.write_io_info import (
     BasicIOInfoStructure,
