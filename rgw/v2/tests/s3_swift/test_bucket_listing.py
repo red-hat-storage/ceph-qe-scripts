@@ -208,7 +208,7 @@ def test_exec(config):
                     cmd = "ceph daemon `ls -t /var/run/ceph/ceph-client.rgw.*.asok|head -1` config show |grep  rgw_bucket_index_max_aio"
                     max_aio_output = utils.exec_shell_cmd(cmd)
                     max_aio = max_aio_output.split()[1]
-                if ceph_version_name == "pacific":
+                else:
                     cmd = "ceph config get mon rgw_bucket_index_max_aio"
                     max_aio_output = utils.exec_shell_cmd(cmd)
                     max_aio = max_aio_output.rstrip("\n")
