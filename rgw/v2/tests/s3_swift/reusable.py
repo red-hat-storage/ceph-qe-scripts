@@ -907,3 +907,61 @@ def check_sync_status(retry=None, delay=None):
     is_multisite = utils.is_cluster_multisite()
     if is_multisite:
         sync_status()
+
+
+def get_default_datalog_type():
+    """
+    get the default datalog type i.e. omap or fifo
+    """
+    cmd = "ceph config get mon.* rgw_default_data_log_backing"
+    default_datalog_type = utils.exec_shell_cmd(cmd)
+    if default_datalog_type is False:
+        raise DefaultDatalogBackingError(
+            "Error in getting the default datalog backing type"
+        )
+    return default_datalog_type
+
+
+def check_datalog_list():
+    """
+    check datalog list
+    """
+    cmd = "radosgw-admin datalog list"
+    datalog_list = utils.exec_shell_cmd(cmd)
+    if "ERROR" in datalog_list or "failed" in datalog_list:
+        return True
+    else:
+        return False
+
+
+def check_datalog_marker():
+    """
+    check the datalog marker
+    """
+    # changing the value of rgw_data_log_num_shards is not supported. Ref: https://bugzilla.redhat.com/show_bug.cgi?id=1938105#c7
+    log.info("get the value of rgw_data_log_num_shards")
+    cmd = "ceph config get mon.* rgw_data_log_num_shards"
+    datalog_num_shards = utils.exec_shell_cmd(cmd)
+    log.info(f"datalog_num_shards: {datalog_num_shards}")
+
+    # check for marker in datalog status
+    cmd = "radosgw-admin datalog status"
+    datalog_status_cmd = utils.exec_shell_cmd(cmd)
+    datalog_status = json.loads(datalog_status_cmd)
+
+    # fetch the first occurance of marker
+    get_datalog_marker = ""
+    datalog_num_shards = int(datalog_num_shards) - 1
+    for i in range(datalog_num_shards):
+        if datalog_status[i]["marker"] is "":
+            continue
+        else:
+            get_datalog_marker = datalog_status[i]["marker"]
+            break
+
+    if "1_" in get_datalog_marker:
+        return "omap"
+    if ":" in get_datalog_marker:
+        return "fifo"
+    if "" in get_datalog_marker:
+        raise TestExecError("failed to fetch datalog marker")
