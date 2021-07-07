@@ -66,26 +66,29 @@ def test_exec(config):
     ip = socket.gethostbyname(hostname)
     port = utils.get_radosgw_port_no()
 
-    ip_and_port = "%s:%s" % (ip, port)
+    ip_and_port = f"{ip}:{port}"
     s3_auth.do_auth(tenant_user_info, ip_and_port)
 
     bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
 
     # Create a bucket
     s3cmd_reusable.create_bucket(bucket_name)
-    log.info("Bucket %s created" % bucket_name)
+    log.info(f"Bucket {bucket_name} created")
 
     # Upload file to bucket
-    uploaded_file = s3cmd_reusable.upload_file(bucket_name)
-    log.info("Uploaded file %s to bucket %s" % (uploaded_file, bucket_name))
+    uploaded_file_info = s3cmd_reusable.upload_file(
+        bucket_name, test_data_path=TEST_DATA_PATH
+    )
+    uploaded_file = uploaded_file_info["name"]
+    log.info(f"Uploaded file {uploaded_file} to bucket {bucket_name}")
 
     # Delete file from bucket
     s3cmd_reusable.delete_file(bucket_name, uploaded_file)
-    log.info("Deleted file %s from bucket %s" % (uploaded_file, bucket_name))
+    log.info(f"Deleted file {uploaded_file} from bucket {bucket_name}")
 
     # Delete bucket
     s3cmd_reusable.delete_bucket(bucket_name)
-    log.info("Bucket %s deleted" % bucket_name)
+    log.info(f"Bucket {bucket_name} deleted")
 
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
@@ -101,7 +104,7 @@ if __name__ == "__main__":
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
         test_data_dir = "test_data"
         TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
-        log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
+        log.info(f"TEST_DATA_PATH: {TEST_DATA_PATH}")
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
