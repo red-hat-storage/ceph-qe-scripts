@@ -272,7 +272,7 @@ def test_exec(config):
                     raise TestExecError("object listing via boto failed")
 
         # radoslist on all buckets. BZ:https://bugzilla.redhat.com/show_bug.cgi?id=1892265
-        if config.test_ops.get("radoslist_all"):
+        if config.radoslist_all is True:
             log.info(
                 "Executing the command radosgw-admin bucket radoslist on all buckets"
             )
