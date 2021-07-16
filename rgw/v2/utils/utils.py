@@ -163,46 +163,120 @@ def get_cluster_fsid():
     return cluster_fsid.rstrip("\n")
 
 
-def get_rgw_service_name():
-    rgw_orch_ls = exec_shell_cmd("sudo ceph orch ls rgw -f json-pretty")
-    rgw_service = json.loads(rgw_orch_ls)
-    rgw_service_name = rgw_service[0]["service_name"]
-    return rgw_service_name
+class CephOrch:
+    """
+    class for constructing ceph orch command
+    """
 
-
-class RGWService(object):
     def __init__(self):
         pass
 
+    def cmd(self, options):
+        """
+
+        Args:
+            options ([list]): list of options for the command
+
+        Returns:
+            str: fully constructed ceph orch command
+        """
+        options = " ".join(options)
+        log.info(f"forming ceph orch command, options: {options}")
+        cmd = f"sudo ceph orch {options}"
+        return cmd
+
+
+class SystemCTL:
+    """
+    class for constructing systemctl command
+    """
+
+    def __init__(self, unit="ceph-radosgw.target"):
+        self.unit = unit
+
+    def cmd(self, option):
+        """
+
+        Args:
+            option (str): supports start | stop | restart
+
+        Returns:
+            str: fully constructed systemctl command
+        """
+        return f"sudo systemctl {option} {self.unit}"
+
+
+class CephOrchRGWSrv:
+    """
+    class which constructs ceph orch rgw sevice
+    """
+
+    def __init__(self):
+        self.ceph_orch = CephOrch()
+        self.unit = self._unit
+
+    @property
+    def _unit(self):
+        """
+        get the service unit name
+        """
+        options = ["ls", "rgw", "-f", "json"]
+        rgw_orch_ls_cmd = self.ceph_orch.cmd(options)
+        rgw_orch_ls = exec_shell_cmd(rgw_orch_ls_cmd)
+        rgw_service = json.loads(rgw_orch_ls)
+        rgw_service_name = rgw_service[0]["service_name"]
+        return rgw_service_name
+
+    def cmd(self, option):
+        """
+
+        Args:
+            option str: supports start | stop | restart
+
+        Returns:
+            str: fully constructed ceph orch service command
+        """
+        cmd = self.ceph_orch.cmd([option, self.unit])
+        return cmd
+
+
+class RGWService:
+    """
+    Implements RGW service operation
+    """
+
+    def __init__(self):
+        _, self.ceph_version_name = get_ceph_version()
+        if self.ceph_version_name in ["luminous", "nautilus"]:
+            log.info("using systemctl")
+            self.srv = SystemCTL()
+        else:
+            log.info("using ceph orch")
+            self.srv = CephOrchRGWSrv()
+
     def restart(self):
-        ceph_version_id, ceph_version_name = get_ceph_version()
-        if ceph_version_name in ["luminous", "nautilus"]:
-            executed = exec_shell_cmd("sudo systemctl restart ceph-radosgw.target")
-            return executed
-        if ceph_version_name == "pacific":
-            cmd = "sudo ceph orch restart %s" % get_rgw_service_name()
-            executed = exec_shell_cmd(cmd)
-            return executed
+        """
+        restarts the service
+        """
+        log.info("restarting service")
+        cmd = self.srv.cmd("restart")
+        return exec_shell_cmd(cmd)
 
     def stop(self):
-        ceph_version_id, ceph_version_name = get_ceph_version()
-        if ceph_version_name in ["luminous", "nautilus"]:
-            executed = exec_shell_cmd("sudo systemctl stop ceph-radosgw.target")
-            return executed
-        if ceph_version_name == "pacific":
-            cmd = "sudo ceph orch stop %s" % get_rgw_service_name()
-            executed = exec_shell_cmd(cmd)
-            return executed
+        """
+        stops the service
+        """
+        log.info("stopping service")
+        cmd = self.srv.cmd("stop")
+        return exec_shell_cmd(cmd)
 
     def start(self):
-        ceph_version_id, ceph_version_name = get_ceph_version()
-        if ceph_version_name in ["luminous", "nautilus"]:
-            executed = exec_shell_cmd("sudo systemctl start ceph-radosgw.target")
-            return executed
-        if ceph_version_name == "pacific":
-            cmd = "sudo ceph orch start  %s" % get_rgw_service_name()
-            executed = exec_shell_cmd(cmd)
-            return executed
+        """
+        starts the service
+        """
+        log.info("starting service")
+        cmd = self.srv.cmd("start")
+        return exec_shell_cmd(cmd)
 
 
 def get_radosgw_port_no():

@@ -223,9 +223,10 @@ class Config(object):
         self.io_op_config = self.doc.get("config").get("io_op_config")
         self.radoslist_all = self.test_ops.get("radoslist_all", False)
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
+        # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:
             frontend_config = Frontend()
-        if ceph_version_name == "pacific":
+        else:
             frontend_config = Frontend_CephAdm()
 
         # if frontend is set in config yaml

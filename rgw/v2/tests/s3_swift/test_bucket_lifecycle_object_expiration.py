@@ -60,18 +60,19 @@ def test_exec(config):
     ceph_conf.set_to_ceph_conf(
         "global", ConfigOpts.rgw_lc_debug_interval, str(config.rgw_lc_debug_interval)
     )
-    ceph_version = utils.exec_shell_cmd("ceph version")
-    op = ceph_version.split()
-    if "pacific" in op:
-        commands = [
-            f"ceph config set client.rgw rgw_lc_max_worker {config.rgw_lc_max_worker}",
-            "ceph config set client.rgw rgw_lc_debug_interval 30",
-        ]
-        for command in commands:
-            utils.exec_shell_cmd(command)
-    if "nautilus" in op:
+    _, version_name = utils.get_ceph_version()
+    if "nautilus" in version_name:
         ceph_conf.set_to_ceph_conf(
             "global", ConfigOpts.rgw_lc_max_worker, str(config.rgw_lc_max_worker)
+        )
+    else:
+        ceph_conf.set_to_ceph_conf(
+            section=None,
+            option=ConfigOpts.rgw_lc_max_worker,
+            value=str(config.rgw_lc_max_worker),
+        )
+        ceph_conf.set_to_ceph_conf(
+            section=None, option=ConfigOpts.rgw_lc_debug_interval, value="30"
         )
     log.info("trying to restart services")
     srv_restarted = rgw_service.restart()

@@ -97,12 +97,6 @@ class CephConfFileOP(FileOps, ConfigParse):
 
 
 class CephConfigSet:
-    def __init__(self):
-        # use ceph config set cli to set the config via commandline,
-        # unlike the above function which is set in ceph.conf
-        self.prefix = "sudo ceph config set"
-        self.who = "client.rgw"  # naming convention as ceph conf
-
     def set_to_ceph_cli(self, key, value):
         log.info("setting key and value using ceph config set cli")
         self.prefix = "sudo ceph config set"
