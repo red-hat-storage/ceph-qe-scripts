@@ -230,6 +230,10 @@ def get_all_in_dir(path):
 
 def gen_bucket_name_from_userid(user_id, rand_no=0):
     log.info("generating bucket name or basedir to create")
+    # As per S3 and Swift bucket naming rules only lowercase letters, numbers, dots (.), and hyphens (-) are allowed
+    if "$|:" in user_id:
+        user_id = user_id.replace("$", ".").replace(":", "-")
+
     # BZ1942136 : In pacific,bucket creation with underscore( _ ) fails with 'InvalidBucketName'
     bucket_name_to_create = user_id + "-" + BUCKET_NAME_PREFIX + "-" + str(rand_no)
     log.info("bucket or basedir name to create generated: %s" % bucket_name_to_create)

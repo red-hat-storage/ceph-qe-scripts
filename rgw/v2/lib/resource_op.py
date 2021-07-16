@@ -198,7 +198,7 @@ class Config(object):
         self.objects_size_range = self.doc["config"].get("objects_size_range")
         self.sharding_type = self.doc["config"].get("sharding_type")
         self.split_size = self.doc["config"].get("split_size", 5)
-        self.test_ops = self.doc["config"].get("test_ops")
+        self.test_ops = self.doc["config"].get("test_ops", {})
         self.lifecycle_conf = self.doc["config"].get("lifecycle_conf")
         self.delete_marker_ops = self.doc["config"].get("delete_marker_ops")
         self.mapped_sizes = self.doc["config"].get("mapped_sizes")
@@ -221,6 +221,7 @@ class Config(object):
         )
         self.frontend = self.doc["config"].get("frontend")
         self.io_op_config = self.doc.get("config").get("io_op_config")
+        self.radoslist_all = self.test_ops.get("radoslist_all", False)
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         if ceph_version_name in ["luminous", "nautilus"]:
             frontend_config = Frontend()

@@ -271,6 +271,17 @@ def test_exec(config):
                 else:
                     raise TestExecError("object listing via boto failed")
 
+        # radoslist on all buckets. BZ:https://bugzilla.redhat.com/show_bug.cgi?id=1892265
+        if config.radoslist_all is True:
+            log.info(
+                "Executing the command radosgw-admin bucket radoslist on all buckets"
+            )
+            cmd = "radosgw-admin bucket radoslist | grep ERROR"
+            radoslist_all_error = utils.exec_shell_cmd(cmd)
+            print(radoslist_all_error)
+            if radoslist_all_error is False:
+                raise TestExecError("ERROR in radoslist command")
+
         if config.test_ops.get("delete_bucket_object", False):
             if config.test_ops.get("enable_version", False):
                 for name, path in objects_created_list:
