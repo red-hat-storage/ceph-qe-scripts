@@ -26,13 +26,13 @@ def test_exec_read(config):
         log.info("user1: %s" % user1)
         all_user_details.pop(0)
         u1 = ObjectOps(config, user1)
+        u1.create_bucket()
         for each_user in all_user_details:
             u2 = ObjectOps(config, each_user)
             u2_canonical_id = u2.canonical_id
             log.info("canonical id of u2: %s" % u2_canonical_id)
             grants["user_id"] = u2_canonical_id
             u1.grants = None
-            u1.create_bucket()
             u1.set_bucket_properties()
             u2.bucket_names = u1.bucket_names
             u2.buckets_created = u1.buckets_created
@@ -62,6 +62,7 @@ def test_exec_write(config):
         all_user_details = rgw_lib.create_users(config.user_count)
         user1 = all_user_details[0]
         u1 = ObjectOps(config, user1)
+        u1.create_bucket()
         log.info("user1: %s" % user1)
         all_user_details.pop(0)
         for each_user in all_user_details:
@@ -75,7 +76,6 @@ def test_exec_write(config):
             log.info("write persmission are not set")
             grants["user_id"] = u2_canonical_id
             u1.grants = grants
-            u1.create_bucket()
             u1.set_bucket_properties()
             u2.bucket_names = u1.bucket_names
             u2.buckets_created = u1.buckets_created
@@ -129,7 +129,7 @@ if __name__ == "__main__":
         config.objects_size_range = {"min": 10, "max": 50}
     else:
         with open(yaml_file, "r") as f:
-            doc = yaml.load(f)
+            doc = yaml.safe_load(f)
         config.bucket_count = doc["config"]["bucket_count"]
         config.user_count = doc["config"]["user_count"]
         config.objects_count = doc["config"]["objects_count"]

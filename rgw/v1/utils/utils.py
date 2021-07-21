@@ -69,7 +69,7 @@ class FileOps(object):
                 tmp = lambda x: x.rstrip("\n")
                 data = list(map(tmp, raw_data))
             if self.type == "yaml":
-                data = yaml.load(fp)
+                data = yaml.safe_load(fp)
         fp.close()
         return data
 

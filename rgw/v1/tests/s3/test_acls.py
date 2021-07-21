@@ -123,7 +123,7 @@ if __name__ == "__main__":
         config.objects_size_range = {"min": 10, "max": 50}
     else:
         with open(yaml_file, "r") as f:
-            doc = yaml.load(f)
+            doc = yaml.safe_load(f)
         config.bucket_count = doc["config"]["bucket_count"]
         config.objects_count = doc["config"]["objects_count"]
         config.objects_size_range = {
