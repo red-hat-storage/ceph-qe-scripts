@@ -130,7 +130,7 @@ def test_exec(config):
         tenant_name=tenant, user_id=user_names[0], displayname=user_names[0]
     )
     user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[0])
-    auth = Auth(user_info)
+    auth = Auth(user_info, config.ssl)
     rgw = auth.do_auth()
 
     for cc in range(config.container_count):

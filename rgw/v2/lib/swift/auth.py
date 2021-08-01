@@ -19,14 +19,14 @@ class Auth(object):
     1. do_auth()
     """
 
-    def __init__(self, user_info):
+    def __init__(self, user_info, is_secure=False):
         """
         Initializes the user_info variables
         """
         self.secret_key = user_info["key"]
         self.hostname = socket.gethostname()
         self.port = int(utils.get_radosgw_port_no())
-        self.is_secure = False
+        self.is_secure = is_secure
         self.user_id = user_info["user_id"]
 
     def do_auth(self):
@@ -42,9 +42,12 @@ class Auth(object):
         # user = 'tenant3$tuffy3:swift'
         # key = 'm4NsRGjghOpUPX3OZZFeIYUylNjO22lMVDXATnNi' -- secret key
 
+        proto = "https" if self.is_secure else "http"
+
         rgw = swiftclient.Connection(
             user=self.user_id,
             key=self.secret_key,
-            authurl="http://%s:%s/auth" % (self.hostname, self.port),
+            insecure=True,
+            authurl=f"{proto}://{self.hostname}:{self.port}/auth",
         )
         return rgw
