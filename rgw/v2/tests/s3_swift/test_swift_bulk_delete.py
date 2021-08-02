@@ -96,7 +96,7 @@ def test_exec(config):
         tenant_name=tenant, user_id=user_names[1], displayname=user_names[1]
     )
     user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[1])
-    auth = Auth(user_info)
+    auth = Auth(user_info, config.ssl)
     rgw = auth.do_auth()
 
     container_name = utils.gen_bucket_name_from_userid(user_info["user_id"], rand_no=0)

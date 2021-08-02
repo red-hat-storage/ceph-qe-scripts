@@ -97,6 +97,7 @@ class Auth(object):
             aws_secret_access_key=self.secret_key,
             endpoint_url=self.endpoint_url,
             config=additional_config,
+            verify=False,
             aws_session_token=self.session_token if self.session_token else None,
         )
         return rgw

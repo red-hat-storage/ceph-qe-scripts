@@ -5,6 +5,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import logging
 import time
 import traceback
+from json import loads
 
 import v2.lib.decorators as decorators
 import v2.utils.utils as utils
@@ -143,19 +144,23 @@ class Frontend(RGWSectionOptions):
 
 
 class Frontend_CephAdm:
+    """Frontend interface configured via cephadm."""
+
     def __init__(self):
-        rgw_in_ceph_config = utils.exec_shell_cmd("sudo ceph config dump")
-        if "client.rgw." in rgw_in_ceph_config:
-            log.info("RGW section in ceph config")
-        else:
-            raise RGWBaseException("No RGW section in ceph config")
-        self.curr_ssl = (
-            True
-            if "ssl"
-            in list(filter(lambda section: "ssl" in section, rgw_in_ceph_config))
-            else False
-        )
-        self.curr_frontend = "beast"
+        """Initialize the frontend values."""
+        ceph_config = utils.exec_shell_cmd("sudo ceph config dump --format json")
+        configs = loads(ceph_config)
+
+        for config in configs:
+            if config["name"] != "rgw_frontends":
+                continue
+
+            log.info(f"Configured RGW frontend is {config['value']}")
+            self.curr_ssl = True if "ssl" in config["value"] else False
+            self.curr_frontend = "beast"
+            return
+
+        raise RGWBaseException("No RGW frontend information found")
 
     def set_frontend(self, frontend, **kwargs):
         ssl = kwargs.get("ssl", False)
