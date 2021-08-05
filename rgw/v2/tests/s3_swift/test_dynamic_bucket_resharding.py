@@ -129,14 +129,9 @@ def test_exec(config):
     sleep_time = 600
     log.info(f"verification starts after waiting for {sleep_time} seconds")
     time.sleep(sleep_time)
-    op = utils.exec_shell_cmd("radosgw-admin metadata get bucket:%s" % bucket.name)
+    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket.name)
     json_doc = json.loads(op)
-    bucket_id = json_doc["data"]["bucket"]["bucket_id"]
-    op2 = utils.exec_shell_cmd(
-        "radosgw-admin metadata get bucket.instance:%s:%s" % (bucket.name, bucket_id)
-    )
-    json_doc2 = json.loads((op2))
-    num_shards_created = json_doc2["data"]["bucket_info"]["num_shards"]
+    num_shards_created = json_doc["num_shards"]
     log.info("no_of_shards_created: %s" % num_shards_created)
     if config.sharding_type == "manual":
         if config.shards != num_shards_created:
