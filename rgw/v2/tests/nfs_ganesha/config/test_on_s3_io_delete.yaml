@@ -4,6 +4,6 @@ config:
  objects_size_range:
   min: 5
   max: 15
-  io_op_config:
+ io_op_config:
       create: true
       delete: true
