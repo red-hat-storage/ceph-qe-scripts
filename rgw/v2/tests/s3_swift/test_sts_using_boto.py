@@ -64,7 +64,7 @@ def test_exec(config):
     ceph_config_set.set_to_ceph_conf(
         "global", ConfigOpts.rgw_sts_key, sesison_encryption_token
     )
-    ceph_config_set.set_to_ceph_conf("global", ConfigOpts.rgw_s3_auth_use_sts, True)
+    ceph_config_set.set_to_ceph_conf("global", ConfigOpts.rgw_s3_auth_use_sts, "True")
     srv_restarted = rgw_service.restart()
     time.sleep(30)
     if srv_restarted is False:
