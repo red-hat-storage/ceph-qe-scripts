@@ -279,13 +279,55 @@ class RGWService:
         return exec_shell_cmd(cmd)
 
 
+def get_rgw_frontends():
+    """Retrieve RGW's frontend configuration."""
+    try:
+        out = exec_shell_cmd("sudo ceph config dump --format json")
+        configs = json.loads(out)
+
+        for config in configs:
+            if config.get("name", "").lower() == "rgw_frontends":
+                return config.get("value")
+    except BaseException as be:
+        log.debug(be)
+
+
 def get_radosgw_port_no():
+    """
+    Return the RGW gateway port number.
+
+    The port number is retrieved by
+        - Using `ceph config dump`. (Supported from 5.0)
+        - Using netstat
+    """
+    frontend_values = get_rgw_frontends()
+    if frontend_values:
+        configs = frontend_values.split()
+        for config in configs:
+            if "port" in config:
+                return config.split("=")[-1]
+
     op = exec_shell_cmd("sudo netstat -nltp | grep radosgw")
     log.info("output: %s" % op)
     x = op.split(" ")
     port = [i for i in x if ":" in i][0].split(":")[1]
     log.info("radosgw is running in port: %s" % port)
     return port
+
+
+def is_rgw_secure():
+    """Check if RGW endpoint is secure."""
+    frontend_values = get_rgw_frontends()
+    if frontend_values:
+        configs = frontend_values.split()
+        for config in configs:
+            if "ssl" in config:
+                return True
+
+        return False
+
+    log.info("Unable to determine the if RGW gateway is secure.")
+    return None
 
 
 def get_all_in_dir(path):
