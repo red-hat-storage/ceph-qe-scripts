@@ -100,6 +100,13 @@ class ReadIOInfo(object):
         log.info("***************Starting Verification*****************")
         data = self.file_op.get_data()
         users = data["users"]
+        is_secure = True if utils.is_rgw_secure() else False
+        host = socket.gethostbyname(socket.gethostname())
+
+        endpoint_proto = "https" if is_secure else "http"
+        endpoint_port = utils.get_radosgw_port_no()
+        endpoint_url = f"{endpoint_proto}://{host}:{endpoint_port}"
+
         for each_user in users:
             log.info("verifying data for the user: \n")
             log.info("user_id: %s" % each_user["user_id"])
@@ -109,13 +116,11 @@ class ReadIOInfo(object):
                 "s3",
                 aws_access_key_id=each_user["access_key"],
                 aws_secret_access_key=each_user["secret_key"],
-                endpoint_url="http://%s:%s"
-                % (
-                    socket.gethostbyname(socket.gethostname()),
-                    int(utils.get_radosgw_port_no()),
-                ),
-                use_ssl=False,
+                endpoint_url=endpoint_url,
+                use_ssl=is_secure,
+                verify=False,
             )
+
             for each_bucket in each_user["bucket"]:
                 log.info("verifying data for bucket: %s" % each_bucket["name"])
                 bucket_from_s3 = conn.Bucket(each_bucket["name"])
