@@ -191,8 +191,17 @@ class SystemCTL:
     class for constructing systemctl command
     """
 
-    def __init__(self, unit="ceph-radosgw.target"):
-        self.unit = unit
+    """
+    TODO : The below logic should be further enhanced to support running
+    multiple RGWs on the same node.
+    """
+
+    def __init__(self, unit="ceph-radosgw@rgw.`hostname -s`.rgw0.service"):
+        _, self.ceph_version_name = get_ceph_version()
+        if self.ceph_version_name == "luminous":
+            self.unit = "ceph-radosgw.target"
+        else:
+            self.unit = unit
 
     def cmd(self, option):
         """
