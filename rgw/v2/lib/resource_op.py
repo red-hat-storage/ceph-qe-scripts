@@ -213,6 +213,7 @@ class Config(object):
             "large_object_download", False
         )
         self.local_file_delete = self.doc["config"].get("local_file_delete", False)
+        self.sts = self.doc["config"].get("sts")
         self.ceph_conf = self.doc["config"].get("ceph_conf")
         self.gc_verification = self.doc["config"].get("gc_verification", False)
         self.rgw_gc_obj_min_wait = self.doc["config"].get("rgw_gc_obj_min_wait", False)

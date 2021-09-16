@@ -27,6 +27,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+import json
 import logging
 import time
 import traceback
@@ -54,6 +55,9 @@ def test_exec(config):
     ceph_config_set = CephConfOp()
     rgw_service = RGWService()
 
+    if config.sts is None:
+        raise TestExecError("sts policies are missing in yaml config")
+
     # create users
     config.user_count = 2
     users_info = s3lib.create_users(config.user_count)
@@ -74,24 +78,11 @@ def test_exec(config):
 
     auth = Auth(user1)
     iam_client = auth.do_auth_iam_client()
-    """
-    TODO:
-    policy_document and role_policy can be used valid dict types.
-    need to explore on this. 
-    """
 
-    policy_document = (
-        '{"Version":"2012-10-17",'
-        '"Statement":[{"Effect":"Allow","Principal":{"AWS":["arn:aws:iam:::user/%s"]},'
-        '"Action":["sts:AssumeRole"]}]}' % (user2["user_id"])
-    )
+    policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
+    policy_document = policy_document.replace("<user_name>", user2["user_id"])
 
-    role_policy = (
-        '{"Version":"2012-10-17",'
-        '"Statement":{"Effect":"Allow",'
-        '"Action":"s3:*",'
-        '"Resource":"arn:aws:s3:::*"}}'
-    )
+    role_policy = json.dumps(config.sts["role_policy"]).replace(" ", "")
 
     add_caps_cmd = (
         'sudo radosgw-admin caps add --uid="{user_id}" --caps="roles=*"'.format(
@@ -100,7 +91,6 @@ def test_exec(config):
     )
     utils.exec_shell_cmd(add_caps_cmd)
 
-    # log.info(policy_document)
     role_name = f"S3RoleOf.{user1['user_id']}"
     log.info(f"role_name: {role_name}")
 
