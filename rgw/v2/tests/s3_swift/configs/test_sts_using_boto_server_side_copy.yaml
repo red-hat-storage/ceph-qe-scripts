@@ -1,0 +1,34 @@
+# polarion test case id: CEPH-83574522
+config:
+     bucket_count: 2
+     objects_count: 5
+     objects_size_range:
+          min: 5
+          max: 15
+     test_ops:
+          create_bucket: true
+          create_object: true
+          server_side_copy: true
+     sts:
+          policy_document:
+               "Version": "2012-10-17"
+               "Statement":
+                    [
+                         {
+                              "Effect": "Allow",
+                              "Principal":
+                                   {
+                                        "AWS":
+                                             ["arn:aws:iam:::user/<user_name>"],
+                                   },
+                              "Action": ["sts:AssumeRole"],
+                         },
+                    ]
+          role_policy:
+               "Version": "2012-10-17"
+               "Statement":
+                    {
+                         "Effect": "Allow",
+                         "Action": "s3:*",
+                         "Resource": "arn:aws:s3:::*",
+                    }
