@@ -105,6 +105,53 @@ def upload_object(
         log.info("object uploaded")
 
 
+def failed_upload_object(
+    s3_object_name,
+    bucket,
+    TEST_DATA_PATH,
+    config,
+    user_info,
+    append_data=False,
+    append_msg=None,
+):
+    log.info("s3 object name: %s" % s3_object_name)
+    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    log.info("s3 object path: %s" % s3_object_path)
+    s3_object_size = config.obj_size
+    if append_data is True:
+        data_info = manage_data.io_generator(
+            s3_object_path,
+            s3_object_size,
+            op="append",
+            **{"message": "\n%s" % append_msg},
+        )
+    else:
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size)
+    if data_info is False:
+        TestExecError("data creation failed")
+    log.info("uploading s3 object: %s" % s3_object_path)
+    upload_info = dict({"access_key": user_info["access_key"]}, **data_info)
+    s3_obj = s3lib.resource_op(
+        {
+            "obj": bucket,
+            "resource": "Object",
+            "args": [s3_object_name],
+        }
+    )
+    object_uploaded_status = s3lib.resource_op(
+        {
+            "obj": s3_obj,
+            "resource": "upload_file",
+            "args": [s3_object_path],
+            "extra_info": upload_info,
+        }
+    )
+    if object_uploaded_status is None:
+        raise TestExecError("Resource execution failed: object upload failed")
+    if object_uploaded_status is False:
+        log.info("failed to uploaded the object as access is denied")
+
+
 def upload_version_object(
     config, user_info, rgw_conn, s3_object_name, object_size, bucket, TEST_DATA_PATH
 ):
