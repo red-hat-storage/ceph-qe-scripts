@@ -6,7 +6,7 @@ import traceback
 
 import v2.utils.utils as utils
 
-SSL_CERT_PATH = "/etc/ssl/certs/"
+SSL_CERT_PATH = "/etc/ceph/"
 PEM_FILE_NAME = "server.pem"
 PEM_FILE_PATH = os.path.join(SSL_CERT_PATH, PEM_FILE_NAME)
 
