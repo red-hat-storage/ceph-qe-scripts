@@ -116,6 +116,7 @@ class Auth(object):
             aws_secret_access_key=self.secret_key,
             endpoint_url=self.endpoint_url,
             region_name="",
+            verify=False,
         )
 
         return rgw
@@ -133,6 +134,7 @@ class Auth(object):
             aws_secret_access_key=self.secret_key,
             endpoint_url=self.endpoint_url,
             region_name="",
+            verify=False,
         )
 
         return sts_client
