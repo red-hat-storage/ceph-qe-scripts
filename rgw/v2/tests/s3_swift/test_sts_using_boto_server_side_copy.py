@@ -77,7 +77,7 @@ def test_exec(config):
     else:
         log.info("RGW service restarted")
 
-    auth = Auth(user1)
+    auth = Auth(user1, ssl=config.ssl)
     iam_client = auth.do_auth_iam_client()
 
     policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
@@ -115,7 +115,7 @@ def test_exec(config):
     log.info("put_policy_response")
     log.info(put_policy_response)
 
-    auth = Auth(user2)
+    auth = Auth(user2, ssl=config.ssl)
     sts_client = auth.do_auth_sts_client()
 
     log.info("assuming role")
@@ -135,7 +135,7 @@ def test_exec(config):
     }
 
     log.info("got the credentials after assume role")
-    s3client = Auth(assumed_role_user_info)
+    s3client = Auth(assumed_role_user_info, ssl=config.ssl)
     s3_client_rgw = s3client.do_auth()
 
     io_info_initialize.initialize(basic_io_structure.initial())
