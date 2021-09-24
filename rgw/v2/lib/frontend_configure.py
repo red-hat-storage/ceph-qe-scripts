@@ -101,7 +101,7 @@ class Frontend(RGWSectionOptions):
             if frontend == "civetweb":
                 log.info("generating civetweb conf val")
                 conf_val = (
-                    "civetweb port={ip}:{ssl_port}s ssl_certificate=/etc/ssl/certs/server.pem".format(
+                    "civetweb port={ip}:{ssl_port}s ssl_certificate=/etc/ceph/server.pem".format(
                         ip=self._ip, ssl_port=self._ssl_port
                     )
                     if ssl
@@ -113,7 +113,7 @@ class Frontend(RGWSectionOptions):
             if frontend == "beast":
                 log.info("generating beast conf val")
                 conf_val = (
-                    "beast ssl_endpoint={ip}:{ssl_port} ssl_certificate=/etc/ssl/certs/server.pem".format(
+                    "beast ssl_endpoint={ip}:{ssl_port} ssl_certificate=/etc/ceph/server.pem".format(
                         ip=self._ip, ssl_port=self._ssl_port
                     )
                     if ssl
