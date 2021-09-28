@@ -151,7 +151,7 @@ def test_exec(config):
         write_user_info.add_user_info(user_info)
 
         if config.test_ops["create_bucket"]:
-            log.info("no of buckets to create: %s" % config.bucket_count)
+            log.info(f"Number of buckets to create {config.bucket_count}")
             for bc in range(config.bucket_count):
                 bucket_name_to_create = utils.gen_bucket_name_from_userid(
                     assumed_role_user_info["user_id"], rand_no=bc
@@ -160,7 +160,7 @@ def test_exec(config):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, s3_client_rgw, assumed_role_user_info
                 )
-                if config.test_ops["create_object"] is True:
+                if config.test_ops["create_object"]:
                     # uploading data
                     log.info("s3 objects to create: %s" % config.objects_count)
                     for oc, size in list(config.mapped_sizes.items()):
