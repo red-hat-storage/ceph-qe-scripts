@@ -50,11 +50,27 @@ TEST_DATA_PATH = None
 # sample bucket policy dict, this will be used to construct bucket policy for the test.
 
 
+def get_svc_time():
+
+    cmd = "pidof radosgw"
+    pid = utils.exec_shell_cmd(cmd)
+    pid = pid.strip()
+    cmd = "ps -p " + pid + " -o etimes"
+    srv_time = utils.exec_shell_cmd(cmd)
+    srv_time = srv_time.replace("\n", "")
+    srv_time = srv_time.replace(" ", "")
+    srv_time = int(srv_time[7:])
+    return srv_time
+
+
 def test_exec(config):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+
+    if config.test_ops.get("upload_type") == "multipart":
+        srv_time_pre_op = get_svc_time()
 
     # create user
     config.user_count = 1
@@ -64,6 +80,8 @@ def test_exec(config):
         tenant_name=tenant1, no_of_users_to_create=config.user_count
     )
     tenant1_user1_info = tenant1_user_info[0]
+    for each_user in tenant1_user_info:
+        tenant1_user1_information = each_user
     tenant2_user_info = s3lib.create_tenant_users(
         tenant_name=tenant2, no_of_users_to_create=config.user_count
     )
@@ -124,6 +142,28 @@ def test_exec(config):
             raise TestExecError("bucket policy creation failed")
     else:
         raise TestExecError("bucket policy creation failed")
+
+    if config.test_ops.get("upload_type") == "multipart":
+        for oc, size in list(config.mapped_sizes.items()):
+            config.obj_size = size
+            s3_object_name = utils.gen_s3_object_name(t1_u1_bucket1.name, oc)
+            log.info("s3 objects to create: %s" % config.objects_count)
+            reusable.upload_mutipart_object(
+                s3_object_name,
+                t1_u1_bucket1,
+                TEST_DATA_PATH,
+                config,
+                tenant1_user1_information,
+            )
+        srv_time_post_op = get_svc_time()
+        log.info(srv_time_pre_op)
+        log.info(srv_time_post_op)
+
+        if srv_time_post_op > srv_time_pre_op:
+            log.info("Service is running without crash")
+        else:
+            raise TestExecError("Service got crashed")
+
     # get policy
     get_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
     log.info("got bucket policy:%s\n" % get_policy["Policy"])
@@ -270,6 +310,8 @@ if __name__ == "__main__":
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
+        if config.mapped_sizes is None:
+            config.mapped_sizes = utils.make_mapped_sizes(config)
 
         test_exec(config)
         test_info.success_status("test passed")
