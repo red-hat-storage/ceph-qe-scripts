@@ -200,7 +200,7 @@ def test_exec(config):
 
 if __name__ == "__main__":
 
-    test_info = AddTestInfo("create m buckets with n objects")
+    test_info = AddTestInfo("Starting STS test for assume-role operation")
     test_info.started_info()
 
     try:
