@@ -21,7 +21,6 @@ Operation:
 
 
 """
-
 import os
 import sys
 
@@ -34,6 +33,7 @@ import traceback
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
+from botocore.exceptions import ClientError
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
@@ -107,90 +107,95 @@ def test_exec(config):
     log.info(f"policy_name: {policy_name}")
 
     log.info("putting role policy")
-    put_policy_response = iam_client.put_role_policy(
-        RoleName=role_name, PolicyName=policy_name, PolicyDocument=role_policy
-    )
+    try:
+        put_policy_response = iam_client.put_role_policy(
+            RoleName=role_name, PolicyName=policy_name, PolicyDocument=role_policy
+        )
 
-    log.info("put_policy_response")
-    log.info(put_policy_response)
+        log.info("put_policy_response")
+        log.info(put_policy_response)
 
-    auth = Auth(user2, ssl=config.ssl)
-    sts_client = auth.do_auth_sts_client()
+        auth = Auth(user2, ssl=config.ssl)
+        sts_client = auth.do_auth_sts_client()
 
-    log.info("assuming role")
-    assume_role_response = sts_client.assume_role(
-        RoleArn=create_role_response["Role"]["Arn"],
-        RoleSessionName=user1["user_id"],
-        DurationSeconds=3600,
-    )
+        log.info("assuming role")
+        assume_role_response = sts_client.assume_role(
+            RoleArn=create_role_response["Role"]["Arn"],
+            RoleSessionName=user1["user_id"],
+            DurationSeconds=3600,
+        )
 
-    log.info(assume_role_response)
+        log.info(assume_role_response)
 
-    assumed_role_user_info = {
-        "access_key": assume_role_response["Credentials"]["AccessKeyId"],
-        "secret_key": assume_role_response["Credentials"]["SecretAccessKey"],
-        "session_token": assume_role_response["Credentials"]["SessionToken"],
-        "user_id": user2["user_id"],
-    }
-
-    log.info("got the credentials after assume role")
-    s3client = Auth(assumed_role_user_info, ssl=config.ssl)
-    s3_client_rgw = s3client.do_auth()
-
-    io_info_initialize.initialize(basic_io_structure.initial())
-    write_user_info = AddUserInfo()
-    basic_io_structure = BasicIOInfoStructure()
-    user_info = basic_io_structure.user(
-        **{
-            "user_id": assumed_role_user_info["user_id"],
-            "access_key": assumed_role_user_info["access_key"],
-            "secret_key": assumed_role_user_info["secret_key"],
+        assumed_role_user_info = {
+            "access_key": assume_role_response["Credentials"]["AccessKeyId"],
+            "secret_key": assume_role_response["Credentials"]["SecretAccessKey"],
+            "session_token": assume_role_response["Credentials"]["SessionToken"],
+            "user_id": user2["user_id"],
         }
-    )
-    write_user_info.add_user_info(user_info)
 
-    if config.test_ops["create_bucket"] is True:
-        log.info("no of buckets to create: %s" % config.bucket_count)
-        for bc in range(config.bucket_count):
-            bucket_name_to_create = utils.gen_bucket_name_from_userid(
-                assumed_role_user_info["user_id"], rand_no=bc
-            )
-            log.info("creating bucket with name: %s" % bucket_name_to_create)
-            bucket = reusable.create_bucket(
-                bucket_name_to_create, s3_client_rgw, assumed_role_user_info
-            )
-            if config.test_ops["create_object"] is True:
-                # uploading data
-                log.info("s3 objects to create: %s" % config.objects_count)
-                for oc, size in list(config.mapped_sizes.items()):
-                    config.obj_size = size
-                    s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, oc)
-                    log.info("s3 object name: %s" % s3_object_name)
-                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
-                    log.info("s3 object path: %s" % s3_object_path)
-                    if config.test_ops.get("upload_type") == "multipart":
-                        log.info("upload type: multipart")
-                        reusable.upload_mutipart_object(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            assumed_role_user_info,
-                        )
-                    else:
-                        log.info("upload type: normal")
-                        reusable.upload_object(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            assumed_role_user_info,
-                        )
+        log.info("got the credentials after assume role")
+        s3client = Auth(assumed_role_user_info, ssl=config.ssl)
+        s3_client_rgw = s3client.do_auth()
 
-    # check for any crashes during the execution
-    crash_info = reusable.check_for_crash()
-    if crash_info:
-        raise TestExecError("ceph daemon crash found!")
+        io_info_initialize.initialize(basic_io_structure.initial())
+        write_user_info = AddUserInfo()
+        basic_io_structure = BasicIOInfoStructure()
+        user_info = basic_io_structure.user(
+            **{
+                "user_id": assumed_role_user_info["user_id"],
+                "access_key": assumed_role_user_info["access_key"],
+                "secret_key": assumed_role_user_info["secret_key"],
+            }
+        )
+        write_user_info.add_user_info(user_info)
+
+        if config.test_ops["create_bucket"]:
+            log.info(f"Number of buckets to create {config.bucket_count}")
+            for bc in range(config.bucket_count):
+                bucket_name_to_create = utils.gen_bucket_name_from_userid(
+                    assumed_role_user_info["user_id"], rand_no=bc
+                )
+                log.info("creating bucket with name: %s" % bucket_name_to_create)
+                bucket = reusable.create_bucket(
+                    bucket_name_to_create, s3_client_rgw, assumed_role_user_info
+                )
+                if config.test_ops["create_object"]:
+                    # uploading data
+                    log.info("s3 objects to create: %s" % config.objects_count)
+                    for oc, size in list(config.mapped_sizes.items()):
+                        config.obj_size = size
+                        s3_object_name = utils.gen_s3_object_name(
+                            bucket_name_to_create, oc
+                        )
+                        log.info("s3 object name: %s" % s3_object_name)
+                        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                        log.info("s3 object path: %s" % s3_object_path)
+                        if config.test_ops.get("upload_type") == "multipart":
+                            log.info("upload type: multipart")
+                            reusable.upload_mutipart_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                assumed_role_user_info,
+                            )
+                        else:
+                            log.info("upload type: normal")
+                            reusable.upload_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                assumed_role_user_info,
+                            )
+
+        # check for any crashes during the execution
+        crash_info = reusable.check_for_crash()
+        if crash_info:
+            raise TestExecError("ceph daemon crash found!")
+    except ClientError as e:
+        print("403 Forbidden, invalid arn in the policy")
 
 
 if __name__ == "__main__":
