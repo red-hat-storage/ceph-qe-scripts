@@ -4,6 +4,8 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import logging
 
+from botocore import exceptions as BotocoreExceptions
+
 log = logging.getLogger()
 
 

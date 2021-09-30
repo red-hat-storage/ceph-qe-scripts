@@ -20,14 +20,10 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
-import datetime
 import hashlib
-import json
 import logging
-import time
 import traceback
 
-import boto3
 import botocore.exceptions as boto3exception
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -39,7 +35,7 @@ from v2.lib.exceptions import (
 )
 from v2.lib.manage_data import io_generator
 from v2.lib.resource_op import Config
-from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
+from v2.lib.rgw_config_opts import CephConfOp
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
