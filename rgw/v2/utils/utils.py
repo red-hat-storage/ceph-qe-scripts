@@ -287,6 +287,14 @@ class RGWService:
         cmd = self.srv.cmd("start")
         return exec_shell_cmd(cmd)
 
+    def status(self):
+        """
+        Get status of the service
+        """
+        log.info("service status")
+        cmd = self.srv.cmd("status")
+        return exec_shell_cmd(cmd)
+
 
 def get_rgw_frontends():
     """Retrieve RGW's frontend configuration."""
