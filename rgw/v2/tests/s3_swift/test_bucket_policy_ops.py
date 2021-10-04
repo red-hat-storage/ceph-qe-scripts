@@ -310,8 +310,9 @@ if __name__ == "__main__":
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read()
-        if config.mapped_sizes is None:
-            config.mapped_sizes = utils.make_mapped_sizes(config)
+        if config.test_ops.get("upload_type") == "multipart":
+            if config.mapped_sizes is None:
+                config.mapped_sizes = utils.make_mapped_sizes(config)
 
         test_exec(config)
         test_info.success_status("test passed")
