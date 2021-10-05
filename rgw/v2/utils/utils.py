@@ -561,5 +561,9 @@ def is_cluster_multisite():
     if "realm  ()" in out:
         log.info("the cluster is single site")
         return False
-    log.info("the cluster is multisite")
-    return True
+    elif "data sync source" in out:
+        log.info("the cluster is multisite")
+        return True
+    else:
+        log.info("the cluster is multi realm")
+        return False
