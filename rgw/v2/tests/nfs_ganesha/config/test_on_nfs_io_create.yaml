@@ -1,9 +1,9 @@
 config:
-  'basedir_count': 4
-  'subdir_count': 10
-  'file_count': 2000
-  'objects_size_range':
-      'min': 5
-      'max': 15
+  "basedir_count": 4
+  "subdir_count": 10
+  "file_count": 2000
+  "objects_size_range":
+    "min": 5
+    "max": 15
   io_op_config:
     create: true

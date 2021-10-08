@@ -28,7 +28,13 @@ config:
                "Statement":
                     {
                          "Effect": "Allow",
-                         "Action": ["s3:CreateBucket","s3:GetObject","s3:GetObjectVersion","s3:ListBucket"],
+                         "Action":
+                              [
+                                   "s3:CreateBucket",
+                                   "s3:GetObject",
+                                   "s3:GetObjectVersion",
+                                   "s3:ListBucket",
+                              ],
                          "Resource": "arn:aws:s3:::*",
                     }
           session_policy:
@@ -39,4 +45,3 @@ config:
                          "Action": "s3:*",
                          "Resource": "arn:aws:s3:::*",
                     }
-

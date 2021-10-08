@@ -1,11 +1,9 @@
 #script - test_ssl.py
 # Polarion ID : CEPH-83572902
 config:
- user_count: 1
- frontend: beast
- ssl: true
-
-
+  user_count: 1
+  frontend: beast
+  ssl: true
 # supported config options for frontends and SSL
 #config:
 #  frontend: civetweb or beast
@@ -21,5 +19,3 @@ config:
 #-----
 #config:
 #  blank, takes the ssl status and frontends from ceph.conf
-
-  

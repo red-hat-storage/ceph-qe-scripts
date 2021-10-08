@@ -1,5 +1,5 @@
 # polarion test case id: CEPH-83572938 , CEPH-83574539
-# test scripts : test_sts_using_boto.py , test_sts_using_boto_unexisting_object.py 
+# test scripts : test_sts_using_boto.py , test_sts_using_boto_unexisting_object.py
 config:
      bucket_count: 2
      objects_count: 5

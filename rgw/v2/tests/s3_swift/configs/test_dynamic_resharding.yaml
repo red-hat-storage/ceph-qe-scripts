@@ -1,9 +1,9 @@
 config:
- objects_count: 100
- objects_size_range:
-  min: 15
-  max: 20
- sharding_type: dynamic
- max_objects_per_shard: 5
- test_ops:
-  delete_bucket_object: true
+  objects_count: 100
+  objects_size_range:
+    min: 15
+    max: 20
+  sharding_type: dynamic
+  max_objects_per_shard: 5
+  test_ops:
+    delete_bucket_object: true

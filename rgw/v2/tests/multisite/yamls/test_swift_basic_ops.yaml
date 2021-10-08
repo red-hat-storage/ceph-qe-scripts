@@ -1,8 +1,0 @@
-# test case id: CEPH-11019
-config:
- container_count: 3
- cluster_name: c1
- objects_count: 5
- objects_size_range:
-  min: 5
-  max: 15

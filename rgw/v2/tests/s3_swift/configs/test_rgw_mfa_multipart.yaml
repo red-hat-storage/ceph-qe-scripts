@@ -1,21 +1,21 @@
 config:
- user_count: 1
- bucket_count: 1
- objects_count: 1
- version_count: 2
- objects_size_range:
-  min: 25
-  max: 25
- local_file_delete: true
- test_ops:
-  mfa_create : true
-  mfa_check: true
-  mfa_list : true
-  mfa_resync_invalid_syntax : false
-  create_bucket: true
-  enable_mfa_version: true
-  create_object: true
-  upload_type: multipart 
-  delete_mfa_object: true
-  delete_bucket: true
-  remove_mfa: true
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  version_count: 2
+  objects_size_range:
+    min: 25
+    max: 25
+  local_file_delete: true
+  test_ops:
+    mfa_create: true
+    mfa_check: true
+    mfa_list: true
+    mfa_resync_invalid_syntax: false
+    create_bucket: true
+    enable_mfa_version: true
+    create_object: true
+    upload_type: multipart
+    delete_mfa_object: true
+    delete_bucket: true
+    remove_mfa: true

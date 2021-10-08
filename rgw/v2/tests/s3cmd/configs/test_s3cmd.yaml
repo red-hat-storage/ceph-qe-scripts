@@ -1,8 +1,7 @@
 # test case id: CEPH-83573244
 config:
- container_count: 1
- objects_count: 1
- objects_size_range:
-  min: 5
-  max: 15
-
+  container_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 15

@@ -1,12 +1,12 @@
 config:
- user_count: 1
- bucket_count: 2
- objects_count: 5
- objects_size_range:
-  min: 5
-  max: 10
- local_file_delete: true
- test_ops:
-  change_datalog_backing: fifo
-  create_bucket: true
-  create_object: true
+  user_count: 1
+  bucket_count: 2
+  objects_count: 5
+  objects_size_range:
+    min: 5
+    max: 10
+  local_file_delete: true
+  test_ops:
+    change_datalog_backing: fifo
+    create_bucket: true
+    create_object: true

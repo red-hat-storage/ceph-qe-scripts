@@ -1,6 +1,6 @@
 # script: test_versioning_copy_objects.py
 # polarion id: CEPH-9221
 config:
- objects_size_range:
-  min: 5
-  max: 15
+  objects_size_range:
+    min: 5
+    max: 15

@@ -31,4 +31,3 @@ config:
                          "Action": "s3:*",
                          "Resource": "this-is-invalid-arn-policy ",
                     }
-
