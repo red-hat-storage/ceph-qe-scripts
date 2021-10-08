@@ -216,6 +216,9 @@ class Config(object):
         self.sts = self.doc["config"].get("sts")
         self.ceph_conf = self.doc["config"].get("ceph_conf")
         self.gc_verification = self.doc["config"].get("gc_verification", False)
+        self.test_datalog_trim_command = self.doc["config"].get(
+            "test_datalog_trim_command", False
+        )
         self.rgw_gc_obj_min_wait = self.doc["config"].get("rgw_gc_obj_min_wait", False)
         self.ssl = self.doc["config"].get(
             "ssl",
