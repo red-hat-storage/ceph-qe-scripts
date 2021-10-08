@@ -22,7 +22,8 @@ the requirement of OSD/Mon/RGW nodes in its header comment
 #### Development Guidelines
 An attempt is made to follow a set of style guidelines for clarity. As we grow and have more contributors, it becomes essential for us to follow some standard practices. We use: 
 - black 
-- isort    
+- isort
+- yamllint    
    
 ##### black
 ```
@@ -47,6 +48,19 @@ $ pip3 install isort
 
 # formatting code with isort
 $ isort <filename>
+
+where `filename`
+- a relative or absolute path of the file
+- a relative or absolute path of a directory
+```
+
+##### yamllint
+```
+Install in your enviornemnt using
+$ pip3 install yamllint
+
+# linting yamls with yamllint
+$ yamllint <filename>
 
 where `filename`
 - a relative or absolute path of the file

@@ -1,21 +1,21 @@
 # upload type: non multipart
 # script: test_Mbuckets_with_Nobjects.py
 config:
- use_aws4: true
- user_count: 1
- bucket_count: 1
- objects_count: 2
- objects_size_range:
-  min: 5
-  max: 15
- test_ops:
-      create_bucket: true
-      create_object: true
-      download_object: true
-      delete_bucket_object: true
-      sharding:
-        enable: false
-        max_shards: 0
-      compression:
-        enable: false
-        type: zlib
+  use_aws4: true
+  user_count: 1
+  bucket_count: 1
+  objects_count: 2
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    create_object: true
+    download_object: true
+    delete_bucket_object: true
+    sharding:
+      enable: false
+      max_shards: 0
+    compression:
+      enable: false
+      type: zlib

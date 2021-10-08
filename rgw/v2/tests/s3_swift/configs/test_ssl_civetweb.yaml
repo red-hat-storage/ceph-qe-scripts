@@ -1,6 +1,6 @@
 #script - test_ssl.py
 # Polarion ID : CEPH-10359
 config:
- user_count: 1
- frontend: civetweb
- ssl: true
+  user_count: 1
+  frontend: civetweb
+  ssl: true

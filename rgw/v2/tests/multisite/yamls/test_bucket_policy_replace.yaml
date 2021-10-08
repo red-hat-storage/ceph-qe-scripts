@@ -1,6 +1,0 @@
-# script: test_bucket_policy_ops.py
-# completely add new policy, replacing the existing policy
-# TC 11215
-config:
- bucket_policy_op: replace
- cluster_name: c1

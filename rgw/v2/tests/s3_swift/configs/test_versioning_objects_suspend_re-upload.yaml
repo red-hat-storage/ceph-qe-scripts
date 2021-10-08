@@ -2,18 +2,16 @@
 # script: test_versioning_with_objects.py
 # covers even for CEPH-9223
 config:
- user_count: 1
- bucket_count: 1
- objects_count: 2
- version_count: 4
- objects_size_range:
-  min: 5
-  max: 15
- test_ops:
-      enable_version: true
-      suspend_version: true
-      copy_to_version: false
-      delete_object_versions: false
-      upload_after_suspend: true
-
-
+     user_count: 1
+     bucket_count: 1
+     objects_count: 2
+     version_count: 4
+     objects_size_range:
+          min: 5
+          max: 15
+     test_ops:
+          enable_version: true
+          suspend_version: true
+          copy_to_version: false
+          delete_object_versions: false
+          upload_after_suspend: true

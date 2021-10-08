@@ -1,4 +1,3 @@
 config:
- user_count: 1
- user_type: non-tenanted
-
+  user_count: 1
+  user_type: non-tenanted

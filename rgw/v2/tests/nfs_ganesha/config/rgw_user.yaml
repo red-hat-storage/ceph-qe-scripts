@@ -3,7 +3,7 @@ access_key:
 secret_key:
 rgw_hostname:
 ganesha_config_exists: true # set true to create ganesha config based on the above input or set false not to create any config.
-already_mounted:  # set true if nfs_ganesha is already mounted or false if not.
+already_mounted: # set true if nfs_ganesha is already mounted or false if not.
 nfs_version:
-nfs_mnt_point:  # provide full path
+nfs_mnt_point: # provide full path
 Pseudo:

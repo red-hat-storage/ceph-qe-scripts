@@ -5,7 +5,7 @@ overrides:
   ansible.cephlab:
     tags: zap,epel,hostname,lvm,partition,secondary-nic,packages,repos
   rhceph_ansible:
-    rhbuild: '5.0'
+    rhbuild: "5.0"
     vars:
       ceph_origin: distro
       ceph_repository: rhcs
@@ -40,15 +40,15 @@ overrides:
       - \(MDS_UP_LESS_THAN_MAX\)
       - slow request
   cbt:
-    repo: 'https://github.com/vasukulkarni/cbt'
-    branch: 'wip-archive'
+    repo: "https://github.com/vasukulkarni/cbt"
+    branch: "wip-archive"
   install:
     ceph:
       log-whitelist:
         - WRN
         - wrn
       fs: xfs
-      rhbuild: '5.0'
+      rhbuild: "5.0"
   selinux:
     whitelist:
       - /home/ubuntu/cephtest/

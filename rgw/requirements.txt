@@ -15,4 +15,6 @@ rgwadmin
 # for checks 
 black
 isort
+yamllint
 tox
+
