@@ -17,7 +17,7 @@ S3_OBJECT_NAME_PREFIX = "key"
 log = logging.getLogger()
 
 
-def exec_shell_cmd(cmd):
+def exec_shell_cmd(cmd, debug_info=False):
     try:
         log.info("executing cmd: %s" % cmd)
         pr = subprocess.Popen(
@@ -32,7 +32,11 @@ def exec_shell_cmd(cmd):
             log.info("cmd excuted")
             if out is not None:
                 log.info(out)
-            return out
+                if debug_info == True:
+                    log.info(err)
+                    return out, err
+                else:
+                    return out
         else:
             raise Exception("error: %s \nreturncode: %s" % (err, pr.returncode))
     except Exception as e:

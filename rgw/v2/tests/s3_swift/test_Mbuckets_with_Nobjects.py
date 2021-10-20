@@ -256,6 +256,14 @@ def test_exec(config):
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
                     # verification of shards after upload
+                    if config.test_datalog_trim_command is True:
+                        cmd = "sudo radosgw-admin datalog trim --shard-id 117 --end-marker 1_1626169668.769402_510233116.1 --debug_ms=1 --debug_rgw=20"
+                        out, err = utils.exec_shell_cmd(cmd, debug_info=True)
+                        if "Segmentation fault" in err:
+                            log.info("Segmentation fault occured")
+                            test_info.failed_status("test failed")
+                            sys.exit(1)
+
                     if config.test_ops["sharding"]["enable"] is True:
                         cmd = (
                             "radosgw-admin metadata get bucket:%s | grep bucket_id"
