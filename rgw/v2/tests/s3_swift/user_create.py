@@ -86,7 +86,7 @@ if __name__ == "__main__":
     #        if config.mapped_sizes is None:
     #           config.mapped_sizes = utils.make_mapped_sizes(config)
     with open(yaml_file, "r") as f:
-        doc = yaml.load(f)
+        doc = yaml.safe_load(f)
         config.user_count = doc["config"]["user_count"]
         log.info("user_count:%s\n" % (config.user_count))
     test_exec(config)

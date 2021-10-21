@@ -59,7 +59,7 @@ if __name__ == "__main__":
         config.break_at_part_no = 19
     else:
         with open(yaml_file, "r") as f:
-            doc = yaml.load(f)
+            doc = yaml.safe_load(f)
         config.user_count = doc["config"]["user_count"]
         config.bucket_count = doc["config"]["bucket_count"]
         config.objects_size_range = {
