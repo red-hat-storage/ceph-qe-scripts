@@ -226,6 +226,8 @@ class Config(object):
         self.frontend = self.doc["config"].get("frontend")
         self.io_op_config = self.doc.get("config").get("io_op_config")
         self.radoslist_all = self.test_ops.get("radoslist_all", False)
+        self.cluster_type = self.doc["config"].get("cluster_type", None)
+        self.enable_sharding = self.doc["config"].get("enable_sharding", False)
         self.change_datalog_backing = self.test_ops.get("change_datalog_backing", False)
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
