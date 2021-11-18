@@ -292,19 +292,8 @@ def test_exec(config):
                         out = utils.exec_shell_cmd(cmd)
                     if config.test_ops["delete_bucket_object"] is True:
                         reusable.delete_objects(bucket)
-                        # Commenting restart service since the immediate restart is causing delete operation failure
-                        # log.info("set debug_rgw to 20 before delete the bucket")
-                        # config.debug_rgw = 20
-                        # ceph_conf.set_to_ceph_conf(
-                        #     "global", ConfigOpts.debug_rgw, str(config.debug_rgw)
-                        # )
-                        # log.info("trying to restart services")
-                        # srv_restarted = rgw_service.restart()
-                        # time.sleep(20)
-                        # if srv_restarted is False:
-                        #     raise TestExecError("RGW service restart failed")
-                        # else:
-                        #    log.info("RGW service restarted")
+                        time.sleep(10)
+                        reusable.check_sync_status()
                         reusable.delete_bucket(bucket)
         # disable compression after test
         if config.test_ops["compression"]["enable"] is True:
