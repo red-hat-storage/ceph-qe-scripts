@@ -329,10 +329,15 @@ def get_radosgw_port_no():
                 return config.split("=")[-1]
 
     op = exec_shell_cmd("sudo netstat -nltp | grep radosgw")
-    log.info("output: %s" % op)
+    log.info(f"output: {op}")
+
+    if not op:
+        raise Exception("Unable to determine the RADOSGW port.")
+
     x = op.split(" ")
     port = [i for i in x if ":" in i][0].split(":")[1]
-    log.info("radosgw is running in port: %s" % port)
+    log.info(f"RADOSGW port is: {port}")
+
     return port
 
 
