@@ -143,6 +143,14 @@ def test_exec(config):
         if config.gc_verification is True:
             conf = config.ceph_conf
             reusable.set_gc_conf(ceph_conf, conf)
+        if config.dynamic_resharding is True:
+            log.info("making changes to ceph.conf")
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_max_objs_per_shard,
+                str(config.max_objects_per_shard),
+            )
+            srv_restarted = rgw_service.restart()
 
         # create buckets
         if config.test_ops["create_bucket"] is True:
@@ -155,6 +163,14 @@ def test_exec(config):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
                 )
+                if config.dynamic_resharding is True:
+                    reusable.check_sync_status()
+                    op = utils.exec_shell_cmd(
+                        f"radosgw-admin bucket stats --bucket {bucket.name}"
+                    )
+                    json_doc = json.loads(op)
+                    old_num_shards = json_doc["num_shards"]
+                    log.info(f"no_of_shards_created: {old_num_shards}")
                 if config.test_ops["create_object"] is True:
                     # uploading data
                     log.info("s3 objects to create: %s" % config.objects_count)
@@ -255,6 +271,22 @@ def test_exec(config):
                         if config.local_file_delete is True:
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
+                    if config.dynamic_resharding is True:
+                        reusable.check_sync_status()
+                        for i in range(10):
+                            time.sleep(60)  # Adding delay for processing reshard list
+                            op = utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket {bucket.name}"
+                            )
+                            json_doc = json.loads(op)
+                            new_num_shards = json_doc["num_shards"]
+                            log.info(f"no_of_shards_created: {new_num_shards}")
+                            if new_num_shards > old_num_shards:
+                                break
+                        else:
+                            raise TestExecError(
+                                "num shards are same after processing resharding"
+                            )
                     # verification of shards after upload
                     if config.test_datalog_trim_command is True:
                         cmd = "sudo radosgw-admin datalog trim --shard-id 117 --end-marker 1_1626169668.769402_510233116.1 --debug_ms=1 --debug_rgw=20"
