@@ -13,8 +13,10 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
 	test_Mbuckets_with_Nobjects_multipart.yaml
 	test_Mbuckets_with_Nobjects_sharding.yaml
 	test_gc_list.yaml
+        test_multisite_manual_resharding_greenfield.yaml
+        test_multisite_dynamic_resharding_greenfield.yaml
 	test_gc_list_multipart.yaml
-
+    
 Operation:
 	Creates M bucket and N objects
 	Creates M bucket and N objects. Verify checksum of the downloaded objects
@@ -284,6 +286,28 @@ def test_exec(config):
                             if new_num_shards > old_num_shards:
                                 break
                         else:
+                            raise TestExecError(
+                                "num shards are same after processing resharding"
+                            )
+                    if config.manual_resharding is True:
+                        op = utils.exec_shell_cmd(
+                            f"radosgw-admin bucket stats --bucket {bucket.name}"
+                        )
+                        json_doc = json.loads(op)
+                        old_num_shards = json_doc["num_shards"]
+                        log.info(f"no_of_shards_created: {old_num_shards}")
+                        op = utils.exec_shell_cmd(
+                            f"radosgw-admin reshard add --bucket {bucket.name} --num-shards {config.shards}"
+                        )
+                        op = utils.exec_shell_cmd("radosgw-admin reshard process")
+                        time.sleep(60)
+                        op = utils.exec_shell_cmd(
+                            f"radosgw-admin bucket stats --bucket {bucket.name}"
+                        )
+                        json_doc = json.loads(op)
+                        new_num_shards = json_doc["num_shards"]
+                        log.info(f"no_of_shards_created: {new_num_shards}")
+                        if new_num_shards <= old_num_shards:
                             raise TestExecError(
                                 "num shards are same after processing resharding"
                             )
