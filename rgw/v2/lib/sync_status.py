@@ -20,7 +20,7 @@ def sync_status(retry=10, delay=60):
     check_sync_status = utils.exec_shell_cmd(cmd)
 
     # check for 'failed' or 'ERROR' in sync status.
-    if "failed|ERROR" in check_sync_status:
+    if "failed" in check_sync_status or "ERROR" in check_sync_status:
         log.info("checking for any sync error")
         cmd = "sudo radosgw-admin sync error list"
         sync_error_list = utils.exec_shell_cmd(cmd)
@@ -33,7 +33,7 @@ def sync_status(retry=10, delay=60):
     )
     if "behind" in check_sync_status or "recovering" in check_sync_status:
         log.info("sync is in progress")
-        log.info("sleep of 30 secs for sync to complete")
+        log.info("sleep of {delay} secs for sync to complete")
         for retry_count in range(retry):
             time.sleep(delay)
             cmd = "sudo radosgw-admin sync status"
