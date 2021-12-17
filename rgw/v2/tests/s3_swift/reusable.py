@@ -985,7 +985,7 @@ def check_datalog_list():
         return False
 
 
-def check_datalog_marker():
+def get_datalog_marker():
     """
     check the datalog marker
     """
@@ -1002,17 +1002,27 @@ def check_datalog_marker():
 
     # fetch the first occurance of marker
     get_datalog_marker = ""
+    shard_id = -1
     datalog_num_shards = int(datalog_num_shards) - 1
     for i in range(datalog_num_shards):
         if datalog_status[i]["marker"] is "":
             continue
         else:
             get_datalog_marker = datalog_status[i]["marker"]
+            shard_id = i
             break
 
-    if "1_" in get_datalog_marker:
+    # return shard_id and datalog_mark, Ref BZ: https://bugzilla.redhat.com/show_bug.cgi?id=1981860
+    return shard_id, get_datalog_marker
+
+
+def check_datalog_marker():
+    """
+    check the datalog marker
+    """
+    _, marker = get_datalog_marker()
+    if "1_" in marker:
         return "omap"
-    if ":" in get_datalog_marker:
+    if ":" in marker:
         return "fifo"
-    if "" in get_datalog_marker:
-        raise TestExecError("failed to fetch datalog marker")
+    raise TestExecError(f"No known identifiers found in datalog marker \n {marker}")

@@ -313,7 +313,8 @@ def test_exec(config):
                             )
                     # verification of shards after upload
                     if config.test_datalog_trim_command is True:
-                        cmd = "sudo radosgw-admin datalog trim --shard-id 117 --end-marker 1_1626169668.769402_510233116.1 --debug_ms=1 --debug_rgw=20"
+                        shard_id, end_marker = reusable.get_datalog_marker()
+                        cmd = f"sudo radosgw-admin datalog trim --shard-id {shard_id} --end-marker {end_marker} --debug_ms=1 --debug_rgw=20"
                         out, err = utils.exec_shell_cmd(cmd, debug_info=True)
                         if "Segmentation fault" in err:
                             log.info("Segmentation fault occured")
