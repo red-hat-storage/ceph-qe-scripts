@@ -8,7 +8,7 @@ import time
 import v2.utils.utils as utils
 from v2.lib.exceptions import SyncFailedError
 
-log = logging.getLogger()
+log = logging.getLogger(__name__)
 
 
 def sync_status(retry=10, delay=60):
