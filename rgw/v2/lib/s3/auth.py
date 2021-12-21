@@ -138,3 +138,21 @@ class Auth(object):
         )
 
         return sts_client
+
+    def do_auth_sns_client(
+        self,
+    ):
+        """
+        :return: connection object
+        """
+
+        sns_client = boto3.client(
+            "sns",
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+            endpoint_url=self.endpoint_url,
+            region_name="",
+            config=Config(signature_version="s3"),
+        )
+
+        return sns_client
