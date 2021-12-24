@@ -885,7 +885,7 @@ def check_for_crash():
     check for crash on cluster
     """
     ceph_version_id, ceph_version_name = utils.get_ceph_version()
-    if ceph_version_name == "nautilus":
+    if ceph_version_name != "luminous":
         log.info("check for any new crashes on the ceph cluster ")
         ceph_crash = utils.exec_shell_cmd("ceph crash ls-new")
         if ceph_crash:
