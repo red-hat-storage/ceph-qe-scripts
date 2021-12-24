@@ -153,6 +153,7 @@ class Auth(object):
             endpoint_url=self.endpoint_url,
             region_name="",
             config=Config(signature_version="s3"),
+            verify=False,
         )
 
         return sns_client
