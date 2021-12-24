@@ -27,7 +27,7 @@ def start_kafka_broker_consumer(topic_name, event_record_path, ceph_version):
         t = utils.exec_shell_cmd(cmd)
         print("path exists :", t)
 
-    KAFKA_HOME = "/home/cephuser/kafka/"
+    KAFKA_HOME = "/usr/local/kafka"
 
     # start kafka consumer
     if "nautilus" in ceph_version:
