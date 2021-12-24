@@ -33,7 +33,7 @@ def sync_status(retry=10, delay=60):
     )
     if "behind" in check_sync_status or "recovering" in check_sync_status:
         log.info("sync is in progress")
-        log.info("sleep of {delay} secs for sync to complete")
+        log.info(f"sleep of {delay} secs for sync to complete")
         for retry_count in range(retry):
             time.sleep(delay)
             cmd = "sudo radosgw-admin sync status"
