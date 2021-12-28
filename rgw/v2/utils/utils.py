@@ -520,6 +520,17 @@ d = {'ResponseMetadata': {'HTTPStatusCode': 404, 'RetryAttempts': 0, 'HostId': '
 """
 
 
+def get_realm_source_zone_info():
+    op = exec_shell_cmd("radosgw-admin sync status")
+    lst = list(op.split("\n"))
+    for l in lst:
+        if "realm" in l:
+            realm = l[l.find("(") + 1 : l.find(")")]
+        if "data sync source" in l:
+            source_zone = l[l.find("(") + 1 : l.find(")")]
+    return realm, source_zone
+
+
 def get_hostname_ip():
     try:
         hostname = socket.gethostname()

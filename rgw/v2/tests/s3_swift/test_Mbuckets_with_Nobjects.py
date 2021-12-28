@@ -273,6 +273,21 @@ def test_exec(config):
                         if config.local_file_delete is True:
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
+                    if config.bucket_sync_crash is True:
+                        is_multisite = utils.is_cluster_multisite()
+                        if is_multisite:
+                            crash_info = reusable.check_for_crash()
+                            if crash_info:
+                                raise TestExecError("ceph daemon crash found!")
+                            realm, source_zone = utils.get_realm_source_zone_info()
+                            log.info(f"Realm name: {realm}")
+                            log.info(f"Source zone name: {source_zone}")
+                            op = utils.exec_shell_cmd(
+                                f"radosgw-admin bucket sync run --bucket {bucket.name} --rgw-curl-low-speed-time=0 --source-zone {source_zone} --source-zone {realm}"
+                            )
+                            crash_info = reusable.check_for_crash()
+                            if crash_info:
+                                raise TestExecError("ceph daemon crash found!")
                     if config.dynamic_resharding is True:
                         reusable.check_sync_status()
                         for i in range(10):
