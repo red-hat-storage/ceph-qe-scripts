@@ -5,7 +5,7 @@ pull_request_rules:
       - label!=DNM
       - label!=work-in-progress
       - base=master
-      - "#approved-reviews-by=@cephci-top-level-reviewers"
+      - "#approved-reviews-by>=1"
       - check-success=tox (3.7)
     actions:
       merge:
