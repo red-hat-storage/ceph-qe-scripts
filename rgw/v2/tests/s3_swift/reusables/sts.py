@@ -27,7 +27,7 @@ def add_sts_config_to_ceph_conf(
         sesison_encryption_token (str, optional): Defaults to "abcdefghijklmnoq".
 
     Raises:
-        TestExecError: if restart fails
+        TestExecError: if rgw service restart fails
     """
     log.info("adding sts config to ceph.conf")
     ceph_config_set.set_to_ceph_conf(
