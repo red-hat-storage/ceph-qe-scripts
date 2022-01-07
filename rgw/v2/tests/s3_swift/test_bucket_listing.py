@@ -278,8 +278,7 @@ def test_exec(config):
             )
             cmd = "radosgw-admin bucket radoslist | grep ERROR"
             radoslist_all_error = utils.exec_shell_cmd(cmd)
-            print(radoslist_all_error)
-            if radoslist_all_error is False:
+            if radoslist_all_error:
                 raise TestExecError("ERROR in radoslist command")
 
         if config.test_ops.get("delete_bucket_object", False):
