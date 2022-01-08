@@ -161,6 +161,10 @@ def test_exec(config):
                 bucket_name_to_create = utils.gen_bucket_name_from_userid(
                     each_user["user_id"], rand_no=bc
                 )
+                if config.bucket_sync_crash is True:
+                    is_primary = utils.is_cluster_primary()
+                    if is_primary:
+                        bucket_name_to_create = "bkt_crash_check"
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
@@ -274,20 +278,22 @@ def test_exec(config):
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
                     if config.bucket_sync_crash is True:
-                        is_multisite = utils.is_cluster_multisite()
-                        if is_multisite:
+                        is_primary = utils.is_cluster_primary()
+                        if is_primary is False:
                             crash_info = reusable.check_for_crash()
                             if crash_info:
                                 raise TestExecError("ceph daemon crash found!")
                             realm, source_zone = utils.get_realm_source_zone_info()
                             log.info(f"Realm name: {realm}")
                             log.info(f"Source zone name: {source_zone}")
-                            op = utils.exec_shell_cmd(
-                                f"radosgw-admin bucket sync run --bucket {bucket.name} --rgw-curl-low-speed-time=0 --source-zone {source_zone} --source-zone {realm}"
-                            )
-                            crash_info = reusable.check_for_crash()
-                            if crash_info:
-                                raise TestExecError("ceph daemon crash found!")
+                            for i in range(600):  # Running sync command for 600 times
+                                op = utils.exec_shell_cmd(
+                                    f"radosgw-admin bucket sync run --bucket bkt_crash_check --rgw-curl-low-speed-time=0 --source-zone {source_zone} --rgw-realm {realm}"
+                                )
+                                crash_info = reusable.check_for_crash()
+                                if crash_info:
+                                    raise TestExecError("ceph daemon crash found!")
+                                time.sleep(1)
                     if config.dynamic_resharding is True:
                         reusable.check_sync_status()
                         for i in range(10):
