@@ -41,10 +41,13 @@ class UserMgmt(object):
             write_user_info = AddUserInfo()
             basic_io_structure = BasicIOInfoStructure()
             log.info("cluster name: %s" % cluster_name)
-            cmd = (
-                'radosgw-admin user create --uid="%s" --display-name="%s" --cluster %s'
-                % (user_id, displayname, cluster_name)
-            )
+            op = utils.exec_shell_cmd("radosgw-admin user list")
+            if user_id in op:
+                cmd = (
+                    f"radosgw-admin user info --uid={user_id} --cluster {cluster_name}"
+                )
+            else:
+                cmd = f"radosgw-admin user create --uid={user_id} --display-name={displayname} --cluster {cluster_name}"
             log.info("cmd to execute:\n%s" % cmd)
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
             v = variable.stdout.read()
@@ -96,10 +99,7 @@ class UserMgmt(object):
             write_user_info = AddUserInfo()
             basic_io_structure = BasicIOInfoStructure()
             log.info("cluster name: %s" % cluster_name)
-            cmd = (
-                "radosgw-admin user create --uid=%s --display-name=%s --cluster %s"
-                % (user_id, displayname, cluster_name)
-            )
+            cmd = f"radosgw-admin user info --uid={user_id} --cluster {cluster_name}"
             log.info("cmd to execute:\n%s" % cmd)
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
             time.sleep(10)
