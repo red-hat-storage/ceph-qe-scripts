@@ -51,6 +51,10 @@ def sync_status(retry=10, delay=60):
                 f"sync is still in progress. with {retry} retries and sleep of {delay}secs between each retry"
             )
 
+    # check metadata sync status
+    if "metadata is behind" in check_sync_status:
+        raise Exception("metadata sync is either in progress or stuck")
+
     # check status for complete sync
     if "data is caught up with source" in check_sync_status:
         log.info("sync status complete")
