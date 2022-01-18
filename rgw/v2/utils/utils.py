@@ -32,7 +32,7 @@ def exec_shell_cmd(cmd, debug_info=False):
             log.info("cmd excuted")
             if out is not None:
                 log.info(out)
-                if debug_info == True:
+                if debug_info:
                     log.info(err)
                     return out, err
                 else:
@@ -42,6 +42,9 @@ def exec_shell_cmd(cmd, debug_info=False):
     except Exception as e:
         log.error("cmd execution failed")
         log.error(e)
+        if debug_info:
+            return str(e), False
+
         return False
 
 
