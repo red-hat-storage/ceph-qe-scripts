@@ -557,6 +557,19 @@ def get_ceph_version():
     return version_id, version_name
 
 
+def check_dbr_support():
+    # checks if the cluster version is greater than 4.3 or not
+    ceph_version_id, _ = get_ceph_version()
+    ceph_version_id = ceph_version_id.split("-")
+    ceph_version_id = ceph_version_id[0].split(".", 1)
+    if float(ceph_version_id[0]) == 14 and float(ceph_version_id[1]) >= 2.22:
+        return True
+    elif float(ceph_version_id[0]) == 16 and float(ceph_version_id[1]) > 2.0:
+        return True
+    else:
+        return False
+
+
 def is_cluster_primary():
     # checks if the cluster is primary or not
     # if primary return True or return False if not, assume as secondary

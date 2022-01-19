@@ -67,7 +67,12 @@ def test_exec(config):
     rgw_service = RGWService()
 
     # create user
-    all_users_info = s3lib.create_users(config.user_count)
+    if config.dbr_scenario == "brownfield":
+        user_brownfiled = "brownfield_user"
+        all_users_info = s3lib.create_users(config.user_count, user_brownfiled)
+    else:
+        all_users_info = s3lib.create_users(config.user_count)
+
     if config.test_ops.get("encryption_algorithm", None) is not None:
         log.info("encryption enabled, making ceph config changes")
         ceph_conf.set_to_ceph_conf("global", ConfigOpts.rgw_crypt_require_ssl, "false")
@@ -146,13 +151,14 @@ def test_exec(config):
             conf = config.ceph_conf
             reusable.set_gc_conf(ceph_conf, conf)
         if config.dynamic_resharding is True:
-            log.info("making changes to ceph.conf")
-            ceph_conf.set_to_ceph_conf(
-                "global",
-                ConfigOpts.rgw_max_objs_per_shard,
-                str(config.max_objects_per_shard),
-            )
-            srv_restarted = rgw_service.restart()
+            if utils.check_dbr_support():
+                log.info("making changes to ceph.conf")
+                ceph_conf.set_to_ceph_conf(
+                    "global",
+                    ConfigOpts.rgw_max_objs_per_shard,
+                    str(config.max_objects_per_shard),
+                )
+                srv_restarted = rgw_service.restart()
 
         # create buckets
         if config.test_ops["create_bucket"] is True:
@@ -165,6 +171,9 @@ def test_exec(config):
                     is_primary = utils.is_cluster_primary()
                     if is_primary:
                         bucket_name_to_create = "bkt_crash_check"
+                if config.dbr_scenario == "brownfield":
+                    bucket_name_to_create = "brownfield_bucket"
+
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
@@ -180,6 +189,21 @@ def test_exec(config):
                 if config.test_ops["create_object"] is True:
                     # uploading data
                     log.info("s3 objects to create: %s" % config.objects_count)
+                    if utils.check_dbr_support():
+                        if bucket_name_to_create == "brownfield_bucket":
+                            op = utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket {bucket.name}"
+                            )
+                            json_doc = json.loads(op)
+                            if bool(json_doc["usage"]):
+                                num_object = json_doc["usage"]["rgw.main"][
+                                    "num_objects"
+                                ]
+                                config.objects_count = (
+                                    num_object * 2 + config.objects_count
+                                )
+                                config.mapped_sizes = utils.make_mapped_sizes(config)
+
                     for oc, size in list(config.mapped_sizes.items()):
                         config.obj_size = size
                         s3_object_name = utils.gen_s3_object_name(
@@ -295,52 +319,54 @@ def test_exec(config):
                                     raise TestExecError("ceph daemon crash found!")
                                 time.sleep(1)
                     if config.dynamic_resharding is True:
-                        reusable.check_sync_status()
-                        for i in range(10):
-                            time.sleep(60)  # Adding delay for processing reshard list
+                        if utils.check_dbr_support():
+                            reusable.check_sync_status()
+                            for i in range(10):
+                                time.sleep(
+                                    60
+                                )  # Adding delay for processing reshard list
+                                op = utils.exec_shell_cmd(
+                                    f"radosgw-admin bucket stats --bucket {bucket.name}"
+                                )
+                                json_doc = json.loads(op)
+                                new_num_shards = json_doc["num_shards"]
+                                log.info(f"no_of_shards_created: {new_num_shards}")
+                                if new_num_shards > old_num_shards:
+                                    break
+                            else:
+                                raise TestExecError(
+                                    "num shards are same after processing resharding"
+                                )
+                    if config.manual_resharding is True:
+                        if utils.check_dbr_support():
+                            op = utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket {bucket.name}"
+                            )
+                            json_doc = json.loads(op)
+                            old_num_shards = json_doc["num_shards"]
+                            log.info(f"no_of_shards_created: {old_num_shards}")
+                            op = utils.exec_shell_cmd(
+                                f"radosgw-admin reshard add --bucket {bucket.name} --num-shards {config.shards}"
+                            )
+                            op = utils.exec_shell_cmd("radosgw-admin reshard process")
+                            time.sleep(60)
                             op = utils.exec_shell_cmd(
                                 f"radosgw-admin bucket stats --bucket {bucket.name}"
                             )
                             json_doc = json.loads(op)
                             new_num_shards = json_doc["num_shards"]
                             log.info(f"no_of_shards_created: {new_num_shards}")
-                            if new_num_shards > old_num_shards:
-                                break
-                        else:
-                            raise TestExecError(
-                                "num shards are same after processing resharding"
-                            )
-                    if config.manual_resharding is True:
-                        op = utils.exec_shell_cmd(
-                            f"radosgw-admin bucket stats --bucket {bucket.name}"
-                        )
-                        json_doc = json.loads(op)
-                        old_num_shards = json_doc["num_shards"]
-                        log.info(f"no_of_shards_created: {old_num_shards}")
-                        op = utils.exec_shell_cmd(
-                            f"radosgw-admin reshard add --bucket {bucket.name} --num-shards {config.shards}"
-                        )
-                        op = utils.exec_shell_cmd("radosgw-admin reshard process")
-                        time.sleep(60)
-                        op = utils.exec_shell_cmd(
-                            f"radosgw-admin bucket stats --bucket {bucket.name}"
-                        )
-                        json_doc = json.loads(op)
-                        new_num_shards = json_doc["num_shards"]
-                        log.info(f"no_of_shards_created: {new_num_shards}")
-                        if new_num_shards <= old_num_shards:
-                            raise TestExecError(
-                                "num shards are same after processing resharding"
-                            )
+                            if new_num_shards <= old_num_shards:
+                                raise TestExecError(
+                                    "num shards are same after processing resharding"
+                                )
                     # verification of shards after upload
                     if config.test_datalog_trim_command is True:
                         shard_id, end_marker = reusable.get_datalog_marker()
                         cmd = f"sudo radosgw-admin datalog trim --shard-id {shard_id} --end-marker {end_marker} --debug_ms=1 --debug_rgw=20"
                         out, err = utils.exec_shell_cmd(cmd, debug_info=True)
                         if "Segmentation fault" in err:
-                            log.info("Segmentation fault occured")
-                            test_info.failed_status("test failed")
-                            sys.exit(1)
+                            raise TestExecError("Segmentation fault occured")
 
                     if config.test_ops["sharding"]["enable"] is True:
                         cmd = (

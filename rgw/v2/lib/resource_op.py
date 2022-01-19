@@ -66,7 +66,7 @@ def resource_op(exec_info):
         return False
 
 
-def create_users(no_of_users_to_create, cluster_name="ceph"):
+def create_users(no_of_users_to_create, user_names=None, cluster_name="ceph"):
     """
     This function is to create n users on the cluster
 
@@ -83,15 +83,23 @@ def create_users(no_of_users_to_create, cluster_name="ceph"):
     user_detail_file = os.path.join(lib_dir, "user_details.json")
     if primary:
         for i in range(no_of_users_to_create):
-            user_details = admin_ops.create_admin_user(
-                user_id=names.get_first_name().lower()
-                + random.choice(string.ascii_lowercase)
-                + "."
-                + str(random.randint(1, 1000)),
-                displayname=names.get_full_name().lower(),
-                cluster_name=cluster_name,
-            )
-            all_users_details.append(user_details)
+            if user_names:
+                user_details = admin_ops.create_admin_user(
+                    user_id=user_names,
+                    displayname=user_names,
+                    cluster_name=cluster_name,
+                )
+                all_users_details.append(user_details)
+            else:
+                user_details = admin_ops.create_admin_user(
+                    user_id=names.get_first_name().lower()
+                    + random.choice(string.ascii_lowercase)
+                    + "."
+                    + str(random.randint(1, 1000)),
+                    displayname=names.get_full_name().lower(),
+                    cluster_name=cluster_name,
+                )
+                all_users_details.append(user_details)
         with open(user_detail_file, "w") as fout:
             json.dump(all_users_details, fout)
     elif not primary:
@@ -230,7 +238,7 @@ class Config(object):
         self.frontend = self.doc["config"].get("frontend")
         self.io_op_config = self.doc.get("config").get("io_op_config")
         self.radoslist_all = self.test_ops.get("radoslist_all", False)
-        self.cluster_type = self.doc["config"].get("cluster_type", None)
+        self.dbr_scenario = self.doc["config"].get("dbr_scenario", None)
         self.enable_sharding = self.doc["config"].get("enable_sharding", False)
         self.change_datalog_backing = self.test_ops.get("change_datalog_backing", False)
         self.persistent_flag = self.test_ops.get("persistent_flag", False)
