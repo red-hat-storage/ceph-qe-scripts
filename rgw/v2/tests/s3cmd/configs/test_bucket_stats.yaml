@@ -1,0 +1,6 @@
+# script: test_bucket_stats.py
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 200
+  bucket_stats: true
