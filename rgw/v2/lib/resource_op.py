@@ -219,6 +219,7 @@ class Config(object):
         self.ceph_conf = self.doc["config"].get("ceph_conf")
         self.gc_verification = self.doc["config"].get("gc_verification", False)
         self.bucket_sync_crash = self.doc["config"].get("bucket_sync_crash", False)
+        self.bucket_stats = self.doc["config"].get("bucket_stats", False)
         self.test_datalog_trim_command = self.doc["config"].get(
             "test_datalog_trim_command", False
         )
