@@ -566,6 +566,8 @@ def check_dbr_support():
         return True
     elif float(ceph_version_id[0]) == 16 and float(ceph_version_id[1]) > 2.0:
         return True
+    elif float(ceph_version_id[0]) > 16:
+        return True
     else:
         return False
 
