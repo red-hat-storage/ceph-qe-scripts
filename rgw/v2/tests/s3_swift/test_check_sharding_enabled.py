@@ -44,7 +44,7 @@ def test_exec(config):
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
 
-    if config.cluster_type == "brownfield":
+    if config.dbr_scenario == "brownfield":
         log.info("Check sharding is enabled or not")
         cmd = "radosgw-admin zonegroup get"
         out = utils.exec_shell_cmd(cmd)
@@ -81,7 +81,7 @@ def test_exec(config):
             else:
                 raise TestExecError("sharding has not enabled")
 
-    if config.cluster_type == "greenfield":
+    if config.dbr_scenario == "greenfield":
         log.info("Check sharding is enabled or not")
         cmd = "radosgw-admin zonegroup get"
         out = utils.exec_shell_cmd(cmd)
