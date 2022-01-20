@@ -43,11 +43,9 @@ class UserMgmt(object):
             log.info("cluster name: %s" % cluster_name)
             op = utils.exec_shell_cmd("radosgw-admin user list")
             if user_id in op:
-                cmd = (
-                    f"radosgw-admin user info --uid={user_id} --cluster {cluster_name}"
-                )
+                cmd = f"radosgw-admin user info --uid='{user_id}' --cluster {cluster_name}"
             else:
-                cmd = f"radosgw-admin user create --uid={user_id} --display-name={displayname} --cluster {cluster_name}"
+                cmd = f"radosgw-admin user create --uid='{user_id}' --display-name='{displayname}' --cluster {cluster_name}"
             log.info("cmd to execute:\n%s" % cmd)
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
             v = variable.stdout.read()
