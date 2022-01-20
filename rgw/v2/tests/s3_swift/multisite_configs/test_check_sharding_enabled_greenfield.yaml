@@ -1,2 +1,2 @@
 config:
-  cluster_type: greenfield
+  dbr_scenario: greenfield
