@@ -110,15 +110,16 @@ def test_exec(config):
         swift_object_name = fill_container(
             rgw, container_name, user_names[1], oc, 0, size
         )
-        # delete all uploaded objects
-        log.info("deleting all swift objects")
+    # delete all uploaded objects
+    log.info("deleting all swift objects")
     auth_response = rgw.get_auth()
     token = auth_response[1]
     # test.txt file should contain container_name
     with open("test.txt", "w") as f:
         f.write(container_name)
     ip_and_port = rgw.authurl.split("/")[2]
-    url = "http://{}/swift/v1/?bulk-delete".format(ip_and_port)
+    proto = "https" if config.ssl else "http"
+    url = f"{proto}://{ip_and_port}/swift/v1/?bulk-delete"
     test_file = open("test.txt", "r")
     headers = {
         "Accept": "application/json",
@@ -126,7 +127,7 @@ def test_exec(config):
         "X-Auth-Token": token,
     }
     response = requests.delete(
-        url, headers=headers, files={"form_field_name": test_file}
+        url, headers=headers, verify=False, files={"form_field_name": test_file}
     )
     if response.status_code == 200:
         log.info("Bulk delete succeeded")
