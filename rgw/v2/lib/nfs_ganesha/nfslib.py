@@ -86,7 +86,6 @@ class DoIO(object):
         except (Exception) as e:
             log.error("Write IO Execution failed")
             log.error(e)
-            return False
 
     def delete(self):
 
