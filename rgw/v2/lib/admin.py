@@ -97,7 +97,7 @@ class UserMgmt(object):
             write_user_info = AddUserInfo()
             basic_io_structure = BasicIOInfoStructure()
             log.info("cluster name: %s" % cluster_name)
-            cmd = f"radosgw-admin user info --uid={user_id} --cluster {cluster_name}"
+            cmd = f"radosgw-admin user create --uid='{user_id}' --display-name='{displayname}' --cluster '{cluster_name}'"
             log.info("cmd to execute:\n%s" % cmd)
             variable = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
             time.sleep(10)
