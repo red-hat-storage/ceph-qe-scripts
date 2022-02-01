@@ -141,3 +141,5 @@ class PrepNFSGanesha(RGWUserConfigOps):
                 log.error("mount failed")
                 log.error(e)
                 return False
+
+        return True
