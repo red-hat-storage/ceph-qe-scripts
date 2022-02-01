@@ -170,7 +170,7 @@ def test_exec(config):
                 if config.bucket_sync_crash is True:
                     is_primary = utils.is_cluster_primary()
                     if is_primary:
-                        bucket_name_to_create = "bkt_crash_check"
+                        bucket_name_to_create = "bkt-crash-check"
                 if config.dbr_scenario == "brownfield":
                     bucket_name_to_create = "brownfield_bucket"
 
@@ -312,7 +312,7 @@ def test_exec(config):
                             log.info(f"Source zone name: {source_zone}")
                             for i in range(600):  # Running sync command for 600 times
                                 op = utils.exec_shell_cmd(
-                                    f"radosgw-admin bucket sync run --bucket bkt_crash_check --rgw-curl-low-speed-time=0 --source-zone {source_zone} --rgw-realm {realm}"
+                                    f"radosgw-admin bucket sync run --bucket bkt-crash-check --rgw-curl-low-speed-time=0 --source-zone {source_zone} --rgw-realm {realm}"
                                 )
                                 crash_info = reusable.check_for_crash()
                                 if crash_info:
