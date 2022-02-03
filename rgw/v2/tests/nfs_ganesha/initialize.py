@@ -41,6 +41,8 @@ class RGWUserConfigOps(object):
             nfs_version=self.rgw_user_info["nfs_version"],
             nfs_mnt_point=self.rgw_user_info["nfs_mnt_point"],
             Pseudo=self.rgw_user_info["Pseudo"],
+            cleanup=self.rgw_user_info.get("cleanup", True),
+            do_unmount=self.rgw_user_info.get("do_unmount", True),
         )
         with open(self.fname, "w") as fp:
             yaml.dump(rgw_user_details_structure, fp, default_flow_style=False)
@@ -92,7 +94,9 @@ class PrepNFSGanesha(RGWUserConfigOps):
         log.info("un_mounting dir: %s" % self.rgw_user_info["nfs_mnt_point"])
         un_mount_cmd = "sudo umount %s" % self.rgw_user_info["nfs_mnt_point"]
         un_mounted = utils.exec_shell_cmd(un_mount_cmd)
-        if un_mounted:
+        # Todo: There's a need to change the behaviour of exec_shell_cmd() function which returns
+        # an empty string as an output on the successful execution of a command.
+        if un_mounted != "":
             self.already_mounted = False
         self.update_config()
         self.read_config()
