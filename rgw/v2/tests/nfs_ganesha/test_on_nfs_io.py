@@ -22,7 +22,7 @@ import traceback
 
 import v2.utils.utils as utils
 import yaml
-from v2.lib.exceptions import TestExecError
+from v2.lib.exceptions import NFSGaneshaMountError, TestExecError
 from v2.lib.nfs_ganesha.nfslib import DoIO
 from v2.lib.nfs_ganesha.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 
@@ -54,18 +54,18 @@ def test_exec(rgw_user_info_file, config):
     if not mounted:
         raise TestExecError("mount failed")
     log.info("authenticating rgw user")
-    mnt_point = nfs_ganesha.rgw_user_info["nfs_mnt_point"]
+    mount_point = nfs_ganesha.rgw_user_info["nfs_mnt_point"]
     if (
         nfs_ganesha.rgw_user_info["nfs_version"] == 4
         and nfs_ganesha.rgw_user_info["Pseudo"] is not None
     ):
         log.info("nfs version: 4")
         log.info("adding Pseudo path to writable mount point")
-        mnt_point = os.path.join(mnt_point, nfs_ganesha.rgw_user_info["Pseudo"])
-        log.info("writable mount point with Pseudo: %s" % mnt_point)
+        mount_point = os.path.join(mount_point, nfs_ganesha.rgw_user_info["Pseudo"])
+        log.info("writable mount point with Pseudo: %s" % mount_point)
 
     if io_op_config.get("create", None):
-        do_io = DoIO(nfs_ganesha.rgw_user_info, mnt_point)
+        do_io = DoIO(nfs_ganesha.rgw_user_info, mount_point)
         # base dir creation
         for bc in range(io_config["basedir_count"]):
             basedir_name_to_create = utils.gen_bucket_name_from_userid(
@@ -122,12 +122,12 @@ def test_exec(rgw_user_info_file, config):
             basedirs_list = read_io_info_on_s3.buckets
             list(
                 [
-                    shutil.rmtree(os.path.abspath(os.path.join(mnt_point, x)))
+                    shutil.rmtree(os.path.abspath(os.path.join(mount_point, x)))
                     for x in basedirs_list
                 ]
             )
             for basedir in basedirs_list:
-                if os.path.exists(os.path.abspath(os.path.join(mnt_point, basedir))):
+                if os.path.exists(os.path.abspath(os.path.join(mount_point, basedir))):
                     raise TestExecError("basedir: %s not deleted" % basedir)
             log.info("basedirs and subdirs deleted")
 
@@ -136,11 +136,13 @@ def test_exec(rgw_user_info_file, config):
                 if each_file["type"] == "file":
                     log.info("performing move operation on %s" % each_file["name"])
                     current_path = os.path.abspath(
-                        os.path.join(mnt_point, each_file["bucket"], each_file["name"])
+                        os.path.join(
+                            mount_point, each_file["bucket"], each_file["name"]
+                        )
                     )
                     new_path = os.path.abspath(
                         os.path.join(
-                            mnt_point,
+                            mount_point,
                             each_file["bucket"],
                             each_file["name"] + ".moved",
                         )
@@ -157,6 +159,15 @@ def test_exec(rgw_user_info_file, config):
             log.info("starting verification for moved files")
             read_io_info_on_s3.verify_if_objects_created()
             log.info("objects verified after move operation, data intact")
+
+    # cleanup and unmount tasks for both nfs v3 and v4
+    if nfs_ganesha.rgw_user_info["cleanup"]:
+        utils.exec_shell_cmd("sudo rm -rf %s%s" % (mount_point, "/*"))
+    # Todo: There's a need to change the behaviour of exec_shell_cmd() function which returns
+    # an empty string as an output on the successful execution of a command.
+    if nfs_ganesha.rgw_user_info["do_unmount"]:
+        if nfs_ganesha.do_un_mount() != "":
+            raise NFSGaneshaMountError("Unmount failed")
 
     test_info.success_status("test success")
 
@@ -184,7 +195,6 @@ if __name__ == "__main__":
             doc = yaml.safe_load(f)
         test_config = doc
         test_exec(rgw_user_info_yaml, test_config)
-
         sys.exit(0)
 
     except (TestExecError, Exception) as e:

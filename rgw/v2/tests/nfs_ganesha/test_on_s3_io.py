@@ -23,7 +23,7 @@ import v2.lib.resource_op as s3lib
 import v2.tests.s3_swift.reusable as s3_reusables
 import v2.utils.utils as utils
 import yaml
-from v2.lib.exceptions import TestExecError
+from v2.lib.exceptions import NFSGaneshaMountError, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import AddUserInfo, BasicIOInfoStructure, IOInfoInitialize
@@ -204,6 +204,15 @@ def test_exec(rgw_user_info_file, config):
             time.sleep(SLEEP_TIME)
             read_io_info_on_nfs.verify_if_files_created()
             log.info("move completed, data intact")
+
+    # cleanup and unmount tasks for both nfs v3 and v4
+    if nfs_ganesha.rgw_user_info["cleanup"]:
+        utils.exec_shell_cmd("sudo rm -rf %s%s" % (mount_point, "/*"))
+    # Todo: There's a need to change the behaviour of exec_shell_cmd() function which returns
+    # an empty string as an output on the successful execution of a command.
+    if nfs_ganesha.rgw_user_info["do_unmount"]:
+        if nfs_ganesha.do_un_mount() != "":
+            raise NFSGaneshaMountError("Unmount failed")
 
     test_info.success_status("test passed")
 
