@@ -172,7 +172,11 @@ def test_exec(config):
                     if is_primary:
                         bucket_name_to_create = "bkt-crash-check"
                 if config.dbr_scenario == "brownfield":
-                    bucket_name_to_create = "brownfield-bucket"
+                    bucket_name_to_create = (
+                        "brownfield-dynamic-bkt"
+                        if config.dynamic_resharding
+                        else "brownfield-manual-bkt"
+                    )
 
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
                 bucket = reusable.create_bucket(
@@ -190,7 +194,10 @@ def test_exec(config):
                     # uploading data
                     log.info("s3 objects to create: %s" % config.objects_count)
                     if utils.check_dbr_support():
-                        if bucket_name_to_create == "brownfield-bucket":
+                        if bucket_name_to_create in [
+                            "brownfield-dynamic-bkt",
+                            "brownfield-manual-bkt",
+                        ]:
                             op = utils.exec_shell_cmd(
                                 f"radosgw-admin bucket stats --bucket {bucket.name}"
                             )
