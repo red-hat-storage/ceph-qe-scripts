@@ -6,7 +6,8 @@ import logging
 import socket
 
 import boto3
-from v2.lib.exceptions import TestExecError
+import botocore
+from v2.lib.exceptions import SyncFailedError, TestExecError
 from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.utils import FileOps
@@ -15,6 +16,22 @@ log = logging.getLogger()
 
 
 IO_INFO_FNAME = "io_info.yaml"
+
+
+def check_object_exists(obj, bucket):
+    """
+    This function verifies if the object exists
+
+    Parameters:
+    key(char): key to be verified
+    bucket(char): bucket name
+    """
+    log.info("check if object exists")
+    try:
+        key_from_s3 = bucket.Object(obj).get()
+    except botocore.exceptions.ClientError as ex:
+        if ex.response["Error"]["Code"] == "NoSuchKey":
+            raise SyncFailedError("object not synced! data sync failure")
 
 
 def verify_key(each_key, bucket):
@@ -26,6 +43,7 @@ def verify_key(each_key, bucket):
         bucket(char): bucket name
     """
     log.info("verifying data for key: %s" % os.path.basename(each_key["name"]))
+    check_object_exists(os.path.basename(each_key["name"]), bucket)
     key_from_s3 = bucket.Object(os.path.basename(each_key["name"]))
     log.info("verifying size")
     log.info("size from yaml: %s" % each_key["size"])
@@ -55,6 +73,7 @@ def verify_key_with_version(each_key, bucket):
 
     """
     log.info("verifying data for key: %s" % os.path.basename(each_key["name"]))
+    check_object_exists(os.path.basename(each_key["name"]), bucket)
     key_from_s3 = bucket.Object(os.path.basename(each_key["name"]))
     no_of_versions = len(each_key["versioning_info"])
     log.info("no of versions: %s" % no_of_versions)
