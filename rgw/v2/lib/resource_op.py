@@ -228,6 +228,7 @@ class Config(object):
         self.gc_verification = self.doc["config"].get("gc_verification", False)
         self.bucket_sync_crash = self.doc["config"].get("bucket_sync_crash", False)
         self.bucket_stats = self.doc["config"].get("bucket_stats", False)
+        self.header_size = self.doc["config"].get("header_size", False)
         self.test_datalog_trim_command = self.doc["config"].get(
             "test_datalog_trim_command", False
         )
