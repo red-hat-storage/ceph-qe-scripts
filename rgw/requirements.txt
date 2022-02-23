@@ -1,13 +1,15 @@
 # requires python3 
 boto
 boto3
-names
-PyYaml
 ConfigParser
+jinja2
+names
 python-swiftclient
-swiftly
-simplejson
+PyYaml
 s3cmd
+simplejson
+swiftly
+
 # for v1
 #psutil
 rgwadmin
@@ -17,4 +19,3 @@ black
 isort
 yamllint
 tox
-
