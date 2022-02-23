@@ -1,0 +1,32 @@
+# COS Bench workflow to be used for initial capacity baseline in CI using swift workload
+# type.
+---
+workload:
+  name: opsW
+  description: Initial baseline write operation
+
+  auth: swauth
+
+  storage:
+    type: swift
+    config:
+      timeout: 300000
+      retry: 3
+
+  workflows:
+    -
+      name: createContainers
+      type: init
+      workers: 1
+      config:
+        containers: r(1,5)
+
+    -
+      name: writeOperation
+      type: prepare
+      workers: 2
+      totalBytes: 21474836480    # 20 GB
+      config:
+        containers: r(1,5)
+        objects: r(1,10000)
+        sizes: h(8|8|50,8192|8192|40,65536|65536|10)KB

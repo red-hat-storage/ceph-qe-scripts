@@ -1,0 +1,47 @@
+# Configures 30 minutes of read-write-del operation combination on the cluster using
+# Swift workloads.
+---
+workload:
+  name: opsRWD
+  description: Perform read, write and delete operations
+
+  auth: swauth
+
+  storage:
+    type: swift
+    config:
+      timeout: 300000
+      retry: 3
+
+  workflows:
+    -
+      name: contOps
+      type: hybrid
+      workers: 4
+      runtime: 1800   # 30 minutes
+      operations:
+        -
+          name: writeOp
+          type: write
+          ratio: 15
+          config:
+            containers: u(1,2)
+            objects: u(1,10000)
+            sizes: h(8|8|50,8192|8192|40,65536|65536|10)KB
+
+        -
+          name: deleteOp
+          type: delete
+          ratio: 10
+          config:
+            containers: u(1,2)
+            objects: u(1,10000)
+            sizes: h(8|8|50,8192|8192|40,65536|65536|10)KB
+
+        -
+          name: readOp
+          type: read
+          ratio: 75
+          config:
+            containers: u(3,5)
+            objects: u(1,10000)

@@ -1,0 +1,28 @@
+<!-- Generated using jinja2 template for COS Bench workloads -->
+
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<workload {{ data.workload.attrs }} >
+
+  <auth {{ data.workload.auth.attrs }} />
+
+  <storage {{ data.workload.storage.attrs }} />
+
+  <workflow>
+
+    {%- for item in data.workload.workflows %}
+      <workstage name="stage{{ loop.index }}">
+        <work {{ item.attrs }} >
+          {%- if item.operations %}
+            {%- for opItem in item.operations %}
+              <operation {{ opItem.attrs }} />
+            {%- endfor %}
+          {%- endif %}
+        </work>
+      </workstage>
+
+    {%- endfor %}
+
+  </workflow>
+
+</workload>
