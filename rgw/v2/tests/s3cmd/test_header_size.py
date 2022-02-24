@@ -46,6 +46,7 @@ def test_exec(config):
     Args:
         config(object): Test configuration
     """
+    s3cmd = "/home/cephuser/venv/bin/s3cmd"
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -72,7 +73,7 @@ def test_exec(config):
                 "Generate header within default max_header_size(16384) i.e, 8192(16384/2)"
             )
             obj_name = utils.gen_s3_object_name(bucket_name, 2)
-            cmd = f"s3cmd put obj25m --add-header='X-AMZ-Metadata':{header} s3://{bucket_name}/{obj_name}"
+            cmd = f"{s3cmd} put obj25m --add-header='X-AMZ-Metadata':{header} s3://{bucket_name}/{obj_name}"
             rc = utils.exec_shell_cmd(cmd)
 
             if rc is False:
@@ -100,7 +101,7 @@ def test_exec(config):
                 "Generate random character of size set to default max_header_size: 16384"
             )
             new_obj_name = utils.gen_s3_object_name(bucket_name, 2)
-            cmd = f"s3cmd put obj25m --add-header='X-AMZ-Metadata':{header} s3://{bucket_name}/{new_obj_name}"
+            cmd = f"{s3cmd} put obj25m --add-header='X-AMZ-Metadata':{header} s3://{bucket_name}/{new_obj_name}"
             rc = utils.exec_shell_cmd(cmd)
 
             if rc:
