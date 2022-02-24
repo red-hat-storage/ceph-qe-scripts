@@ -12,7 +12,7 @@ from v2.lib.exceptions import EventRecordDataError
 log = logging.getLogger()
 
 
-def start_kafka_broker_consumer(topic_name, event_record_path, ceph_version):
+def start_kafka_broker_consumer(topic_name, event_record_path):
     """
     start kafka consumer
     topic_name: name of the topic to listen to
@@ -30,10 +30,7 @@ def start_kafka_broker_consumer(topic_name, event_record_path, ceph_version):
     KAFKA_HOME = "/usr/local/kafka"
 
     # start kafka consumer
-    if "nautilus" in ceph_version:
-        cmd = f"sudo {KAFKA_HOME}/bin/kafka-console-consumer.sh --bootstrap-server kafka://localhost:9092 --from-beginning --topic {topic_name} --timeout-ms 30000 >> {event_record_path}"
-    else:
-        cmd = f"sudo {KAFKA_HOME}/bin/kafka-console-consumer.sh --bootstrap-server kafka://localhost:9092 --from-beginning --topic {topic_name} --zookeeper localhost:2181 --timeout-ms 30000 >> {event_record_path}"
+    cmd = f"sudo {KAFKA_HOME}/bin/kafka-console-consumer.sh --bootstrap-server kafka://localhost:9092 --from-beginning --topic {topic_name} --timeout-ms 30000 >> {event_record_path}"
     start_consumer_kafka = utils.exec_shell_cmd(cmd)
 
 
@@ -74,6 +71,15 @@ def get_topic(client, topic_arn, ceph_version):
             raise TestExecError("topic creation failed")
         else:
             log.info(f"get topic attributes: {get_topic_info_json}")
+
+
+def del_topic_from_kafka_broker(topic_name):
+    """
+    delete topic from kafka broker
+    """
+    log.info(f"delete topic {topic_name} from kafka broker")
+    cmd = f"rm -rf /tmp/kafka-logs/{topic_name}"
+    utils.exec_shell_cmd(cmd)
 
 
 def put_bucket_notification(

@@ -198,7 +198,7 @@ def test_exec(config):
             # start kafka broker and consumer
             event_record_path = "/home/cephuser/event_record"
             start_consumer = notification.start_kafka_broker_consumer(
-                topic_name, event_record_path, ceph_version_name
+                topic_name, event_record_path
             )
             if start_consumer is False:
                 raise TestExecError("Kafka consumer not running")
@@ -212,6 +212,9 @@ def test_exec(config):
                 raise EventRecordDataError(
                     "Event record is empty! notification is not seen"
                 )
+
+        # delete topic logs on kafka broker
+        notification.del_topic_from_kafka_broker(topic_name)
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
