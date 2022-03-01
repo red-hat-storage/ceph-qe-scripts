@@ -33,6 +33,7 @@ import logging
 import random
 import time
 import traceback
+import uuid
 
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
@@ -97,13 +98,9 @@ def test_exec(config):
                 if config.test_ops["create_topic"] is True:
                     endpoint = config.test_ops.get("endpoint")
                     ack_type = config.test_ops.get("ack_type")
+                    topic_id = str(uuid.uuid4().hex[:16])
                     persistent = False
-                    topic_name = (
-                        "cephci-kafka-"
-                        + ack_type
-                        + "-ack-type"
-                        + str(random.randrange(1, 1000))
-                    )
+                    topic_name = "cephci-kafka-" + ack_type + "-ack-type-" + topic_id
                     log.info(
                         f"creating a topic with {endpoint} endpoint with ack type {ack_type}"
                     )
