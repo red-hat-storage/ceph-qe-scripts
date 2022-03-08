@@ -33,9 +33,12 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
 import json
 import logging
+import random
+import string
 import time
 import traceback
 
+import names
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as swiftlib
 import v2.utils.utils as utils
@@ -124,12 +127,12 @@ def test_exec(config):
     log.info(type(ceph_conf))
     rgw_service = RGWService()
     # preparing data
-    user_names = ["tuffy", "scooby", "max"]
+    user_name = names.get_first_name() + random.choice(string.ascii_letters)
     tenant = "tenant"
     tenant_user_info = umgmt.create_tenant_user(
-        tenant_name=tenant, user_id=user_names[0], displayname=user_names[0]
+        tenant_name=tenant, user_id=user_name, displayname=user_name
     )
-    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[0])
+    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_name)
     auth = Auth(user_info, config.ssl)
     rgw = auth.do_auth()
 
@@ -180,7 +183,7 @@ def test_exec(config):
             for version_count in range(config.version_count):
                 for oc, size in list(config.mapped_sizes.items()):
                     swift_object_name = fill_container(
-                        rgw, container_name, user_names[0], oc, cc, size
+                        rgw, container_name, user_name, oc, cc, size
                     )
                 ls = rgw.get_container(container_name_old)
                 ls = list(ls)
@@ -203,7 +206,7 @@ def test_exec(config):
                 log.info("Successfully copied item")
             else:
                 current_count = "radosgw-admin bucket stats --uid={uid} --tenant={tenant} --bucket='{bucket}' ".format(
-                    uid=user_names[0], tenant=tenant, bucket=container_name
+                    uid=user_name, tenant=tenant, bucket=container_name
                 )
                 num_obj_current = utils.exec_shell_cmd(current_count)
                 num_obj_current = json.loads(num_obj_current)
@@ -211,7 +214,7 @@ def test_exec(config):
                     num_obj_current[0].get("usage").get("rgw.main").get("num_objects")
                 )
                 old_count = "radosgw-admin bucket stats --uid={uid} --tenant={tenant} --bucket='{bucket}' ".format(
-                    uid=user_names[0], tenant=tenant, bucket=container_name_old
+                    uid=user_name, tenant=tenant, bucket=container_name_old
                 )
                 num_obj_old = utils.exec_shell_cmd(old_count)
                 num_obj_old = json.loads(num_obj_old)
@@ -243,7 +246,7 @@ def test_exec(config):
                 swift_object_name = fill_container(
                     rgw,
                     container_name,
-                    user_names[0],
+                    user_name,
                     oc,
                     cc,
                     size,
@@ -278,7 +281,7 @@ def test_exec(config):
                 swift_object_name = fill_container(
                     rgw,
                     container_name,
-                    user_names[0],
+                    user_name,
                     oc,
                     cc,
                     size,
@@ -358,7 +361,7 @@ def test_exec(config):
                 )
             for oc, size in list(config.mapped_sizes.items()):
                 swift_object_name = fill_container(
-                    rgw, container_name, user_names[0], oc, cc, size
+                    rgw, container_name, user_name, oc, cc, size
                 )
                 # download object
                 swift_object_download_fname = swift_object_name + ".download"
