@@ -19,9 +19,12 @@ Operation:
 import argparse
 import logging
 import os
+import random
+import string
 import sys
 import traceback
 
+import names
 import requests
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -90,12 +93,12 @@ def test_exec(config):
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
     # preparing data
-    user_names = ["tom", "ram", "sam"]
+    user_name = names.get_first_name() + random.choice(string.ascii_letters)
     tenant = "tenant"
     tenant_user_info = umgmt.create_tenant_user(
-        tenant_name=tenant, user_id=user_names[1], displayname=user_names[1]
+        tenant_name=tenant, user_id=user_name, displayname=user_name
     )
-    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[1])
+    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_name)
     auth = Auth(user_info, config.ssl)
     rgw = auth.do_auth()
 
@@ -107,9 +110,7 @@ def test_exec(config):
         raise TestExecError("Resource execution failed: container creation faield")
     for oc, size in list(config.mapped_sizes.items()):
         # upload objects to the container
-        swift_object_name = fill_container(
-            rgw, container_name, user_names[1], oc, 0, size
-        )
+        swift_object_name = fill_container(rgw, container_name, user_name, oc, 0, size)
     # delete all uploaded objects
     log.info("deleting all swift objects")
     auth_response = rgw.get_auth()
