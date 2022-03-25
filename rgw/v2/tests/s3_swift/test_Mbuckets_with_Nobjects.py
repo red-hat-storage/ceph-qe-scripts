@@ -308,6 +308,24 @@ def test_exec(config):
                         if config.local_file_delete is True:
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
+                    if config.reshard_cancel_cmd is True:
+                        op = utils.exec_shell_cmd(
+                            f"radosgw-admin reshard add --bucket {bucket.name} --num-shards 29"
+                        )
+                        op = utils.exec_shell_cmd(f"radosgw-admin reshard list")
+                        if bucket.name in op:
+                            op = utils.exec_shell_cmd(
+                                f"radosgw-admin reshard cancel --bucket {bucket.name}"
+                            )
+                            cancel_op = utils.exec_shell_cmd(
+                                f"radosgw-admin reshard list"
+                            )
+                            if bucket.name in cancel_op:
+                                raise TestExecError("bucket is still in reshard queue")
+                        else:
+                            raise TestExecError(
+                                "Command failed....Bucket is not added into reshard queue"
+                            )
                     if config.bucket_sync_crash is True:
                         is_primary = utils.is_cluster_primary()
                         if is_primary is False:

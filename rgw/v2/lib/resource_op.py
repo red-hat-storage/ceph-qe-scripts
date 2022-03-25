@@ -218,6 +218,7 @@ class Config(object):
         self.object_expire = self.doc["config"].get("object_expire", False)
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
+        self.reshard_cancel_cmd = self.doc["config"].get("reshard_cancel_cmd", False)
         self.large_object_upload = self.doc["config"].get("large_object_upload", False)
         self.large_object_download = self.doc["config"].get(
             "large_object_download", False
