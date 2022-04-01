@@ -22,7 +22,12 @@ class RbdUtils:
             return 5
 
     def exec_cmd(self, cmd):
-
+        """
+        Command executor for rbd TCs
+        Args:
+            cmd: Command to be executed
+        Returns: success -> output, failure -> False
+        """
         try:
             cmd = " ".join(shlex.split(cmd))
 
@@ -107,3 +112,15 @@ class RbdUtils:
         self.exec_cmd(
             cmd="ceph osd erasure-code-profile rm {}".format(kw.get("profile"))
         )
+
+    def create_image(self, **kw):
+        """
+        Create images with mentioned size and features
+        Args:
+            input: name  of the image to be created -> pool_name/image_name
+            features: arguments for --image-feature
+        """
+        cmd = "rbd create " + kw.get("image_name") + " -s 1G"
+        if kw.get("features"):
+            cmd = cmd + " --image-feature " + kw["features"]
+        self.exec_cmd(cmd)
