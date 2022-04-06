@@ -424,6 +424,44 @@ def test_exec(config):
                         time.sleep(10)
                         reusable.check_sync_status()
                         reusable.delete_bucket(bucket)
+        if config.modify_user:
+            user_id = each_user["user_id"]
+            new_display_name = each_user["user_id"] + each_user["user_id"]
+            cmd = f"radosgw-admin user modify --uid='{user_id}' --display-name='{new_display_name}'"
+            out = utils.exec_shell_cmd(cmd)
+            out = json.loads(out)
+            if new_display_name == out["display_name"]:
+                log.info("User modified successfully")
+            else:
+                raise TestExecError("Failed to modify user")
+        if config.suspend_user:
+            user_id = each_user["user_id"]
+            cmd = f"radosgw-admin user suspend --uid='{user_id}'"
+            out = utils.exec_shell_cmd(cmd)
+            out = json.loads(out)
+            if out["suspended"] == 1:
+                log.info("User got suspended")
+            else:
+                raise TestExecError("Failed to suspend user")
+        if config.enable_user:
+            user_id = each_user["user_id"]
+            cmd = f"radosgw-admin user enable --uid='{user_id}'"
+            out = utils.exec_shell_cmd(cmd)
+            out = json.loads(out)
+            if out["suspended"] == 0:
+                log.info("User enabled successfully")
+            else:
+                raise TestExecError("Failed to enable user")
+        if config.delete_user:
+            user_id = each_user["user_id"]
+            cmd = f"radosgw-admin user rm --uid='{user_id}'"
+            out = utils.exec_shell_cmd(cmd)
+            cmd = f"radosgw-admin user list"
+            out = utils.exec_shell_cmd(cmd)
+            if user_id not in out:
+                log.info("User removed successfully")
+            else:
+                raise TestExecError("Failed to remove user")
         # disable compression after test
         if config.test_ops["compression"]["enable"] is True:
             log.info("disable compression")
@@ -442,7 +480,6 @@ def test_exec(config):
                 raise TestExecError("RGW service restart failed")
             else:
                 log.info("RGW service restarted")
-
         if config.gc_verification is True:
             final_op = reusable.verify_gc()
             if final_op != -1:
