@@ -1,0 +1,10 @@
+# Polarian id: CEPH-11116
+# Script: test_list_all_multipart_uploads.py
+config:
+  objects_count: 1
+  split_size: 100
+  objects_size_range:
+    min: 200
+    max: 300
+  test_ops:
+    upload_type: multipart
