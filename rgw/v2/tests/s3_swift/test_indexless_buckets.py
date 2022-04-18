@@ -100,16 +100,14 @@ def test_exec(config):
                         )
 
         # verify the bucket created has index_type = Indexless
-        log.info("verify the bucket created has index_type as Indexless")
-        bucket_stats = utils.exec_shell_cmd(
-            "radosgw-admin bucket stats --bucket %s" % bucket_name_to_create
-        )
-        bucket_stats_json = json.loads(bucket_stats)
-        bkt_index_type = bucket_stats_json["index_type"]
-        if bkt_index_type == "Indexless":
-            log.info(f"index_type is Indexless for bucket %s" % bucket_name_to_create)
+        log.info("verify the default placement is Indexless placement")
+        zonegroup_get = utils.exec_shell_cmd("radosgw-admin zonegroup get")
+        zonegroup_get_json = json.loads(zonegroup_get)
+        default_place = zonegroup_get_json["default_placement"]
+        if default_place == "indexless-placement":
+            log.info("default placement is Indexless placement")
         else:
-            raise TestExecError(" index_type is not Indexless as expected")
+            raise TestExecError("default placement is not Indexless placement")
 
         # delete bucket and objects
         if config.test_ops["delete_bucket"] is True:
@@ -185,7 +183,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
+        log.error(e)
         log.info(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)
