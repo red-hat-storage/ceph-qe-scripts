@@ -220,6 +220,9 @@ class Config(object):
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
         self.reshard_cancel_cmd = self.doc["config"].get("reshard_cancel_cmd", False)
         self.large_object_upload = self.doc["config"].get("large_object_upload", False)
+        self.bucket_sync_run_with_disable_sync_thread = self.doc["config"].get(
+            "bucket_sync_run_with_disable_sync_thread", False
+        )
         self.large_object_download = self.doc["config"].get(
             "large_object_download", False
         )

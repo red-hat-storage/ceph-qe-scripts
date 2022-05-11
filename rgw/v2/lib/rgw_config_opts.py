@@ -29,6 +29,7 @@ class ConfigOpts(object):
     rgw_gc_max_trim_chunk = "rgw_gc_max_trim_chunk"
     rgw_objexp_gc_interval = "rgw_objexp_gc_interval"
     rgw_gc_obj_min_wait = "rgw_gc_obj_min_wait"
+    rgw_run_sync_thread = "rgw_run_sync_thread"
     rgw_gc_processor_period = "rgw_gc_processor_period"
     rgw_swift_versioning_enabled = "rgw_swift_versioning_enabled"
     rgw_sts_key = "rgw_sts_key"
