@@ -159,6 +159,12 @@ def test_exec(config):
                     str(config.max_objects_per_shard),
                 )
                 srv_restarted = rgw_service.restart()
+        if config.bucket_sync_run_with_disable_sync_thread:
+            log.info("making changes to ceph.conf")
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_run_sync_thread, "false"
+            )
+            srv_restarted = rgw_service.restart()
 
         # create buckets
         if config.test_ops["create_bucket"] is True:
@@ -421,9 +427,23 @@ def test_exec(config):
                         out = utils.exec_shell_cmd(cmd)
                     if config.test_ops["delete_bucket_object"] is True:
                         reusable.delete_objects(bucket)
-                        time.sleep(10)
-                        reusable.check_sync_status()
-                        reusable.delete_bucket(bucket)
+                        if config.bucket_sync_run_with_disable_sync_thread is False:
+                            time.sleep(10)
+                            reusable.check_sync_status()
+                            reusable.delete_bucket(bucket)
+                    if config.bucket_sync_run_with_disable_sync_thread:
+                        _, source_zone = utils.get_realm_source_zone_info()
+                        log.info(f"Source zone name: {source_zone}")
+                        cmd = f"radosgw-admin bucket sync run --bucket={bucket.name} --source-zone={source_zone}"
+                        out = utils.exec_shell_cmd(cmd)
+                        if out is False:
+                            raise TestExecError(
+                                "Command is throwing error while running bucket sync run"
+                            )
+        if config.bucket_sync_run_with_disable_sync_thread:
+            log.info("making changes to ceph.conf")
+            ceph_conf.set_to_ceph_conf("global", ConfigOpts.rgw_run_sync_thread, "True")
+            srv_restarted = rgw_service.restart()
         if config.modify_user:
             user_id = each_user["user_id"]
             new_display_name = each_user["user_id"] + each_user["user_id"]
