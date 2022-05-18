@@ -546,6 +546,14 @@ def get_realm_source_zone_info():
     return realm, source_zone
 
 
+def check_bucket_sync(name):
+    _, source_zone = get_realm_source_zone_info()
+    log.info(f"Source zone name: {source_zone}")
+    cmd = f"radosgw-admin bucket sync run --bucket={name} --source-zone={source_zone}"
+    out = exec_shell_cmd(cmd)
+    return out
+
+
 def get_hostname_ip():
     try:
         hostname = socket.gethostname()

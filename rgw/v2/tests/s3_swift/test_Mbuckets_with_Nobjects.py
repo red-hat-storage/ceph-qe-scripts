@@ -314,7 +314,7 @@ def test_exec(config):
                         if config.local_file_delete is True:
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
-                    if config.reshard_cancel_cmd is True:
+                    if config.reshard_cancel_cmd:
                         op = utils.exec_shell_cmd(
                             f"radosgw-admin reshard add --bucket {bucket.name} --num-shards 29"
                         )
@@ -332,7 +332,13 @@ def test_exec(config):
                             raise TestExecError(
                                 "Command failed....Bucket is not added into reshard queue"
                             )
-                    if config.bucket_sync_crash is True:
+                    if config.bucket_sync_run:
+                        out = utils.check_bucket_sync(bucket.name)
+                        if out is False:
+                            raise TestExecError(
+                                "Command is throwing error while running bucket sync run"
+                            )
+                    if config.bucket_sync_crash:
                         is_primary = utils.is_cluster_primary()
                         if is_primary is False:
                             crash_info = reusable.check_for_crash()
@@ -432,10 +438,7 @@ def test_exec(config):
                             reusable.check_sync_status()
                             reusable.delete_bucket(bucket)
                     if config.bucket_sync_run_with_disable_sync_thread:
-                        _, source_zone = utils.get_realm_source_zone_info()
-                        log.info(f"Source zone name: {source_zone}")
-                        cmd = f"radosgw-admin bucket sync run --bucket={bucket.name} --source-zone={source_zone}"
-                        out = utils.exec_shell_cmd(cmd)
+                        out = utils.check_bucket_sync(bucket.name)
                         if out is False:
                             raise TestExecError(
                                 "Command is throwing error while running bucket sync run"
