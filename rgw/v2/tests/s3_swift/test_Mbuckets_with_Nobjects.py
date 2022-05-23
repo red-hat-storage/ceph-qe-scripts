@@ -332,6 +332,13 @@ def test_exec(config):
                             raise TestExecError(
                                 "Command failed....Bucket is not added into reshard queue"
                             )
+                    if config.bucket_sync_status:
+                        out = utils.bucket_sync_status(bucket.name, retry=10, delay=15)
+                        if out is False:
+                            log.info(
+                                "Bucket sync is not caught up with source. Try bucket sync run to update bucket sync status."
+                            )
+
                     if config.bucket_sync_run:
                         out = utils.check_bucket_sync(bucket.name)
                         if out is False:

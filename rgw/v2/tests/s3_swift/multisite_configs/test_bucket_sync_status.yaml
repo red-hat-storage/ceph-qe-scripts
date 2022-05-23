@@ -1,0 +1,21 @@
+# upload type: non multipart
+# script: test_Mbuckets_with_Nobjects.py
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 2
+  objects_size_range:
+    min: 5M
+    max: 15M
+  bucket_sync_status: true
+  test_ops:
+    create_bucket: true
+    create_object: true
+    download_object: false
+    delete_bucket_object: false
+    sharding:
+      enable: false
+      max_shards: 0
+    compression:
+      enable: false
+      type: zlib

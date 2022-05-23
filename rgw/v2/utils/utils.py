@@ -11,6 +11,7 @@ import subprocess
 from random import randint
 
 import yaml
+from v2.lib.exceptions import SyncFailedError
 
 BUCKET_NAME_PREFIX = "bucky" + "-" + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = "key"
@@ -552,6 +553,27 @@ def check_bucket_sync(name):
     cmd = f"radosgw-admin bucket sync run --bucket={name} --source-zone={source_zone}"
     out = exec_shell_cmd(cmd)
     return out
+
+
+def bucket_sync_status(name, retry=10, delay=15):
+    log.info(
+        f"check if bucket sync is in progress, if bucket sync is in progress retry {retry} times with {delay}secs of sleep between each retry"
+    )
+    cmd = f"radosgw-admin bucket sync status --bucket={name}"
+    out = exec_shell_cmd(cmd)
+    if "behind shards" in out:
+        log.info("bucket sync is in progress")
+        log.info(f"sleep of {delay} secs for sync to complete")
+        for retry_count in range(retry):
+            time.sleep(delay)
+        if (retry_count > retry) and ("behind shards" in out):
+            out = utils.check_bucket_sync(bucket.name)
+            if out is False:
+                raise SyncFailedError(
+                    f"Bucket sync status not caught up with source after performing bucket sync run with {retry} retries and sleep of {delay}secs between each retry"
+                )
+    else:
+        log.info("bucket is caught up with source zone.")
 
 
 def get_hostname_ip():
