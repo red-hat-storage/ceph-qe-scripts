@@ -1,0 +1,51 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+    
+    p { margin:0 }
+    
+    </style>
+</head>
+	
+<body>
+
+<h2><a href="https://bugzilla.redhat.com/buglist.cgi?bug_status=POST&bug_status=MODIFIED&columnlist=product%2Ccomponent%2Cassigned_to%2Cbug_status%2Ctarget_release%2Cshort_desc%2Cqa_contact_realname%2Ccf_regression_status%2Cbug_severity%2Cversion%2Creporter_realname%2Ccf_pm_score%2Cflagtypes.name%2Cchangeddate%2Cflags_all%2Ctarget_milestone&f10=keywords&f3=OP&f6=CP&f8=flagtypes.name&known_name=CEPH_QA_ACK%3F&list_id=12126244&o10=notsubstring&o8=anywordssubstr&product=Red%20Hat%20Ceph%20Storage&query_based_on=CEPH_QA_ACK%3F&query_format=advanced&v10=nodocsqereview&v8=qa_ack%3F"> QA_Ack? review pending</a></h2>
+<table class="full-table">
+	<tr>
+            <th style="color: blue">#Bug ID</th>
+            <th style="color: blue">Summary</th>
+            <th style="color: blue">QA Contact</th>
+            <th style="color: blue">Component</th>
+            <th style="color: blue">Target Release</th>
+            <th style="color: blue">Status</th>
+		    <th style="color: blue">Severity</th>
+        </tr>
+	
+	   {% for item in items %}
+        <TR>
+        
+           <TD><a href="https://bugzilla.redhat.com/show_bug.cgi?id={{item.bug_id}}">{{item.bug_id}}</a></TD>
+           <TD>{{item.summary}}</TD>
+           <TD>{{item.qaContact}}</TD>
+           <TD>{{item.component}}</TD>
+           <TD>{{item.target_release}}</TD>
+           <TD>{{item.status}}</TD>
+           <TD>{{item.severity}}</TD>
+         
+        </TR>
+        {% endfor %}	
+</table>	

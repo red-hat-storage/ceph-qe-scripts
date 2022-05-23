@@ -1,0 +1,50 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+    
+    p { margin:0 }
+    
+    </style>
+</head>
+	
+<body>
+
+<h2><a href="https://bugzilla.redhat.com/buglist.cgi?bug_status=__open__&classification=Red%20Hat&columnlist=component%2Cbug_status%2Cshort_desc%2Ccf_qa_whiteboard&component=ceph&known_name=Open%20RBD%2C%20RBD-mirror%20BZs%20from%20ODF&list_id=12571774&product=Red%20Hat%20OpenShift%20Data%20Foundation&query_based_on=Open%20RBD%2C%20RBD-mirror%20BZs%20from%20ODF&query_format=advanced&short_desc=rbd&short_desc_type=anywordssubstr">
+RHODF Bug with RBD in its summary</h2>
+<table class="full-table">
+	<tr>
+            <th style="color: blue">#Bug ID</th>
+            <th style="color: blue">Product</th>
+            <th style="color: blue">Summary</th>
+            <th style="color: blue">Status</th>
+            <th style="color: blue">Component</th>
+		    <th style="color: blue">QA Whiteboard</th>
+        </tr>
+	
+	   {% for item in items %}
+        <TR>
+        
+           <TD><a href="https://bugzilla.redhat.com/show_bug.cgi?id={{item.bug_id}}">{{item.bug_id}}</a></TD>
+           <TD>{{item.product}}</TD>
+           <TD>{{item.summary}}</TD>
+           <TD>{{item.status}}</TD>
+           <TD>{{item.component}}</TD>
+           <TD>{{item.cf_qa_whiteboard}}</TD>
+                 
+        </TR>
+        {% endfor %}	
+</table>	

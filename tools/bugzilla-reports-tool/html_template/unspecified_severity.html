@@ -1,0 +1,50 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+    
+    p { margin:0 }
+    
+    </style>
+</head>
+	
+<body>
+
+<h2><a href="https://bugzilla.redhat.com/buglist.cgi?bug_severity=unspecified&bug_status=__open__&f1=component&known_name=CEPH%20UnSpecified%20Severity&list_id=12126326&o1=notsubstring&product=Red%20Hat%20Ceph%20Storage&query_based_on=CEPH%20UnSpecified%20Severity&query_format=advanced">Unspecified severity bug list</a></h2>
+<table class="full-table">
+	<tr>
+            <th style="color: blue">#Bug ID</th>
+            <th style="color: blue">Summary</th>
+            <th style="color: blue">Reporter</th>
+            <th style="color: blue">QA Contact</th>
+            <th style="color: blue">Component</th>
+            <th style="color: blue">Target Release</th>
+		    
+        </tr>
+	
+	   {% for item in items %}
+        <TR>
+        
+           <TD><a href="https://bugzilla.redhat.com/show_bug.cgi?id={{item.bug_id}}">{{item.bug_id}}</a></TD>
+           <TD>{{item.summary}}</TD>
+           <TD>{{item.reporter}}</TD>
+           <TD>{{item.qaContact}}</TD>
+           <TD>{{item.component}}</TD>
+           <TD>{{item.target_release}}</TD>
+           
+        </TR>
+        {% endfor %}	
+</table>	

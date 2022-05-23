@@ -1,0 +1,68 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+    
+    
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+    
+    p { margin:0 }
+    
+    </style>
+</head>
+	
+<body>
+
+<h2><a href="https://bugzilla.redhat.com/buglist.cgi?bug_status=__open__&columnlist=product%2Ccomponent%2Cassigned_to%2Cbug_status%2Cresolution%2Cshort_desc%2Cchangeddate%2Cbug_severity%2Creporter_realname%2Cversion%2Ctarget_release%2Cflags_all&f1=flagtypes.name&f2=requestees.login_name&known_name=ceph_qe_needinfo%3F&list_id=12142718&o1=equals&o2=anywordssubstr&query_based_on=ceph_qe_needinfo%3F&query_format=advanced&v1=needinfo%3F&v2=pdhiran%40%20racpatel%40%20hmunjulu%40%20rgowdege%40%20mmurthy%40%20vashastr%40%20pnataraj%40%20sunnagar%40%20mkasturi%40%20hyelloji%40%20ukurundw%40%20julpark%40%20gpatta%40%20vimishra%40%20ymane%40%20amsyedha%40%20mgowri%40%20tchandra%40%20sangadi%40%20skanta%40%20amk%40%20vivk%40%20psathyan%40%20ckulal%40%20anrao%40%20tmathew%40%20gsitlani%40"> Need information list of bugs</a></h2>
+<table class="full-table">
+	<tr>
+            <th style="color: blue">#Bug ID</th>
+            <th style="color: blue">Description</th>
+            <th style="color: blue">Status</th>
+            <th style="color: blue">Component</th>
+		    <th style="color: blue">Severity</th>
+		    <th style="color: blue">Requestee</th>
+		    <th style="color: blue">Version</th>
+		    <th style="color: blue">Target Release</th>
+		    <th style="color: blue">Aging (Days)</th>
+        </tr>
+	
+	   {% for item in items %}
+        <TR>
+        
+           <TD><a href="https://bugzilla.redhat.com/show_bug.cgi?id={{item.bug_id}}">{{item.bug_id}}</a></TD>
+           <TD>{{item.summary}}</TD>
+           <TD>{{item.status}}</TD>
+           <TD>{{item.component}}</TD>
+           <TD>{{item.severity}}</TD>
+           <TD>{{item.requestee_name}}</TD>
+           <TD>{{item.version}}</TD>
+           <TD>{{item.target_release}}</TD>
+           {% if item.age <= 3 %}
+              <TD style ="background-color: #00FF7F">{{item.age}}</TD>
+           {% elif item.age > 3 and item.age <  5  %}
+              <TD style ="background-color: #deea94">{{item.age}}</TD>   
+           {% else %}
+              <TD style ="background-color: #ff7f8a">{{item.age}}</TD>
+           {% endif %}    
+        </TR>
+        {% endfor %}	
+</table>	
+
+
+</body>
+</html>
+	
+	

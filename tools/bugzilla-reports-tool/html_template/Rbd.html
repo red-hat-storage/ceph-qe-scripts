@@ -1,0 +1,56 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+    
+    
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+    
+    p { margin:0 }
+    
+    </style>
+</head>
+	
+<body>
+
+<h2><a href="https://bugzilla.redhat.com/buglist.cgi?bug_status=__open__&classification=Red%20Hat&component=RBD&component=RBD-Mirror&f1=cf_qa_whiteboard&list_id=12586543&o1=notsubstring&product=Red%20Hat%20Ceph%20Storage&query_format=advanced&v1=qe_triaged"> RHODF Bugs to be QE Triaged</a></h2>
+<table class="full-table">
+	<tr>
+            <th style="color: blue">#Bug ID</th>
+            <th style="color: blue">Component</th>
+            <th style="color: blue">Summary</th>
+	    <th style="color: blue">Status</th>
+	    <th style="color: blue">QA Whiteboard</th>
+	    <th style="color: blue">Dependent Products</th>
+        </tr>
+	
+	   {% for item in items %}
+        <TR>
+        
+           <TD><a href="https://bugzilla.redhat.com/show_bug.cgi?id={{item.bug_id}}">{{item.bug_id}}</a></TD>
+           <TD>{{item.component}}</TD>
+           <TD>{{item.summary}}</TD>
+           <TD>{{item.status}}</TD>
+           <TD>{{item.cf_qa_whiteboard}}</TD>  
+           <TD>{{item.dependent_products}}</TD>
+        </TR>
+        {% endfor %}	
+</table>	
+
+
+</body>
+</html>
+	
+	

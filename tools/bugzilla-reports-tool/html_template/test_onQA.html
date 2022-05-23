@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.table-40percent{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 30%;
+    }
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+    
+    p { margin:0 }
+    
+    </style>
+</head>
+	
+<body>
+
+<h2><a href="https://bugzilla.redhat.com/report.cgi?x_axis_field=target_release&y_axis_field=qa_contact&z_axis_field=&no_redirect=1&query_format=report-table&short_desc_type=allwordssubstr&short_desc=&product=Red+Hat+Ceph+Storage&bug_status=ON_QA&longdesc_type=allwordssubstr&longdesc=&bug_file_loc_type=allwordssubstr&bug_file_loc=&status_whiteboard_type=allwordssubstr&status_whiteboard=&keywords_type=allwords&keywords=&deadlinefrom=&deadlineto=&bug_id=&bug_id_type=anyexact&emailtype1=substring&email1=&emailtype2=substring&email2=&emailtype3=substring&email3=&chfieldvalue=&chfieldfrom=&chfieldto=Now&j_top=AND&f1=cf_qa_whiteboard&o1=notsubstring&v1=qa_verification%3Dno&f2=noop&o2=noop&v2=&format=table&action=wrap">On QA list of bugs</a></h2>
+<table class="table-40percent">
+ <thead>
+     <th style="color: Black">Contact Person</th>
+  {%- for column in columns %}
+     <th style="color: Black">{{ column }}</th>
+  {%- endfor %}
+ </thead>
+ 
+ {% for item in items %}
+        <TR>
+           <TD><a href="mailto:{{item.name}}@redhat.com">{{item.name}}</TD>
+           {% set details = item.detils %}
+           
+           {% for count in details %}
+               {% if count[0] == 0 %}
+                    <TD> {{ "--"}}
+                {% else %}    
+                    <TD><a href="https://bugzilla.redhat.com/buglist.cgi?action=wrap&bug_status=ON_QA&f1=cf_qa_whiteboard&f2=OP&f3=qa_contact&f4=target_release&f5=CP&list_id=12060053&o1=notsubstring&o3=equals&o4=equals&product=Red%20Hat%20Ceph%20Storage&v1=qa_verification%3Dno&v3={{item.name}}%40redhat.com&v4={{count[2]}}">{{ count[0] }}</TD>
+                {% endif %}    
+           {% endfor %}	    
+        </TR>
+{% endfor %}		
+	   
+</table>	
+
+</body>
+</html>
+	
