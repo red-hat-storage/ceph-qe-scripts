@@ -1,4 +1,5 @@
 import configparser
+import datetime
 import hashlib
 import json
 import logging
@@ -8,9 +9,11 @@ import shutil
 import socket
 import string
 import subprocess
+import time
 from random import randint
 
 import yaml
+from v2.lib.exceptions import SyncFailedError
 
 BUCKET_NAME_PREFIX = "bucky" + "-" + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = "key"
@@ -552,6 +555,18 @@ def check_bucket_sync(name):
     cmd = f"radosgw-admin bucket sync run --bucket={name} --source-zone={source_zone}"
     out = exec_shell_cmd(cmd)
     return out
+
+
+def wait_till_bucket_synced(name, timeout=120, interval=5):
+    """Wait until the bucket reports synchronized."""
+    cmd = f"radosgw-admin bucket sync status --bucket {name}"
+    end_time = datetime.datetime.now() + datetime.timedelta(seconds=timeout)
+    while end_time > datetime.datetime.now():
+        time.sleep(interval)
+        result = exec_shell_cmd(cmd)
+        if not "behind shards" in result:
+            return True
+    return False
 
 
 def get_hostname_ip():
