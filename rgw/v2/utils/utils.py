@@ -595,6 +595,17 @@ def get_ceph_version():
     return version_id, version_name
 
 
+def get_ceph_status():
+    """
+    get the ceph cluster status and health
+    """
+    log.info("get ceph status")
+    ceph_status = exec_shell_cmd("sudo ceph status")
+    if "HEALTH_ERR" in ceph_status or "large omap objects" in ceph_status:
+        return False
+    return True
+
+
 def check_dbr_support():
     # checks if the cluster version is greater than 4.3 or not
     ceph_version_id, _ = get_ceph_version()

@@ -523,6 +523,13 @@ def test_exec(config):
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
 
+    # check for any health errors or large omaps
+    out = get_ceph_status()
+    if not out:
+        raise TestExecError(
+            "ceph status is either in HEALTH_ERR or we have large omap objects."
+        )
+
 
 if __name__ == "__main__":
 
