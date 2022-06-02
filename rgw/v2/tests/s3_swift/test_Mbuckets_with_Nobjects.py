@@ -524,7 +524,7 @@ def test_exec(config):
         raise TestExecError("ceph daemon crash found!")
 
     # check for any health errors or large omaps
-    out = get_ceph_status()
+    out = utils.get_ceph_status()
     if not out:
         raise TestExecError(
             "ceph status is either in HEALTH_ERR or we have large omap objects."
