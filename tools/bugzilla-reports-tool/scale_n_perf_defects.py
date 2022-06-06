@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-from helpers import *
 import datetime
+
+from helpers import *
 
 now = datetime.datetime.now()
 g = gapi.GoogleSpreadSheetAPI(SPREADSHEET_NAME, "Performance & scale blockers")

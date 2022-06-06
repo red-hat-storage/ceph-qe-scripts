@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-from helpers import *
 from datetime import datetime
+
+from helpers import *
 
 now = datetime.today()
 g = gapi.GoogleSpreadSheetAPI(SPREADSHEET_NAME, "QE Space")

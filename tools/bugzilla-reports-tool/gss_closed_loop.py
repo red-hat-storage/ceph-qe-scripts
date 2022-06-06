@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-from helpers import *
 from datetime import datetime
+
+from helpers import *
 
 g = gapi.GoogleSpreadSheetAPI(SPREADSHEET_NAME, "GSS closed loop")
 now = datetime.today()

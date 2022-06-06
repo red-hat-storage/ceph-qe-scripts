@@ -1,24 +1,24 @@
 # -*- coding: utf-8
+import smtplib
 import sys
 import time
-
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-import smtplib
 
 sys.path.append("cephQeInfra")
 from datetime import datetime
+
 import pytz
-
-from cephQeInfra import docOnQa
-from cephQeInfra import htmlPrep
-from cephQeInfra import needInfo_class
-from cephQeInfra import testOnQa
-from cephQeInfra import qaAck
-from cephQeInfra import unspecified_severity
-from cephQeInfra import kernel_bugs_class
-from cephQeInfra import rbd_bugs_class
-
+from cephQeInfra import (
+    docOnQa,
+    htmlPrep,
+    kernel_bugs_class,
+    needInfo_class,
+    qaAck,
+    rbd_bugs_class,
+    testOnQa,
+    unspecified_severity,
+)
 
 htmlPrep_obj= htmlPrep.htmlPrep()
 docOnQa_Obj= docOnQa.DocOnQaCls()

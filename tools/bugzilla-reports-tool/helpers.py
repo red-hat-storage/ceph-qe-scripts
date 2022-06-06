@@ -3,9 +3,10 @@ from __future__ import division, print_function
 import copy
 import smtplib
 import ssl
-from config import *
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+from config import *
 
 ctx = ssl.create_default_context()
 ctx.check_hostname = False

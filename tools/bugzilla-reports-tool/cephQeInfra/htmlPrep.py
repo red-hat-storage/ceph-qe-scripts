@@ -1,10 +1,10 @@
-from jinja2 import Environment, FileSystemLoader,select_autoescape
-from jinja_markdown import MarkdownExtension
 import os
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja_markdown import MarkdownExtension
 
 
 class htmlPrep():

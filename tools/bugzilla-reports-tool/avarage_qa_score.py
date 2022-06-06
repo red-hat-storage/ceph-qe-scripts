@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-from helpers import *
 from datetime import datetime
+
+from helpers import *
 
 REGRESSION = 15
 BLOCKER = 30

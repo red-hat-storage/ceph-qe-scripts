@@ -1,8 +1,9 @@
-import bugzilla
-import yaml
-import sys
 import os
+import sys
+
+import bugzilla
 import google_api as gapi
+import yaml
 
 # [CHANGE NEEDED] Add the relevant information for you report
 cfg_path = os.path.expanduser('~/.gapi/personal_cfg.yml')

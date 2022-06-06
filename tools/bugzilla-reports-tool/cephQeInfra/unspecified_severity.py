@@ -5,17 +5,17 @@
 @author: skanta
 """
 
+import datetime
 import sys
 import time
-from jinja2 import Environment, FileSystemLoader,select_autoescape
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from jinja_markdown import MarkdownExtension
-import datetime
 
 sys.path.append(".")
-from helpers import *
 import bugzilla
 from cephQeInfra import commonFunctions
-
+from helpers import *
 
 
 class unspecified_severity_cls():

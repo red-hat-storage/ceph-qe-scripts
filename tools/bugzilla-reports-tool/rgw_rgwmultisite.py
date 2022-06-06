@@ -1,17 +1,15 @@
-from jinja2 import Environment, FileSystemLoader,select_autoescape
-from jinja_markdown import MarkdownExtension
 import os
+import sys
 import time
-from helpers import *
+from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from cephQeInfra import commonFunctions
-from datetime import datetime
+
 import pytz
-import sys
-
-
-
+from cephQeInfra import commonFunctions
+from helpers import *
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja_markdown import MarkdownExtension
 
 items=[]
 target=""

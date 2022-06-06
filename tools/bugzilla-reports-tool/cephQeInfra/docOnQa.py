@@ -5,19 +5,18 @@ Created on Fri Jun 25 05:24:11 2021
 
 @author: skanta
 """
+import datetime
 import sys
 import time
-from jinja2 import Environment, FileSystemLoader,select_autoescape
-from jinja_markdown import MarkdownExtension
-from cephQeInfra import commonFunctions
-import datetime
+
 import pytz
+from cephQeInfra import commonFunctions
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja_markdown import MarkdownExtension
 
 sys.path.append(".")
-from helpers import *
 import bugzilla
-
-
+from helpers import *
 
 
 class DocOnQaCls():

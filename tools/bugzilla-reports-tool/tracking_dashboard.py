@@ -1,7 +1,8 @@
 #!/usr/bin/env python
-import time
-from helpers import *
 import datetime
+import time
+
+from helpers import *
 
 now = datetime.datetime.now()
 g = gapi.GoogleSpreadSheetAPI(SPREADSHEET_NAME, "QE tracking dashboard")

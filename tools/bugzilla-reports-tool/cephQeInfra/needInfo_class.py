@@ -13,16 +13,17 @@ Created on Fri Jun 25 05:24:11 2021
 
 @author: skanta
 """
+import datetime
 import sys
 import time
-import datetime
-from jinja2 import Environment, FileSystemLoader,select_autoescape
-from jinja_markdown import MarkdownExtension
-sys.path.append(".")
-from helpers import *
-from cephQeInfra import commonFunctions
-import pytz
 
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja_markdown import MarkdownExtension
+
+sys.path.append(".")
+import pytz
+from cephQeInfra import commonFunctions
+from helpers import *
 
 
 class needInfoCls():
