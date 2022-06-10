@@ -85,6 +85,12 @@ def test_exec(config):
             bucket_info = utils.exec_shell_cmd(
                 f"radosgw-admin object stat --bucket {bucket_name} --object {obj_name}"
             )
+
+            if bucket_info is False:
+                raise AssertionError(
+                    f"Failed to get object data: {obj_name} from bucket :{bucket_name}"
+                )
+
             data = json.loads(bucket_info)
             if "user.rgw.x-amz-metadata" not in data["attrs"].keys():
                 raise AssertionError("Key not found")
