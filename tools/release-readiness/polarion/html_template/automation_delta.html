@@ -1,0 +1,98 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 50%;
+    }
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+
+    p { margin:0 }
+
+    </style>
+</head>
+
+<body>
+
+<h2>Overall Automation status</h2>
+<table class="full-table">
+	<tr>
+		<th style="color: blue">Overall Automation status</th>
+		<th style="color: blue">Tier1</th>
+		<th style="color: blue">Tier2</th>
+		<th style="color: blue">Tier3</th>
+        <th style="color: blue">Tier4</th>
+    </tr>
+
+    {% set aut_data = content[0] %}
+    {% set total_automated = aut_data['tier1'][0] + aut_data['tier2'][0] + aut_data['tier3'][0] + aut_data['tier4'][0] %}
+    {% set not_automated = aut_data['tier1'][1] + aut_data['tier2'][1] + aut_data['tier3'][1] + aut_data['tier4'][1] %}
+    {% set manual_only = aut_data['tier1'][2] + aut_data['tier2'][2] + aut_data['tier3'][2] + aut_data['tier4'][2] %}
+    {% set percentage_automated = (total_automated * 100) // (total_automated + not_automated + manual_only) %}
+    {% set tier1_percent = (aut_data['tier1'][0] * 100 ) // (aut_data['tier1'][0] + aut_data['tier1'][1] + aut_data['tier1'][2]) %}
+    {% set tier2_percent = (aut_data['tier2'][0] * 100) // (aut_data['tier2'][0] + aut_data['tier2'][1] + aut_data['tier2'][2]) %}
+    {% set tier3_percent = (aut_data['tier3'][0] * 100) // (aut_data['tier3'][0] + aut_data['tier3'][1] + aut_data['tier3'][2]) %}
+    {% set tier4_percent = (aut_data['tier4'][0] * 100) // (aut_data['tier4'][0] + aut_data['tier4'][1] + aut_data['tier4'][2]) %}
+
+    {% set aut_delta = content[3] %}
+    {% set actual_keys = aut_delta.keys() %}
+     <TR>
+        <TD># Tests</TD>
+         <TD>{{aut_data['tier1'][0]}}</TD>
+         <TD>{{aut_data['tier2'][0]}}</TD>
+         <TD>{{aut_data['tier3'][0]}}</TD>
+         <TD>{{aut_data['tier4'][0]}}</TD>
+    </TR>
+    <TR>
+        <TD># Automated in a week</TD>
+         {% for each_key in actual_keys %}
+             <TD style ="background-color:powderblue;">{{aut_delta[each_key]}}</TD>
+        {% endfor %}
+    </TR>
+     <TR>
+        <TD>Total {{percentage_automated}}% automated</TD>
+         {% if tier1_percent < 50 %}
+	            <TD style ="background-color: #ff7f8a">{{tier1_percent}}%</TD>
+		 {% elif tier1_percent >= 50 and tier1_percent < 75 %}
+		    <TD style ="background-color: #ffff00">{{tier1_percent}}%</TD>
+		 {% elif tier1_percent > 75 %}
+		     <TD style ="background-color: #00FF7F">{{tier1_percent}}%</TD>
+		 {% endif %}
+         {% if tier2_percent < 50 %}
+                    <TD style ="background-color: #ff7f8a">{{tier2_percent}}%</TD>
+         {% elif tier2_percent >= 50 and tier2_percent < 75 %}
+                    <TD style ="background-color: #ffff00">{{tier2_percent}}%</TD>
+         {% elif tier2_percent > 75 %}
+                <TD style ="background-color: #00FF7F">{{tier2_percent}}%</TD>
+         {% endif %}
+         {% if tier3_percent < 50 %}
+                    <TD style ="background-color: #ff7f8a">{{tier3_percent}}%</TD>
+         {% elif tier3_percent >= 50 and tier3_percent < 75 %}
+                    <TD style ="background-color: #ffff00">{{tier3_percent}}%</TD>
+         {% elif tier3_percent > 75 %}
+                <TD style ="background-color: #00FF7F">{{tier3_percent}}%</TD>
+         {% endif %}
+          {% if tier4_percent < 50 %}
+                    <TD style ="background-color: #ff7f8a">{{tier4_percent}}%</TD>
+         {% elif tier4_percent >= 50 and tier4_percent < 75 %}
+                    <TD style ="background-color: #ffff00">{{tier4_percent}}%</TD>
+         {% elif tier4_percent > 75 %}
+                <TD style ="background-color: #00FF7F">{{tier4_percent}}%</TD>
+         {% endif %}
+
+    </TR>
+</table>
+
+</body>
+</html>
+
+

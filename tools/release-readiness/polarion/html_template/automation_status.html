@@ -1,0 +1,111 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 100%;
+    }
+    
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+    
+    p { margin:0 }
+    
+    </style>
+</head>
+	
+<body>
+
+<h2>Tier-wise Automation Status</h2>
+<table class="full-table">
+	<tr>
+		<th style="color: blue">Test Tier</th>
+		<th style="color: blue">Total Automated</th>
+		<th style="color: blue">Not Automated</th>
+		<th style="color: blue">Manual Only</th>
+        </tr>
+
+
+	   {% set total_automated = items['tier1'][0] + items['tier2'][0] + items['tier3'][0] + items['tier4'][0] %}
+	   {% set not_automated = items['tier1'][1] + items['tier2'][1] + items['tier3'][1] + items['tier4'][1] %}
+	   {% set manual_only = items['tier1'][2] + items['tier2'][2] + items['tier3'][2] + items['tier4'][2] %}
+	   {% set percentage_automated = (total_automated * 100) // (total_automated + not_automated + manual_only) %}
+	   {% set tier1_percent = (items['tier1'][0] * 100 ) // (items['tier1'][0] + items['tier1'][1] + items['tier1'][2]) %}
+	   {% set tier2_percent = (items['tier2'][0] * 100) // (items['tier2'][0] + items['tier2'][1] + items['tier2'][2]) %}
+	   {% set tier3_percent = (items['tier3'][0] * 100) // (items['tier3'][0] + items['tier3'][1] + items['tier3'][2]) %}
+	   {% set tier4_percent = (items['tier4'][0] * 100) // (items['tier4'][0] + items['tier4'][1] + items['tier4'][2]) %}
+        <TR>
+		<TD style="color: blue"><a href="https://polarion.engineering.redhat.com/polarion/#/project/CEPH/workitems?query=project.id%3ACEPH%20AND%20tier.KEY%3Atier1">Tier1</a></TD> 
+		{% if tier1_percent < 50 %}
+	            <TD style ="background-color: #ff7f8a">{{items['tier1'][0]}} ({{tier1_percent}}%)</TD>
+		{% elif tier1_percent >= 50 and tier1_percent < 75 %}
+		    <TD style ="background-color: #ffff00">{{items['tier1'][0]}} ({{tier1_percent}}%)</TD>
+		{% elif tier1_percent > 75 %}
+		<TD style ="background-color: #00FF7F">{{items['tier1'][0]}} ({{tier1_percent}}%)</TD>
+		{% endif %}
+	   <TD>{{items['tier1'][1]}}</TD>
+	   <TD>{{items['tier1'][2]}}</TD>
+	</TR>
+	<TR>
+		<TD style="color: blue"><a href="https://polarion.engineering.redhat.com/polarion/#/project/CEPH/workitems?query=project.id%3ACEPH%20AND%20tier.KEY%3Atier2">Tier2</a></TD>
+	        {% if tier2_percent < 50 %}
+                    <TD style ="background-color: #ff7f8a">{{items['tier2'][0]}} ({{tier2_percent}}%)</TD>
+                {% elif tier2_percent >= 50 and tier2_percent < 75 %}
+                    <TD style ="background-color: #ffff00">{{items['tier2'][0]}} ({{tier2_percent}}%)</TD>
+                {% elif tier2_percent > 75 %}
+                <TD style ="background-color: #00FF7F">{{items['tier2'][0]}} ({{tier2_percent}}%)</TD>
+                {% endif %}     
+	   <TD>{{items['tier2'][1]}}</TD>
+	   <TD>{{items['tier2'][2]}}</TD>
+	</TR>
+	<TR>
+		<TD style="color: blue"><a href="https://polarion.engineering.redhat.com/polarion/#/project/CEPH/workitems?query=project.id%3ACEPH%20AND%20tier.KEY%3Atier3">Tier3</a></TD>
+	        {% if tier3_percent < 50 %}
+                    <TD style ="background-color: #ff7f8a">{{items['tier3'][0]}} ({{tier3_percent}}%)</TD>
+                {% elif tier3_percent >= 50 and tier3_percent < 75 %}
+                    <TD style ="background-color: #ffff00">{{items['tier3'][0]}} ({{tier3_percent}}%)</TD>
+                {% elif tier3_percent > 75 %}
+                <TD style ="background-color: #00FF7F">{{items['tier3'][0]}} ({{tier3_percent}}%)</TD>
+                {% endif %}
+	   <TD>{{items['tier3'][1]}}</TD>
+	   <TD>{{items['tier3'][2]}}</TD>
+        </TR>
+	<TR>
+		<TD style="color: blue"><a href="https://polarion.engineering.redhat.com/polarion/#/project/CEPH/workitems?query=project.id%3ACEPH%20AND%20tier.KEY%3Atier4">Tier4</a></TD>
+                {% if tier4_percent < 50 %}
+                    <TD style ="background-color: #ff7f8a">{{items['tier4'][0]}} ({{tier4_percent}}%)</TD>
+                {% elif tier4_percent >= 50 and tier4_percent < 75 %}
+                    <TD style ="background-color: #ffff00">{{items['tier4'][0]}} ({{tier4_percent}}%)</TD>
+                {% elif tier4_percent > 75 %}
+                <TD style ="background-color: #00FF7F">{{items['tier4'][0]}} ({{tier4_percent}}%)</TD>
+                {% endif %}                
+	   <TD>{{items['tier4'][1]}}</TD>
+           <TD>{{items['tier4'][2]}}</TD>
+        </TR>
+	<TR>
+           <TD style="color: blue">Total</TD>
+	   {% if percentage_automated < 50 %}
+	   <TD style ="background-color: #ff7f8a">{{total_automated}} ({{percentage_automated}}%)</TD>
+	   {% elif percentage_automated >= 50 and percentage_automated < 75 %}
+	       <TD style ="background-color: #ffff00">{{total_automated}} ({{percentage_automated}}%)</TD>
+	   {% elif percentage_automated > 75 %}
+	       <TD style ="background-color: #00FF7F">{{total_automated}} ({{percentage_automated}}%)</TD>
+	   {% endif %}
+           <TD>{{not_automated}}</TD>
+	   <TD>{{manual_only}}</TD>
+        </TR>
+
+        
+</table>
+</body>
+</html>
+
+

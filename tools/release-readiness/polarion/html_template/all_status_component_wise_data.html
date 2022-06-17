@@ -1,0 +1,51 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 60%;
+    }
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+
+    p { margin:0 }
+
+    </style>
+</head>
+
+<body>
+
+<h2>Component-wise NOT_APPROVED automated test details</h2>
+<table class="full-table">
+	<tr>
+		<th style="color: blue">Component</th>
+		<th style="color: blue">No. of unapproved tests</th>
+        </tr>
+
+    {% set aut_data = content[1] %}
+    {% set comp_aut_delta = content[6] %}
+    {% set actual_keys = aut_data.keys() %}
+
+    {% for each_key in actual_keys %}
+    <TR>
+        {% if comp_aut_delta[each_key] > 0 %}
+            <TD style="color: blue"><a href="https://polarion.engineering.redhat.com/polarion/#/project/CEPH/workitems?query=project.id%3ACEPH%20AND%20casecomponent.KEY%3A{{each_key}}%20AND%20tier.KEY%3A(tier1%20tier2%20tier3%20tier4)%20AND%20NOT%20status%3A(approved%20inactive)%20AND%20caseautomation.KEY%3Aautomated">{{each_key}}</a></TD>
+            <TD>{{comp_aut_delta[each_key]}}</TD>
+        {% endif %}
+    </TR>
+    {% endfor %}
+
+</table>
+
+</body>
+</html>
+
+

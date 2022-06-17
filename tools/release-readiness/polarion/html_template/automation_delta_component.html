@@ -1,0 +1,54 @@
+-<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <style>
+    table.full-table{
+        font-family: arial, sans-serif;
+        border-collapse: collapse;
+        width: 60%;
+    }
+
+    td, th {
+        border: 1px solid #050505;
+        text-align: left;
+        padding: 8px;
+    }
+
+    p { margin:0 }
+
+    </style>
+</head>
+
+<body>
+
+<h2>Component-wise Automation delta status</h2>
+<table class="full-table">
+	<tr>
+		<th style="color: blue">Component</th>
+		<th style="color: blue">Tier1</th>
+		<th style="color: blue">Tier2</th>
+		<th style="color: blue">Tier3</th>
+        <th style="color: blue">Tier4</th>
+        </tr>
+
+    {% set aut_data = content[1] %}
+    {% set aut_delta = content[3] %}
+    {% set actual_keys = aut_data.keys() %}
+
+    {% for each_key in actual_keys %}
+
+    <TR>
+		<TD style="color: blue">{{each_key}}</TD>
+          {% for each_ind in range(4) %}
+             <TD style ="background-color:powderblue;">{{aut_delta[each_key][each_ind]}}</TD>
+          {% endfor %}
+        </TR>
+    {% endfor %}
+
+
+</body>
+</html>
+
+
