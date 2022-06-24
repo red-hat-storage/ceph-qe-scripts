@@ -1,0 +1,18 @@
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 20
+  object_expire: false
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    create_object: true
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: single-obj
+      Status: Enabled
+      Expiration:
+        Days: 1
