@@ -82,90 +82,110 @@ def test_exec(config):
     else:
         log.info("RGW service restarted")
 
-    config.user_count = 1
-    config.bucket_count = 1
+    config.user_count = config.user_count if config.user_count else 1
+    config.bucket_count = config.bucket_count if config.bucket_count else 1
+
+    log.info(f"user count is {config.user_count}")
+    log.info(f"user count is {config.bucket_count}")
     # create user
     user_info = s3lib.create_users(config.user_count)
-    user_info = user_info[0]
-    auth = Auth(user_info, ssl=config.ssl)
-    rgw_conn = auth.do_auth()
-    rgw_conn2 = auth.do_auth_using_client()
-    log.info("no of buckets to create: %s" % config.bucket_count)
-    bucket_name = utils.gen_bucket_name_from_userid(user_info["user_id"], rand_no=1)
-    obj_list = []
-    obj_tag = "suffix1=WMV1"
-    bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info)
-    prefix = list(
-        map(
-            lambda x: x,
-            [
-                rule["Filter"].get("Prefix") or rule["Filter"]["And"].get("Prefix")
-                for rule in config.lifecycle_conf
-            ],
-        )
-    )
-    prefix = prefix if prefix else ["dummy1"]
-    if config.test_ops["enable_versioning"] is True:
-        reusable.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
-        if config.test_ops["create_object"] is True:
-            for oc, size in list(config.mapped_sizes.items()):
-                config.obj_size = size
-                key = prefix.pop()
-                prefix.insert(0, key)
-                s3_object_name = key + "." + bucket.name + "." + str(oc)
-                obj_list.append(s3_object_name)
-                if config.test_ops["version_count"] > 0:
-                    for vc in range(config.test_ops["version_count"]):
-                        log.info(
-                            "version count for %s is %s" % (s3_object_name, str(vc))
-                        )
-                        log.info("modifying data: %s" % s3_object_name)
-                        reusable.upload_object(
+    for each_user in user_info:
+        auth = Auth(each_user, ssl=config.ssl)
+        rgw_conn = auth.do_auth()
+        rgw_conn2 = auth.do_auth_using_client()
+        log.info("no of buckets to create: %s" % config.bucket_count)
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                each_user["user_id"], rand_no=bc
+            )
+            obj_list = []
+            obj_tag = "suffix1=WMV1"
+            bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+            prefix = list(
+                map(
+                    lambda x: x,
+                    [
+                        rule["Filter"].get("Prefix")
+                        or rule["Filter"]["And"].get("Prefix")
+                        for rule in config.lifecycle_conf
+                    ],
+                )
+            )
+            prefix = prefix if prefix else ["dummy1"]
+            if config.test_ops["enable_versioning"] is True:
+                reusable.enable_versioning(
+                    bucket, rgw_conn, each_user, write_bucket_io_info
+                )
+                if config.test_ops["create_object"] is True:
+                    for oc, size in list(config.mapped_sizes.items()):
+                        config.obj_size = size
+                        key = prefix.pop()
+                        prefix.insert(0, key)
+                        s3_object_name = key + "." + bucket.name + "." + str(oc)
+                        obj_list.append(s3_object_name)
+                        if config.test_ops["version_count"] > 0:
+                            for vc in range(config.test_ops["version_count"]):
+                                log.info(
+                                    "version count for %s is %s"
+                                    % (s3_object_name, str(vc))
+                                )
+                                log.info("modifying data: %s" % s3_object_name)
+                                reusable.upload_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                    append_data=True,
+                                    append_msg="hello object for version: %s\n"
+                                    % str(vc),
+                                )
+                        else:
+                            log.info("s3 objects to create: %s" % config.objects_count)
+                            reusable.upload_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                            )
+
+                life_cycle_rule = {"Rules": config.lifecycle_conf}
+                reusable.put_get_bucket_lifecycle_test(
+                    bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
+                )
+                lc_ops.validate_prefix_rule(bucket, config)
+                if config.test_ops["delete_marker"] is True:
+                    life_cycle_rule_new = {"Rules": config.delete_marker_ops}
+                    reusable.put_get_bucket_lifecycle_test(
+                        bucket, rgw_conn, rgw_conn2, life_cycle_rule_new, config
+                    )
+            if config.test_ops["enable_versioning"] is False:
+                if config.test_ops["create_object"] is True:
+                    for oc, size in list(config.mapped_sizes.items()):
+                        config.obj_size = size
+                        key = prefix.pop()
+                        prefix.insert(0, key)
+                        s3_object_name = key + "." + bucket.name + "." + str(oc)
+                        obj_list.append(s3_object_name)
+                        reusable.upload_object_with_tagging(
                             s3_object_name,
                             bucket,
                             TEST_DATA_PATH,
                             config,
-                            user_info,
-                            append_data=True,
-                            append_msg="hello object for version: %s\n" % str(vc),
+                            each_user,
+                            obj_tag,
                         )
-                else:
-                    log.info("s3 objects to create: %s" % config.objects_count)
-                    reusable.upload_object(
-                        s3_object_name, bucket, TEST_DATA_PATH, config, user_info
-                    )
-
-        life_cycle_rule = {"Rules": config.lifecycle_conf}
-        reusable.put_get_bucket_lifecycle_test(
-            bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
-        )
-        lc_ops.validate_prefix_rule(bucket, config)
-        if config.test_ops["delete_marker"] is True:
-            life_cycle_rule_new = {"Rules": config.delete_marker_ops}
-            reusable.put_get_bucket_lifecycle_test(
-                bucket, rgw_conn, rgw_conn2, life_cycle_rule_new, config
-            )
-    if config.test_ops["enable_versioning"] is False:
-        if config.test_ops["create_object"] is True:
-            for oc, size in list(config.mapped_sizes.items()):
-                config.obj_size = size
-                key = prefix.pop()
-                prefix.insert(0, key)
-                s3_object_name = key + "." + bucket.name + "." + str(oc)
-                obj_list.append(s3_object_name)
-                reusable.upload_object_with_tagging(
-                    s3_object_name, bucket, TEST_DATA_PATH, config, user_info, obj_tag
+                life_cycle_rule = {"Rules": config.lifecycle_conf}
+                reusable.put_get_bucket_lifecycle_test(
+                    bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
                 )
-        life_cycle_rule = {"Rules": config.lifecycle_conf}
-        reusable.put_get_bucket_lifecycle_test(
-            bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
-        )
-        lc_ops.validate_and_rule(bucket, config)
-    reusable.remove_user(user_info)
-    # check for any crashes during the execution
-    crash_info = reusable.check_for_crash()
-    if crash_info:
-        raise TestExecError("ceph daemon crash found!")
+                lc_ops.validate_and_rule(bucket, config)
+        reusable.remove_user(each_user)
+        # check for any crashes during the execution
+        crash_info = reusable.check_for_crash()
+        if crash_info:
+            raise TestExecError("ceph daemon crash found!")
 
 
 if __name__ == "__main__":
