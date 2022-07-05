@@ -54,8 +54,7 @@ def test_exec(config):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
-    config.rgw_lc_debug_interval = 30
-    config.rgw_lc_max_worker = 10
+    buckets = []
     log.info("making changes to ceph.conf")
     ceph_conf.set_to_ceph_conf(
         "global", ConfigOpts.rgw_lc_debug_interval, str(config.rgw_lc_debug_interval)
@@ -86,7 +85,7 @@ def test_exec(config):
     config.bucket_count = config.bucket_count if config.bucket_count else 1
 
     log.info(f"user count is {config.user_count}")
-    log.info(f"user count is {config.bucket_count}")
+    log.info(f"bucket count is {config.bucket_count}")
     # create user
     user_info = s3lib.create_users(config.user_count)
     for each_user in user_info:
@@ -150,16 +149,20 @@ def test_exec(config):
                                 each_user,
                             )
 
-                life_cycle_rule = {"Rules": config.lifecycle_conf}
-                reusable.put_get_bucket_lifecycle_test(
-                    bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
-                )
-                lc_ops.validate_prefix_rule(bucket, config)
-                if config.test_ops["delete_marker"] is True:
-                    life_cycle_rule_new = {"Rules": config.delete_marker_ops}
+                if not config.parallel_lc:
+                    life_cycle_rule = {"Rules": config.lifecycle_conf}
                     reusable.put_get_bucket_lifecycle_test(
-                        bucket, rgw_conn, rgw_conn2, life_cycle_rule_new, config
+                        bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
                     )
+                    lc_ops.validate_prefix_rule(bucket, config)
+                    if config.test_ops["delete_marker"] is True:
+                        life_cycle_rule_new = {"Rules": config.delete_marker_ops}
+                        reusable.put_get_bucket_lifecycle_test(
+                            bucket, rgw_conn, rgw_conn2, life_cycle_rule_new, config
+                        )
+                else:
+                    buckets.append(bucket)
+
             if config.test_ops["enable_versioning"] is False:
                 if config.test_ops["create_object"] is True:
                     for oc, size in list(config.mapped_sizes.items()):
@@ -176,11 +179,29 @@ def test_exec(config):
                             each_user,
                             obj_tag,
                         )
-                life_cycle_rule = {"Rules": config.lifecycle_conf}
-                reusable.put_get_bucket_lifecycle_test(
-                    bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
+                if not config.parallel_lc:
+                    life_cycle_rule = {"Rules": config.lifecycle_conf}
+                    reusable.put_get_bucket_lifecycle_test(
+                        bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
+                    )
+                    lc_ops.validate_and_rule(bucket, config)
+                else:
+                    log.info("Inside parallel lc")
+                    buckets.append(bucket)
+        if config.parallel_lc:
+            log.info("Inside parallel lc processing")
+            life_cycle_rule = {"Rules": config.lifecycle_conf}
+            for bucket in buckets:
+                reusable.put_bucket_lifecycle(
+                    bucket, rgw_conn, rgw_conn2, life_cycle_rule
                 )
-                lc_ops.validate_and_rule(bucket, config)
+            time.sleep(30)
+            for bucket in buckets:
+                if config.test_ops["enable_versioning"] is False:
+                    lc_ops.validate_prefix_rule_non_versioned(bucket)
+                else:
+                    lc_ops.validate_prefix_rule(bucket, config)
+
         reusable.remove_user(each_user)
         # check for any crashes during the execution
         crash_info = reusable.check_for_crash()
@@ -223,7 +244,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
+        log.error(e)
         log.info(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)
