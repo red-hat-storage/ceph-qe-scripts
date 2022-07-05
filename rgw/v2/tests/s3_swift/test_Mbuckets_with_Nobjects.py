@@ -30,6 +30,7 @@ Operation:
 """
 # test basic creation of buckets with objects
 import os
+import subprocess as sp
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -443,6 +444,13 @@ def test_exec(config):
                             time.sleep(10)
                             reusable.check_sync_status()
                             reusable.delete_bucket(bucket)
+                            cmd = f"radosgw-admin bucket stats --bucket={bucket.name}"
+                            ec, _ = sp.getstatusoutput(cmd)
+                            log.info(f"Bucket stats for non-existent is {ec}")
+                            if ec != 2:
+                                raise TestExecError(
+                                    "Bucket stats for non-existent bucket should return failure (2) or ENOENT."
+                                )
                     if config.bucket_sync_run_with_disable_sync_thread:
                         out = utils.check_bucket_sync(bucket.name)
                         if out is False:
