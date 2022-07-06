@@ -121,7 +121,7 @@ def test_exec(config):
     log.info("assuming role")
     assume_role_response = sts_client.assume_role(
         RoleArn=create_role_response["Role"]["Arn"],
-        RoleSessionName=user1["user_id"],
+        RoleSessionName=user2["user_id"],
         DurationSeconds=3600,
     )
 
