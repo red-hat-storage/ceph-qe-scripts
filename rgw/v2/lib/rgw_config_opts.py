@@ -1,3 +1,4 @@
+from errno import ESTALE
 import logging
 import os
 import sys
@@ -41,10 +42,16 @@ class CephConfFileOP(FileOps, ConfigParse):
     To check/create ceph.conf file
     """
 
-    def __init__(self, ceph_conf_path="/etc/ceph/ceph.conf"):
-        self.ceph_conf_path = ceph_conf_path
-        FileOps.__init__(self, self.ceph_conf_path, type="ceph.conf")
-        ConfigParse.__init__(self, self.ceph_conf_path)
+    def __init__(self, ssh_con=None, ceph_conf_path="/etc/ceph/ceph.conf"):
+        if ssh_con is not None:
+            self.ceph_conf_path = ceph_conf_path
+            self.ceph_conf_path_tmp = ceph_conf_path + ".rgw.tmp"
+            FileOps.__init__(self, self.ceph_conf_path_tmp, type="ceph.conf")
+            ConfigParse.__init__(self, self.ceph_conf_path, ssh_con)
+        else:
+            self.ceph_conf_path = ceph_conf_path
+            FileOps.__init__(self, self.ceph_conf_path, type="ceph.conf")
+            ConfigParse.__init__(self, self.ceph_conf_path)
 
     def check_if_config_exists(self, config):
         """
@@ -80,7 +87,7 @@ class CephConfFileOP(FileOps, ConfigParse):
         new_section = self.add_section(section)
         self.add_data(new_section)
 
-    def set_to_ceph_conf_file(self, section, option, value=None):
+    def set_to_ceph_conf_file(self, section, option, value=None, ssh_con=None):
         """
         This function is to add section, option, value to the ceph.conf file
 
@@ -94,7 +101,10 @@ class CephConfFileOP(FileOps, ConfigParse):
         log.info("option: %s" % option)
         log.info("value: %s" % value)
         cfg = self.set(section, option, value)
-        self.add_data(cfg)
+        if ssh_con is not None:
+            self.add_data(cfg, ssh_con)
+        else:
+            self.add_data(cfg)
 
 
 class CephConfigSet:
@@ -114,17 +124,20 @@ class CephConfigSet:
 
 
 class CephConfOp(CephConfFileOP, CephConfigSet):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, ssh_con=None) -> None:
+        super().__init__(ssh_con)
 
-    def set_to_ceph_conf(self, section, option, value=None):
+    def set_to_ceph_conf(self, section, option, value=None, ssh_con=None):
         version_id, version_name = utils.get_ceph_version()
         log.info(f"ceph version id: {version_id}")
         log.info(f"version name: {version_name}")
 
         if version_name in ["luminous", "nautilus"]:
             log.info("using ceph_conf to config values")
-            self.set_to_ceph_conf_file(section, option, value)
+            if ssh_con is not None:
+                self.set_to_ceph_conf_file(section, option, value, ssh_con)
+            else:
+                self.set_to_ceph_conf_file(section, option, value)
         else:
             log.info("using ceph config cli to set the config values")
             log.info(option)

@@ -19,11 +19,15 @@ log = logging.getLogger()
 
 class RGWSection(object):
     # rgw section in ceph.conf
-    def __init__(self):
-        self._hostname, self._ip = utils.get_hostname_ip()
+    def __init__(self, ssh_con=None):
+        if ssh_con is not None:
+            self._hostname, self._ip = utils.get_hostname_ip(ssh_con)
+            self._non_ssl_port = utils.get_radosgw_port_no(ssh_con)
+        else:
+            self._hostname, self._ip = utils.get_hostname_ip()
+            self._non_ssl_port = utils.get_radosgw_port_no()
         self._ssl_port = 443
-        self._non_ssl_port = utils.get_radosgw_port_no()
-        self._ceph_conf = CephConfOp()
+        self._ceph_conf = CephConfOp(ssh_con)
         self._rgw_service = RGWService()
 
         # _sections_to_check = ['client.rgw.' + self._hostname,
@@ -48,9 +52,9 @@ class RGWSection(object):
 
 
 class RGWSectionOptions(RGWSection):
-    def __init__(self):
+    def __init__(self, ssh_con=None):
         RGWSection.__init__(
-            self,
+            self, ssh_con
         )
         self.rgw_section_options = dict(self._ceph_conf.cfg.items(self.section))
         log.info("options under {}".format(self.section))
@@ -58,8 +62,8 @@ class RGWSectionOptions(RGWSection):
 
 
 class Frontend(RGWSectionOptions):
-    def __init__(self):
-        RGWSectionOptions.__init__(self)
+    def __init__(self, ssh_con=None):
+        RGWSectionOptions.__init__(self,ssh_con)
 
         log.info("checking current rgw frontend")
         self.curr_frontend = (

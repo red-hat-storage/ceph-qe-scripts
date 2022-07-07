@@ -9,6 +9,7 @@ PyYaml
 s3cmd
 simplejson
 swiftly
+paramiko
 
 # for v1
 #psutil

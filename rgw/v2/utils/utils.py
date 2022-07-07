@@ -5,11 +5,13 @@ import json
 import logging
 import os
 import random
+from re import S
 import shutil
 import socket
 import string
 import subprocess
 import time
+import paramiko
 from random import randint
 
 import yaml
@@ -48,6 +50,32 @@ def exec_shell_cmd(cmd, debug_info=False):
         get_crash_log()
         return False
 
+def connect_remote(rgw_host, user_nm="root", passw="passwd"):
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(rgw_host, port=22, username=user_nm,
+            password=passw, timeout=3)
+    if ssh is None:
+        raise Exception("Connection with remote machine failed")
+    else:
+        return ssh
+    
+def remote_exec_shell_cmd(ssh, cmd):
+    try:
+        log.info("executing cmd on remote node: %s" % cmd)
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        cmd_output = stdout.read()
+        cmd_error = stderr.read().decode()
+        print(cmd_output)
+        if len(cmd_error) == 0:
+            return True
+        else:
+            return False
+    except Exception as e:
+        log.error("cmd execution failed on remote machine")
+        log.error(e)
+        get_crash_log()
+        return False
 
 def get_crash_log():
     # dump the crash log information on to the console, if any
@@ -128,14 +156,23 @@ class FileOps(object):
         fp.close()
         return data
 
-    def add_data(self, data):
+    def add_data(self, data,ssh_con=None):
+
         with open(self.fname, "w") as fp:
             if self.type == "json":
                 json.dump(data, fp, indent=4)
             if self.type == "txt":
                 fp.write(data)
             if self.type == "ceph.conf":
-                data.write(fp)
+                if ssh_con is not None:
+                    destination = "/etc/ceph/ceph.conf"
+                    data.write(fp)
+                    fp.close()
+                    sftp_client = ssh_con.open_sftp()
+                    sftp_client.put(self.fname, destination)
+                    sftp_client.close()
+                else:
+                    data.write(fp)                    
             elif self.type is None:
                 data.write(fp)
             elif self.type == "yaml":
@@ -144,10 +181,18 @@ class FileOps(object):
 
 
 class ConfigParse(object):
-    def __init__(self, fname):
+    def __init__(self, fname, ssh_con=None):
         self.fname = fname
         self.cfg = configparser.ConfigParser()
-        self.cfg.read(fname)
+        if ssh_con is not None:
+            tmp_file = fname+".rgw.tmp"
+            sftp_client = ssh_con.open_sftp()
+            fname = sftp_client.get(fname, tmp_file)
+            sftp_client.close()
+            self.cfg.read(tmp_file)
+            self.fname = tmp_file
+        else:
+            self.cfg.read(fname)
 
     def set(self, section, option, value=None):
         self.cfg.set(section, option, value)
@@ -285,37 +330,49 @@ class RGWService:
             log.info("using ceph orch")
             self.srv = CephOrchRGWSrv()
 
-    def restart(self):
+    def restart(self, ssh_con=None):
         """
         restarts the service
         """
         log.info("restarting service")
         cmd = self.srv.cmd("restart")
-        return exec_shell_cmd(cmd)
+        if ssh_con is not None:
+            return remote_exec_shell_cmd(ssh_con, cmd)
+        else:
+            return exec_shell_cmd(cmd)
 
-    def stop(self):
+    def stop(self, ssh_con=None):
         """
         stops the service
         """
         log.info("stopping service")
         cmd = self.srv.cmd("stop")
-        return exec_shell_cmd(cmd)
+        if ssh_con is not None:
+            return remote_exec_shell_cmd(ssh_con, cmd)
+        else:
+            return exec_shell_cmd(cmd)
 
-    def start(self):
+    def start(self ,ssh_con=None):
         """
         starts the service
         """
         log.info("starting service")
         cmd = self.srv.cmd("start")
-        return exec_shell_cmd(cmd)
+        if ssh_con is not None:
+            return remote_exec_shell_cmd(ssh_con, cmd)
+        else:
+            return exec_shell_cmd(cmd)
 
-    def status(self):
+    def status(self ,ssh_con=None):
         """
         Get status of the service
         """
         log.info("service status")
         cmd = self.srv.cmd("status")
-        return exec_shell_cmd(cmd)
+        if ssh_con is not None:
+            return remote_exec_shell_cmd(ssh_con, cmd)
+        else:
+            return exec_shell_cmd(cmd)
 
 
 def get_rgw_frontends():
@@ -331,7 +388,7 @@ def get_rgw_frontends():
         log.debug(be)
 
 
-def get_radosgw_port_no():
+def get_radosgw_port_no(ssh_con=None):
     """
     Return the RGW gateway port number.
 
@@ -345,8 +402,11 @@ def get_radosgw_port_no():
         for config in configs:
             if "port" in config:
                 return config.split("=")[-1]
-
-    op = exec_shell_cmd("sudo netstat -nltp | grep radosgw")
+    if ssh_con is not None:
+        stdin, stdout, stderr = ssh_con.exec_command('sudo netstat -nltp | grep radosgw')
+        op = stdout.readline().strip()
+    else:
+        op = exec_shell_cmd("sudo netstat -nltp | grep radosgw")
     log.info(f"output: {op}")
 
     if not op:
@@ -569,10 +629,15 @@ def wait_till_bucket_synced(name, timeout=120, interval=5):
     return False
 
 
-def get_hostname_ip():
+def get_hostname_ip(ssh_con=None):
     try:
-        hostname = socket.gethostname()
-        ip = socket.gethostbyname(hostname)
+        if ssh_con is not None:
+            stdin, stdout, stderr = ssh_con.exec_command('hostname')
+            hostname = stdout.readline().strip()
+            ip = socket.gethostbyname(str(hostname))
+        else:
+            hostname = socket.gethostname()
+            ip = socket.gethostbyname(hostname)
         log.info("Hostname : %s  " % hostname)
         log.info("IP : %s" % ip)
         return hostname, ip

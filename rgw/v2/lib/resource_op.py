@@ -186,7 +186,7 @@ class Config(object):
             self.doc = yaml.safe_load(f)
         log.info("got config: \n%s" % self.doc)
 
-    def read(self):
+    def read(self, ssh_con=None):
         """
         This function reads all the configurations parameters
         """
@@ -261,7 +261,7 @@ class Config(object):
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:
-            frontend_config = Frontend()
+            frontend_config = Frontend(ssh_con)
         else:
             frontend_config = Frontend_CephAdm()
 
