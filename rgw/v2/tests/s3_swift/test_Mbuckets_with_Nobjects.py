@@ -129,16 +129,22 @@ def test_exec(config):
                         == compression_type
                     ):
                         log.info("Compression enabled successfully")
+                    else:
+                        log.error("Compression is not enabled on cluster")
+                        raise TestExecError("Compression is not enabled on cluster")
 
                 else:
-                    if ceph_version in ["nautilus", "octopus"]:
-                        if (
-                            data["placement_pools"][0]["val"]["storage_classes"][
-                                "STANDARD"
-                            ]["compression_type"]
-                            == compression_type
-                        ):
-                            log.info("Compression enabled successfully")
+                    if (
+                        data["placement_pools"][0]["val"]["storage_classes"][
+                            "STANDARD"
+                        ]["compression_type"]
+                        == compression_type
+                    ):
+                        log.info("Compression enabled successfully")
+                    else:
+                        log.error("Compression is not enabled on cluster")
+                        raise TestExecError("Compression is not enabled on cluster")
+
             except ValueError as e:
                 exit(str(e))
             log.info("trying to restart rgw services ")
