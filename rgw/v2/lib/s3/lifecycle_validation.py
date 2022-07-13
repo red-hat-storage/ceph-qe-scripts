@@ -51,7 +51,7 @@ def validate_prefix_rule_non_versioned(bucket):
     json_doc = json.loads(op)
     objects = json_doc["usage"]["rgw.main"]["num_objects"]
     if objects != 0:
-        log.error("lc validation failed")
+        raise AssertionError("lc validation failed")
 
 
 def validate_and_rule(bucket, config):
