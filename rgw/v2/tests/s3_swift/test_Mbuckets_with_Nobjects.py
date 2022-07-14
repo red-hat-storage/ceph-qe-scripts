@@ -450,13 +450,18 @@ def test_exec(config):
                             time.sleep(10)
                             reusable.check_sync_status()
                             reusable.delete_bucket(bucket)
+                            ceph_version_id, _ = utils.get_ceph_version()
                             cmd = f"radosgw-admin bucket stats --bucket={bucket.name}"
                             ec, _ = sp.getstatusoutput(cmd)
                             log.info(f"Bucket stats for non-existent is {ec}")
-                            if ec != 2:
-                                raise TestExecError(
-                                    "Bucket stats for non-existent bucket should return failure (2) or ENOENT."
-                                )
+                            if (
+                                float(ceph_version_id[0]) >= 16
+                                and float(ceph_version_id[1]) >= 2.8
+                            ):
+                                if ec != 2:
+                                    raise TestExecError(
+                                        "Bucket stats for non-existent bucket should return failure (2) or ENOENT."
+                                    )
                     if config.bucket_sync_run_with_disable_sync_thread:
                         out = utils.check_bucket_sync(bucket.name)
                         if out is False:
