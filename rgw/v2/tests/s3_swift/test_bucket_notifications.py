@@ -193,7 +193,7 @@ def test_exec(config):
                     reusable.delete_objects(bucket)
 
             # start kafka broker and consumer
-            event_record_path = "/home/cephuser/event_record"
+            event_record_path = "/tmp/event_record"
             start_consumer = notification.start_kafka_broker_consumer(
                 topic_name, event_record_path
             )
@@ -209,6 +209,12 @@ def test_exec(config):
                 raise EventRecordDataError(
                     "Event record is empty! notification is not seen"
                 )
+        # put empty bucket notification to remove existing configuration
+        if config.test_ops.get("put_empty_bucket_notification", False):
+            notification.put_empty_bucket_notification(
+                rgw_s3_client,
+                bucket_name_to_create,
+            )
 
         # delete topic logs on kafka broker
         notification.del_topic_from_kafka_broker(topic_name)
