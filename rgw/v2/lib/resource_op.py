@@ -233,6 +233,7 @@ class Config(object):
         self.sts = self.doc["config"].get("sts")
         self.ceph_conf = self.doc["config"].get("ceph_conf")
         self.gc_verification = self.doc["config"].get("gc_verification", False)
+        self.etag_verification = self.doc["config"].get("etag_verification", False)
         self.bucket_sync_crash = self.doc["config"].get("bucket_sync_crash", False)
         self.bucket_sync_status = self.doc["config"].get("bucket_sync_status", False)
         self.bucket_sync_run = self.doc["config"].get("bucket_sync_run", False)
