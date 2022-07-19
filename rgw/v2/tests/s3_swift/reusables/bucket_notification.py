@@ -105,7 +105,21 @@ def put_bucket_notification(
         raise TestExecError("put bucket notification failed")
 
 
-def get_bucket_notification(rgw_s3_client, bucketname):
+def put_empty_bucket_notification(rgw_s3_client, bucketname):
+    """
+    put empty bucket notification. Ref BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2017389
+    """
+    log.info(f"put empty bucket notification on {bucketname}")
+    put_empty_bkt_notification = rgw_s3_client.put_bucket_notification_configuration(
+        Bucket=bucketname,
+        NotificationConfiguration={},
+    )
+    if put_empty_bkt_notification is False:
+        raise TestExecError("put empty bucket notifcation failed")
+    get_bucket_notification(rgw_s3_client, bucketname, empty=True)
+
+
+def get_bucket_notification(rgw_s3_client, bucketname, empty=False):
     """
     get bucket notification for a given bucket
     """
@@ -113,9 +127,10 @@ def get_bucket_notification(rgw_s3_client, bucketname):
         Bucket=bucketname
     )
     if get_bkt_notification is False:
-        raise TestExecError(
-            f"failed to get bucket notification for bucket : {bucketname}"
-        )
+        if not empty:
+            raise TestExecError(
+                f"failed to get bucket notification for bucket : {bucketname}"
+            )
     get_bucket_notification_json = json.dumps(get_bkt_notification, indent=2)
     log.info(
         f"bucket notification for bucket: {bucketname} is {get_bucket_notification_json}"

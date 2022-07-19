@@ -258,6 +258,9 @@ class Config(object):
         self.persistent_flag = self.test_ops.get("persistent_flag", False)
         self.copy_object = self.test_ops.get("copy_object", False)
         self.get_topic_info = self.test_ops.get("get_topic_info", False)
+        self.put_empty_bucket_notification = self.test_ops.get(
+            "put_empty_bucket_notification", False
+        )
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:
