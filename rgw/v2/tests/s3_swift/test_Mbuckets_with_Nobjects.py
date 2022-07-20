@@ -16,7 +16,8 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
         test_multisite_manual_resharding_greenfield.yaml
         test_multisite_dynamic_resharding_greenfield.yaml
 	test_gc_list_multipart.yaml
-    
+        test_Mbuckets_with_Nobjects_etag.yaml
+
 Operation:
 	Creates M bucket and N objects
 	Creates M bucket and N objects. Verify checksum of the downloaded objects
@@ -27,6 +28,7 @@ Operation:
 	Creates M bucket and N objects. Upload multipart object.
 	Creates M bucket and N objects. With sharding set to max_shards as specified in the config
 	Verify gc command
+        Verify eTag
 """
 # test basic creation of buckets with objects
 import os
@@ -321,6 +323,33 @@ def test_exec(config):
                         if config.local_file_delete is True:
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
+
+                        if config.etag_verification is True:
+                            log.info(f"Verification of eTag is started!!! ")
+                            object_ptr = s3lib.resource_op(
+                                {
+                                    "obj": bucket,
+                                    "resource": "Object",
+                                    "args": [s3_object_name],
+                                }
+                            )
+                            object_info = object_ptr.get()
+                            eTag_aws = object_info["ETag"].split('"')[1]
+                            log.info(f"etag from aws is :{eTag_aws}")
+                            cmd = f"radosgw-admin bucket list --bucket {bucket.name}"
+                            out = utils.exec_shell_cmd(cmd)
+                            data = json.loads(out)
+                            for object in data:
+                                if str(s3_object_name) == str(object["name"]):
+                                    eTag_radosgw = object["meta"]["etag"]
+                                    log.info(f"etag from radosgw is :{eTag_radosgw}")
+                                    if str(eTag_aws) == str(eTag_radosgw):
+                                        log.info(f"eTag matched!!")
+                                    else:
+                                        raise AssertionError(
+                                            f"mismatch found in the eTAG from aws and radosgw"
+                                        )
+
                     if config.reshard_cancel_cmd:
                         op = utils.exec_shell_cmd(
                             f"radosgw-admin reshard add --bucket {bucket.name} --num-shards 29"
