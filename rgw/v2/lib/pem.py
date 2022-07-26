@@ -45,8 +45,8 @@ def create_pem():
         return PEM_FILE_PATH
 
     except Exception as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         sys.exit(1)
 
 

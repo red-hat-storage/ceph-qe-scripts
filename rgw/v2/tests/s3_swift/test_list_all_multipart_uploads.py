@@ -173,7 +173,7 @@ def test_exec(config):
             % (tenant1_user2_info["user_id"], t1_u1_bucket2.name)
         )
     except ClientError as err:
-        log.info("Listing failed as expected with exception: %s" % err)
+        log.error("Listing failed as expected with exception: %s" % err)
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
@@ -221,7 +221,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

@@ -267,6 +267,6 @@ if __name__ == "__main__":
 
     except (RGWBaseException, Exception) as e:
         log.error(e)
-        log.info(traceback.format_exc())
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

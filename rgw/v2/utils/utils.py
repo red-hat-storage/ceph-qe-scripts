@@ -577,7 +577,7 @@ def get_hostname_ip():
         log.info("IP : %s" % ip)
         return hostname, ip
     except Exception as e:
-        log.info(e)
+        log.error(e)
         log.error("unable to get Hostname and IP")
 
 

@@ -204,9 +204,9 @@ def test_exec(config):
         response = s3_client.head_object(Bucket=bucket_name, Key=unexisting_object)
     except botocore.exceptions.ClientError as e:
         response_code = e.response["Error"]["Code"]
-        log.info(response_code)
+        log.error(response_code)
         if e.response["Error"]["Code"] == "404":
-            log.info("404 Unexisting Object Not Found")
+            log.error("404 Unexisting Object Not Found")
         elif e.response["Error"]["Code"] == "403":
             raise TestExecError("Error code : 403 - HeadObject operation: Forbidden")
 
@@ -248,7 +248,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

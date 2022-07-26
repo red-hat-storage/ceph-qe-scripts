@@ -148,6 +148,7 @@ def test_exec(config):
                         raise TestExecError("Compression is not enabled on cluster")
 
             except ValueError as e:
+                log.error(e)
                 exit(str(e))
             log.info("trying to restart rgw services ")
             srv_restarted = rgw_service.restart()
@@ -651,7 +652,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)
