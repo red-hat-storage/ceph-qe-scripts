@@ -117,6 +117,7 @@ def test_exec(config):
 
     auth = Auth(user2, ssl=config.ssl)
     sts_client = auth.do_auth_sts_client()
+    rgw_s3_client = auth.do_auth_using_client()
 
     log.info("assuming role")
     assume_role_response = sts_client.assume_role(
@@ -201,10 +202,19 @@ def test_exec(config):
         all_keys_in_buck1 = []
         for obj in bucket1.objects.all():
             all_keys_in_buck1.append(obj.key)
-        copy_source = {"Bucket": bucket1.name, "Key": all_keys_in_buck1[0]}
-        copy_object_name = all_keys_in_buck1[0] + "_copied_obj"
-        log.info(f"copy object name: {copy_object_name}")
-        bucket2.copy(copy_source, copy_object_name)
+        copy_objects = []
+        for object_name in all_keys_in_buck1:
+            copy_object_name = object_name + "_copied_obj"
+            copy_objects.append(copy_object_name)
+            log.info(f"copy object name: {copy_object_name}")
+            rgw_s3_client.copy_object(
+                Bucket=bucket2.name,
+                Key=copy_object_name,
+                CopySource={
+                    "Bucket": bucket1.name,
+                    "Key": object_name,
+                },
+            )
 
         # list the objects in bucket2
         log.info("listing all objects im bucket2 after copy")
@@ -214,10 +224,11 @@ def test_exec(config):
             all_bucket2_objs.append(obj.key)
 
         # check for object existence in bucket2
-        if copy_object_name in all_bucket2_objs:
-            log.info("server side copy successful")
-        else:
-            raise TestExecError("server side copy operation was not successful")
+        for copy_object_name in copy_objects:
+            if copy_object_name in all_bucket2_objs:
+                log.info("server side copy successful")
+            else:
+                raise TestExecError("server side copy operation was not successful")
 
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
