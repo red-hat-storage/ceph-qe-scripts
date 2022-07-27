@@ -1,0 +1,4 @@
+# script: test_acl_ops.py
+config:
+  test_ops:
+    set_acl: true
