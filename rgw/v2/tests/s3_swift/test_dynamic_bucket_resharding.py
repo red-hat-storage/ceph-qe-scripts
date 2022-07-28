@@ -73,7 +73,20 @@ def test_exec(config):
             ConfigOpts.rgw_max_objs_per_shard,
             str(config.max_objects_per_shard),
         )
+
         ceph_conf.set_to_ceph_conf("global", ConfigOpts.rgw_dynamic_resharding, "True")
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_max_dynamic_shards,
+            str(config.max_rgw_dynamic_shards),
+        )
+
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_reshard_thread_interval,
+            str(config.rgw_reshard_thread_interval),
+        )
+
         num_shards_expected = config.objects_count / config.max_objects_per_shard
         log.info("num_shards_expected: %s" % num_shards_expected)
         log.info("trying to restart services ")
