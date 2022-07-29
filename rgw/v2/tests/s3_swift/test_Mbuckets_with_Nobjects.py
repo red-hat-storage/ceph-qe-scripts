@@ -175,6 +175,22 @@ def test_exec(config):
             )
             srv_restarted = rgw_service.restart()
 
+        if config.test_aync_data_notifications:
+            log.info("Testing asyc data notifications")
+            ceph_version_id, _ = utils.get_ceph_version()
+            if float(ceph_version_id[1]) >= 6 and float(ceph_version_id[5]) >= 8:
+                cmd = " ceph orch ps | grep rgw"
+                out = utils.exec_shell_cmd(cmd)
+                rgw_process_name = out.split()[0]
+                utils.exec_shell_cmd(
+                    f"ceph config set client.{rgw_process_name} rgw_data_notify_interval_msec 0"
+                )
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.debug_rgw,
+                str(config.debug_rgw),
+            )
+
         # create buckets
         if config.test_ops["create_bucket"] is True:
             log.info("no of buckets to create: %s" % config.bucket_count)
@@ -562,6 +578,14 @@ def test_exec(config):
             if final_op != -1:
                 test_info.failed_status("test failed")
                 sys.exit(1)
+
+    # test async rgw_data_notify_interval_msec=0 dos not disable async data notifications
+    out = utils.disable_async_data_notifications()
+    log.info("Checking 'notifying datalog change' entries are not present in rgw logs.")
+    if not out:
+        raise TestExecError(
+            "No 'notifying datalog change' entries should be seen in rgw logs when rgw_data_notify_interval_msec=0 "
+        )
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
