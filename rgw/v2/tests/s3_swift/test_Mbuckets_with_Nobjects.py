@@ -336,7 +336,9 @@ def test_exec(config):
                             object_info = object_ptr.get()
                             log.info(f"object info is {object_info}")
                             if object_info["ResponseMetadata"]["HTTPStatusCode"] != 200:
-                                raise AssertionError(f"failed to get response of objects")
+                                raise AssertionError(
+                                    f"failed to get response of objects"
+                                )
                             eTag_aws = object_info["ETag"].split('"')[1]
                             log.info(f"etag from aws is :{eTag_aws}")
                             cmd = f"radosgw-admin bucket list --bucket {bucket.name}"
