@@ -195,6 +195,12 @@ class Config(object):
         self.shards = self.doc["config"].get("shards")
         # todo: better suited to be added under ceph_conf
         self.max_objects_per_shard = self.doc["config"].get("max_objects_per_shard")
+        self.max_rgw_dynamic_shards = self.doc["config"].get(
+            "max_rgw_dynamic_shards", 1999
+        )
+        self.rgw_reshard_thread_interval = self.doc["config"].get(
+            "rgw_reshard_thread_interval", 600
+        )
         self.max_objects = None
         self.user_count = self.doc["config"].get("user_count")
         self.user_remove = self.doc["config"].get("user_remove", True)
