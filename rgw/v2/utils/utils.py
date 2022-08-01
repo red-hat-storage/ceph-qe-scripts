@@ -659,7 +659,7 @@ def disable_async_data_notifications():
     by setting rgw_data_notify_interval_msec=0. This will test at level 20,
     the rgw log does not show 'notifying datalog change' entries
     """
-    rgw_log_path = "sudo ls -t /var/log/ceph/*/ceph-client.rgw*"
+    rgw_log_path = "sudo ls -t /var/log/ceph/*/ceph-client.rgw* | head -1"
     out = exec_shell_cmd(rgw_log_path)
     rgw_log_file = out.rstrip("\n")
     search_string = "notifying datalog change"
