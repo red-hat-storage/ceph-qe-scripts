@@ -181,10 +181,32 @@ def test_exec(config):
                         )
                 if not config.parallel_lc:
                     life_cycle_rule = {"Rules": config.lifecycle_conf}
-                    reusable.put_get_bucket_lifecycle_test(
-                        bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
-                    )
-                    lc_ops.validate_and_rule(bucket, config)
+                    if not config.invalid_date:
+                        reusable.put_get_bucket_lifecycle_test(
+                            bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
+                        )
+                        lc_ops.validate_and_rule(bucket, config)
+                    else:
+                        bucket_life_cycle = s3lib.resource_op(
+                            {
+                                "obj": rgw_conn,
+                                "resource": "BucketLifecycleConfiguration",
+                                "args": [bucket.name],
+                            }
+                        )
+                        put_bucket_life_cycle = s3lib.resource_op(
+                            {
+                                "obj": bucket_life_cycle,
+                                "resource": "put",
+                                "kwargs": dict(LifecycleConfiguration=life_cycle_rule),
+                            }
+                        )
+                        if put_bucket_life_cycle:
+                            lc_list = utils.exec_shell_cmd("radosgw-admin lc list")
+                            log.info(f"lc list Details: {lc_list}")
+                            raise TestExecError(
+                                "Put bucket lifecycle Succeeded, expected failure due to invalid date in LC rule"
+                            )
                 else:
                     log.info("Inside parallel lc")
                     buckets.append(bucket)

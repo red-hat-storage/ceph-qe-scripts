@@ -225,6 +225,7 @@ class Config(object):
         self.rgw_lc_debug_interval = self.doc["config"].get("rgw_lc_debug_interval", 30)
         self.rgw_lc_max_worker = self.doc["config"].get("rgw_lc_max_worker", 10)
         self.parallel_lc = self.doc["config"].get("parallel_lc", False)
+        self.invalid_date = self.doc["config"].get("invalid_date", False)
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
         self.reshard_cancel_cmd = self.doc["config"].get("reshard_cancel_cmd", False)
