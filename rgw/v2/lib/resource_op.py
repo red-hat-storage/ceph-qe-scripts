@@ -249,6 +249,7 @@ class Config(object):
         self.bucket_sync_status = self.doc["config"].get("bucket_sync_status", False)
         self.bucket_sync_run = self.doc["config"].get("bucket_sync_run", False)
         self.bucket_stats = self.doc["config"].get("bucket_stats", False)
+        self.rgw_ops_log = self.doc["config"].get("rgw_ops_log", False)
         self.header_size = self.doc["config"].get("header_size", False)
         self.test_datalog_trim_command = self.doc["config"].get(
             "test_datalog_trim_command", False
