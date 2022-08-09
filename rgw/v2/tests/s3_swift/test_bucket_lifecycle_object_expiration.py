@@ -5,7 +5,7 @@ a) Prefix filters
 b) ANDing of Prefix and TAG filters
 
 Usage: test_bucket_lifecycle_object_expiration.py -c configs/<input-yaml>
-where : <input-yaml> are test_lc_date.yaml, test_lc_multiple_rule_prefix_current_days.yaml, test_lc_rule_delete_marker.yaml, test_lc_rule_prefix_and_tag.yaml and test_lc_rule_prefix_non_current_days.yaml
+where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, test_lc_multiple_rule_prefix_current_days.yaml, test_lc_rule_delete_marker.yaml, test_lc_rule_prefix_and_tag.yaml and test_lc_rule_prefix_non_current_days.yaml
 
 Operation:
 
@@ -24,6 +24,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+import json
 import logging
 import time
 import traceback
@@ -59,6 +60,17 @@ def test_exec(config):
     ceph_conf.set_to_ceph_conf(
         "global", ConfigOpts.rgw_lc_debug_interval, str(config.rgw_lc_debug_interval)
     )
+    if not config.rgw_enable_lc_threads:
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_enable_lc_threads,
+            str(config.rgw_enable_lc_threads),
+        )
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_lifecycle_work_time,
+            str(config.rgw_lifecycle_work_time),
+        )
     _, version_name = utils.get_ceph_version()
     if "nautilus" in version_name:
         ceph_conf.set_to_ceph_conf(
@@ -69,9 +81,6 @@ def test_exec(config):
             section=None,
             option=ConfigOpts.rgw_lc_max_worker,
             value=str(config.rgw_lc_max_worker),
-        )
-        ceph_conf.set_to_ceph_conf(
-            section=None, option=ConfigOpts.rgw_lc_debug_interval, value="30"
         )
     log.info("trying to restart services")
     srv_restarted = rgw_service.restart()
@@ -181,10 +190,56 @@ def test_exec(config):
                         )
                 if not config.parallel_lc:
                     life_cycle_rule = {"Rules": config.lifecycle_conf}
-                    if not config.invalid_date:
+                    if not config.invalid_date and config.rgw_enable_lc_threads:
                         reusable.put_get_bucket_lifecycle_test(
                             bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
                         )
+                        lc_ops.validate_and_rule(bucket, config)
+                    elif not config.invalid_date and not config.rgw_enable_lc_threads:
+                        bucket_before_lc = json.loads(
+                            utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket={bucket.name}"
+                            )
+                        )
+                        reusable.put_bucket_lifecycle(
+                            bucket, rgw_conn, rgw_conn2, life_cycle_rule
+                        )
+                        time.sleep(60)
+                        lc_list_before = json.loads(
+                            utils.exec_shell_cmd("radosgw-admin lc list")
+                        )
+                        log.info(f"lc lists is {lc_list_before}")
+                        for data in lc_list_before:
+                            if data["bucket"] == bucket.name:
+                                if data["status"] != "UNINITIAL":
+                                    raise TestExecError(
+                                        f"Since rgw_enable_lc_threads set to false for bucket {bucket.name}, lc status should be 'UNINITIAL'"
+                                    )
+                        bucket_after_lc = json.loads(
+                            utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket={bucket.name}"
+                            )
+                        )
+                        if (
+                            bucket_before_lc["usage"]["rgw.main"]["num_objects"]
+                            != bucket_after_lc["usage"]["rgw.main"]["num_objects"]
+                        ):
+                            raise TestExecError(
+                                f"Since rgw_enable_lc_threads set to false for bucket {bucket.name}, object count should not decrease"
+                            )
+                        utils.exec_shell_cmd(
+                            f"radosgw-admin lc process --bucket {bucket.name}"
+                        )
+                        list_lc_after = json.loads(
+                            utils.exec_shell_cmd("radosgw-admin lc list")
+                        )
+                        log.info(f"lc lists is {list_lc_after}")
+                        for data in list_lc_after:
+                            if data["bucket"] == bucket.name:
+                                if data["status"] == "UNINITIAL":
+                                    raise TestExecError(
+                                        f"Even if rgw_enable_lc_threads set to false manual lc process for bucket {bucket.name} should work"
+                                    )
                         lc_ops.validate_and_rule(bucket, config)
                     else:
                         bucket_life_cycle = s3lib.resource_op(
