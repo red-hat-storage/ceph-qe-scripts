@@ -223,6 +223,12 @@ class Config(object):
         self.copy_version_object = self.doc["config"].get("copy_version_object", False)
         self.object_expire = self.doc["config"].get("object_expire", False)
         self.rgw_lc_debug_interval = self.doc["config"].get("rgw_lc_debug_interval", 30)
+        self.rgw_enable_lc_threads = self.doc["config"].get(
+            "rgw_enable_lc_threads", True
+        )
+        self.rgw_lifecycle_work_time = self.doc["config"].get(
+            "rgw_lifecycle_work_time", "00:00-06:00"
+        )
         self.rgw_lc_max_worker = self.doc["config"].get("rgw_lc_max_worker", 10)
         self.parallel_lc = self.doc["config"].get("parallel_lc", False)
         self.invalid_date = self.doc["config"].get("invalid_date", False)

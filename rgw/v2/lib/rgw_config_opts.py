@@ -21,6 +21,8 @@ class ConfigOpts(object):
     rgw_max_dynamic_shards = "rgw_max_dynamic_shards"
     rgw_reshard_thread_interval = "rgw_reshard_thread_interval"
     rgw_lc_debug_interval = "rgw_lc_debug_interval"
+    rgw_enable_lc_threads = "rgw_enable_lc_threads"
+    rgw_lifecycle_work_time = "rgw_lifecycle_work_time"
     rgw_lc_max_worker = "rgw_lc_max_worker"
     debug_rgw = "debug_rgw"
     rgw_crypt_require_ssl = "rgw_crypt_require_ssl"
