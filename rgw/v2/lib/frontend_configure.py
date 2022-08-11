@@ -138,8 +138,8 @@ class Frontend(RGWSectionOptions):
             return frontend
 
         except RGWBaseException as e:
-            log.info(e)
-            log.info(traceback.format_exc())
+            log.error(e)
+            log.error(traceback.format_exc())
             sys.exit(1)
 
 

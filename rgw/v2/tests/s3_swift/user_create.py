@@ -48,13 +48,13 @@ def test_exec(config):
         test_info.success_status("test passed")
         sys.exit(0)
     except Exception as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("user creation failed")
         sys.exit(1)
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("user creation failed")
         sys.exit(1)
 

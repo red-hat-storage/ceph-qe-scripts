@@ -195,6 +195,7 @@ def test_exec(config):
         if crash_info:
             raise TestExecError("ceph daemon crash found!")
     except ClientError as e:
+        log.error(e)
         print("403 Forbidden, invalid arn in the policy")
 
 
@@ -233,7 +234,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)
