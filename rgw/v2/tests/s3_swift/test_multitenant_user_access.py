@@ -52,7 +52,7 @@ def create_tenant_user(tenant_name, user_id, cluster_name="ceph"):
     )
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
@@ -65,10 +65,10 @@ def test_exec(config):
     tenant1 = "tenant1" + "_" + str(random.randrange(1, 100))
     tenant2 = "tenant2" + "_" + str(random.randrange(1, 100))
     t1_u1_info = create_tenant_user(tenant_name=tenant1, user_id=user_names[0])
-    t1_u1_auth = Auth(t1_u1_info, ssl=config.ssl)
+    t1_u1_auth = Auth(t1_u1_info, ssh_con, ssl=config.ssl)
     t1_u1 = t1_u1_auth.do_auth()
     t2_u1_info = create_tenant_user(tenant_name=tenant2, user_id=user_names[0])
-    t2_u1_auth = Auth(t2_u1_info, ssl=config.ssl)
+    t2_u1_auth = Auth(t2_u1_info, ssh_con, ssl=config.ssl)
     t2_u1 = t2_u1_auth.do_auth()
     t1_u1_b1 = reusable.create_bucket(
         bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info
@@ -94,7 +94,7 @@ def test_exec(config):
         user_info=t1_u1_info,
     )
     t2_u2_info = create_tenant_user(tenant_name=tenant2, user_id=user_names[1])
-    t2_u2_auth = Auth(t2_u2_info, ssl=config.ssl)
+    t2_u2_auth = Auth(t2_u2_info, ssh_con, ssl=config.ssl)
     t2_u2 = t2_u2_auth.do_auth()
     # will try to access the bucket and objects in both tenants
     # access t1_u1_b1
@@ -166,23 +166,30 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        config.read(ssh_con)
         config.user_count = 2
         config.objects_count = 2
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

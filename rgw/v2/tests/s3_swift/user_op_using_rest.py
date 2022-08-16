@@ -68,7 +68,7 @@ def verify_user(api_user, regular_user):
         return False
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
@@ -76,8 +76,8 @@ def test_exec(config):
 
     umgmt = UserMgmt()
 
-    host, ip = utils.get_hostname_ip()
-    port = utils.get_radosgw_port_no()
+    host, ip = utils.get_hostname_ip(ssh_con)
+    port = utils.get_radosgw_port_no(ssh_con)
     hostname = str(ip) + ":" + str(port)
     log.info(hostname)
 
@@ -167,18 +167,25 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
-        test_exec(config)
+        config.read(ssh_con)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

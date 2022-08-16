@@ -53,9 +53,7 @@ class RGWSection(object):
 
 class RGWSectionOptions(RGWSection):
     def __init__(self, ssh_con=None):
-        RGWSection.__init__(
-            self, ssh_con
-        )
+        RGWSection.__init__(self, ssh_con)
         self.rgw_section_options = dict(self._ceph_conf.cfg.items(self.section))
         log.info("options under {}".format(self.section))
         log.info(self.rgw_section_options)
@@ -63,7 +61,7 @@ class RGWSectionOptions(RGWSection):
 
 class Frontend(RGWSectionOptions):
     def __init__(self, ssh_con=None):
-        RGWSectionOptions.__init__(self,ssh_con)
+        RGWSectionOptions.__init__(self, ssh_con)
 
         log.info("checking current rgw frontend")
         self.curr_frontend = (
@@ -80,7 +78,7 @@ class Frontend(RGWSectionOptions):
         log.info("curr_ssl_status from ceph conf is : {}".format(self.curr_ssl))
 
     @decorators.check_pem
-    def set_frontend(self, frontend, **kwargs):
+    def set_frontend(self, frontend, ssh_con=None, **kwargs):
         """
         sets rgw_frontend in ceph conf and restart the services
 
@@ -127,9 +125,11 @@ class Frontend(RGWSectionOptions):
                 )
 
             log.info("conf_val: {}".format(conf_val))
-            self._ceph_conf.set_to_ceph_conf(self.section, "rgw frontends", conf_val)
+            self._ceph_conf.set_to_ceph_conf(
+                self.section, "rgw frontends", conf_val, ssh_con
+            )
 
-            srv_restarted = self._rgw_service.restart()
+            srv_restarted = self._rgw_service.restart(ssh_con)
             time.sleep(10)
             if srv_restarted is False:
                 raise RGWBaseException("RGW service restart failed")
@@ -142,8 +142,8 @@ class Frontend(RGWSectionOptions):
             return frontend
 
         except RGWBaseException as e:
-            log.info(e)
-            log.info(traceback.format_exc())
+            log.error(e)
+            log.error(traceback.format_exc())
             sys.exit(1)
 
 

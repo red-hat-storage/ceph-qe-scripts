@@ -63,7 +63,7 @@ def get_svc_time():
     return srv_time
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
@@ -86,8 +86,8 @@ def test_exec(config):
         tenant_name=tenant2, no_of_users_to_create=config.user_count
     )
     tenant2_user1_info = tenant2_user_info[0]
-    tenant1_user1_auth = Auth(tenant1_user1_info, ssl=config.ssl)
-    tenant2_user1_auth = Auth(tenant2_user1_info, ssl=config.ssl)
+    tenant1_user1_auth = Auth(tenant1_user1_info, ssh_con, ssl=config.ssl)
+    tenant2_user1_auth = Auth(tenant2_user1_info, ssh_con, ssl=config.ssl)
     rgw_tenant1_user1 = tenant1_user1_auth.do_auth()
     rgw_tenant1_user1_c = tenant1_user1_auth.do_auth_using_client()
     rgw_tenant2_user1 = tenant2_user1_auth.do_auth()
@@ -304,22 +304,29 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        config.read(ssh_con)
         if config.test_ops.get("upload_type") == "multipart":
             if config.mapped_sizes is None:
                 config.mapped_sizes = utils.make_mapped_sizes(config)
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

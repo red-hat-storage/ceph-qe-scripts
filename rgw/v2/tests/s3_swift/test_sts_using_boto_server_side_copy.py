@@ -49,11 +49,11 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ceph_config_set = CephConfOp()
+    ceph_config_set = CephConfOp(ssh_con)
     rgw_service = RGWService()
 
     if config.sts is None:
@@ -67,17 +67,22 @@ def test_exec(config):
     log.info("adding sts config to ceph.conf")
     sesison_encryption_token = "abcdefghijklmnoq"
     ceph_config_set.set_to_ceph_conf(
-        "global", ConfigOpts.rgw_sts_key, sesison_encryption_token
+        "global",
+        ConfigOpts.rgw_sts_key,
+        sesison_encryption_token,
+        ssh_con,
     )
-    ceph_config_set.set_to_ceph_conf("global", ConfigOpts.rgw_s3_auth_use_sts, "True")
-    srv_restarted = rgw_service.restart()
+    ceph_config_set.set_to_ceph_conf(
+        "global", ConfigOpts.rgw_s3_auth_use_sts, "True", ssh_con
+    )
+    srv_restarted = rgw_service.restart(ssh_con)
     time.sleep(30)
     if srv_restarted is False:
         raise TestExecError("RGW service restart failed")
     else:
         log.info("RGW service restarted")
 
-    auth = Auth(user1, ssl=config.ssl)
+    auth = Auth(user1, ssh_con, ssl=config.ssl)
     iam_client = auth.do_auth_iam_client()
 
     policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
@@ -115,8 +120,9 @@ def test_exec(config):
     log.info("put_policy_response")
     log.info(put_policy_response)
 
-    auth = Auth(user2, ssl=config.ssl)
+    auth = Auth(user2, ssh_con, ssl=config.ssl)
     sts_client = auth.do_auth_sts_client()
+    rgw_s3_client = auth.do_auth_using_client()
 
     log.info("assuming role")
     assume_role_response = sts_client.assume_role(
@@ -135,7 +141,7 @@ def test_exec(config):
     }
 
     log.info("got the credentials after assume role")
-    s3client = Auth(assumed_role_user_info, ssl=config.ssl)
+    s3client = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
     s3_client_rgw = s3client.do_auth()
 
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -201,10 +207,19 @@ def test_exec(config):
         all_keys_in_buck1 = []
         for obj in bucket1.objects.all():
             all_keys_in_buck1.append(obj.key)
-        copy_source = {"Bucket": bucket1.name, "Key": all_keys_in_buck1[0]}
-        copy_object_name = all_keys_in_buck1[0] + "_copied_obj"
-        log.info(f"copy object name: {copy_object_name}")
-        bucket2.copy(copy_source, copy_object_name)
+        copy_objects = []
+        for object_name in all_keys_in_buck1:
+            copy_object_name = object_name + "_copied_obj"
+            copy_objects.append(copy_object_name)
+            log.info(f"copy object name: {copy_object_name}")
+            rgw_s3_client.copy_object(
+                Bucket=bucket2.name,
+                Key=copy_object_name,
+                CopySource={
+                    "Bucket": bucket1.name,
+                    "Key": object_name,
+                },
+            )
 
         # list the objects in bucket2
         log.info("listing all objects im bucket2 after copy")
@@ -214,10 +229,11 @@ def test_exec(config):
             all_bucket2_objs.append(obj.key)
 
         # check for object existence in bucket2
-        if copy_object_name in all_bucket2_objs:
-            log.info("server side copy successful")
-        else:
-            raise TestExecError("server side copy operation was not successful")
+        for copy_object_name in copy_objects:
+            if copy_object_name in all_bucket2_objs:
+                log.info("server side copy successful")
+            else:
+                raise TestExecError("server side copy operation was not successful")
 
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
@@ -246,21 +262,28 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        config.read(ssh_con)
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

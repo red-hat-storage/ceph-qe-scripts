@@ -1,36 +1,33 @@
 """
-test RGW with SSL configured on Beast or Civetweb
+Test NoSuchBucket error thrown for non existing bucket while applying ACL
 
-Usage - test_frontends_with_ssl.py -c configs/<input-yaml>
-where <input-yaml> are test_ssl_civetweb.yaml and test_ssl_beast.yaml
-
-Operation:
-- Create a user taking the inputs for frontends and authentication from the input-yaml
-- Create a bucket for that user and verify 
-
+Usage: test_acl_ops.py -c configs/<input-yaml>
+where : <input-yaml> is test_acl_ops.py
 """
-
 import os
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+import json
 import logging
+import time
 import traceback
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
+from botocore.exceptions import ClientError
 from v2.lib.exceptions import RGWBaseException
 from v2.lib.resource_op import Config
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
-
-
 TEST_DATA_PATH = None
 
 
@@ -38,19 +35,42 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ceph_conf = CephConfOp(ssh_con)
+    rgw_service = RGWService()
 
-    all_users_info = s3lib.create_users(config.user_count)
-    for each_user in all_users_info:
-        auth = Auth(each_user, ssh_con, ssl=config.ssl)
-        rgw_conn = auth.do_auth()
-        bucket_name_to_create2 = utils.gen_bucket_name_from_userid(each_user["user_id"])
-        log.info("creating bucket with name: %s" % bucket_name_to_create2)
-        bucket = reusable.create_bucket(bucket_name_to_create2, rgw_conn, each_user)
+    all_users_info = s3lib.create_users(1)
+    # authenticate
+    auth = Auth(all_users_info[0], ssh_con, ssl=config.ssl)
+    rgw_conn = auth.do_auth()
+
+    if config.set_acl:
+        try:
+            s3_obj_acl = s3lib.resource_op(
+                {
+                    "obj": rgw_conn,
+                    "resource": "ObjectAcl",
+                    "args": ["nonexistingbucket", "nonexistingobject"],
+                }
+            )
+            acls_set_status = s3_obj_acl.put(ACL="private")
+
+        except ClientError as e:
+            log.info(e.response)
+            if (
+                e.response["Error"]["Code"] == "NoSuchBucket"
+                and e.response["ResponseMetadata"]["HTTPStatusCode"] == 404
+            ):
+                log.info("Setting acl for non existing bucket failed as expected")
+
+    # check sync status if a multisite cluster
+    reusable.check_sync_status()
+
+    reusable.remove_user(all_users_info[0])
 
 
 if __name__ == "__main__":
 
-    test_info = AddTestInfo("test frontends configuration")
+    test_info = AddTestInfo("bucket life cycle: test object expiration")
     test_info.started_info()
 
     try:
@@ -83,7 +103,6 @@ if __name__ == "__main__":
         config = Config(yaml_file)
         config.read(ssh_con)
         test_exec(config, ssh_con)
-
         test_info.success_status("test passed")
         sys.exit(0)
 

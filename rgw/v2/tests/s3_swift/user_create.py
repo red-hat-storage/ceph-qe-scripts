@@ -12,6 +12,7 @@ import yaml
 from v2.lib.exceptions import RGWBaseException
 from v2.lib.resource_op import Config
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -20,7 +21,7 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
     test_info = AddTestInfo("create users")
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
@@ -48,13 +49,13 @@ def test_exec(config):
         test_info.success_status("test passed")
         sys.exit(0)
     except Exception as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("user creation failed")
         sys.exit(1)
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("user creation failed")
         sys.exit(1)
 
@@ -77,16 +78,21 @@ if __name__ == "__main__":
         help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
         default="info",
     )
+    parser.add_argument(
+        "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+    )
     args = parser.parse_args()
     yaml_file = args.config
+    rgw_node = args.rgw_node
+    ssh_con = None
+    if rgw_node != "127.0.0.1":
+        ssh_con = utils.connect_remote(rgw_node)
     log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
     configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
     config = Config(yaml_file)
-    config.read()
-    #        if config.mapped_sizes is None:
-    #           config.mapped_sizes = utils.make_mapped_sizes(config)
+    config.read(ssh_con)
     with open(yaml_file, "r") as f:
         doc = yaml.safe_load(f)
         config.user_count = doc["config"]["user_count"]
         log.info("user_count:%s\n" % (config.user_count))
-    test_exec(config)
+    test_exec(config, ssh_con)

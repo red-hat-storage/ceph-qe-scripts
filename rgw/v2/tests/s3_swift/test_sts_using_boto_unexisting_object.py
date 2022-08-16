@@ -48,11 +48,11 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ceph_config_set = CephConfOp()
+    ceph_config_set = CephConfOp(ssh_con)
     rgw_service = RGWService()
 
     if config.sts is None:
@@ -65,10 +65,12 @@ def test_exec(config):
     log.info("adding sts config to ceph.conf")
     sesison_encryption_token = "abcdefghijklmnoq"
     ceph_config_set.set_to_ceph_conf(
-        "global", ConfigOpts.rgw_sts_key, sesison_encryption_token
+        "global", ConfigOpts.rgw_sts_key, sesison_encryption_token, ssh_con
     )
-    ceph_config_set.set_to_ceph_conf("global", ConfigOpts.rgw_s3_auth_use_sts, "True")
-    srv_restarted = rgw_service.restart()
+    ceph_config_set.set_to_ceph_conf(
+        "global", ConfigOpts.rgw_s3_auth_use_sts, "True", ssh_con
+    )
+    srv_restarted = rgw_service.restart(ssh_con)
     time.sleep(30)
     if srv_restarted is False:
         raise TestExecError("RGW service restart failed")
@@ -84,7 +86,7 @@ def test_exec(config):
     utils.exec_shell_cmd(add_caps_cmd)
 
     # user1 auth with iam_client
-    auth = Auth(user1, ssl=config.ssl)
+    auth = Auth(user1, ssh_con, ssl=config.ssl)
     iam_client = auth.do_auth_iam_client()
 
     # policy document
@@ -125,7 +127,7 @@ def test_exec(config):
     bucket_name = "testbucket" + user1["user_id"]
 
     # authenticating user1 for bucket creation operation
-    auth = Auth(user1, ssl=config.ssl)
+    auth = Auth(user1, ssh_con, ssl=config.ssl)
     user1_info = {
         "access_key": user1["access_key"],
         "secret_key": user1["secret_key"],
@@ -165,7 +167,7 @@ def test_exec(config):
                     user1_info,
                 )
 
-    auth = Auth(user2, ssl=config.ssl)
+    auth = Auth(user2, ssh_con, ssl=config.ssl)
     sts_client = auth.do_auth_sts_client()
 
     log.info("assuming role")
@@ -184,7 +186,7 @@ def test_exec(config):
     }
     log.info("got the credentials after assume role")
 
-    s3client = Auth(assumed_role_user_info, ssl=config.ssl)
+    s3client = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
     s3_client = s3client.do_auth_using_client()
 
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -204,9 +206,9 @@ def test_exec(config):
         response = s3_client.head_object(Bucket=bucket_name, Key=unexisting_object)
     except botocore.exceptions.ClientError as e:
         response_code = e.response["Error"]["Code"]
-        log.info(response_code)
+        log.error(response_code)
         if e.response["Error"]["Code"] == "404":
-            log.info("404 Unexisting Object Not Found")
+            log.error("404 Unexisting Object Not Found")
         elif e.response["Error"]["Code"] == "403":
             raise TestExecError("Error code : 403 - HeadObject operation: Forbidden")
 
@@ -234,21 +236,28 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        config.read(ssh_con)
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

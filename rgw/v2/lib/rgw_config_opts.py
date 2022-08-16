@@ -1,14 +1,14 @@
-from errno import ESTALE
 import logging
 import os
 import sys
+from errno import ESTALE
 
-sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import v2.utils.utils as utils
 from v2.lib.exceptions import InvalidCephConfigOption
 from v2.utils.utils import ConfigParse, FileOps
 
 log = logging.getLogger()
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 
 
 class ConfigOpts(object):
@@ -19,7 +19,11 @@ class ConfigOpts(object):
     rgw_bucket_default_quota_max_objects = "rgw_bucket_default_quota_max_objects"
     rgw_dynamic_resharding = "rgw_dynamic_resharding"
     rgw_max_objs_per_shard = "rgw_max_objs_per_shard"
+    rgw_max_dynamic_shards = "rgw_max_dynamic_shards"
+    rgw_reshard_thread_interval = "rgw_reshard_thread_interval"
     rgw_lc_debug_interval = "rgw_lc_debug_interval"
+    rgw_enable_lc_threads = "rgw_enable_lc_threads"
+    rgw_lifecycle_work_time = "rgw_lifecycle_work_time"
     rgw_lc_max_worker = "rgw_lc_max_worker"
     debug_rgw = "debug_rgw"
     rgw_crypt_require_ssl = "rgw_crypt_require_ssl"

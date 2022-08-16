@@ -28,7 +28,7 @@ class Auth(object):
         self.access_key = user_info["access_key"]
         self.secret_key = user_info["secret_key"]
         if ssh_con is not None:
-            stdin, stdout, stderr = ssh_con.exec_command('hostname')
+            stdin, stdout, stderr = ssh_con.exec_command("hostname")
             self.hostname = stdout.readline().strip()
             self.port = utils.get_radosgw_port_no(ssh_con)
         else:

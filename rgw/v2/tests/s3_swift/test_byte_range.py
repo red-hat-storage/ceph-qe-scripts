@@ -33,7 +33,7 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
     test_info = AddTestInfo("Test Byte range")
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
@@ -44,7 +44,7 @@ def test_exec(config):
     all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
         # authenticate
-        auth = Auth(each_user)
+        auth = Auth(each_user, ssh_con)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
         # create buckets
@@ -92,10 +92,17 @@ if __name__ == "__main__":
         os.makedirs(TEST_DATA_PATH)
     parser = argparse.ArgumentParser(description="RGW S3 Automation")
     parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
+    parser.add_argument(
+        "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+    )
     args = parser.parse_args()
     yaml_file = args.config
+    rgw_node = args.rgw_node
+    ssh_con = None
+    if rgw_node != "127.0.0.1":
+        ssh_con = utils.connect_remote(rgw_node)
     config = Config(yaml_file)
-    config.read()
+    config.read(ssh_con)
     if config.mapped_sizes is None:
         config.mapped_sizes = utils.make_mapped_sizes(config)
-    test_exec(config)
+    test_exec(config, ssh_con)

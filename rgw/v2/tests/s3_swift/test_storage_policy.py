@@ -40,7 +40,7 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
@@ -139,7 +139,7 @@ def test_exec(config):
     zone_group_update_set = "radosgw-admin period update --commit"
     zone_group_update_set_exec = utils.exec_shell_cmd(zone_group_update_set)
     log.info(zone_group_update_set_exec)
-    restarted = rgw_service.restart()
+    restarted = rgw_service.restart(ssh_con)
     if restarted is False:
         raise TestExecError("service restart failed")
     if config.rgw_client == "rgw":
@@ -217,8 +217,15 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
@@ -232,12 +239,12 @@ if __name__ == "__main__":
         config.objects_size_range = doc["config"]["objects_size_range"]
         config.rgw_client = doc["rgw_client"]
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

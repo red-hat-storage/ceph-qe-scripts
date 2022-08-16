@@ -195,6 +195,12 @@ class Config(object):
         self.shards = self.doc["config"].get("shards")
         # todo: better suited to be added under ceph_conf
         self.max_objects_per_shard = self.doc["config"].get("max_objects_per_shard")
+        self.max_rgw_dynamic_shards = self.doc["config"].get(
+            "max_rgw_dynamic_shards", 1999
+        )
+        self.rgw_reshard_thread_interval = self.doc["config"].get(
+            "rgw_reshard_thread_interval", 600
+        )
         self.max_objects = None
         self.user_count = self.doc["config"].get("user_count")
         self.user_remove = self.doc["config"].get("user_remove", True)
@@ -217,12 +223,23 @@ class Config(object):
         self.copy_version_object = self.doc["config"].get("copy_version_object", False)
         self.object_expire = self.doc["config"].get("object_expire", False)
         self.rgw_lc_debug_interval = self.doc["config"].get("rgw_lc_debug_interval", 30)
+        self.rgw_enable_lc_threads = self.doc["config"].get(
+            "rgw_enable_lc_threads", True
+        )
+        self.rgw_lifecycle_work_time = self.doc["config"].get(
+            "rgw_lifecycle_work_time", "00:00-06:00"
+        )
         self.rgw_lc_max_worker = self.doc["config"].get("rgw_lc_max_worker", 10)
         self.parallel_lc = self.doc["config"].get("parallel_lc", False)
+        self.invalid_date = self.doc["config"].get("invalid_date", False)
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
         self.reshard_cancel_cmd = self.doc["config"].get("reshard_cancel_cmd", False)
         self.large_object_upload = self.doc["config"].get("large_object_upload", False)
+        self.test_aync_data_notifications = self.doc["config"].get(
+            "test_aync_data_notifications", False
+        )
+        self.debug_rgw = self.doc["config"].get("debug_rgw")
         self.bucket_sync_run_with_disable_sync_thread = self.doc["config"].get(
             "bucket_sync_run_with_disable_sync_thread", False
         )
@@ -233,10 +250,12 @@ class Config(object):
         self.sts = self.doc["config"].get("sts")
         self.ceph_conf = self.doc["config"].get("ceph_conf")
         self.gc_verification = self.doc["config"].get("gc_verification", False)
+        self.etag_verification = self.doc["config"].get("etag_verification", False)
         self.bucket_sync_crash = self.doc["config"].get("bucket_sync_crash", False)
         self.bucket_sync_status = self.doc["config"].get("bucket_sync_status", False)
         self.bucket_sync_run = self.doc["config"].get("bucket_sync_run", False)
         self.bucket_stats = self.doc["config"].get("bucket_stats", False)
+        self.rgw_ops_log = self.doc["config"].get("rgw_ops_log", False)
         self.header_size = self.doc["config"].get("header_size", False)
         self.test_datalog_trim_command = self.doc["config"].get(
             "test_datalog_trim_command", False
@@ -258,6 +277,10 @@ class Config(object):
         self.persistent_flag = self.test_ops.get("persistent_flag", False)
         self.copy_object = self.test_ops.get("copy_object", False)
         self.get_topic_info = self.test_ops.get("get_topic_info", False)
+        self.set_acl = self.test_ops.get("set_acl", None)
+        self.put_empty_bucket_notification = self.test_ops.get(
+            "put_empty_bucket_notification", False
+        )
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:
@@ -273,7 +296,7 @@ class Config(object):
                 log.info("ssl is not set in config.yaml")
                 self.ssl = frontend_config.curr_ssl
             # configuring frontend
-            frontend_config.set_frontend(self.frontend, ssl=self.ssl)
+            frontend_config.set_frontend(self.frontend, ssh_con, ssl=self.ssl)
 
         # if ssl is True or False in config yaml
         # and if frontend is not set in config yaml,
@@ -281,7 +304,9 @@ class Config(object):
             # get the current frontend and add ssl to it.
             log.info("ssl is set in config.yaml")
             log.info("frontend is not set in config.yaml")
-            frontend_config.set_frontend(frontend_config.curr_frontend, ssl=self.ssl)
+            frontend_config.set_frontend(
+                frontend_config.curr_frontend, ssh_con, ssl=self.ssl
+            )
 
         elif self.ssl is None:
             # if ssl is not set in config yaml, check if ssl_enabled and configured by default,

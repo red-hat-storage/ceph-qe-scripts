@@ -44,20 +44,20 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ceph_conf = CephConfOp()
+    ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
 
     log.info("starting IO")
     config.user_count = 1
     user_info = s3lib.create_users(config.user_count)
     user_info = user_info[0]
-    auth = Auth(user_info, ssl=config.ssl)
+    auth = Auth(user_info, ssh_con, ssl=config.ssl)
     rgw_conn = auth.do_auth()
     log.info("sharding configuration will be added now.")
     if config.sharding_type == "dynamic":
@@ -72,12 +72,30 @@ def test_exec(config):
             "global",
             ConfigOpts.rgw_max_objs_per_shard,
             str(config.max_objects_per_shard),
+            ssh_con,
         )
-        ceph_conf.set_to_ceph_conf("global", ConfigOpts.rgw_dynamic_resharding, "True")
+
+        ceph_conf.set_to_ceph_conf(
+            "global", ConfigOpts.rgw_dynamic_resharding, "True", ssh_con
+        )
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_max_dynamic_shards,
+            str(config.max_rgw_dynamic_shards),
+            ssh_con,
+        )
+
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_reshard_thread_interval,
+            str(config.rgw_reshard_thread_interval),
+            ssh_con,
+        )
+
         num_shards_expected = config.objects_count / config.max_objects_per_shard
         log.info("num_shards_expected: %s" % num_shards_expected)
         log.info("trying to restart services ")
-        srv_restarted = rgw_service.restart()
+        srv_restarted = rgw_service.restart(ssh_con)
         time.sleep(30)
         if srv_restarted is False:
             raise TestExecError("RGW service restart failed")
@@ -184,21 +202,28 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        config.read(ssh_con)
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
-        test_exec(config)
+        test_exec(config, ssh_con)
 
         test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

@@ -55,7 +55,9 @@ def test_exec(config, ssh_con):
     all_users_info = s3lib.create_users(config.user_count)
     if config.test_ops.get("encryption_algorithm", None) is not None:
         log.info("encryption enabled, making ceph config changes")
-        ceph_conf.set_to_ceph_conf(ssh_con, "global", ConfigOpts.rgw_crypt_require_ssl, "false")
+        ceph_conf.set_to_ceph_conf(
+            "global", ConfigOpts.rgw_crypt_require_ssl, "false", ssh_con
+        )
         srv_restarted = rgw_service.restart(ssh_con)
         time.sleep(30)
         if srv_restarted is False:
@@ -69,14 +71,22 @@ def test_exec(config, ssh_con):
         f"rgw_max_objs_per_shard parameter set to {str(config.max_objects_per_shard)}"
     )
     ceph_conf.set_to_ceph_conf(
-        "global", ConfigOpts.rgw_max_objs_per_shard, str(config.max_objects_per_shard), ssh_con
+        "global",
+        ConfigOpts.rgw_max_objs_per_shard,
+        str(config.max_objects_per_shard),
+        ssh_con,
     )
-    ceph_conf.set_to_ceph_conf("global", ConfigOpts.rgw_dynamic_resharding, "True", ssh_con)
+    ceph_conf.set_to_ceph_conf(
+        "global", ConfigOpts.rgw_dynamic_resharding, "True", ssh_con
+    )
     log.info(
         f"rgw gc obj min wait configuration parameter set to {str(config.rgw_gc_obj_min_wait)}"
     )
     ceph_conf.set_to_ceph_conf(
-        "global", ConfigOpts.rgw_gc_obj_min_wait, str(config.rgw_gc_obj_min_wait), ssh_con
+        "global",
+        ConfigOpts.rgw_gc_obj_min_wait,
+        str(config.rgw_gc_obj_min_wait),
+        ssh_con,
     )
     sleep_time = 10
     log.info(f"Restarting RGW service and waiting for {sleep_time} seconds")
@@ -89,9 +99,6 @@ def test_exec(config, ssh_con):
 
     for each_user in all_users_info:
         # authenticate
-        print("13 1111111111111111111111111111111111111111")
-        print(ssh_con)
-        print("14 1111111111111111111111111111111111111111")
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         if config.use_aws4 is True:
             rgw_conn = auth.do_auth(**{"signature_version": "s3v4"})
@@ -235,7 +242,9 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
-        parser.add_argument("--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1")
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
         rgw_node = args.rgw_node
@@ -245,9 +254,6 @@ if __name__ == "__main__":
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.ssh_con = ssh_con
-        print("Type",type(ssh_con))
-        print(ssh_con)
         config.read(ssh_con)
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
@@ -256,7 +262,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

@@ -166,7 +166,9 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
-        parser.add_argument("--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1")
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
         rgw_node = args.rgw_node
@@ -188,6 +190,6 @@ if __name__ == "__main__":
 
     except (RGWBaseException, Exception) as e:
         log.error(e)
-        log.info(traceback.format_exc())
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

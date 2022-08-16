@@ -16,7 +16,8 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
         test_multisite_manual_resharding_greenfield.yaml
         test_multisite_dynamic_resharding_greenfield.yaml
 	test_gc_list_multipart.yaml
-    
+        test_Mbuckets_with_Nobjects_etag.yaml
+
 Operation:
 	Creates M bucket and N objects
 	Creates M bucket and N objects. Verify checksum of the downloaded objects
@@ -27,6 +28,7 @@ Operation:
 	Creates M bucket and N objects. Upload multipart object.
 	Creates M bucket and N objects. With sharding set to max_shards as specified in the config
 	Verify gc command
+        Verify eTag
 """
 # test basic creation of buckets with objects
 import os
@@ -59,12 +61,12 @@ password = "32characterslongpassphraseneeded".encode("utf-8")
 encryption_key = hashlib.md5(password).hexdigest()
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ceph_conf = CephConfOp()
+    ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
 
     # create user
@@ -76,8 +78,10 @@ def test_exec(config):
 
     if config.test_ops.get("encryption_algorithm", None) is not None:
         log.info("encryption enabled, making ceph config changes")
-        ceph_conf.set_to_ceph_conf("global", ConfigOpts.rgw_crypt_require_ssl, "false")
-        srv_restarted = rgw_service.restart()
+        ceph_conf.set_to_ceph_conf(
+            "global", ConfigOpts.rgw_crypt_require_ssl, "false", ssh_con
+        )
+        srv_restarted = rgw_service.restart(ssh_con)
         time.sleep(30)
         if srv_restarted is False:
             raise TestExecError("RGW service restart failed")
@@ -85,7 +89,7 @@ def test_exec(config):
             log.info("RGW service restarted")
     for each_user in all_users_info:
         # authenticate
-        auth = Auth(each_user, ssl=config.ssl)
+        auth = Auth(each_user, ssh_con, ssl=config.ssl)
         if config.use_aws4 is True:
             rgw_conn = auth.do_auth(**{"signature_version": "s3v4"})
         else:
@@ -99,9 +103,10 @@ def test_exec(config):
                 "global",
                 ConfigOpts.rgw_override_bucket_index_max_shards,
                 str(max_shards),
+                ssh_con,
             )
             log.info("trying to restart services ")
-            srv_restarted = rgw_service.restart()
+            srv_restarted = rgw_service.restart(ssh_con)
             time.sleep(10)
             if srv_restarted is False:
                 raise TestExecError("RGW service restart failed")
@@ -129,20 +134,27 @@ def test_exec(config):
                         == compression_type
                     ):
                         log.info("Compression enabled successfully")
+                    else:
+                        log.error("Compression is not enabled on cluster")
+                        raise TestExecError("Compression is not enabled on cluster")
 
                 else:
-                    if ceph_version in ["nautilus", "octopus"]:
-                        if (
-                            data["placement_pools"][0]["val"]["storage_classes"][
-                                "STANDARD"
-                            ]["compression_type"]
-                            == compression_type
-                        ):
-                            log.info("Compression enabled successfully")
+                    if (
+                        data["placement_pools"][0]["val"]["storage_classes"][
+                            "STANDARD"
+                        ]["compression_type"]
+                        == compression_type
+                    ):
+                        log.info("Compression enabled successfully")
+                    else:
+                        log.error("Compression is not enabled on cluster")
+                        raise TestExecError("Compression is not enabled on cluster")
+
             except ValueError as e:
+                log.error(e)
                 exit(str(e))
             log.info("trying to restart rgw services ")
-            srv_restarted = rgw_service.restart()
+            srv_restarted = rgw_service.restart(ssh_con)
             time.sleep(10)
             if srv_restarted is False:
                 raise TestExecError("RGW service restart failed")
@@ -158,14 +170,31 @@ def test_exec(config):
                     "global",
                     ConfigOpts.rgw_max_objs_per_shard,
                     str(config.max_objects_per_shard),
+                    ssh_con,
                 )
-                srv_restarted = rgw_service.restart()
+                srv_restarted = rgw_service.restart(ssh_con)
         if config.bucket_sync_run_with_disable_sync_thread:
             log.info("making changes to ceph.conf")
             ceph_conf.set_to_ceph_conf(
-                "global", ConfigOpts.rgw_run_sync_thread, "false"
+                "global", ConfigOpts.rgw_run_sync_thread, "false", ssh_con
             )
-            srv_restarted = rgw_service.restart()
+            srv_restarted = rgw_service.restart(ssh_con)
+
+        if config.test_aync_data_notifications:
+            log.info("Testing asyc data notifications")
+            ceph_version_id, _ = utils.get_ceph_version()
+            if float(ceph_version_id[1]) >= 6 and float(ceph_version_id[5]) >= 8:
+                set_log = "ceph config set global log_to_file true"
+                out = utils.exec_shell_cmd(set_log)
+                cmd = " ceph orch ps | grep rgw"
+                out = utils.exec_shell_cmd(cmd)
+                rgw_process_name = out.split()[0]
+                utils.exec_shell_cmd(
+                    f"ceph config set client.{rgw_process_name} rgw_data_notify_interval_msec 0"
+                )
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.debug_rgw, str(config.debug_rgw), ssh_con
+            )
 
         # create buckets
         if config.test_ops["create_bucket"] is True:
@@ -315,6 +344,38 @@ def test_exec(config):
                         if config.local_file_delete is True:
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
+
+                        if config.etag_verification is True:
+                            log.info(f"Verification of eTag is started!!! ")
+                            object_ptr = s3lib.resource_op(
+                                {
+                                    "obj": bucket,
+                                    "resource": "Object",
+                                    "args": [s3_object_name],
+                                }
+                            )
+                            object_info = object_ptr.get()
+                            log.info(f"object info is {object_info}")
+                            if object_info["ResponseMetadata"]["HTTPStatusCode"] != 200:
+                                raise AssertionError(
+                                    f"failed to get response of objects"
+                                )
+                            eTag_aws = object_info["ETag"].split('"')[1]
+                            log.info(f"etag from aws is :{eTag_aws}")
+                            cmd = f"radosgw-admin bucket list --bucket {bucket.name}"
+                            out = utils.exec_shell_cmd(cmd)
+                            data = json.loads(out)
+                            for object in data:
+                                if str(s3_object_name) == str(object["name"]):
+                                    eTag_radosgw = object["meta"]["etag"]
+                                    log.info(f"etag from radosgw is :{eTag_radosgw}")
+                                    if str(eTag_aws) == str(eTag_radosgw):
+                                        log.info(f"eTag matched!!")
+                                    else:
+                                        raise AssertionError(
+                                            f"mismatch found in the eTAG from aws and radosgw"
+                                        )
+
                     if config.reshard_cancel_cmd:
                         op = utils.exec_shell_cmd(
                             f"radosgw-admin reshard add --bucket {bucket.name} --num-shards 29"
@@ -444,13 +505,18 @@ def test_exec(config):
                             time.sleep(10)
                             reusable.check_sync_status()
                             reusable.delete_bucket(bucket)
+                            ceph_version_id, _ = utils.get_ceph_version()
                             cmd = f"radosgw-admin bucket stats --bucket={bucket.name}"
                             ec, _ = sp.getstatusoutput(cmd)
                             log.info(f"Bucket stats for non-existent is {ec}")
-                            if ec != 2:
-                                raise TestExecError(
-                                    "Bucket stats for non-existent bucket should return failure (2) or ENOENT."
-                                )
+                            if (
+                                float(ceph_version_id[0]) >= 16
+                                and float(ceph_version_id[1]) >= 2.8
+                            ):
+                                if ec != 2:
+                                    raise TestExecError(
+                                        "Bucket stats for non-existent bucket should return failure (2) or ENOENT."
+                                    )
                     if config.bucket_sync_run_with_disable_sync_thread:
                         out = utils.check_bucket_sync(bucket.name)
                         if out is False:
@@ -459,8 +525,10 @@ def test_exec(config):
                             )
         if config.bucket_sync_run_with_disable_sync_thread:
             log.info("making changes to ceph.conf")
-            ceph_conf.set_to_ceph_conf("global", ConfigOpts.rgw_run_sync_thread, "True")
-            srv_restarted = rgw_service.restart()
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_run_sync_thread, "True", ssh_con
+            )
+            srv_restarted = rgw_service.restart(ssh_con)
         if config.modify_user:
             user_id = each_user["user_id"]
             new_display_name = each_user["user_id"] + each_user["user_id"]
@@ -511,7 +579,7 @@ def test_exec(config):
                 "--placement-id=default-placement --compression=none" % zone
             )
             out = utils.exec_shell_cmd(cmd)
-            srv_restarted = rgw_service.restart()
+            srv_restarted = rgw_service.restart(ssh_con)
             time.sleep(10)
             if srv_restarted is False:
                 raise TestExecError("RGW service restart failed")
@@ -522,6 +590,16 @@ def test_exec(config):
             if final_op != -1:
                 test_info.failed_status("test failed")
                 sys.exit(1)
+
+    # test async rgw_data_notify_interval_msec=0 does not disable async data notifications
+    if config.test_aync_data_notifications:
+        log.info("Testing async data notifications")
+        out = utils.disable_async_data_notifications()
+        if not out:
+            raise TestExecError(
+                "No 'notifying datalog change' entries should be seen in rgw logs when rgw_data_notify_interval_msec=0 "
+            )
+        ceph_conf.set_to_ceph_conf("global", ConfigOpts.debug_rgw, "0", ssh_con)
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
@@ -547,7 +625,6 @@ if __name__ == "__main__":
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
         test_data_dir = "test_data"
-        ceph_conf = CephConfOp()
         rgw_service = RGWService()
         TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
         log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
@@ -562,23 +639,29 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
-
-        # ch.setLevel(logging.getLevelName(console_log_level.upper()))
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        ceph_conf = CephConfOp(ssh_con)
+        config.read(ssh_con)
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.info(e)
-        log.info(traceback.format_exc())
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)

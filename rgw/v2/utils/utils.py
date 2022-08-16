@@ -5,15 +5,15 @@ import json
 import logging
 import os
 import random
-from re import S
 import shutil
 import socket
 import string
 import subprocess
 import time
-import paramiko
 from random import randint
+from re import S
 
+import paramiko
 import yaml
 from v2.lib.exceptions import SyncFailedError
 
@@ -50,16 +50,17 @@ def exec_shell_cmd(cmd, debug_info=False):
         get_crash_log()
         return False
 
+
 def connect_remote(rgw_host, user_nm="root", passw="passwd"):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(rgw_host, port=22, username=user_nm,
-            password=passw, timeout=3)
+    ssh.connect(rgw_host, port=22, username=user_nm, password=passw, timeout=3)
     if ssh is None:
         raise Exception("Connection with remote machine failed")
     else:
         return ssh
-    
+
+
 def remote_exec_shell_cmd(ssh, cmd):
     try:
         log.info("executing cmd on remote node: %s" % cmd)
@@ -76,6 +77,7 @@ def remote_exec_shell_cmd(ssh, cmd):
         log.error(e)
         get_crash_log()
         return False
+
 
 def get_crash_log():
     # dump the crash log information on to the console, if any
@@ -156,7 +158,7 @@ class FileOps(object):
         fp.close()
         return data
 
-    def add_data(self, data,ssh_con=None):
+    def add_data(self, data, ssh_con=None):
 
         with open(self.fname, "w") as fp:
             if self.type == "json":
@@ -172,7 +174,7 @@ class FileOps(object):
                     sftp_client.put(self.fname, destination)
                     sftp_client.close()
                 else:
-                    data.write(fp)                    
+                    data.write(fp)
             elif self.type is None:
                 data.write(fp)
             elif self.type == "yaml":
@@ -185,7 +187,7 @@ class ConfigParse(object):
         self.fname = fname
         self.cfg = configparser.ConfigParser()
         if ssh_con is not None:
-            tmp_file = fname+".rgw.tmp"
+            tmp_file = fname + ".rgw.tmp"
             sftp_client = ssh_con.open_sftp()
             fname = sftp_client.get(fname, tmp_file)
             sftp_client.close()
@@ -352,7 +354,7 @@ class RGWService:
         else:
             return exec_shell_cmd(cmd)
 
-    def start(self ,ssh_con=None):
+    def start(self, ssh_con=None):
         """
         starts the service
         """
@@ -363,7 +365,7 @@ class RGWService:
         else:
             return exec_shell_cmd(cmd)
 
-    def status(self ,ssh_con=None):
+    def status(self, ssh_con=None):
         """
         Get status of the service
         """
@@ -403,7 +405,9 @@ def get_radosgw_port_no(ssh_con=None):
             if "port" in config:
                 return config.split("=")[-1]
     if ssh_con is not None:
-        stdin, stdout, stderr = ssh_con.exec_command('sudo netstat -nltp | grep radosgw')
+        stdin, stdout, stderr = ssh_con.exec_command(
+            "sudo netstat -nltp | grep radosgw"
+        )
         op = stdout.readline().strip()
     else:
         op = exec_shell_cmd("sudo netstat -nltp | grep radosgw")
@@ -632,7 +636,7 @@ def wait_till_bucket_synced(name, timeout=120, interval=5):
 def get_hostname_ip(ssh_con=None):
     try:
         if ssh_con is not None:
-            stdin, stdout, stderr = ssh_con.exec_command('hostname')
+            stdin, stdout, stderr = ssh_con.exec_command("hostname")
             hostname = stdout.readline().strip()
             ip = socket.gethostbyname(str(hostname))
         else:
@@ -642,7 +646,7 @@ def get_hostname_ip(ssh_con=None):
         log.info("IP : %s" % ip)
         return hostname, ip
     except Exception as e:
-        log.info(e)
+        log.error(e)
         log.error("unable to get Hostname and IP")
 
 
@@ -716,3 +720,18 @@ def is_cluster_multisite():
     else:
         log.info("the cluster is multi realm")
         return False
+
+
+def disable_async_data_notifications():
+    """
+    This function will disable the async notification
+    by setting rgw_data_notify_interval_msec=0. This will test at level 20,
+    the rgw log does not show 'notifying datalog change' entries
+    """
+    rgw_log_path = "sudo ls -t /var/log/ceph/*/ceph-client.rgw* | head -1"
+    out = exec_shell_cmd(rgw_log_path)
+    rgw_log_file = out.rstrip("\n")
+    search_string = "notifying datalog change"
+    if not (search_string in open(rgw_log_file, encoding="latin1").read()):
+        return True
+    return False

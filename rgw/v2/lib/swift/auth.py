@@ -19,13 +19,18 @@ class Auth(object):
     1. do_auth()
     """
 
-    def __init__(self, user_info, is_secure=False):
+    def __init__(self, user_info, ssh_con=None, is_secure=False):
         """
         Initializes the user_info variables
         """
         self.secret_key = user_info["key"]
-        self.hostname = socket.gethostname()
-        self.port = int(utils.get_radosgw_port_no())
+        if ssh_con is not None:
+            stdin, stdout, stderr = ssh_con.exec_command("hostname")
+            self.hostname = stdout.readline().strip()
+            self.port = utils.get_radosgw_port_no(ssh_con)
+        else:
+            self.hostname = socket.gethostname()
+            self.port = utils.get_radosgw_port_no()
         self.is_secure = is_secure
         self.user_id = user_info["user_id"]
 

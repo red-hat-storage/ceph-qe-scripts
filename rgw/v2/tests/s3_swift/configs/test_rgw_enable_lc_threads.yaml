@@ -1,0 +1,24 @@
+# script: test_bucket_lifecycle_object_expiration.py
+# BZ1939716, CEPH-83575046
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  rgw_lc_debug_interval: 1
+  rgw_lifecycle_work_time: "00:00-23:59"
+  rgw_enable_lc_threads: false
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    enable_versioning: false
+    create_object: true
+    version_count: 0
+    create_bucket: true
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: key1
+      Status: Enabled
+      Expiration:
+        Date: "2019-02-17"

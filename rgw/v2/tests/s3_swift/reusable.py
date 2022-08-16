@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import subprocess
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -1075,3 +1076,29 @@ def put_bucket_lifecycle(bucket, rgw_conn, rgw_conn2, life_cycle_rule):
         raise TestExecError("bucket life cycle retrieved")
     lc_data = json.loads(utils.exec_shell_cmd("radosgw-admin lc list"))
     log.info(f"lc data is {lc_data}")
+
+
+def get_radoslist():
+    """
+    get radoslist of all buckets
+    """
+    cmd = "radosgw-admin bucket radoslist | grep -i ERROR"
+    _, err = subprocess.getstatusoutput(cmd)
+    if err:
+        log.error(f"ERROR in radoslist command! {err}")
+        get_bucket_stats()
+    else:
+        return True
+
+
+def get_bucket_stats():
+    """
+    get bucket stats of all buckets
+    """
+    log.info("check bucket stats of all the buckets in the cluster")
+    cmd = "radosgw-admin bucket stats| egrep -i 'error|ret=-'"
+    _, err = subprocess.getstatusoutput(cmd)
+    if err:
+        raise TestExecError(f"bucket stats on all buckets failed! {err}")
+    else:
+        return True
