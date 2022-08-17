@@ -2,7 +2,7 @@
 # test s3 bucket_lifecycle operations (like read, modify and delete)
 
 Usage: test_bucket_lifecycle_config_ops.py -c configs/<input-yaml>
-where <input-yaml> are test_bucket_lifecycle_config_disable.yaml, test_bucket_lifecycle_config_modify.yaml, test_bucket_lifecycle_config_read.yaml and test_bucket_lifecycle_config_versioning.yaml
+where <input-yaml> are test_bucket_lc_enable_object_exp.yaml, test_bucket_lifecycle_config_disable.yaml, test_bucket_lifecycle_config_modify.yaml, test_bucket_lifecycle_config_read.yaml and test_bucket_lifecycle_config_versioning.yaml
 
 Operation:
 - Create a user and a bucket (enable versioning as per the input from the yaml file)
@@ -14,20 +14,23 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+import json
 import logging
+import time
 import traceback
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3 import lifecycle as lc
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import HttpResponseParser
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
 
@@ -55,6 +58,21 @@ def test_exec(config):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ceph_conf = CephConfOp()
+    rgw_service = RGWService()
+    if config.test_ops.get("rgw_lc_debug", False):
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_lc_debug_interval,
+            str(config.rgw_lc_debug_interval),
+        )
+        log.info("trying to restart services")
+        srv_restarted = rgw_service.restart()
+        time.sleep(30)
+        if srv_restarted is False:
+            raise TestExecError("RGW service restart failed")
+        else:
+            log.info("RGW service restarted")
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -351,6 +369,42 @@ def test_exec(config):
                         raise TestExecError(
                             "bucket lifecycle config retrieval failed after disabled"
                         )
+
+                if config.test_ops.get("add_more_objects", False):
+                    for oc in range(0, config.test_ops["new_objects_count"]):
+                        config.obj_size = utils.get_file_size(
+                            config.objects_size_range.get("min"),
+                            config.objects_size_range.get("max"),
+                        )
+                        s3_object_name = "key" + "_new_objects_" + str(oc)
+                        log.info(f"new objects: {config.test_ops['new_objects_count']}")
+                        reusable.upload_object(
+                            s3_object_name,
+                            bucket,
+                            TEST_DATA_PATH,
+                            config,
+                            each_user,
+                        )
+                    time.sleep(60)
+                    for i in (1, 10):
+                        bucket_stats = json.loads(
+                            utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket={bucket.name}"
+                            )
+                        )
+                        if bucket_stats["usage"]["rgw.main"]["num_objects"] == 0:
+                            break
+                    else:
+                        bucket_list = json.loads(
+                            utils.exec_shell_cmd(
+                                f"radosgw-admin bucket list --bucket={bucket.name}"
+                            )
+                        )
+                        raise TestExecError(
+                            f"Objects still exist in bucket: {bucket_list}"
+                        )
+
+        reusable.remove_user(each_user)
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
     if crash_info:
