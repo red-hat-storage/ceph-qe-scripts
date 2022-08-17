@@ -231,6 +231,9 @@ class Config(object):
         )
         self.rgw_lc_max_worker = self.doc["config"].get("rgw_lc_max_worker", 10)
         self.parallel_lc = self.doc["config"].get("parallel_lc", False)
+        self.multiple_delete_marker_check = self.doc["config"].get(
+            "multiple_delete_marker_check", False
+        )
         self.invalid_date = self.doc["config"].get("invalid_date", False)
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)

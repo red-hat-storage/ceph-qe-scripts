@@ -35,14 +35,20 @@ def validate_prefix_rule(bucket, config):
             print(entry["tag"])
             if entry["tag"] == "delete-marker":
                 c1 = c1 + 1
-        if c1 == (config.objects_count):
-            log.info(
-                "Lifecycle expiration of current object version validated for prefix filter"
+        if c1 != (config.objects_count):
+            raise AssertionError(
+                "Lifecycle expiration of current object version for prefix filter failed"
             )
-    if objects == objs_diff:
         log.info(
-            "Lifecycle expiration of non_current object version validated for prefix filter"
+            "Lifecycle expiration of current object version validated for prefix filter"
         )
+    if objects != objs_diff:
+        raise AssertionError(
+            "Lifecycle expiration of non_current object version for prefix filter failed"
+        )
+    log.info(
+        "Lifecycle expiration of non_current object version validated for prefix filter"
+    )
 
 
 def validate_prefix_rule_non_versioned(bucket):
@@ -66,5 +72,6 @@ def validate_and_rule(bucket, config):
     op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
     json_doc = json.loads(op)
     objects = json_doc["usage"]["rgw.main"]["num_objects"]
-    if objects == 0:
-        log.info("Lifecycle expiration with And rule validated successfully")
+    if objects != 0:
+        raise AssertionError("Lifecycle expiration with And rule Failed!!")
+    log.info("Lifecycle expiration with And rule validated successfully")

@@ -169,6 +169,18 @@ def test_exec(config):
                         reusable.put_get_bucket_lifecycle_test(
                             bucket, rgw_conn, rgw_conn2, life_cycle_rule_new, config
                         )
+                    if config.multiple_delete_marker_check:
+                        log.info(
+                            f"verification of TC: Not more than 1 delete marker is created for objects deleted many times using LC"
+                        )
+                        time.sleep(60)
+                        cmd = f"radosgw-admin bucket list --bucket {bucket.name}| grep delete-marker | wc -l"
+                        out = utils.exec_shell_cmd(cmd)
+                        del_marker_count = out.split("\n")[0]
+                        if int(del_marker_count) != int(config.objects_count):
+                            raise AssertionError(
+                                f"more than one delete marker created for the objects in the bucket {bucket.name}"
+                            )
                 else:
                     buckets.append(bucket)
 
