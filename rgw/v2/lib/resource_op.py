@@ -234,6 +234,7 @@ class Config(object):
         self.multiple_delete_marker_check = self.doc["config"].get(
             "multiple_delete_marker_check", False
         )
+        self.delete_marker_check = self.doc["config"].get("delete_marker_check", False)
         self.invalid_date = self.doc["config"].get("invalid_date", False)
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
