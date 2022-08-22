@@ -163,6 +163,7 @@ def test_exec(config):
                     reusable.put_get_bucket_lifecycle_test(
                         bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
                     )
+                    time.sleep(30)
                     lc_ops.validate_prefix_rule(bucket, config)
                     if config.test_ops["delete_marker"] is True:
                         life_cycle_rule_new = {"Rules": config.delete_marker_ops}
@@ -206,6 +207,7 @@ def test_exec(config):
                         reusable.put_get_bucket_lifecycle_test(
                             bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
                         )
+                        time.sleep(30)
                         lc_ops.validate_and_rule(bucket, config)
                     elif not config.invalid_date and not config.rgw_enable_lc_threads:
                         bucket_before_lc = json.loads(
@@ -252,7 +254,12 @@ def test_exec(config):
                                     raise TestExecError(
                                         f"Even if rgw_enable_lc_threads set to false manual lc process for bucket {bucket.name} should work"
                                     )
+                        time.sleep(30)
                         lc_ops.validate_and_rule(bucket, config)
+                        ceph_conf.set_to_ceph_conf(
+                            "global", ConfigOpts.rgw_enable_lc_threads, "true"
+                        )
+                        rgw_service.restart()
                     else:
                         bucket_life_cycle = s3lib.resource_op(
                             {
@@ -284,7 +291,7 @@ def test_exec(config):
                 reusable.put_bucket_lifecycle(
                     bucket, rgw_conn, rgw_conn2, life_cycle_rule
                 )
-            time.sleep(30)
+            time.sleep(60)
             for bucket in buckets:
                 if config.test_ops["enable_versioning"] is False:
                     lc_ops.validate_prefix_rule_non_versioned(bucket)
