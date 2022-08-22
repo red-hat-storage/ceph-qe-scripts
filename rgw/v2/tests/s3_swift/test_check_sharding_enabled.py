@@ -49,10 +49,11 @@ def test_exec(config):
         cmd = "radosgw-admin zonegroup get"
         out = utils.exec_shell_cmd(cmd)
         zonegroup = json.loads(out)
-        zonegroup = zonegroup.get("enabled_features")
-        log.info(zonegroup)
-        if "resharding" in zonegroup:
-            log.info("sharding is enabled")
+        if zonegroup.get("enabled_features"):
+            zonegroup = zonegroup.get("enabled_features")
+            log.info(zonegroup)
+            if "resharding" in zonegroup:
+                log.info("sharding is enabled")
         else:
             log.info("sharding is not enabled")
             if config.enable_sharding is True:
