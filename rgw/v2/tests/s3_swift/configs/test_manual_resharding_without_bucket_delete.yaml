@@ -1,0 +1,9 @@
+config:
+  objects_count: 10
+  objects_size_range:
+    min: 15
+    max: 20
+  sharding_type: manual
+  shards: 97
+  test_ops:
+    delete_bucket_object: false
