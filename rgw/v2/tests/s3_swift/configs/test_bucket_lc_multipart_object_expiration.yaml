@@ -2,8 +2,8 @@
 config:
   user_count: 1
   bucket_count: 1
-  objects_count: 1000
-  rgw_lc_debug_interval: 1
+  objects_count: 500
+  rgw_lc_debug_interval: 600
   objects_size_range:
     min: 15
     max: 20
@@ -14,7 +14,7 @@ config:
   lifecycle_conf:
     - ID: LC_Rule_1
       Filter:
-        Prefix: multipart-obj
+        Prefix: obj
       Status: Enabled
       Expiration:
-        Days: 1
+        Date: "2022-02-19"
