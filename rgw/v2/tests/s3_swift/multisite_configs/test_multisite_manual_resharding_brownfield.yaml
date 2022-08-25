@@ -3,7 +3,7 @@
 config:
   user_count: 1
   bucket_count: 1
-  objects_count: 50
+  objects_count: 100
   manual_resharding: true
   shards: 997
   objects_size_range:

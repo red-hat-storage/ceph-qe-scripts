@@ -1,6 +1,6 @@
 config:
      user_count: 1
-     bucket_count: 1
+     bucket_count: 2
      pseudo_dir_count: 50
      objects_count: 0
      objects_size_range:

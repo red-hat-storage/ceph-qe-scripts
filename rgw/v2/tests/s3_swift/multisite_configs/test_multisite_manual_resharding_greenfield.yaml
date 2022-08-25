@@ -2,7 +2,7 @@
 # Polarian id: CEPH-83573595
 config:
   user_count: 1
-  bucket_count: 1
+  bucket_count: 2
   objects_count: 100
   manual_resharding: true
   shards: 997

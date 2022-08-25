@@ -1,7 +1,7 @@
 # polarion test case id: CEPH-83572938
 config:
      bucket_count: 2
-     objects_count: 5
+     objects_count: 100
      objects_size_range:
           min: 5
           max: 15

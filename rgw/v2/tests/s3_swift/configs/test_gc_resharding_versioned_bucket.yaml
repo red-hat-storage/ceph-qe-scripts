@@ -4,8 +4,8 @@ config:
      objects_count: 20
      version_count: 5
      objects_size_range:
-          min: 10
-          max: 15
+          min: 10M
+          max: 15M
      local_file_delete: true
      max_objects_per_shard: 5
      rgw_gc_obj_min_wait: 10

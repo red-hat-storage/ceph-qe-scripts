@@ -2,11 +2,12 @@
 # script: test_Mbuckets_with_Nobjects.py
 config:
   user_count: 1
-  bucket_count: 1
+  bucket_count: 2
   objects_count: 1
   objects_size_range:
-    min: 1000
-    max: 1500
+    min: 1000M
+    max: 1500M
+  local_file_delete: true
   test_ops:
     create_bucket: true
     create_object: true

@@ -3,8 +3,8 @@
 # script: test_object_lock.py - Test object lock configuration for bucket
 config:
   user_count: 1
-  bucket_count: 1
-  objects_count: 2
+  bucket_count: 2
+  objects_count: 100
   objects_size_range:
     min: 5
     max: 15
