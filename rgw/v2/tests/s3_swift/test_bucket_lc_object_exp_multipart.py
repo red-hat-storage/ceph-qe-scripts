@@ -44,11 +44,12 @@ def test_exec(config):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
-    config.rgw_lc_debug_interval = 1
-    config.rgw_lifecycle_work_time = "00:00-23:59"
     log.info("making changes to ceph.conf")
     ceph_conf.set_to_ceph_conf(
         "global", ConfigOpts.rgw_lc_debug_interval, str(config.rgw_lc_debug_interval)
+    )
+    ceph_conf.set_to_ceph_conf(
+        "global", ConfigOpts.rgw_lifecycle_work_time, "00:00-23:59"
     )
     log.info("trying to restart services")
     srv_restarted = rgw_service.restart()
@@ -87,6 +88,7 @@ def test_exec(config):
                         reusable.upload_mutipart_object(
                             s3_object_name, bucket, TEST_DATA_PATH, config, each_user
                         )
+                time.sleep(config.rgw_lc_debug_interval)
 
                 for i in (1, 100):
                     time.sleep(60)
@@ -192,6 +194,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     except (RGWBaseException, Exception) as e:
-        log.exception(e)
+        log.error(e)
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)
