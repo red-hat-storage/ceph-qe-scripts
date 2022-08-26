@@ -90,7 +90,7 @@ def test_exec(config):
                         )
                 time.sleep(config.rgw_lc_debug_interval)
 
-                for i in (1, 100):
+                for _ in range(1, 10):
                     time.sleep(60)
                     bucket_details = json.loads(
                         utils.exec_shell_cmd(
