@@ -193,6 +193,11 @@ def test_exec(config, ssh_con):
                     f"ceph config set client.{rgw_process_name} rgw_data_notify_interval_msec 0"
                 )
             ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.log_to_file,
+                "true",
+            )
+            ceph_conf.set_to_ceph_conf(
                 "global", ConfigOpts.debug_rgw, str(config.debug_rgw), ssh_con
             )
 

@@ -26,6 +26,7 @@ class ConfigOpts(object):
     rgw_lifecycle_work_time = "rgw_lifecycle_work_time"
     rgw_lc_max_worker = "rgw_lc_max_worker"
     debug_rgw = "debug_rgw"
+    log_to_file = "log_to_file"
     rgw_crypt_require_ssl = "rgw_crypt_require_ssl"
     bluestore_block_size = "bluestore_block_size"
     rgw_gc_max_queue_size = "rgw_gc_max_queue_size"
