@@ -42,13 +42,16 @@ def validate_prefix_rule(bucket, config):
         log.info(
             "Lifecycle expiration of current object version validated for prefix filter"
         )
-    if objects != objs_diff:
-        raise AssertionError(
-            "Lifecycle expiration of non_current object version for prefix filter failed"
-        )
-    log.info(
-        "Lifecycle expiration of non_current object version validated for prefix filter"
-    )
+    for lc_conf in config.lifecycle_conf:
+        log.info(f"lc config is {lc_conf}")
+        if "NoncurrentVersionExpiration" in lc_conf.keys():
+            if objects != objs_diff:
+                raise AssertionError(
+                    "Lifecycle expiration of non_current object version for prefix filter failed"
+                )
+            log.info(
+                "Lifecycle expiration of non_current object version validated for prefix filter"
+            )
 
 
 def validate_prefix_rule_non_versioned(bucket):
