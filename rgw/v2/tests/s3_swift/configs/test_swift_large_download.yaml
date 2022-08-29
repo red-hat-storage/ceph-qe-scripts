@@ -1,9 +1,10 @@
 config:
-  container_count: 1
+  container_count: 2
   objects_count: 1
   large_object_upload: true
   large_object_download: true
   split_size: 100
   objects_size_range:
-    min: 300
-    max: 500
+    min: 300M
+    max: 500M
+  local_file_delete: true

@@ -16,8 +16,8 @@ config:
     rgw_gc_obj_min_wait: 10
     rgw_gc_processor_period: 10
   objects_size_range:
-    min: 5
-    max: 15
+    min: 5M
+    max: 15M
   test_ops:
     create_bucket: true
     create_object: true

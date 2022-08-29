@@ -1,11 +1,11 @@
 # test_bucket_lc_object_exp_multipart.py
 config:
   user_count: 1
-  bucket_count: 1
+  bucket_count: 2
   objects_count: 1000
   rgw_lc_debug_interval: 1
   objects_size_range:
-    min: 15
+    min: 5
     max: 20
   local_file_delete: true
   test_ops:

@@ -2,7 +2,7 @@
 # script: test_large_object_gc.py
 config:
   user_count: 1
-  bucket_count: 1
-  objects_count: 1
+  bucket_count: 2
+  objects_count: 100
   gc_verification: true
   local_file_delete: false

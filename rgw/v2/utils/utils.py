@@ -554,7 +554,7 @@ def validate_unit(min_u, max_u, min_s, max_s):
     min_size = min_u * min_s
     max_size = max_u * max_s
     if min_size > max_size:
-        log.error("MIN size and MAX size is not defined correctly")
+        raise Exception("MIN size and MAX size is not defined correctly in yaml")
     else:
         return min_size, max_size
 
@@ -563,7 +563,7 @@ def make_mapped_sizes(config):
     log.info("did not get mapped sizes")
     min = config.objects_size_range["min"]
     max = config.objects_size_range["max"]
-    unit = "M"
+    unit = "K"
     if type(min) and type(max) is str:
         min_unit = min[-1]  # gives min unit
         max_unit = max[-1]  # gives max unit

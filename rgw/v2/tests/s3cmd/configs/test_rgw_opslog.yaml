@@ -4,6 +4,6 @@
 # customers: Fujitsu  ISbank Inditex
 config:
   user_count: 1
-  bucket_count: 1
-  objects_count: 1
+  bucket_count: 2
+  objects_count: 100
   rgw_ops_log: true

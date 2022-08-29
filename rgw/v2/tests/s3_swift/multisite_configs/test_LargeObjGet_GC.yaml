@@ -2,7 +2,7 @@
 # script: test_LargeObjGet_1892644.py
 config:
      user_count: 1
-     bucket_count: 1
+     bucket_count: 2
      objects_count: 1
      gc_verification: true
      local_file_delete: false

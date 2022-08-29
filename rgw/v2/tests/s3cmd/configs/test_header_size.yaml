@@ -1,5 +1,5 @@
 # script: test_header_size.py
 config:
   user_count: 1
-  bucket_count: 1
+  bucket_count: 2
   header_size: true
