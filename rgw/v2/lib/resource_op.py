@@ -186,7 +186,7 @@ class Config(object):
             self.doc = yaml.safe_load(f)
         log.info("got config: \n%s" % self.doc)
 
-    def read(self):
+    def read(self, ssh_con=None):
         """
         This function reads all the configurations parameters
         """
@@ -288,7 +288,7 @@ class Config(object):
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:
-            frontend_config = Frontend()
+            frontend_config = Frontend(ssh_con)
         else:
             frontend_config = Frontend_CephAdm()
 
@@ -300,7 +300,7 @@ class Config(object):
                 log.info("ssl is not set in config.yaml")
                 self.ssl = frontend_config.curr_ssl
             # configuring frontend
-            frontend_config.set_frontend(self.frontend, ssl=self.ssl)
+            frontend_config.set_frontend(self.frontend, ssh_con, ssl=self.ssl)
 
         # if ssl is True or False in config yaml
         # and if frontend is not set in config yaml,
@@ -308,7 +308,9 @@ class Config(object):
             # get the current frontend and add ssl to it.
             log.info("ssl is set in config.yaml")
             log.info("frontend is not set in config.yaml")
-            frontend_config.set_frontend(frontend_config.curr_frontend, ssl=self.ssl)
+            frontend_config.set_frontend(
+                frontend_config.curr_frontend, ssh_con, ssl=self.ssl
+            )
 
         elif self.ssl is None:
             # if ssl is not set in config yaml, check if ssl_enabled and configured by default,

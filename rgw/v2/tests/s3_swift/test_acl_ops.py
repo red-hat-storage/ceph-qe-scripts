@@ -31,16 +31,16 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ceph_conf = CephConfOp()
+    ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
 
     all_users_info = s3lib.create_users(1)
     # authenticate
-    auth = Auth(all_users_info[0], ssl=config.ssl)
+    auth = Auth(all_users_info[0], ssh_con, ssl=config.ssl)
     rgw_conn = auth.do_auth()
 
     if config.set_acl:
@@ -89,13 +89,20 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
-        test_exec(config)
+        config.read(ssh_con)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 

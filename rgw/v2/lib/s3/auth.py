@@ -21,16 +21,21 @@ class Auth(object):
     2. do_auth_using_client() : Authenticate using client
     """
 
-    def __init__(self, user_info, **extra_kwargs):
+    def __init__(self, user_info, ssh_con=None, **extra_kwargs):
         """
         Initializes the variables of user_info parameter
         """
         self.access_key = user_info["access_key"]
         self.secret_key = user_info["secret_key"]
-        self.hostname = socket.gethostname()
+        if ssh_con is not None:
+            stdin, stdout, stderr = ssh_con.exec_command("hostname")
+            self.hostname = stdout.readline().strip()
+            self.port = utils.get_radosgw_port_no(ssh_con)
+        else:
+            self.hostname = socket.gethostname()
+            self.port = utils.get_radosgw_port_no()
         self.ip = socket.gethostbyname(self.hostname)
         self.ssl = extra_kwargs.get("ssl", False)
-        self.port = utils.get_radosgw_port_no()
         self.endpoint_url = (
             "https://{}:{}".format(self.ip, self.port)
             if self.ssl
@@ -39,7 +44,6 @@ class Auth(object):
         self.is_secure = False
         self.user_id = user_info["user_id"]
         self.session_token = user_info.get("session_token")
-
         log.info("access_key: %s" % self.access_key)
         log.info("secret_key: %s" % self.secret_key)
         log.info("hostname: %s" % self.hostname)
@@ -74,7 +78,6 @@ class Auth(object):
         )
 
         log.info("connected")
-
         return rgw
 
     def do_auth_using_client(self, **config):

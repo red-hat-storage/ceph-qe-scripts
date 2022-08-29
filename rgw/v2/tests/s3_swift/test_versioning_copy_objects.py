@@ -41,7 +41,7 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
@@ -53,7 +53,7 @@ def test_exec(config):
     # create user
     s3_user = s3lib.create_users(1)[0]
     # authenticate
-    auth = Auth(s3_user, ssl=config.ssl)
+    auth = Auth(s3_user, ssh_con, ssl=config.ssl)
     rgw_conn = auth.do_auth()
     b1_name = utils.gen_bucket_name_from_userid(s3_user["user_id"], rand_no=1)
     b1_k1_name = b1_name + ".key.1"  # key1
@@ -183,17 +183,24 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        config.read(ssh_con)
         config.objects_count = 2
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 

@@ -19,11 +19,15 @@ log = logging.getLogger()
 
 class RGWSection(object):
     # rgw section in ceph.conf
-    def __init__(self):
-        self._hostname, self._ip = utils.get_hostname_ip()
+    def __init__(self, ssh_con=None):
+        if ssh_con is not None:
+            self._hostname, self._ip = utils.get_hostname_ip(ssh_con)
+            self._non_ssl_port = utils.get_radosgw_port_no(ssh_con)
+        else:
+            self._hostname, self._ip = utils.get_hostname_ip()
+            self._non_ssl_port = utils.get_radosgw_port_no()
         self._ssl_port = 443
-        self._non_ssl_port = utils.get_radosgw_port_no()
-        self._ceph_conf = CephConfOp()
+        self._ceph_conf = CephConfOp(ssh_con)
         self._rgw_service = RGWService()
 
         # _sections_to_check = ['client.rgw.' + self._hostname,
@@ -48,18 +52,16 @@ class RGWSection(object):
 
 
 class RGWSectionOptions(RGWSection):
-    def __init__(self):
-        RGWSection.__init__(
-            self,
-        )
+    def __init__(self, ssh_con=None):
+        RGWSection.__init__(self, ssh_con)
         self.rgw_section_options = dict(self._ceph_conf.cfg.items(self.section))
         log.info("options under {}".format(self.section))
         log.info(self.rgw_section_options)
 
 
 class Frontend(RGWSectionOptions):
-    def __init__(self):
-        RGWSectionOptions.__init__(self)
+    def __init__(self, ssh_con=None):
+        RGWSectionOptions.__init__(self, ssh_con)
 
         log.info("checking current rgw frontend")
         self.curr_frontend = (
@@ -76,7 +78,7 @@ class Frontend(RGWSectionOptions):
         log.info("curr_ssl_status from ceph conf is : {}".format(self.curr_ssl))
 
     @decorators.check_pem
-    def set_frontend(self, frontend, **kwargs):
+    def set_frontend(self, frontend, ssh_con=None, **kwargs):
         """
         sets rgw_frontend in ceph conf and restart the services
 
@@ -123,9 +125,11 @@ class Frontend(RGWSectionOptions):
                 )
 
             log.info("conf_val: {}".format(conf_val))
-            self._ceph_conf.set_to_ceph_conf(self.section, "rgw frontends", conf_val)
+            self._ceph_conf.set_to_ceph_conf(
+                self.section, "rgw frontends", conf_val, ssh_con
+            )
 
-            srv_restarted = self._rgw_service.restart()
+            srv_restarted = self._rgw_service.restart(ssh_con)
             time.sleep(10)
             if srv_restarted is False:
                 raise RGWBaseException("RGW service restart failed")

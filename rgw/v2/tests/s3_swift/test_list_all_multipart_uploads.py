@@ -43,27 +43,40 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def get_svc_time():
+def get_svc_time(ssh_con=None):
 
     cmd = "pidof radosgw"
-    pid = utils.exec_shell_cmd(cmd)
+    if ssh_con:
+        _, pid, _ = ssh_con.exec_command(cmd)
+        pid = pid.readline()
+        log.info(pid)
+    else:
+        pid = utils.exec_shell_cmd(cmd)
     pid = pid.strip()
     cmd = "ps -p " + pid + " -o etimes"
-    srv_time = utils.exec_shell_cmd(cmd)
-    srv_time = srv_time.replace("\n", "")
-    srv_time = srv_time.replace(" ", "")
-    srv_time = int(srv_time[7:])
+    if ssh_con:
+        _, srv_time, _ = ssh_con.exec_command(cmd)
+        _ = srv_time.readline()
+        srv_time = srv_time.readline()
+        srv_time = srv_time.replace("\n", "")
+        srv_time = srv_time.replace(" ", "")
+        srv_time = int(srv_time)
+    else:
+        srv_time = utils.exec_shell_cmd(cmd)
+        srv_time = srv_time.replace("\n", "")
+        srv_time = srv_time.replace(" ", "")
+        srv_time = int(srv_time[7:])
     return srv_time
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
 
     if config.test_ops.get("upload_type") == "multipart":
-        srv_time_pre_op = get_svc_time()
+        srv_time_pre_op = get_svc_time(ssh_con)
 
     # create user
     tenant1 = "tenant_" + random.choice(string.ascii_letters)
@@ -73,8 +86,8 @@ def test_exec(config):
     tenant1_user1_info = tenant1_user_info[0]
     tenant1_user2_info = tenant1_user_info[1]
 
-    tenant1_user1_auth = Auth(tenant1_user1_info, ssl=config.ssl)
-    tenant1_user2_auth = Auth(tenant1_user2_info, ssl=config.ssl)
+    tenant1_user1_auth = Auth(tenant1_user1_info, ssh_con, ssl=config.ssl)
+    tenant1_user2_auth = Auth(tenant1_user2_info, ssh_con, ssl=config.ssl)
 
     rgw_tenant1_user1 = tenant1_user1_auth.do_auth()
     rgw_tenant1_user1_c = tenant1_user1_auth.do_auth_using_client()
@@ -144,7 +157,7 @@ def test_exec(config):
                     config,
                     tenant1_user1_info,
                 )
-        srv_time_post_op = get_svc_time()
+        srv_time_post_op = get_svc_time(ssh_con)
         log.info(srv_time_pre_op)
         log.info(srv_time_post_op)
 
@@ -206,17 +219,24 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        config.read(ssh_con)
         if config.test_ops.get("upload_type") == "multipart":
             if config.mapped_sizes is None:
                 config.mapped_sizes = utils.make_mapped_sizes(config)
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 

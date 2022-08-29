@@ -117,13 +117,13 @@ def fill_container(
         return swift_object_name
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     umgmt = UserMgmt()
-    ceph_conf = CephConfOp()
+    ceph_conf = CephConfOp(ssh_con)
     log.info(type(ceph_conf))
     rgw_service = RGWService()
     # preparing data
@@ -133,17 +133,17 @@ def test_exec(config):
         tenant_name=tenant, user_id=user_name, displayname=user_name
     )
     user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_name)
-    auth = Auth(user_info, config.ssl)
+    auth = Auth(user_info, ssh_con, config.ssl)
     rgw = auth.do_auth()
 
     for cc in range(config.container_count):
         if config.version_enable is True:
             log.info("making changes to ceph.conf")
             ceph_conf.set_to_ceph_conf(
-                "global", ConfigOpts.rgw_swift_versioning_enabled, "True"
+                "global", ConfigOpts.rgw_swift_versioning_enabled, "True", ssh_con
             )
             log.info("trying to restart services ")
-            srv_restarted = rgw_service.restart()
+            srv_restarted = rgw_service.restart(ssh_con)
             time.sleep(30)
             if srv_restarted is False:
                 raise TestExecError("RGW service restart failed")
@@ -422,16 +422,23 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
-        config.read()
+        config.read(ssh_con)
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)
 
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
