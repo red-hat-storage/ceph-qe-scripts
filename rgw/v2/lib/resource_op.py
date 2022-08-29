@@ -202,6 +202,10 @@ class Config(object):
             "rgw_reshard_thread_interval", 600
         )
         self.max_objects = None
+        self.user_max_objects = self.doc["config"].get("user_max_objects")
+        self.user_max_size = self.doc["config"].get("user_max_size")
+        self.bucket_max_objects = self.doc["config"].get("bucket_max_objects")
+        self.bucket_max_size = self.doc["config"].get("bucket_max_size")
         self.user_count = self.doc["config"].get("user_count")
         self.user_remove = self.doc["config"].get("user_remove", True)
         self.user_type = self.doc["config"].get("user_type")
