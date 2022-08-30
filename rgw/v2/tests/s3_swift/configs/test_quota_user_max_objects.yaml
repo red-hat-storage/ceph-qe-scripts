@@ -1,0 +1,14 @@
+# upload type: non multipart
+# script: test_quota_management.py
+config:
+  user_count: 1
+  bucket_count: 10
+  user_max_objects: 100
+  user_max_size: 16384
+  bucket_max_objects: 10
+  bucket_max_size: 4096
+  test_ops:
+    bucket_max_size: false
+    bucket_max_objects: false
+    user_max_size: false
+    user_max_objects: true
