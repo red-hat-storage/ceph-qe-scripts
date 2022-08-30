@@ -127,38 +127,91 @@ class ReadIOInfo(object):
         endpoint_url = f"{endpoint_proto}://{host}:{endpoint_port}"
 
         for each_user in users:
-            log.info("verifying data for the user: \n")
-            log.info("user_id: %s" % each_user["user_id"])
-            log.info("access_key: %s" % each_user["access_key"])
-            log.info("secret_key: %s" % each_user["secret_key"])
-            conn = boto3.resource(
-                "s3",
-                aws_access_key_id=each_user["access_key"],
-                aws_secret_access_key=each_user["secret_key"],
-                endpoint_url=endpoint_url,
-                use_ssl=is_secure,
-                verify=False,
-            )
+            if each_user["deleted"] is False:
+                log.info("verifying data for the user: \n")
+                log.info("user_id: %s" % each_user["user_id"])
+                log.info("access_key: %s" % each_user["access_key"])
+                log.info("secret_key: %s" % each_user["secret_key"])
+                conn = boto3.resource(
+                    "s3",
+                    aws_access_key_id=each_user["access_key"],
+                    aws_secret_access_key=each_user["secret_key"],
+                    endpoint_url=endpoint_url,
+                    use_ssl=is_secure,
+                    verify=False,
+                )
 
-            for each_bucket in each_user["bucket"]:
-                log.info("verifying data for bucket: %s" % each_bucket["name"])
-                bucket_from_s3 = conn.Bucket(each_bucket["name"])
-                curr_versioning_status = each_bucket["curr_versioning_status"]
-                log.info("curr_versioning_status: %s" % curr_versioning_status)
-                if not each_bucket["keys"]:
-                    log.info("keys are not created")
-                else:
-                    no_of_keys = len(each_bucket["keys"])
-                    log.info("no_of_keys: %s" % no_of_keys)
-                    for each_key in each_bucket["keys"]:
-                        versioned_keys = len(each_key["versioning_info"])
-                        log.info("versioned_keys: %s" % versioned_keys)
-                        if not each_key["versioning_info"]:
-                            log.info("not versioned key")
-                            verify_key(each_key, bucket_from_s3)
+                for each_bucket in each_user["bucket"]:
+                    if each_bucket["deleted"] is False:
+                        log.info("verifying data for bucket: %s" % each_bucket["name"])
+                        bucket_from_s3 = conn.Bucket(each_bucket["name"])
+                        curr_versioning_status = each_bucket["curr_versioning_status"]
+                        log.info("curr_versioning_status: %s" % curr_versioning_status)
+                        if not each_bucket["keys"]:
+                            log.info("keys are not created")
                         else:
-                            log.info("versioned key")
-                            verify_key_with_version(each_key, bucket_from_s3)
+                            no_of_keys = len(each_bucket["keys"])
+                            log.info("no_of_keys: %s" % no_of_keys)
+                            for each_key in each_bucket["keys"]:
+                                if each_key["deleted"] is False:
+                                    versioned_keys = len(each_key["versioning_info"])
+                                    log.info("versioned_keys: %s" % versioned_keys)
+                                    if not each_key["versioning_info"]:
+                                        log.info("not versioned key")
+                                        verify_key(each_key, bucket_from_s3)
+                                    else:
+                                        log.info("versioned key")
+                                        verify_key_with_version(
+                                            each_key, bucket_from_s3
+                                        )
+                                else:
+                                    key_name = each_key["name"]
+                                    log.info(
+                                        f"Verification of deleted key '{key_name}' starts"
+                                    )
+                                    try:
+                                        key_from_s3 = bucket_from_s3.Object(
+                                            os.path.basename(key_name)
+                                        )
+                                        log.info(key_from_s3.get())
+                                        raise AssertionError(
+                                            f"Verification of deleted object '{key_name}' failed"
+                                        )
+                                    except botocore.exceptions.ClientError as e:
+                                        log.info(
+                                            f"Verification of deleted object '{key_name}' successful"
+                                        )
+                    else:
+                        bucket_name = each_bucket["name"]
+                        log.info(
+                            f"Verification of deleted bucket '{bucket_name}' starts"
+                        )
+                        try:
+                            conn.meta.client.head_bucket(Bucket=bucket_name)
+                            raise AssertionError(
+                                f"Verification of deleted bucket '{bucket_name}' failed"
+                            )
+                        except botocore.exceptions.ClientError as e:
+                            error_code = int(e.response["Error"]["Code"])
+                            if error_code == 404:
+                                log.info(
+                                    f"Verification of deleted bucket '{bucket_name}' successful"
+                                )
+                            else:
+                                raise AssertionError(
+                                    f"Verification of deleted bucket '{bucket_name}' failed"
+                                )
+            else:
+                user_id = each_user["user_id"]
+                log.info(f"Verification of deleted user '{user_id}' starts")
+                cmd = f"radosgw-admin user list"
+                out = utils.exec_shell_cmd(cmd)
+                if user_id not in out:
+                    log.info(f"Verification of deleted user '{user_id}' successful")
+                else:
+                    raise AssertionError(
+                        f"Verification of deleted user '{user_id}' failed"
+                    )
         log.info("verification of data completed")
 
 
