@@ -33,12 +33,14 @@ class BasicIOInfoStructure(object):
             "access_key": args["access_key"],
             "secret_key": args["secret_key"],
             "bucket": list(),
+            "deleted": False,
         }
         self.bucket = lambda **args: {
             "name": args["name"],
             "properties": list(),
             "keys": list(),
             "curr_versioning_status": "disabled",
+            "deleted": False,
         }
         self.key = lambda **args: {
             "name": args["name"],
@@ -47,12 +49,14 @@ class BasicIOInfoStructure(object):
             "upload_type": args["upload_type"],
             "properties": list(),
             "versioning_info": list(),
+            "deleted": False,
         }
         self.version_info = lambda **args: {
             "version_id": args["version_id"],
             "md5_local": args["md5_local"],
             "count_no": args["count_no"],
             "size": args["size"],
+            "deleted": False,
         }
 
 
@@ -131,6 +135,22 @@ class AddUserInfo(AddIOInfo):
         log.info("data to add: %s" % yaml_data)
         self.file_op.add_data(yaml_data)
 
+    def set_user_deleted(self, access_key):
+        """
+        This function is to add the user information to the yaml
+        Parameters:
+            access_key:
+        """
+        log.info("Setting user as deleted")
+        yaml_data = self.file_op.get_data()
+        indx = None
+        for i, k in enumerate(yaml_data["users"]):
+            if k["access_key"] == access_key:
+                indx = i
+                break
+        yaml_data["users"][indx]["deleted"] = True
+        self.file_op.add_data(yaml_data)
+
 
 class BucketIoInfo(AddIOInfo):
     """
@@ -158,6 +178,26 @@ class BucketIoInfo(AddIOInfo):
                 indx = i
                 break
         yaml_data["users"][indx]["bucket"].append(bucket_info)
+        self.file_op.add_data(yaml_data)
+
+    def set_bucket_deleted(self, bucket_name):
+        """
+        This function is to add bucket information to the yaml
+        Parameters:
+            access_key:
+            bucket_name:
+        """
+        log.info(f"marking bucket '{bucket_name}' as deleted")
+        yaml_data = self.file_op.get_data()
+        access_key_indx = None
+        bucket_indx = None
+        for i, _ in enumerate(yaml_data["users"]):
+            for j, k in enumerate(yaml_data["users"][i]["bucket"]):
+                if k["name"] == bucket_name:
+                    bucket_indx = j
+                    access_key_indx = i
+                    break
+        yaml_data["users"][access_key_indx]["bucket"][bucket_indx]["deleted"] = True
         self.file_op.add_data(yaml_data)
 
     def add_versioning_status(self, access_key, bucket_name, versioning_status):
@@ -240,6 +280,36 @@ class KeyIoInfo(AddIOInfo):
         yaml_data["users"][access_key_indx]["bucket"][bucket_indx]["keys"].append(
             key_info
         )
+        self.file_op.add_data(yaml_data)
+
+    def set_key_deleted(self, bucket_name, key_name):
+        """
+        This function to add properties to the yaml
+
+        Parameters:
+            bucket_name: name of the bucket
+            key_name: name of the key
+        """
+        log.info(f"marking key '{key_name}' in bucket '{bucket_name}' as deleted")
+        yaml_data = self.file_op.get_data()
+        access_key_indx = None
+        bucket_indx = None
+        key_indx = None
+        for i, _ in enumerate(yaml_data["users"]):
+            for j, k in enumerate(yaml_data["users"][i]["bucket"]):
+                if k["name"] == bucket_name:
+                    bucket_indx = j
+                    access_key_indx = i
+                    break
+        for i, k in enumerate(
+            yaml_data["users"][access_key_indx]["bucket"][bucket_indx]["keys"]
+        ):
+            if k["name"] == key_name:
+                key_indx = i
+                break
+        yaml_data["users"][access_key_indx]["bucket"][bucket_indx]["keys"][key_indx][
+            "deleted"
+        ] = True
         self.file_op.add_data(yaml_data)
 
     def add_properties(self, access_key, bucket_name, key_name, properties):
@@ -390,6 +460,11 @@ def logioinfo(func):
                 log.info("adding io info of create bucket")
                 bucket_info = gen_basic_io_info_structure.bucket(**{"name": obj.name})
                 write_bucket_info.add_bucket_info(access_key, bucket_info)
+            resource_names = ["delete"]
+            if resource_name in resource_names:
+                log.info("adding io info of delete bucket")
+                write_bucket_info.set_bucket_deleted(obj.name)
+
         if "s3.Object" == type(obj).__name__:
             log.info("in s3.Object logging")
             resource_names = ["upload_file", "initiate_multipart_upload"]
@@ -438,6 +513,10 @@ def logioinfo(func):
                     write_key_info.add_keys_info(
                         access_key, obj.bucket_name, key_upload_info
                     )
+            resource_names = ["delete"]
+            if resource_name in resource_names:
+                log.info("writing log for delete object")
+                write_key_info.set_key_deleted(obj.bucket_name, obj.key)
         log.debug("writing log for %s" % resource_name)
         return ret_val
 
