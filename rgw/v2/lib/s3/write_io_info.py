@@ -420,24 +420,37 @@ def logioinfo(func):
                     write_key_info.add_keys_info(
                         access_key, obj.bucket_name, key_upload_info
                     )
-                if (
-                    extra_info.get("versioning_status") == "enabled"
-                    and extra_info.get("version_count_no") == 0
-                ):
-                    log.info(
-                        "adding io info of upload objects, version enabled, so only key name will be added"
-                    )
-                    key_upload_info = gen_basic_io_info_structure.key(
-                        **{
-                            "name": extra_info["name"],
-                            "size": None,
-                            "md5_local": None,
-                            "upload_type": extra_info.get("upload_type", "normal"),
-                        }
-                    )
-                    write_key_info.add_keys_info(
-                        access_key, obj.bucket_name, key_upload_info
-                    )
+                if extra_info.get("versioning_status") == "enabled":
+                    if extra_info.get("version_count_no") == 0:
+                        log.info(
+                            "adding io info of upload objects, version enabled, so only key name will be added"
+                        )
+                        key_upload_info = gen_basic_io_info_structure.key(
+                            **{
+                                "name": extra_info["name"],
+                                "size": None,
+                                "md5_local": None,
+                                "upload_type": extra_info.get("upload_type", "normal"),
+                            }
+                        )
+                        write_key_info.add_keys_info(
+                            access_key, obj.bucket_name, key_upload_info
+                        )
+                    elif extra_info.get("version_count_no") > 0:
+                        log.info(
+                            "adding io info of upload objects, version enabled, so only key name will be added"
+                        )
+                        version_upload_info = gen_basic_io_info_structure.version_info(
+                            **{
+                                "version_id": obj.version_id,
+                                "md5_local": extra_info["md5"],
+                                "count_no": extra_info["version_count_no"],
+                                "size": extra_info["size"],
+                            }
+                        )
+                        write_key_info.add_versioning_info(
+                            access_key, obj.bucket_name, obj.name, version_upload_info
+                        )
         log.debug("writing log for %s" % resource_name)
         return ret_val
 

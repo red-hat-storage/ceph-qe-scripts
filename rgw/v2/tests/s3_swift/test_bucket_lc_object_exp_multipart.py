@@ -28,7 +28,7 @@ from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize, KeyIoInfo
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -41,6 +41,7 @@ TEST_DATA_PATH = None
 def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
+    write_key_io_info = KeyIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
@@ -151,6 +152,11 @@ def test_exec(config, ssh_con):
                     log.info("deleting local file created after the upload")
                     utils.exec_shell_cmd(f"rm -rf {TEST_DATA_PATH}")
 
+                write_key_io_info.set_keys_deleted_in_bucket_with_prefix(
+                    each_user["access_key"],
+                    bucket.name,
+                    [config.lifecycle_conf[0]["Filter"]["Prefix"]],
+                )
                 reusable.delete_bucket(bucket)
         reusable.remove_user(each_user)
 

@@ -36,7 +36,12 @@ from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3 import lifecycle_validation as lc_ops
 from v2.lib.s3.auth import Auth
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
+from v2.lib.s3.write_io_info import (
+    BasicIOInfoStructure,
+    BucketIoInfo,
+    IOInfoInitialize,
+    KeyIoInfo,
+)
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -52,6 +57,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
+    write_key_io_info = KeyIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
@@ -156,6 +162,8 @@ def test_exec(config, ssh_con):
                                     append_data=True,
                                     append_msg="hello object for version: %s\n"
                                     % str(vc),
+                                    versioning_status="enabled",
+                                    version_count_no=vc,
                                 )
                         else:
                             log.info("s3 objects to create: %s" % config.objects_count)
@@ -191,6 +199,9 @@ def test_exec(config, ssh_con):
                             raise AssertionError(
                                 f"more than one delete marker created for the objects in the bucket {bucket.name}"
                             )
+                    write_key_io_info.set_keys_deleted_in_bucket_with_prefix(
+                        each_user["access_key"], bucket.name, prefix
+                    )
                 else:
                     buckets.append(bucket)
 
@@ -290,6 +301,9 @@ def test_exec(config, ssh_con):
                             raise TestExecError(
                                 "Put bucket lifecycle Succeeded, expected failure due to invalid date in LC rule"
                             )
+                    write_key_io_info.set_keys_deleted_in_bucket_with_prefix(
+                        each_user["access_key"], bucket.name, prefix
+                    )
                 else:
                     log.info("Inside parallel lc")
                     buckets.append(bucket)
@@ -306,7 +320,9 @@ def test_exec(config, ssh_con):
                     lc_ops.validate_prefix_rule_non_versioned(bucket)
                 else:
                     lc_ops.validate_prefix_rule(bucket, config)
-
+                write_key_io_info.set_keys_deleted_in_bucket_with_prefix(
+                    each_user["access_key"], bucket.name, prefix
+                )
         reusable.remove_user(each_user)
         # check for any crashes during the execution
         crash_info = reusable.check_for_crash()
