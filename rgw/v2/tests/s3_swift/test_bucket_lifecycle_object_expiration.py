@@ -276,10 +276,6 @@ def test_exec(config, ssh_con):
                                     )
                         time.sleep(30)
                         lc_ops.validate_and_rule(bucket, config)
-                        ceph_conf.set_to_ceph_conf(
-                            "global", ConfigOpts.rgw_enable_lc_threads, "true"
-                        )
-                        rgw_service.restart()
                     else:
                         bucket_life_cycle = s3lib.resource_op(
                             {
@@ -323,6 +319,13 @@ def test_exec(config, ssh_con):
                 write_key_io_info.set_keys_deleted_in_bucket_with_prefix(
                     each_user["access_key"], bucket.name, prefix
                 )
+
+        if not config.rgw_enable_lc_threads:
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_enable_lc_threads, "true", ssh_con
+            )
+            rgw_service.restart()
+            time.sleep(30)
         reusable.remove_user(each_user)
         # check for any crashes during the execution
         crash_info = reusable.check_for_crash()
