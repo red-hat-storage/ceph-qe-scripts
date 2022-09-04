@@ -213,21 +213,6 @@ def test_exec(config, ssh_con):
                                 log.info("object uploaded")
                                 s3_obj = rgw_conn.Object(bucket.name, s3_object_name)
                                 log.info("current_version_id: %s" % s3_obj.version_id)
-                                key_version_info = basic_io_structure.version_info(
-                                    **{
-                                        "version_id": s3_obj.version_id,
-                                        "md5_local": upload_info["md5"],
-                                        "count_no": vc,
-                                        "size": upload_info["size"],
-                                    }
-                                )
-                                log.info("key_version_info: %s" % key_version_info)
-                                write_key_io_info.add_versioning_info(
-                                    each_user["access_key"],
-                                    bucket.name,
-                                    s3_object_path,
-                                    key_version_info,
-                                )
                                 created_versions_count += 1
                                 log.info(
                                     "created_versions_count: %s"

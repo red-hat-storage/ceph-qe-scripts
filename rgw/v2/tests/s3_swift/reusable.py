@@ -86,7 +86,14 @@ def upload_object(
     if data_info is False:
         TestExecError("data creation failed")
     log.info("uploading s3 object: %s" % s3_object_path)
-    upload_info = dict({"access_key": user_info["access_key"]}, "versioning_status": versioning_status, "version_count_no": version_count_no, **data_info)
+    upload_info = dict(
+        {
+            "access_key": user_info["access_key"],
+            "versioning_status": versioning_status,
+            "version_count_no": version_count_no,
+        },
+        **data_info,
+    )
     s3_obj = s3lib.resource_op(
         {
             "obj": bucket,
