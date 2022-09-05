@@ -522,6 +522,35 @@ def test_exec(config, ssh_con):
                                     raise TestExecError(
                                         "Bucket stats for non-existent bucket should return failure (2) or ENOENT."
                                     )
+                    if config.test_bi_purge:
+                        cmd = "radosgw-admin bucket stats --bucket=%s" % bucket.name
+                        out = utils.exec_shell_cmd(cmd)
+                        json_doc = json.loads(out)
+                        bucket_id = json_doc["id"]
+                        log.info(
+                            "Remove the bucket via bucket rm and --bypass-gc option"
+                        )
+                        utils.exec_shell_cmd(
+                            f"radosgw-admin bucket rm --bucket={bucket.name} --bypass-gc --purge-objects"
+                        )
+                        log.info(f"Do bi list for bucket {bucket.name}")
+                        utils.exec_shell_cmd(
+                            f"radosgw-admin bi list --bucket={bucket.name} --bucket-id={bucket_id}"
+                        )
+                        log.info(f"Do bi purge for bucket {bucket.name}")
+                        utils.exec_shell_cmd(
+                            f"radosgw-admin bi purge --bucket={bucket.name} --bucket-id={bucket_id}"
+                        )
+                        log.info(
+                            f"Do bi list for bucket {bucket.name} again, it should be empty and return 2"
+                        )
+                        cmd = f"radosgw-admin bi list --bucket={bucket.name} --bucket-id={bucket_id}"
+                        ec, _ = sp.getstatusoutput(cmd)
+                        if ec != 2:
+                            raise TestExecError(
+                                "bi list after bi purge is not empty, it's a test failure."
+                            )
+
                     if config.bucket_sync_run_with_disable_sync_thread:
                         out = utils.check_bucket_sync(bucket.name)
                         if out is False:
