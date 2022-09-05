@@ -554,7 +554,7 @@ def logioinfo(func):
                     )
                     log.info("key_version_info: %s" % version_upload_info)
                     write_key_info.add_versioning_info(
-                        access_key, obj.bucket_name, obj.name, version_upload_info
+                        access_key, obj.bucket_name, obj.key, version_upload_info
                     )
         log.debug("writing log for %s" % resource_name)
         return ret_val
