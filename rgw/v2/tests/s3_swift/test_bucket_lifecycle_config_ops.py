@@ -2,7 +2,7 @@
 # test s3 bucket_lifecycle operations (like read, modify and delete)
 
 Usage: test_bucket_lifecycle_config_ops.py -c configs/<input-yaml>
-where <input-yaml> are test_bucket_lc_enable_object_exp.yaml, test_bucket_lifecycle_config_disable.yaml, test_bucket_lifecycle_config_modify.yaml, test_bucket_lifecycle_config_read.yaml and test_bucket_lifecycle_config_versioning.yaml
+where <input-yaml> are test_bucket_lc_disable_object_exp.yaml, test_bucket_lc_enable_object_exp.yaml, test_bucket_lifecycle_config_disable.yaml, test_bucket_lifecycle_config_modify.yaml, test_bucket_lifecycle_config_read.yaml and test_bucket_lifecycle_config_versioning.yaml
 
 Operation:
 - Create a user and a bucket (enable versioning as per the input from the yaml file)
@@ -38,10 +38,13 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def basic_lifecycle_config(prefix, days, id, status="Enabled"):
+def basic_lifecycle_config(prefix, id, status="Enabled", days=None, date=None):
     rule = {}
     expiration = lc.gen_expiration()
-    expiration["Expiration"].update(lc.gen_expiration_days(days))
+    if days:
+        expiration["Expiration"].update(lc.gen_expiration_days(days))
+    else:
+        expiration["Expiration"].update(lc.gen_expiration_date(date))
     filter = lc.gen_filter()
     filter["Filter"].update(lc.gen_prefix(prefix))
     rule.update(lc.gen_id(id))
@@ -151,7 +154,14 @@ def test_exec(config, ssh_con):
                         "args": [bucket.name],
                     }
                 )
-                life_cycle = basic_lifecycle_config(prefix="key", days=20, id="rul1")
+                if config.test_ops.get("verify_lc_disable", False) is True:
+                    life_cycle = basic_lifecycle_config(
+                        prefix="key", id="rul1", date=config.test_ops.get("lc_exp_date")
+                    )
+                else:
+                    life_cycle = basic_lifecycle_config(
+                        prefix="key", id="rul1", days=20
+                    )
                 put_bucket_life_cycle = s3lib.resource_op(
                     {
                         "obj": bucket_life_cycle,
@@ -162,7 +172,7 @@ def test_exec(config, ssh_con):
                 log.info("put bucket life cycle:\n%s" % put_bucket_life_cycle)
                 if put_bucket_life_cycle is False:
                     raise TestExecError(
-                        "Resource execution failed: bucket creation faield"
+                        "Resource execution failed: bucket creation failed"
                     )
                 if put_bucket_life_cycle is not None:
                     response = HttpResponseParser(put_bucket_life_cycle)
@@ -255,14 +265,14 @@ def test_exec(config, ssh_con):
                 # modify bucket lifecycle configuration, modify expiration days here for the test case.
                 if config.test_ops.get("modify_lifecycle", False) is True:
                     log.info("modifying lifecycle configuration")
-                    life_cycle_modifed = basic_lifecycle_config(
-                        prefix="key", days=15, id="rul1", status="Disabled"
+                    life_cycle_modified = basic_lifecycle_config(
+                        prefix="key", id="rul1", status="Disabled", days=15
                     )
                     put_bucket_life_cycle = s3lib.resource_op(
                         {
                             "obj": bucket_life_cycle,
                             "resource": "put",
-                            "kwargs": dict(LifecycleConfiguration=life_cycle_modifed),
+                            "kwargs": dict(LifecycleConfiguration=life_cycle_modified),
                         }
                     )
                     log.info("put bucket life cycle:\n%s" % put_bucket_life_cycle)
@@ -314,9 +324,23 @@ def test_exec(config, ssh_con):
                 # disable bucket lifecycle configuration
                 if config.test_ops.get("disable_lifecycle", False) is True:
                     log.info("disabling lifecycle configuration")
-                    life_cycle_disabled_config = basic_lifecycle_config(
-                        prefix="key", days=20, id="rul1", status="Disabled"
-                    )
+
+                    if config.test_ops.get("verify_lc_disable", False) is True:
+                        stats_before_disable = json.loads(
+                            utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket={bucket.name}"
+                            )
+                        )
+                        life_cycle_disabled_config = basic_lifecycle_config(
+                            prefix="key",
+                            id="rul1",
+                            status="Disabled",
+                            date=config.test_ops.get("lc_exp_date"),
+                        )
+                    else:
+                        life_cycle_disabled_config = basic_lifecycle_config(
+                            prefix="key", id="rul1", status="Disabled", days=20
+                        )
                     put_bucket_life_cycle = s3lib.resource_op(
                         {
                             "obj": bucket_life_cycle,
@@ -329,7 +353,7 @@ def test_exec(config, ssh_con):
                     log.info("put bucket life cycle:\n%s" % put_bucket_life_cycle)
                     if put_bucket_life_cycle is False:
                         raise TestExecError(
-                            "Resource execution failed: bucket creation faield"
+                            "Resource execution failed: bucket creation failed"
                         )
                     if put_bucket_life_cycle is not None:
                         response = HttpResponseParser(put_bucket_life_cycle)
@@ -369,6 +393,20 @@ def test_exec(config, ssh_con):
                         raise TestExecError(
                             "bucket lifecycle config retrieval failed after disabled"
                         )
+                    if config.test_ops.get("verify_lc_disable", False) is True:
+                        time.sleep(config.rgw_lc_debug_interval)
+                        stats_after_disable = json.loads(
+                            utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket={bucket.name}"
+                            )
+                        )
+                        if (
+                            stats_before_disable["usage"]["rgw.main"]["num_objects"]
+                            != stats_after_disable["usage"]["rgw.main"]["num_objects"]
+                        ):
+                            raise TestExecError(
+                                f"For bucket {bucket.name} lc disabled before starting lc interval, but objects are expired through lc"
+                            )
 
                 if config.test_ops.get("add_more_objects", False):
                     for oc in range(0, config.test_ops["new_objects_count"]):
@@ -386,7 +424,7 @@ def test_exec(config, ssh_con):
                             each_user,
                         )
                     time.sleep(60)
-                    for i in (1, 10):
+                    for _ in range(1, 10):
                         bucket_stats = json.loads(
                             utils.exec_shell_cmd(
                                 f"radosgw-admin bucket stats --bucket={bucket.name}"
