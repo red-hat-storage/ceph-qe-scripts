@@ -1,0 +1,20 @@
+# script: test_Mbuckets_with_Nobjects.py
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  reshard_cancel_cmd: true
+  objects_size_range:
+    min: 5K
+    max: 2M
+  test_ops:
+    create_bucket: true
+    create_object: true
+    download_object: true
+    delete_bucket_object: false
+    sharding:
+      enable: false
+      max_shards: 0
+    compression:
+      enable: false
+      type: zlib
