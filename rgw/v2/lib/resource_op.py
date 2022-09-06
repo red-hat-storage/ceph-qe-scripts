@@ -285,6 +285,7 @@ class Config(object):
         self.persistent_flag = self.test_ops.get("persistent_flag", False)
         self.copy_object = self.test_ops.get("copy_object", False)
         self.get_topic_info = self.test_ops.get("get_topic_info", False)
+        self.test_bi_purge = self.doc["config"].get("test_bi_purge", False)
         self.set_acl = self.test_ops.get("set_acl", None)
         self.put_empty_bucket_notification = self.test_ops.get(
             "put_empty_bucket_notification", False
