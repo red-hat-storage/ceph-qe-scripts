@@ -15,6 +15,7 @@ import v2.utils.utils as utils
 from v2.lib.exceptions import DefaultDatalogBackingError, MFAVersionError, TestExecError
 from v2.lib.rgw_config_opts import ConfigOpts
 from v2.lib.s3.write_io_info import (
+    AddUserInfo,
     BasicIOInfoStructure,
     BucketIoInfo,
     IOInfoInitialize,
@@ -573,6 +574,9 @@ def remove_user(user_info, cluster_name="ceph", tenant=False):
             user_info["user_id"]
         )
     out = utils.exec_shell_cmd(cmd)
+    if out is not False:
+        write_user_data = AddUserInfo()
+        write_user_data.set_user_deleted(user_info["access_key"])
     return out
 
 

@@ -593,8 +593,7 @@ def test_exec(config, ssh_con):
                 raise TestExecError("Failed to enable user")
         if config.delete_user:
             user_id = each_user["user_id"]
-            cmd = f"radosgw-admin user rm --uid='{user_id}'"
-            out = utils.exec_shell_cmd(cmd)
+            out = reusable.remove_user(each_user)
             cmd = f"radosgw-admin user list"
             out = utils.exec_shell_cmd(cmd)
             if user_id not in out:
