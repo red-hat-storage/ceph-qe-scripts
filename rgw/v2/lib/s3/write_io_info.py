@@ -538,6 +538,7 @@ def logioinfo(func):
                                 "upload_type": extra_info.get("upload_type", "normal"),
                             }
                         )
+                        log.info("key_info: %s" % key_upload_info)
                         write_key_info.add_keys_info(
                             access_key, obj.bucket_name, key_upload_info
                         )
@@ -554,7 +555,7 @@ def logioinfo(func):
                     )
                     log.info("key_version_info: %s" % version_upload_info)
                     write_key_info.add_versioning_info(
-                        access_key, obj.bucket_name, obj.key, version_upload_info
+                        access_key, obj.bucket_name, extra_info["name"], version_upload_info
                     )
         log.debug("writing log for %s" % resource_name)
         return ret_val
