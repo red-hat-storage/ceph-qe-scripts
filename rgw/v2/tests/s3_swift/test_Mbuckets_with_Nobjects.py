@@ -382,23 +382,26 @@ def test_exec(config, ssh_con):
                                         )
 
                     if config.reshard_cancel_cmd:
-                        op = utils.exec_shell_cmd(
-                            f"radosgw-admin reshard add --bucket {bucket.name} --num-shards 29"
-                        )
-                        op = utils.exec_shell_cmd(f"radosgw-admin reshard list")
-                        if bucket.name in op:
+                        if utils.check_dbr_support():
                             op = utils.exec_shell_cmd(
-                                f"radosgw-admin reshard cancel --bucket {bucket.name}"
+                                f"radosgw-admin reshard add --bucket {bucket.name} --num-shards 29"
                             )
-                            cancel_op = utils.exec_shell_cmd(
-                                f"radosgw-admin reshard list"
-                            )
-                            if bucket.name in cancel_op:
-                                raise TestExecError("bucket is still in reshard queue")
-                        else:
-                            raise TestExecError(
-                                "Command failed....Bucket is not added into reshard queue"
-                            )
+                            op = utils.exec_shell_cmd(f"radosgw-admin reshard list")
+                            if bucket.name in op:
+                                op = utils.exec_shell_cmd(
+                                    f"radosgw-admin reshard cancel --bucket {bucket.name}"
+                                )
+                                cancel_op = utils.exec_shell_cmd(
+                                    f"radosgw-admin reshard list"
+                                )
+                                if bucket.name in cancel_op:
+                                    raise TestExecError(
+                                        "bucket is still in reshard queue"
+                                    )
+                            else:
+                                raise TestExecError(
+                                    "Command failed....Bucket is not added into reshard queue"
+                                )
                     if config.bucket_sync_run:
                         out = utils.check_bucket_sync(bucket.name)
                         if out is False:
