@@ -304,7 +304,7 @@ class KeyIoInfo(AddIOInfo):
         for i, k in enumerate(
             yaml_data["users"][access_key_indx]["bucket"][bucket_indx]["keys"]
         ):
-            if k["name"] == key_name:
+            if k["name"].ends_with(key_name):
                 key_indx = i
                 break
         yaml_data["users"][access_key_indx]["bucket"][bucket_indx]["keys"][key_indx][
@@ -460,10 +460,6 @@ def logioinfo(func):
                 log.info("adding io info of create bucket")
                 bucket_info = gen_basic_io_info_structure.bucket(**{"name": obj.name})
                 write_bucket_info.add_bucket_info(access_key, bucket_info)
-            resource_names = ["delete"]
-            if resource_name in resource_names:
-                log.info("adding io info of delete bucket")
-                write_bucket_info.set_bucket_deleted(obj.name)
 
         if "s3.Object" == type(obj).__name__:
             log.info("in s3.Object logging")
@@ -513,10 +509,6 @@ def logioinfo(func):
                     write_key_info.add_keys_info(
                         access_key, obj.bucket_name, key_upload_info
                     )
-            resource_names = ["delete"]
-            if resource_name in resource_names:
-                log.info("writing log for delete object")
-                write_key_info.set_key_deleted(obj.bucket_name, obj.key)
         log.debug("writing log for %s" % resource_name)
         return ret_val
 
