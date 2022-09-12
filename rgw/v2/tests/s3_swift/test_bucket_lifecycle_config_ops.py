@@ -89,7 +89,7 @@ def test_exec(config, ssh_con):
             log.info("no of buckets to create: %s" % config.bucket_count)
             for bc in range(config.bucket_count):
                 bucket_name = utils.gen_bucket_name_from_userid(
-                    each_user["user_id"], rand_no=1
+                    each_user["user_id"], rand_no=bc
                 )
                 bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
                 if config.test_ops["enable_versioning"] is True:
