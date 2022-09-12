@@ -399,6 +399,8 @@ def upload_mutipart_object(
                 if config.local_file_delete is True:
                     log.info("deleting local file part")
                     utils.exec_shell_cmd("sudo rm -rf %s" % each_part)
+                    utils.exec_shell_cmd(f"rm -rf {s3_object_path}")
+                    utils.exec_shell_cmd(f"rm -rf {mp_dir}")
             else:
                 raise TestExecError("part uploading failed")
         part_info = {"PartNumber": part_number, "ETag": part_upload_response["ETag"]}

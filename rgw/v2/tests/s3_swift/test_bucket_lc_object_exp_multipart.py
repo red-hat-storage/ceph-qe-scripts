@@ -70,7 +70,7 @@ def test_exec(config, ssh_con):
             # create bucket
             for bc in range(config.bucket_count):
                 bucket_name = utils.gen_bucket_name_from_userid(
-                    each_user["user_id"], rand_no=1
+                    each_user["user_id"], rand_no=bc
                 )
                 bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
                 life_cycle_rule = {"Rules": config.lifecycle_conf}
@@ -146,10 +146,6 @@ def test_exec(config, ssh_con):
                             raise TestExecError(
                                 "Objects are not listed but can be downloadable"
                             )
-
-                if config.local_file_delete:
-                    log.info("deleting local file created after the upload")
-                    utils.exec_shell_cmd(f"rm -rf {TEST_DATA_PATH}")
 
                 reusable.delete_bucket(bucket)
         reusable.remove_user(each_user)
