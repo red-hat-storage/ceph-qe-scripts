@@ -1,0 +1,4 @@
+# script: test_rate_limit.py
+config:
+  user_count: 1
+  bucket_count: 2
