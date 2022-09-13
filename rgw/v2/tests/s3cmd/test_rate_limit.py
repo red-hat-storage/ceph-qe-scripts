@@ -79,6 +79,7 @@ def test_exec(config):
         range_val = f"1..2"
         cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/ ;done;")
         rc = utils.exec_shell_cmd(cmd)
+        log.debug(f"Response for upload file command: {rc}")
     except Exception as e:
         raise S3CommandExecError(message=str(e))
     assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
