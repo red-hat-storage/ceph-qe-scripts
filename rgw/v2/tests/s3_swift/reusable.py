@@ -706,6 +706,10 @@ def delete_objects(bucket):
         response = HttpResponseParser(objects_deleted[0])
         if response.status_code == 200:
             log.info("objects deleted ")
+            write_key_info = KeyIoInfo()
+            for obj in all_objects:
+                log.info(f"writing log for delete object {obj.key}")
+                write_key_info.set_key_deleted(obj.bucket_name, obj.key)
         else:
             raise TestExecError("objects deletion failed")
     else:
@@ -818,6 +822,9 @@ def delete_bucket(bucket):
         response = HttpResponseParser(bucket_deleted_response)
         if response.status_code == 204:
             log.info("bucket deleted ")
+            write_bucket_info = BucketIoInfo()
+            log.info("adding io info of delete bucket")
+            write_bucket_info.set_bucket_deleted(bucket.name)
         else:
             raise TestExecError("bucket deletion failed")
     else:
