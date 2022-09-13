@@ -76,7 +76,8 @@ def test_exec(config):
 
     #test the read and write ops limit
     try:
-        cmd = (f"for i in {1..2}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/ ;done;")
+        range_val = f"1..2"
+        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/ ;done;")
         rc = utils.exec_shell_cmd(cmd)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
@@ -85,7 +86,8 @@ def test_exec(config):
     sleep(61)
     s3cmd_reusable.create_local_file("2k", "file1")
     try:
-        cmd = (f"for i in {1..3}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;")
+        range_val = f"1..3"
+        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;")
         rc = utils.exec_shell_cmd(cmd)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
@@ -96,7 +98,8 @@ def test_exec(config):
 
     #test the read and write data limit
     try:
-        cmd = (f"for i in {1..2}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/files/file1 ;done;")
+        range_val = f"1..2"
+        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/files/file1 ;done;")
         rc = utils.exec_shell_cmd(cmd)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
@@ -104,7 +107,8 @@ def test_exec(config):
 
     sleep(61)
     try:
-        cmd = (f"for i in {1..3}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;")
+        range_val = f"1..3"
+        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;")
         rc = utils.exec_shell_cmd(cmd)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
@@ -128,7 +132,8 @@ def test_exec(config):
     bucket_name2 = utils.gen_bucket_name_from_userid(user_name, rand_no=1)
     s3cmd_reusable.create_bucket(bucket_name2)
     try:
-        cmd = (f"for i in {1..2}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name2}/ ;done;")
+        range_val = f"1..2"
+        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name2}/ ;done;")
         rc = utils.exec_shell_cmd(cmd)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
@@ -136,7 +141,8 @@ def test_exec(config):
 
     sleep(61)
     try:
-        cmd = (f"for i in {1..3}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name2}/files/file$i ;done;")
+        range_val = f"1..3"
+        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name2}/files/file$i ;done;")
         rc = utils.exec_shell_cmd(cmd)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
@@ -147,7 +153,8 @@ def test_exec(config):
 
     # test the read and write data limit
     try:
-        cmd = (f"for i in {1..2}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name2}/files/file1 ;done;")
+        range_val = f"1..2"
+        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name2}/files/file1 ;done;")
         rc = utils.exec_shell_cmd(cmd)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
@@ -155,7 +162,8 @@ def test_exec(config):
 
     sleep(61)
     try:
-        cmd = (f"for i in {1..3}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name2}/files/file$i ;done;")
+        range_val = f"1..3"
+        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name2}/files/file$i ;done;")
         rc = utils.exec_shell_cmd(cmd)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
