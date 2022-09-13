@@ -396,11 +396,6 @@ def upload_mutipart_object(
             response = HttpResponseParser(part_upload_response)
             if response.status_code == 200:
                 log.info("part uploaded")
-                if config.local_file_delete is True:
-                    log.info("deleting local file part")
-                    utils.exec_shell_cmd("sudo rm -rf %s" % each_part)
-                    utils.exec_shell_cmd(f"rm -rf {s3_object_path}")
-                    utils.exec_shell_cmd(f"rm -rf {mp_dir}")
             else:
                 raise TestExecError("part uploading failed")
         part_info = {"PartNumber": part_number, "ETag": part_upload_response["ETag"]}
@@ -409,6 +404,10 @@ def upload_mutipart_object(
             # increase the part number only if the current part is not the last part
             part_number += 1
         log.info("curr part_number: %s" % part_number)
+    if config.local_file_delete is True:
+        log.info("deleting local file part")
+        utils.exec_shell_cmd(f"rm -rf {s3_object_path}")
+        utils.exec_shell_cmd(f"rm -rf {mp_dir}")
     # log.info('parts_info so far: %s'% parts_info)
     if len(parts_list) == part_number:
         log.info("all parts upload completed")
