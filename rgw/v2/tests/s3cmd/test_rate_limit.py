@@ -7,6 +7,10 @@ Usage: test_rate_limit.py -c <input_yaml>
     Note: Following yaml can be used
     test_rate_limit.yaml
 
+Polarion Tests:
+CEPH-83574910
+CEPH-83574913
+
 Operation:
     Create an user
     Create a bucket with user credentials
@@ -21,7 +25,8 @@ import logging
 import os
 import sys
 import traceback
-
+import subprocess
+from time import sleep
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
 
@@ -79,99 +84,142 @@ def test_exec(config):
 
     #test the read and write ops limit
     try:
-        range_val = f"1..2"
+        range_val = "{1..3}"
         cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/ ;done;")
-        rc = utils.exec_shell_cmd(cmd)
-        log.info(f"Response for upload file command: {rc}")
+        #rc = utils.exec_shell_cmd(cmd)
+        rc = subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
-    assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
+    log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
+
     s3cmd_reusable.create_local_file("2k", "file1")
     try:
-        range_val = f"1..3"
-        cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;")
-        rc = utils.exec_shell_cmd(cmd)
+        range_val = "{1..3}"
+        cmd = (
+        f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;")
+        #rc = utils.exec_shell_cmd(cmd)
+        rc = subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout,stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
-    assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
     #sleep a minute to reset the ops limit
+    log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
 
     #test the read and write data limit
     try:
-        range_val = f"1..2"
+        range_val = "{1..3}"
         cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/files/file1 ;done;")
-        rc = utils.exec_shell_cmd(cmd)
+        #rc = utils.exec_shell_cmd(cmd)
+        rc = subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
-    assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
+    log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
     try:
-        range_val = f"1..3"
+        range_val = "{1..3}"
         cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;")
-        rc = utils.exec_shell_cmd(cmd)
+        #rc = utils.exec_shell_cmd(cmd)
+        rc = subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
-    assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
+    log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
 
     #Set the rate limits for the user and enable them
     utils.exec_shell_cmd(f"radosgw-admin ratelimit disable --ratelimit-scope=bucket --bucket={bucket_name}")
     limset = utils.exec_shell_cmd(
         f"radosgw-admin ratelimit set --ratelimit-scope=user --uid={user_name}"
-        + "--max-read-ops=2 --max-read-bytes=4096 --max-write-bytes=4096 --max-write-ops=2"
+        + " --max-read-ops=2 --max-read-bytes=4096 --max-write-bytes=4096 --max-write-ops=2"
     )
     log.info(f"Rate limits set on user {user_name}")
     limenable = utils.exec_shell_cmd(
         f"radosgw-admin ratelimit enable --ratelimit-scope=user --uid={user_name}"
     )
-    log.info(f"Rate limits enabled on user")
+    limget = utils.exec_shell_cmd(
+        f"radosgw-admin ratelimit get --ratelimit-scope=user --uid={user_name}"
+    )
+    log.info(f"Rate limits enabled on bucket : {limget} ")
 
     #test the read and write ops limit
     bucket_name2 = utils.gen_bucket_name_from_userid(user_name, rand_no=1)
     s3cmd_reusable.create_bucket(bucket_name2)
     try:
-        range_val = f"1..2"
+        range_val = "{1..3}"
         cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name2}/ ;done;")
-        rc = utils.exec_shell_cmd(cmd)
+        #rc = utils.exec_shell_cmd(cmd)
+        rc = subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
-    assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
+    log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
     try:
-        range_val = f"1..3"
+        range_val = "{1..3}"
         cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name2}/files/file$i ;done;")
-        rc = utils.exec_shell_cmd(cmd)
+        #rc = utils.exec_shell_cmd(cmd)
+        rc = subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
-    assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
     # sleep a minute to reset the ops limit
+    log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
 
     # test the read and write data limit
     try:
-        range_val = f"1..2"
+        range_val = "{1..3}"
         cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name2}/files/file1 ;done;")
-        rc = utils.exec_shell_cmd(cmd)
+        #rc = utils.exec_shell_cmd(cmd)
+        rc = subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
-    assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
+    log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
     try:
-        range_val = f"1..3"
+        range_val = "{1..3}"
         cmd = (f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name2}/files/file$i ;done;")
-        rc = utils.exec_shell_cmd(cmd)
+        #rc = utils.exec_shell_cmd(cmd)
+        rc = subprocess.Popen([cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdout, stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
     except Exception as e:
         raise S3CommandExecError(message=str(e))
-    assert "503" in str(rc), "Rate limit slowdown not observed, failing!"
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
 
 
