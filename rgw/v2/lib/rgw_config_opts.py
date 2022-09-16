@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import sys
@@ -116,7 +117,16 @@ class CephConfigSet:
     def set_to_ceph_cli(self, key, value):
         log.info("setting key and value using ceph config set cli")
         self.prefix = "sudo ceph config set"
-        self.who = "client.rgw"  # naming convention as ceph conf
+
+        cmd_ps = "ceph orch ps --daemon_type rgw -f json"
+        out_ps = utils.exec_shell_cmd(cmd_ps)
+        out = json.loads(out_ps)
+        daemon_name_list = []
+        for node in out:
+            daemon_name = node.get("daemon_name")
+            daemon_name_list.append(daemon_name)
+
+        self.who = "client." + daemon_name_list[0]  # naming convention as ceph conf
         if value is True:
             value = "true"
         log.info(f"got key: {key}")
