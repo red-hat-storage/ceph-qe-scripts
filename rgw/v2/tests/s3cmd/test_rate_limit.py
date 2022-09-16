@@ -181,8 +181,7 @@ def test_exec(config):
     )
     log.info(f"Rate limits set on user {user_name}")
     limenable = utils.exec_shell_cmd(
-        f"radosgw-admin ratelimit enable --ratelimit-scope=user "
-        + f"--uid={user_name}"
+        f"radosgw-admin ratelimit enable --ratelimit-scope=user --uid={user_name}"
     )
     limget = utils.exec_shell_cmd(
         f"radosgw-admin ratelimit get --ratelimit-scope=user --uid={user_name}"
