@@ -60,7 +60,8 @@ def test_exec(config):
     s3_auth.do_auth(user_info, ip_and_port)
     # add rate limit capability to rgw user
     caps_add = utils.exec_shell_cmd(
-        f"radosgw-admin caps add --uid {user_name} --caps='users=*;buckets=*;ratelimit=*'"
+        f"radosgw-admin caps add --uid {user_name} "
+        + "--caps='users=*;buckets=*;ratelimit=*'"
     )
     data = json.loads(caps_add)
     caps = data["caps"]
@@ -71,22 +72,26 @@ def test_exec(config):
     s3cmd_reusable.create_bucket(bucket_name)
     log.info(f"Bucket {bucket_name} created")
     limset = utils.exec_shell_cmd(
-        f"radosgw-admin ratelimit set --ratelimit-scope=bucket --bucket={bucket_name}"
-        + " --max-read-ops=2 --max-read-bytes=4096 --max-write-bytes=4096 --max-write-ops=2"
+        f"radosgw-admin ratelimit set --ratelimit-scope=bucket "
+        + f"--bucket={bucket_name} --max-read-ops=2 --max-read-bytes=4096 "
+        + f"--max-write-bytes=4096 --max-write-ops=2"
     )
     log.info(f"Rate limits set on bucket {bucket_name}")
     limenable = utils.exec_shell_cmd(
-        f"radosgw-admin ratelimit enable --ratelimit-scope=bucket --bucket={bucket_name}"
+        f"radosgw-admin ratelimit enable --ratelimit-scope=bucket "
+        + f"--bucket={bucket_name}"
     )
     limget = utils.exec_shell_cmd(
-        f"radosgw-admin ratelimit get --ratelimit-scope=bucket --bucket={bucket_name}"
+        f"radosgw-admin ratelimit get --ratelimit-scope=bucket "
+        + f"--bucket={bucket_name}"
     )
     log.info(f"Rate limits enabled on bucket : {limget} ")
 
     # test the read and write ops limit
     try:
         range_val = "{1..3}"
-        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/ ;done;"
+        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls " \
+              f"s3://{bucket_name}/ ;done;"
         # rc = utils.exec_shell_cmd(cmd)
         rc = subprocess.Popen(
             [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -104,7 +109,8 @@ def test_exec(config):
     s3cmd_reusable.create_local_file("2k", "file1")
     try:
         range_val = "{1..3}"
-        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;"
+        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd " \
+              f"put file1 s3://{bucket_name}/files/file$i ;done;"
         # rc = utils.exec_shell_cmd(cmd)
         rc = subprocess.Popen(
             [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -123,7 +129,8 @@ def test_exec(config):
     # test the read and write data limit
     try:
         range_val = "{1..3}"
-        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}/files/file1 ;done;"
+        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls " \
+              f"s3://{bucket_name}/files/file1 ;done;"
         # rc = utils.exec_shell_cmd(cmd)
         rc = subprocess.Popen(
             [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -139,7 +146,8 @@ def test_exec(config):
     sleep(61)
     try:
         range_val = "{1..3}"
-        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name}/files/file$i ;done;"
+        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd " \
+              f"put file1 s3://{bucket_name}/files/file$i ;done;"
         # rc = utils.exec_shell_cmd(cmd)
         rc = subprocess.Popen(
             [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -156,15 +164,18 @@ def test_exec(config):
 
     # Set the rate limits for the user and enable them
     utils.exec_shell_cmd(
-        f"radosgw-admin ratelimit disable --ratelimit-scope=bucket --bucket={bucket_name}"
+        f"radosgw-admin ratelimit disable --ratelimit-scope=bucket "
+        + f"--bucket={bucket_name}"
     )
     limset = utils.exec_shell_cmd(
         f"radosgw-admin ratelimit set --ratelimit-scope=user --uid={user_name}"
-        + " --max-read-ops=2 --max-read-bytes=4096 --max-write-bytes=4096 --max-write-ops=2"
+        + " --max-read-ops=2 --max-read-bytes=4096"
+        + " --max-write-bytes=4096 --max-write-ops=2"
     )
     log.info(f"Rate limits set on user {user_name}")
     limenable = utils.exec_shell_cmd(
-        f"radosgw-admin ratelimit enable --ratelimit-scope=user --uid={user_name}"
+        f"radosgw-admin ratelimit enable --ratelimit-scope=user "
+        + f"--uid={user_name}"
     )
     limget = utils.exec_shell_cmd(
         f"radosgw-admin ratelimit get --ratelimit-scope=user --uid={user_name}"
@@ -176,7 +187,8 @@ def test_exec(config):
     s3cmd_reusable.create_bucket(bucket_name2)
     try:
         range_val = "{1..3}"
-        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name2}/ ;done;"
+        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls " \
+              f"s3://{bucket_name2}/ ;done;"
         # rc = utils.exec_shell_cmd(cmd)
         rc = subprocess.Popen(
             [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -192,7 +204,8 @@ def test_exec(config):
     sleep(61)
     try:
         range_val = "{1..3}"
-        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name2}/files/file$i ;done;"
+        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd " \
+              f"put file1 s3://{bucket_name2}/files/file$i ;done;"
         # rc = utils.exec_shell_cmd(cmd)
         rc = subprocess.Popen(
             [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -211,7 +224,8 @@ def test_exec(config):
     # test the read and write data limit
     try:
         range_val = "{1..3}"
-        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls s3://{bucket_name2}/files/file1 ;done;"
+        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd ls " \
+              f"s3://{bucket_name2}/files/file1 ;done;"
         # rc = utils.exec_shell_cmd(cmd)
         rc = subprocess.Popen(
             [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -227,7 +241,8 @@ def test_exec(config):
     sleep(61)
     try:
         range_val = "{1..3}"
-        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd put file1 s3://{bucket_name2}/files/file$i ;done;"
+        cmd = f"for i in {range_val}; do /home/cephuser/venv/bin/s3cmd " \
+              f"put file1 s3://{bucket_name2}/files/file$i ;done;"
         # rc = utils.exec_shell_cmd(cmd)
         rc = subprocess.Popen(
             [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
