@@ -23,13 +23,14 @@ import argparse
 import json
 import logging
 import os
+import subprocess
 import sys
 import traceback
-import subprocess
-from time import sleep
+
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
-
+from time import sleep
 from v2.lib import resource_op
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
