@@ -52,7 +52,6 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
-
     log.info("starting IO")
     config.user_count = 1
     user_info = s3lib.create_users(config.user_count)
@@ -149,6 +148,7 @@ def test_exec(config, ssh_con):
     time.sleep(sleep_time)
     op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket.name)
     json_doc = json.loads(op)
+    bucket_id = json_doc["id"]
     num_shards_created = json_doc["num_shards"]
     log.info("no_of_shards_created: %s" % num_shards_created)
     if config.sharding_type == "manual":
@@ -167,6 +167,16 @@ def test_exec(config, ssh_con):
                 log.info("Expected number of shards created")
         else:
             raise TestExecError("Expected number of shards not created")
+
+    log.info("Test acls are preserved after a resharding operation.")
+    cmd = utils.exec_shell_cmd(
+        f"radosgw-admin metadata get bucket.instance:{bucket.name}:{bucket_id}"
+    )
+    json_doc = json.loads(cmd)
+    log.info("The attrs field should not be empty.")
+    attrs = json_doc["data"]["attrs"][0]
+    if not attrs["key"]:
+        raise TestExecError("Acls lost after bucket resharding, test failure.")
 
     if config.test_ops.get("delete_bucket_object", False):
         if config.test_ops.get("enable_version", False):
