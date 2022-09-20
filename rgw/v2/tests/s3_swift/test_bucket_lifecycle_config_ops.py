@@ -61,16 +61,17 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ceph_conf = CephConfOp()
+    ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
     if config.test_ops.get("rgw_lc_debug", False):
         ceph_conf.set_to_ceph_conf(
             "global",
             ConfigOpts.rgw_lc_debug_interval,
             str(config.rgw_lc_debug_interval),
+            ssh_con,
         )
         log.info("trying to restart services")
-        srv_restarted = rgw_service.restart()
+        srv_restarted = rgw_service.restart(ssh_con)
         time.sleep(30)
         if srv_restarted is False:
             raise TestExecError("RGW service restart failed")
