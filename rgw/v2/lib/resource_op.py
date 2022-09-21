@@ -290,6 +290,14 @@ class Config(object):
         self.put_empty_bucket_notification = self.test_ops.get(
             "put_empty_bucket_notification", False
         )
+        self.bucket_max_read_ops = self.doc["config"].get("bucket_max_read_ops")
+        self.bucket_max_read_bytes = self.doc["config"].get("bucket_max_read_bytes")
+        self.bucket_max_write_ops = self.doc["config"].get("bucket_max_write_ops")
+        self.bucket_max_write_bytes = self.doc["config"].get("bucket_max_write_bytes")
+        self.user_max_read_ops = self.doc["config"].get("user_max_read_ops")
+        self.user_max_read_bytes = self.doc["config"].get("user_max_read_bytes")
+        self.user_max_write_ops = self.doc["config"].get("user_max_write_ops")
+        self.user_max_write_bytes = self.doc["config"].get("user_max_write_bytes")
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:
