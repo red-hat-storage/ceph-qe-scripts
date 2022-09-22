@@ -199,7 +199,7 @@ class Config(object):
             "max_rgw_dynamic_shards", 1999
         )
         self.rgw_reshard_thread_interval = self.doc["config"].get(
-            "rgw_reshard_thread_interval", 600
+            "rgw_reshard_thread_interval", 180
         )
         self.max_objects = None
         self.user_max_objects = self.doc["config"].get("user_max_objects")

@@ -143,7 +143,10 @@ def test_exec(config, ssh_con):
         if cmd_exec is False:
             raise TestExecError("manual resharding command execution failed")
 
-    sleep_time = 600
+    log.info(
+        "the sleep time chosen is 180 sec owing to the value of reshard_thread_interval"
+    )
+    sleep_time = 180
     log.info(f"verification starts after waiting for {sleep_time} seconds")
     time.sleep(sleep_time)
     op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket.name)
