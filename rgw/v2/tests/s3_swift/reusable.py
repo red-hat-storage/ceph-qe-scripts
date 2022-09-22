@@ -406,7 +406,6 @@ def upload_mutipart_object(
         log.info("curr part_number: %s" % part_number)
     if config.local_file_delete is True:
         log.info("deleting local file part")
-        utils.exec_shell_cmd(f"rm -rf {s3_object_path}")
         utils.exec_shell_cmd(f"rm -rf {mp_dir}")
     # log.info('parts_info so far: %s'% parts_info)
     if len(parts_list) == part_number:

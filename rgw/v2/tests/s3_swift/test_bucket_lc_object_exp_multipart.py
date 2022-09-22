@@ -91,6 +91,9 @@ def test_exec(config, ssh_con):
                         reusable.upload_mutipart_object(
                             s3_object_name, bucket, TEST_DATA_PATH, config, each_user
                         )
+                        if config.local_file_delete is True:
+                            log.info("deleting local file created after the upload")
+                            utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
                 time.sleep(config.rgw_lc_debug_interval)
 
                 for _ in range(1, 10):
