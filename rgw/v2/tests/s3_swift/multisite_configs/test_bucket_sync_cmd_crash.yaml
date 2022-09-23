@@ -2,7 +2,7 @@
 # script: test_Mbuckets_with_Nobjects.py
 config:
   user_count: 1
-  bucket_count: 2
+  bucket_count: 1
   objects_count: 10
   objects_size_range:
     min: 5M
