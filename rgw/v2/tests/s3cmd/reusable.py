@@ -173,3 +173,54 @@ def get_rgw_ip_and_port(ssh_con=None):
         port = utils.get_radosgw_port_no()
     ip_and_port = f"{ip}:{port}"
     return ip_and_port
+
+
+def run_subprocess(cmd):
+    """
+    :param cmd: command to run
+    :return: stdout, stderr
+    """
+    try:
+        rc = subprocess.Popen(
+            [cmd], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, stderr = rc.communicate()
+        log.info(stdout)
+        log.info(stderr)
+    except Exception as e:
+        raise S3CommandExecError(message=str(e))
+    return stdout, stderr
+
+
+def rate_limit_read(bucket, max_read_ops, file=None):
+    """
+    max_read_ops: Loop until the max_read_ops value to check for a 503
+    slowdown warning
+    """
+    # increment max_read_ops to induce warning
+    max_read_ops += 1
+    range_val = f"1..{max_read_ops}"
+    cmd = (
+        f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd ls "
+        f"s3://{bucket}/{file} ;done;"
+    )
+    stdout, stderr = run_subprocess(cmd)
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
+
+
+def rate_limit_write(bucket, max_write_ops):
+    """
+    :param bucket: bucket to write
+    :param max_write_ops: Loop until the max write opsto check for 503
+    :param file: file to write
+    """
+    # increment max_write_ops to induce warning
+    max_write_ops += 1
+    create_local_file("1k", "file1")
+    range_val = f"1..{max_write_ops}"
+    cmd = (
+        f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd "
+        f"put file1 s3://{bucket}/file$i ;done;"
+    )
+    stdout, stderr = run_subprocess(cmd)
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
