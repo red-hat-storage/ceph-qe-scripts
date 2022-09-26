@@ -264,6 +264,12 @@ class Config(object):
         self.bucket_sync_run = self.doc["config"].get("bucket_sync_run", False)
         self.bucket_stats = self.doc["config"].get("bucket_stats", False)
         self.rgw_ops_log = self.doc["config"].get("rgw_ops_log", False)
+        self.multisite_global_sync_policy = self.doc["config"].get(
+            "multisite_global_sync_policy", False
+        )
+        self.multisite_sync_policy = self.doc["config"].get(
+            "multisite_sync_policy", False
+        )
         self.header_size = self.doc["config"].get("header_size", False)
         self.test_datalog_trim_command = self.doc["config"].get(
             "test_datalog_trim_command", False

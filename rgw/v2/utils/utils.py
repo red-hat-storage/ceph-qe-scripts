@@ -23,32 +23,28 @@ log = logging.getLogger()
 
 
 def exec_shell_cmd(cmd, debug_info=False):
-    try:
-        log.info("executing cmd: %s" % cmd)
-        pr = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            universal_newlines=True,
-            shell=True,
-        )
-        out, err = pr.communicate()
-        if pr.returncode == 0:
-            log.info("cmd excuted")
-            if out is not None:
-                log.info(out)
-                if debug_info == True:
-                    log.info(err)
-                    return out, err
-                else:
-                    return out
-        else:
-            raise Exception("error: %s \nreturncode: %s" % (err, pr.returncode))
-    except Exception as e:
+    log.info("executing cmd: %s" % cmd)
+    pr = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        shell=True,
+    )
+    out, err = pr.communicate()
+    if pr.returncode == 0:
+        log.info("cmd excuted")
+        if out is not None:
+            log.info(out)
+            if debug_info == True:
+                log.info(err)
+                return out, err
+            else:
+                return out
+    else:
         log.error("cmd execution failed")
-        log.error(e)
         get_crash_log()
-        return False
+        raise Exception("error: %s \nreturncode: %s" % (err, pr.returncode))
 
 
 def connect_remote(rgw_host, user_nm="root", passw="passwd"):

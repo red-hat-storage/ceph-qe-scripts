@@ -624,6 +624,26 @@ def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
     return out
 
 
+def get_multisite_info():
+    cmd = "radosgw-admin period get"
+    period_list = utils.exec_shell_cmd(cmd)
+    period_list = json.loads(period_list)
+    zone_names = ""
+    for i in range(len(period_list.get("period_map")["zonegroups"][0]["zones"])):
+        zone_name = period_list.get("period_map")["zonegroups"][0]["zones"][i]["name"]
+        zone_names = zone_names + zone_name
+        if i != len(period_list.get("period_map")["zonegroups"][0]["zones"]) - 1:
+            zone_names = zone_names + ","
+    realm_name = period_list.get("realm_name")
+    return zone_names, realm_name
+
+
+def update_commit():
+    _, realm_name = get_multisite_info()
+    cmd_realm = f"radosgw-admin period update --rgw-realm={realm_name} --commit"
+    utils.exec_shell_cmd(cmd_realm)
+
+
 def unlink_bucket(curr_uid, bucket, tenant=False):
     """"""
     if tenant:
