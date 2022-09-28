@@ -5,7 +5,7 @@ import json
 import subprocess
 import time
 
-bucket_name = "<bucket name>"
+bucket_name = "<bucket_name>"
 while True:
     p = subprocess.Popen(
         "cephadm shell -- radosgw-admin sync status", stdout=subprocess.PIPE, shell=True
