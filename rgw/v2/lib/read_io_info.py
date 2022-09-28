@@ -2,6 +2,7 @@ import os
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
+import argparse
 import logging
 import socket
 
@@ -9,6 +10,7 @@ import boto3
 import botocore
 from v2.lib.exceptions import SyncFailedError, TestExecError
 from v2.utils import utils
+from v2.utils.io_info_config import IoInfoConfig
 from v2.utils.log import configure_logging
 from v2.utils.utils import FileOps
 
@@ -217,5 +219,11 @@ class ReadIOInfo(object):
 if __name__ == "__main__":
     log_f_name = os.path.basename(os.path.splitext(__file__)[0])
     configure_logging(f_name=log_f_name)
+    parser = argparse.ArgumentParser(description="RGW S3 Automation")
+    parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
+    args = parser.parse_args()
+    yaml_file = args.config
+    IO_INFO_FNAME = f"io_info_{os.path.basename(yaml_file)}"
+    IoInfoConfig(io_info_fname=IO_INFO_FNAME)
     read_io_info = ReadIOInfo()
     read_io_info.verify_io()
