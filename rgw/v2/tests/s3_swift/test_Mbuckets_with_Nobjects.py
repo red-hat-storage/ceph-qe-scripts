@@ -183,7 +183,9 @@ def test_exec(config, ssh_con):
         if config.test_aync_data_notifications:
             log.info("Testing asyc data notifications")
             ceph_version_id, _ = utils.get_ceph_version()
-            if float(ceph_version_id[1]) >= 6 and float(ceph_version_id[5]) >= 8:
+            if (
+                float(ceph_version_id[1]) >= 6 and float(ceph_version_id[5]) >= 8
+            ) or float(ceph_version_id[1]) >= 7:
                 set_log = "ceph config set global log_to_file true"
                 out = utils.exec_shell_cmd(set_log)
                 cmd = " ceph orch ps | grep rgw"
