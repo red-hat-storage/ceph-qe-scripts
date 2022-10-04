@@ -17,6 +17,7 @@ from v2.lib.exceptions import ConfigError
 
 # import v2.lib.frontend_configure as frontend_configure
 from v2.lib.frontend_configure import Frontend, Frontend_CephAdm
+from v2.utils.io_info_config import IoInfoConfig
 
 log = logging.getLogger()
 
@@ -184,6 +185,10 @@ class Config(object):
             raise ConfigError("config file not given")
         with open(conf_file, "r") as f:
             self.doc = yaml.safe_load(f)
+        io_info_config = IoInfoConfig(
+            io_info_fname=f"io_info_{os.path.basename(conf_file)}"
+        )
+        log.info(f"io info fname is: {io_info_config.io_info_fname}")
         log.info("got config: \n%s" % self.doc)
 
     def read(self, ssh_con=None):
