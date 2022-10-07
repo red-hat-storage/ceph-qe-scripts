@@ -38,7 +38,7 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def group_operation(group_id, group_op, bucket_name=None, group_status="enabled"):
+def group_operation(group_id, group_op, group_status="enabled", bucket_name=None):
     if bucket_name is not None:
         bkt = f" --bucket={bucket_name}"
     else:
@@ -143,8 +143,8 @@ def test_exec(config, ssh_con):
                                 group_operation(
                                     group_id,
                                     "create",
-                                    bucket_name_to_create,
                                     group_status,
+                                    bucket_name_to_create,
                                 )
                                 zone_names = None
                                 if config.test_ops["flow_create"]:
