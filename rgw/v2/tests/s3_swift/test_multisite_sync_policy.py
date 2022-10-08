@@ -38,7 +38,7 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def group_operation(group_id, group_op, bucket_name=None, group_status="enabled"):
+def group_operation(group_id, group_op, group_status="enabled", bucket_name=None):
     if bucket_name is not None:
         bkt = f" --bucket={bucket_name}"
     else:
@@ -48,7 +48,6 @@ def group_operation(group_id, group_op, bucket_name=None, group_status="enabled"
         + bkt
     )
     utils.exec_shell_cmd(cmd)
-    reusable.update_commit()
 
 
 def flow_operation(group_id, flow_op, flow_type="symmetrical"):
@@ -56,7 +55,6 @@ def flow_operation(group_id, flow_op, flow_type="symmetrical"):
     zone_names, _ = reusable.get_multisite_info()
     cmd = f"radosgw-admin sync group flow {flow_op} --group-id={group_id} --flow-id={flow_id} --flow-type={flow_type} --zones={zone_names}"
     utils.exec_shell_cmd(cmd)
-    reusable.update_commit()
     return zone_names
 
 
@@ -138,30 +136,33 @@ def test_exec(config, ssh_con):
                     if float(ceph_version_id[0]) >= 16:
                         if utils.is_cluster_multisite():
                             if config.test_ops["group_create"]:
-                                group_status = config.test_ops["group_status"]
-                                group_id = "group-" + bucket_name_to_create
+                                # modifying global group status to allowed
+                                bucket_group_status = config.test_ops[
+                                    "bucket_group_status"
+                                ]
                                 group_operation(
                                     group_id,
-                                    "create",
-                                    bucket_name_to_create,
+                                    "modify",
                                     group_status,
                                 )
+                                group_id1 = "group-" + bucket_name_to_create
+                                group_operation(
+                                    group_id1,
+                                    "create",
+                                    bucket_group_status,
+                                    bucket_name_to_create,
+                                )
                                 zone_names = None
-                                if config.test_ops["flow_create"]:
-                                    flow_type = config.test_ops["flow_type"]
-                                    zone_names = flow_operation(
-                                        group_id, "create", flow_type
-                                    )
                                 if config.test_ops["pipe_create"]:
                                     pipe_id = pipe_operation(
-                                        group_id,
+                                        group_id1,
                                         "create",
                                         zone_names,
                                         bucket_name=bucket_name_to_create,
                                     )
                                 if config.test_ops["pipe_remove"]:
                                     pipe_id = pipe_operation(
-                                        group_id,
+                                        group_id1,
                                         "remove",
                                         zone_names,
                                         bucket_name=bucket_name_to_create,
@@ -169,12 +170,12 @@ def test_exec(config, ssh_con):
                                 if config.test_ops["flow_remove"]:
                                     flow_type = config.test_ops["flow_type"]
                                     zone_names = flow_operation(
-                                        group_id, "remove", flow_type
+                                        group_id1, "remove", flow_type
                                     )
                             if config.test_ops["group_remove"]:
                                 group_status = config.test_ops["group_status"]
                                 group_id = group_operation(
-                                    group_id, "remove", group_status
+                                    group_id1, "remove", group_status
                                 )
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()

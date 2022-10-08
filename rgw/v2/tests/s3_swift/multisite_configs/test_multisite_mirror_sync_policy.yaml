@@ -1,0 +1,16 @@
+# Polarian TC CEPH-83575136
+config:
+  user_count: 1
+  bucket_count: 2
+  multisite_global_sync_policy: true
+  multisite_sync_policy: false
+  test_ops:
+    create_bucket: true
+    group_create: true
+    group_remove: false
+    flow_create: true
+    flow_remove: false
+    pipe_create: true
+    pipe_remove: false
+    group_status: enabled  # Enable , Allowed, Forbidden
+    flow_type: symmetrical # symmetrical , directional
