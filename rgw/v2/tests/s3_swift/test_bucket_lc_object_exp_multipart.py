@@ -19,7 +19,6 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
 import json
 import logging
-import subprocess
 import time
 import traceback
 
@@ -127,15 +126,9 @@ def test_exec(config, ssh_con):
                 log.info(
                     f"check for all the entry {bucket_id} for the bucket in data pool"
                 )
-                cmd = f"rados ls -p default.rgw.buckets.data | grep {bucket_id}"
-                pr = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    universal_newlines=True,
-                    shell=True,
+                obj_pool = utils.exec_shell_cmd(
+                    f"rados ls -p default.rgw.buckets.data | grep {bucket_id}"
                 )
-                obj_pool, _ = pr.communicate()
                 if obj_pool:
                     for obj in obj_pool:
                         object_name = obj.split("_")[-1]
