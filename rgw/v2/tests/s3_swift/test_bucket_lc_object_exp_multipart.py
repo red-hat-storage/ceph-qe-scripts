@@ -1,7 +1,7 @@
 """
 Test bucket lifecycle for multipart object expiration: CEPH-83574797
 Usage: test_bucket_lc_object_exp_multipart.py -c configs/<input-yaml>
-where : <input-yaml> are test_bucket_lc_object_exp_multipart.yaml
+where : <input-yaml> are test_bucket_lc_object_exp_multipart.yaml, test_bucket_lc_multipart_object_expiration.yaml
 Operation:
 -Update rgw daemon with conf(rgw_lc_debug_interval = 1, rgw_lifecycle_work_time = 00:00-23:59)
 -Restart the daemon
@@ -19,6 +19,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
 import json
 import logging
+import subprocess
 import time
 import traceback
 
@@ -56,9 +57,10 @@ def test_exec(config, ssh_con):
     )
     log.info("trying to restart services")
     srv_restarted = rgw_service.restart(ssh_con)
+    time.sleep(30)
     if srv_restarted is False:
         raise TestExecError("RGW service restart failed")
-    rgw_service.status(ssh_con)
+
     # create user
     user_info = s3lib.create_users(config.user_count)
     for each_user in user_info:
@@ -125,9 +127,15 @@ def test_exec(config, ssh_con):
                 log.info(
                     f"check for all the entry {bucket_id} for the bucket in data pool"
                 )
-                obj_pool = utils.exec_shell_cmd(
-                    f"rados ls -p default.rgw.buckets.data | grep {bucket_id}"
+                cmd = f"rados ls -p default.rgw.buckets.data | grep {bucket_id}"
+                pr = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    universal_newlines=True,
+                    shell=True,
                 )
+                obj_pool, _ = pr.communicate()
                 if obj_pool:
                     for obj in obj_pool:
                         object_name = obj.split("_")[-1]
