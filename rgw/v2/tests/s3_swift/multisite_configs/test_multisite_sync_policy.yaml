@@ -1,4 +1,4 @@
-# Polarian TC CEPH-
+# Polarian TC CEPH-83575360
 # bug 2087986
 config:
   user_count: 1
@@ -14,4 +14,5 @@ config:
     pipe_create: true
     pipe_remove: true
     group_status: enabled  # Enable , Allowed, Forbidden
+    bucket_group_status: enabled
     flow_type: symmetrical # symmetrical , directional
