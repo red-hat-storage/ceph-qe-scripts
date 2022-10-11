@@ -62,7 +62,7 @@ def test_exec(config):
 
         log.info(f"Number of buckets to create: {config.bucket_count}")
         for bc in range(config.bucket_count):
-            bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
+            bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
             s3cmd_reusable.create_bucket(bucket_name)
             log.info(f"Bucket {bucket_name} created")
             utils.exec_shell_cmd(f"fallocate -l 2m obj25m")
@@ -72,7 +72,7 @@ def test_exec(config):
             log.info(
                 "Generate header within default max_header_size(16384) i.e, 8192(16384/2)"
             )
-            obj_name = utils.gen_s3_object_name(bucket_name, 2)
+            obj_name = utils.gen_s3_object_name(bucket_name, 1)
             cmd = f"{s3cmd} put obj25m --add-header='X-AMZ-Metadata':{header} s3://{bucket_name}/{obj_name}"
             rc = utils.exec_shell_cmd(cmd)
 

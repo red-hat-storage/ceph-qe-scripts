@@ -54,45 +54,48 @@ def test_exec(config):
     s3_auth.do_auth(user_info, ip_and_port)
 
     if config.bucket_stats:
-        bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
-        s3cmd_reusable.create_bucket(bucket_name)
-        log.info(f"Bucket {bucket_name} created")
-        utils.exec_shell_cmd(f"fallocate -l 25m obj25m")
-        object_name = f"s3://{bucket_name}/encyclopedia/space & universe/.bkp/journal$i"
-        range_val = f"1..{config.objects_count}"
-        cmd = (
-            "for i in {"
-            + range_val
-            + "}; do /home/cephuser/venv/bin/s3cmd put obj25m "
-            + object_name
-            + ";done;"
-        )
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
+            s3cmd_reusable.create_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} created")
+            utils.exec_shell_cmd(f"fallocate -l 25m obj25m")
+            object_name = (
+                f"s3://{bucket_name}/encyclopedia/space & universe/.bkp/journal$i"
+            )
+            range_val = f"1..{config.objects_count}"
+            cmd = (
+                "for i in {"
+                + range_val
+                + "}; do /home/cephuser/venv/bin/s3cmd put obj25m "
+                + object_name
+                + ";done;"
+            )
 
-        rc = utils.exec_shell_cmd(cmd)
+            rc = utils.exec_shell_cmd(cmd)
 
-        if rc:
-            raise AssertionError("expected scenario is not achieved!!!")
+            if rc:
+                raise AssertionError("expected scenario is not achieved!!!")
 
-        bucket_stats = utils.exec_shell_cmd(
-            f"radosgw-admin bucket stats --bucket {bucket_name}"
-        )
-        log.info(f" bucket stats are :{bucket_stats}")
+            bucket_stats = utils.exec_shell_cmd(
+                f"radosgw-admin bucket stats --bucket {bucket_name}"
+            )
+            log.info(f" bucket stats are :{bucket_stats}")
 
-        data = json.loads(bucket_stats)
+            data = json.loads(bucket_stats)
 
-        num_objects = data["usage"]["rgw.main"]["num_objects"]
-        log.info(f"num objects :{num_objects}")
+            num_objects = data["usage"]["rgw.main"]["num_objects"]
+            log.info(f"num objects :{num_objects}")
 
-        object_count = utils.exec_shell_cmd(
-            f"/home/cephuser/venv/bin/s3cmd ls s3://{bucket_name} --recursive | wc -l"
-        )
-        log.info(f"object_count :{object_count}")
+            object_count = utils.exec_shell_cmd(
+                f"/home/cephuser/venv/bin/s3cmd ls s3://{bucket_name} --recursive | wc -l"
+            )
+            log.info(f"object_count :{object_count}")
 
-        if int(num_objects) != int(object_count):
-            raise AssertionError("Inconsistency found in number of objects")
+            if int(num_objects) != int(object_count):
+                raise AssertionError("Inconsistency found in number of objects")
 
-        if "rgw.none" in data["usage"].keys():
-            raise AssertionError("inconsistency issue observed")
+            if "rgw.none" in data["usage"].keys():
+                raise AssertionError("inconsistency issue observed")
 
 
 if __name__ == "__main__":
