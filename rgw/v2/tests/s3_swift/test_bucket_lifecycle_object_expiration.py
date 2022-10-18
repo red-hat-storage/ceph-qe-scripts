@@ -133,6 +133,7 @@ def test_exec(config, ssh_con):
                 reusable.enable_versioning(
                     bucket, rgw_conn, each_user, write_bucket_io_info
                 )
+                upload_start_time = time.time()
                 if config.test_ops["create_object"] is True:
                     for oc, size in list(config.mapped_sizes.items()):
                         config.obj_size = size
@@ -170,14 +171,23 @@ def test_exec(config, ssh_con):
                 if not config.parallel_lc:
                     life_cycle_rule = {"Rules": config.lifecycle_conf}
                     reusable.put_get_bucket_lifecycle_test(
-                        bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
+                        bucket,
+                        rgw_conn,
+                        rgw_conn2,
+                        life_cycle_rule,
+                        config,
+                        upload_start_time,
                     )
                     time.sleep(30)
                     lc_ops.validate_prefix_rule(bucket, config)
                     if config.test_ops["delete_marker"] is True:
                         life_cycle_rule_new = {"Rules": config.delete_marker_ops}
                         reusable.put_get_bucket_lifecycle_test(
-                            bucket, rgw_conn, rgw_conn2, life_cycle_rule_new, config
+                            bucket,
+                            rgw_conn,
+                            rgw_conn2,
+                            life_cycle_rule_new,
+                            config,
                         )
                     if config.multiple_delete_marker_check:
                         log.info(
@@ -195,6 +205,7 @@ def test_exec(config, ssh_con):
                     buckets.append(bucket)
 
             if config.test_ops["enable_versioning"] is False:
+                upload_start_time = time.time()
                 if config.test_ops["create_object"] is True:
                     for oc, size in list(config.mapped_sizes.items()):
                         config.obj_size = size
@@ -214,7 +225,12 @@ def test_exec(config, ssh_con):
                     life_cycle_rule = {"Rules": config.lifecycle_conf}
                     if not config.invalid_date and config.rgw_enable_lc_threads:
                         reusable.put_get_bucket_lifecycle_test(
-                            bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
+                            bucket,
+                            rgw_conn,
+                            rgw_conn2,
+                            life_cycle_rule,
+                            config,
+                            upload_start_time,
                         )
                         time.sleep(30)
                         lc_ops.validate_and_rule(bucket, config)

@@ -6,6 +6,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import logging
+import math
 import time
 import timeit
 
@@ -489,7 +490,9 @@ def enable_mfa_versioning(
         raise MFAVersionError("bucket mfa and versioning enable failed")
 
 
-def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, config):
+def put_get_bucket_lifecycle_test(
+    bucket, rgw_conn, rgw_conn2, life_cycle_rule, config, upload_start_time=None
+):
     bucket_life_cycle = s3lib.resource_op(
         {
             "obj": rgw_conn,
@@ -532,23 +535,27 @@ def put_get_bucket_lifecycle_test(bucket, rgw_conn, rgw_conn2, life_cycle_rule, 
     else:
         raise TestExecError("bucket life cycle retrieved")
     objs_total = (config.test_ops["version_count"]) * (config.objects_count)
+    if not upload_start_time:
+        upload_start_time = time.time()
+    time_diff = math.ceil(time.time() - upload_start_time)
+    time_limit = upload_start_time + (config.rgw_lc_debug_interval * 20)
     for rule in config.lifecycle_conf:
         if rule.get("Expiration", {}).get("Date", False):
             # todo: need to get the interval value from yaml file
             log.info("wait for 60 seconds")
             time.sleep(60)
         else:
-            for time_interval in range(19):
+            while time.time() < time_limit:
                 bucket_stats_op = utils.exec_shell_cmd(
                     "radosgw-admin bucket stats --bucket=%s" % bucket.name
                 )
                 json_doc1 = json.loads(bucket_stats_op)
                 obj_pre_lc = json_doc1["usage"]["rgw.main"]["num_objects"]
                 if obj_pre_lc == objs_total:
-                    time.sleep(30)
+                    time.sleep(config.rgw_lc_debug_interval)
                 else:
                     raise TestExecError("Objects expired before the expected days")
-            time.sleep(60)
+            time.sleep(time_diff + 60)
 
     log.info("testing if lc is applied via the radosgw-admin cli")
     op = utils.exec_shell_cmd("radosgw-admin lc list")
