@@ -123,6 +123,7 @@ gen_prefix = lambda prefix: {"Prefix": prefix}
 gen_status = lambda status: {"Status": status}
 gen_id = lambda id: {"ID": id}
 gen_expiration = lambda: {"Expiration": {}}
+gen_transition = lambda: {"Transitions": []}
 gen_tag = lambda: {"Tag": {}}
 gen_key = lambda key: {"Key": key}
 gen_value = lambda value: {"Value": value}
@@ -131,6 +132,9 @@ gen_noncurrent_version_expiration = lambda: {"NoncurrentVersionExpiration": {}}
 gen_noncurrent_days = lambda days: {"NoncurrentDays": days}
 gen_expiration_date = lambda date: {"Date": date}
 gen_expiration_days = lambda days: {"Days": days}
+gen_transition_date = lambda date: {"Date": date}
+gen_transition_days = lambda days: {"Days": days}
+gen_transition_class = lambda transit_class: {"StorageClass": transit_class}
 gen_expired_object_deleteMarker = lambda bool: {"ExpiredObjectDeleteMarker": bool}
 
 """
