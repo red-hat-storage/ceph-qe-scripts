@@ -50,16 +50,29 @@ TEST_DATA_PATH = None
 # sample bucket policy dict, this will be used to construct bucket policy for the test.
 
 
-def get_svc_time():
+def get_svc_time(ssh_con=None):
 
     cmd = "pidof radosgw"
-    pid = utils.exec_shell_cmd(cmd)
+    if ssh_con:
+        _, pid, _ = ssh_con.exec_command(cmd)
+        pid = pid.readline()
+        log.info(pid)
+    else:
+        pid = utils.exec_shell_cmd(cmd)
     pid = pid.strip()
     cmd = "ps -p " + pid + " -o etimes"
-    srv_time = utils.exec_shell_cmd(cmd)
-    srv_time = srv_time.replace("\n", "")
-    srv_time = srv_time.replace(" ", "")
-    srv_time = int(srv_time[7:])
+    if ssh_con:
+        _, srv_time, _ = ssh_con.exec_command(cmd)
+        _ = srv_time.readline()
+        srv_time = srv_time.readline()
+        srv_time = srv_time.replace("\n", "")
+        srv_time = srv_time.replace(" ", "")
+        srv_time = int(srv_time)
+    else:
+        srv_time = utils.exec_shell_cmd(cmd)
+        srv_time = srv_time.replace("\n", "")
+        srv_time = srv_time.replace(" ", "")
+        srv_time = int(srv_time[7:])
     return srv_time
 
 
@@ -70,7 +83,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
 
     if config.test_ops.get("upload_type") == "multipart":
-        srv_time_pre_op = get_svc_time()
+        srv_time_pre_op = get_svc_time(ssh_con)
 
     # create user
     config.user_count = 1
@@ -155,7 +168,7 @@ def test_exec(config, ssh_con):
                 config,
                 tenant1_user1_information,
             )
-        srv_time_post_op = get_svc_time()
+        srv_time_post_op = get_svc_time(ssh_con)
         log.info(srv_time_pre_op)
         log.info(srv_time_post_op)
 
