@@ -78,7 +78,9 @@ def test_exec(config):
 
     # create bucket and set limits
     bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
-    s3cmd_reusable.create_bucket(bucket_name)
+
+    ssl = config.ssl
+    s3cmd_reusable.create_bucket(bucket_name, ssl)
     log.info(f"Bucket {bucket_name} created")
     limset = utils.exec_shell_cmd(
         f"radosgw-admin ratelimit set --ratelimit-scope=bucket "
@@ -98,23 +100,23 @@ def test_exec(config):
     log.info(f"Rate limits enabled on bucket : {limget} ")
 
     # test the read and write ops limit
-    s3cmd_reusable.rate_limit_read(bucket_name, max_read_ops)
+    s3cmd_reusable.rate_limit_read(bucket_name, max_read_ops, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
 
-    s3cmd_reusable.rate_limit_write(bucket_name, max_write_ops)
+    s3cmd_reusable.rate_limit_write(bucket_name, max_write_ops, ssl)
 
     # sleep a minute to reset the ops limit
     log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
 
     # test the read and write data limit
-    s3cmd_reusable.rate_limit_read(bucket_name, max_read_bytes_kb)
+    s3cmd_reusable.rate_limit_read(bucket_name, max_read_bytes_kb, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
-    s3cmd_reusable.rate_limit_write(bucket_name, max_write_bytes_kb)
+    s3cmd_reusable.rate_limit_write(bucket_name, max_write_bytes_kb, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
@@ -147,25 +149,25 @@ def test_exec(config):
 
     # test the read and write ops limit
     bucket_name2 = utils.gen_bucket_name_from_userid(user_name, rand_no=1)
-    s3cmd_reusable.create_bucket(bucket_name2)
+    s3cmd_reusable.create_bucket(bucket_name2, ssl)
 
-    s3cmd_reusable.rate_limit_read(bucket_name2, max_read_ops)
+    s3cmd_reusable.rate_limit_read(bucket_name2, max_read_ops, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
 
-    s3cmd_reusable.rate_limit_write(bucket_name2, max_write_ops)
+    s3cmd_reusable.rate_limit_write(bucket_name2, max_write_ops, ssl)
 
     # sleep a minute to reset the ops limit
     log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
 
     # test the read and write data limit
-    s3cmd_reusable.rate_limit_read(bucket_name2, max_read_bytes_kb)
+    s3cmd_reusable.rate_limit_read(bucket_name2, max_read_bytes_kb, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
-    s3cmd_reusable.rate_limit_write(bucket_name2, max_write_bytes_kb)
+    s3cmd_reusable.rate_limit_write(bucket_name2, max_write_bytes_kb, ssl)
 
 
 if __name__ == "__main__":
