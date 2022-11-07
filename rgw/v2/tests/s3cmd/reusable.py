@@ -6,6 +6,7 @@ Reusable methods for S3CMD
 import logging
 import os
 import socket
+import subprocess
 import sys
 
 log = logging.getLogger()
@@ -19,14 +20,16 @@ from v2.utils import utils
 from v2.utils.utils import exec_shell_cmd
 
 
-def create_bucket(bucket_name):
+def create_bucket(bucket_name, ssl=None):
     """
     Creates bucket
     Args:
         bucket_name(str): Name of the bucket to be created
     """
     mb_method = S3CMD(operation="mb")
-    command = mb_method.command(params=[f"s3://{bucket_name}"])
+    if ssl:
+        ssl_param = "-s"
+    command = mb_method.command(params=[f"s3://{bucket_name}", ssl_param])
     try:
         mb_response = exec_shell_cmd(command)
         log.debug(f"Response for create bucket command: {mb_response}")
@@ -192,7 +195,7 @@ def run_subprocess(cmd):
     return stdout, stderr
 
 
-def rate_limit_read(bucket, max_read_ops, file=None):
+def rate_limit_read(bucket, max_read_ops, ssl=None, file=None):
     """
     max_read_ops: Loop until the max_read_ops value to check for a 503
     slowdown warning
@@ -200,15 +203,17 @@ def rate_limit_read(bucket, max_read_ops, file=None):
     # increment max_read_ops to induce warning
     max_read_ops += 1
     range_val = f"1..{max_read_ops}"
+    if ssl:
+        ssl_param = "-s"
     cmd = (
         f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd ls "
-        f"s3://{bucket}/{file} ;done;"
+        f"s3://{bucket}/{file} {ssl_param};done;"
     )
     stdout, stderr = run_subprocess(cmd)
     assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
 
 
-def rate_limit_write(bucket, max_write_ops):
+def rate_limit_write(bucket, max_write_ops, ssl=None):
     """
     :param bucket: bucket to write
     :param max_write_ops: Loop until the max write opsto check for 503
@@ -218,9 +223,11 @@ def rate_limit_write(bucket, max_write_ops):
     max_write_ops += 1
     create_local_file("1k", "file1")
     range_val = f"1..{max_write_ops}"
+    if ssl:
+        ssl_param = "-s"
     cmd = (
         f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd "
-        f"put file1 s3://{bucket}/file$i ;done;"
+        f"put file1 s3://{bucket}/file$i {ssl_param};done;"
     )
     stdout, stderr = run_subprocess(cmd)
     assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
