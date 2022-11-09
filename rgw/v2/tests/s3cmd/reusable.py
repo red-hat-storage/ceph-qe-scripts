@@ -29,6 +29,8 @@ def create_bucket(bucket_name, ssl=None):
     mb_method = S3CMD(operation="mb")
     if ssl:
         ssl_param = "-s"
+    else:
+        ssl_param = " "
     command = mb_method.command(params=[f"s3://{bucket_name}", ssl_param])
     try:
         mb_response = exec_shell_cmd(command)
