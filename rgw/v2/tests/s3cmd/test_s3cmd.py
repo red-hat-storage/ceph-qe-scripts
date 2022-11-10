@@ -45,7 +45,7 @@ from v2.utils.utils import RGWService
 log = logging.getLogger()
 
 
-def test_exec(config):
+def test_exec(config, ssh_con):
     """
     Executes test based on configuration passed
     Args:
@@ -58,12 +58,8 @@ def test_exec(config):
     umgmt = UserMgmt()
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
-    # preparing data
-    hostname = socket.gethostname()
-    ip = socket.gethostbyname(hostname)
-    port = utils.get_radosgw_port_no()
 
-    ip_and_port = f"{ip}:{port}"
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # Verifying CEPH-83574806
     if config.delete_marker_check:
@@ -72,7 +68,7 @@ def test_exec(config):
         )
         user_info = resource_op.create_users(no_of_users_to_create=1)
         s3_auth.do_auth(user_info[0], ip_and_port)
-        auth = Auth(user_info[0], ssl=config.ssl)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
         bucket_name = utils.gen_bucket_name_from_userid(
             user_info[0]["user_id"], rand_no=1
@@ -172,13 +168,20 @@ if __name__ == "__main__":
             help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
             default="info",
         )
+        parser.add_argument(
+            "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
+        )
         args = parser.parse_args()
         yaml_file = args.config
+        rgw_node = args.rgw_node
+        ssh_con = None
+        if rgw_node != "127.0.0.1":
+            ssh_con = utils.connect_remote(rgw_node)
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = resource_op.Config(yaml_file)
         config.read()
-        test_exec(config)
+        test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
 
