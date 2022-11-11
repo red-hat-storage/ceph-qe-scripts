@@ -4,6 +4,8 @@ import os
 import subprocess
 import sys
 
+import boto3
+
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import logging
 import math
@@ -609,11 +611,11 @@ def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
     """"""
     validate = "radosgw-admin bucket list"
     if tenant:
-        cmd = "radosgw-admin bucket link --bucket=%s --bucket-new-name=%s --uid=%s --tenant=%s" % (
-            str(tenant) + "/" + old_bucket,
-            str(tenant) + "/" + new_bucket,
-            userid,
-            tenant,
+        old_bucket = str(tenant) + "/" + old_bucket
+        new_bucket = str(tenant) + "/" + new_bucket
+        cmd = (
+            f"radosgw-admin bucket link --bucket={old_bucket} "
+            f"--bucket-new-name={new_bucket} --uid={userid} --tenant={tenant}"
         )
     else:
         cmd = "radosgw-admin bucket link --bucket=%s --bucket-new-name=%s --uid=%s" % (
@@ -1140,3 +1142,106 @@ def get_bucket_stats():
         raise TestExecError(f"bucket stats on all buckets failed! {err}")
     else:
         return True
+
+
+def get_s3_client(access_key, secret_key, endpoint):
+    """
+    Returns s3 client
+    """
+    s3_conn_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        endpoint_url=endpoint,
+    )
+    return s3_conn_client
+
+
+def is_bucket_exists(bucket_name, s3_conn_client):
+    """
+    Returns true if bucket exists in endpoint
+    """
+    bucket_resp = s3_conn_client.list_buckets()
+    log.info(bucket_resp["Buckets"])
+    bucket_list = [di["Name"] for di in bucket_resp["Buckets"]]
+    return bucket_name in bucket_list
+
+
+def get_object_list(bucket_name, s3_conn_client, prefix=None):
+    """
+    Returns object list for the given bucket
+    """
+    object_resp = s3_conn_client.list_objects(Bucket=bucket_name)
+    log.info(object_resp)
+    if "Contents" not in object_resp.keys():
+        log.error("Objects not exists in bucket")
+    object_list = [di["Key"] for di in object_resp["Contents"]]
+    if prefix is not None:
+        object_list_with_prefix = []
+        for obj in object_list:
+            if obj.startswith(prefix):
+                object_list_with_prefix.append(obj)
+        return object_list_with_prefix
+    return object_list
+
+
+def add_zonegroup_placement(
+    storage_class=None,
+    tier_type=None,
+    rgw_zonegroup="default",
+    placement_id="default-placement",
+):
+    """
+    Adds zonegroup placement
+    """
+    command = (
+        f"radosgw-admin zonegroup placement add --rgw-zonegroup={rgw_zonegroup}"
+        f"--placement-id={placement_id} "
+    )
+    if storage_class:
+        command += f"--storage-class={storage_class} "
+    if tier_type:
+        command += f"--tier-type={tier_type}"
+    log.info("Executing command: %s" % command)
+    utils.exec_shell_cmd(command)
+
+
+def modify_zonegroup_placement(
+    rgw_zonegroup="default",
+    placement_id="default-placement",
+    storage_class=None,
+    tier_type=None,
+    tier_config=None,
+):
+    """
+    Modifies zonegroup placement
+    """
+    command = (
+        f"radosgw-admin zonegroup placement modify --rgw-zonegroup={rgw_zonegroup}"
+        f"--placement-id={placement_id} "
+    )
+    if storage_class:
+        command += f"--storage-class={storage_class} "
+    if tier_type:
+        command += f"--tier-type={tier_type}"
+    if tier_config:
+        command += f"--tier-type={tier_config}"
+    log.info("Executing command: %s" % command)
+    utils.exec_shell_cmd(command)
+
+
+def get_zg_endpoint_creds():
+    """
+    Returns zonegroup endpoint credentials
+    """
+    endpoint_details = {}
+    command = "radosgw-admin zonegroup get"
+    zg_details = json.loads(utils.exec_shell_cmd(command))
+    s3_details = zg_details["placement_targets"][0]["tier_targets"][0]["val"]["s3"]
+    log.info(s3_details)
+    log.info(type(s3_details))
+    endpoint_details["access_key"] = s3_details["access_key"]
+    endpoint_details["secret_key"] = s3_details["secret"]
+    endpoint_details["endpoint"] = s3_details["endpoint"]
+    endpoint_details["bucket_name"] = s3_details["target_path"]
+    return endpoint_details
