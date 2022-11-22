@@ -22,7 +22,7 @@ import traceback
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
-from v2.lib.exceptions import RGWBaseException, TestExecError
+from v2.lib.exceptions import LifecycleConfigError, RGWBaseException
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
@@ -71,9 +71,9 @@ def test_exec(config, ssh_con):
 
     # Check whether there are 32 lc shards
     numlc = utils.exec_shell_cmd("rados ls -p default.rgw.log -N lc | wc -l")
-    print(numlc)
+    log.info(f"Number of LC shards is {numlc}")
     if int(numlc.strip()) != 32:
-        raise TestExecError("Number of LC shards not 32 by default")
+        raise LifecycleConfigError("Number of LC shards not 32 by default")
 
     log.info("Remove the LC shards currently assigned to buckets")
     for data in shard_data:
@@ -82,7 +82,7 @@ def test_exec(config, ssh_con):
     # Check there are less than 32 LC shards
     numlc = utils.exec_shell_cmd("rados ls -p default.rgw.log -N lc | wc -l")
     if int(numlc.strip()) >= 32:
-        raise TestExecError("LC shards not deleted")
+        raise LifecycleConfigError("LC shards not deleted")
 
     # LC list should be empty
     lc_data = utils.exec_shell_cmd("radosgw-admin lc list")
@@ -96,13 +96,13 @@ def test_exec(config, ssh_con):
 
     numlc = utils.exec_shell_cmd("rados ls -p default.rgw.log -N lc | wc -l")
     if int(numlc.strip()) != 32:
-        raise TestExecError("LC shards not created back after reshard fix")
+        raise LifecycleConfigError("LC shards not created back after reshard fix")
 
     lc_data = utils.exec_shell_cmd("radosgw-admin lc list")
     if lc_data:
         log.info("LC list populated back")
     else:
-        raise TestExecError("LC list not populated back after reshard fix")
+        raise LifecycleConfigError("LC list not populated back after reshard fix")
 
 
 if __name__ == "__main__":
