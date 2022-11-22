@@ -16,6 +16,18 @@ def sync_status(retry=10, delay=60):
     verify multisite sync status
     """
     log.info("check sync status")
+    ceph_version = utils.exec_shell_cmd("ceph version").split()[4]
+    if ceph_version == "pacific":
+        cmd = " ceph orch ps | grep rgw"
+        out = utils.exec_shell_cmd(cmd)
+        rgw_process_name = out.split()[0]
+        out = utils.exec_shell_cmd(
+            f"ceph config set client.{rgw_process_name} rgw_sync_lease_period 120"
+        )
+        cmd = " ceph orch ls | grep rgw"
+        out = utils.exec_shell_cmd(cmd)
+        rgw_name = out.split()[0]
+        utils.exec_shell_cmd(f"ceph orch restart {rgw_name}")
     cmd = "sudo radosgw-admin sync status"
     check_sync_status = utils.exec_shell_cmd(cmd)
 
