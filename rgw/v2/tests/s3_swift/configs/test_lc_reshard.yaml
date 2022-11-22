@@ -1,0 +1,13 @@
+# test_lc_reshard.py
+config:
+  user_count: 1
+  bucket_count: 10
+  test_ops:
+    create_bucket: true
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: obj
+      Status: Enabled
+      Expiration:
+        Days: 1
