@@ -116,6 +116,16 @@ class InvalidCephConfigOption(RGWBaseException):
         self.message = message
 
 
+class LifecycleConfigError(RGWBaseException):
+    # LC config or sharding error
+    def __init__(
+        self,
+        message=None,
+    ):
+        super().__init__(message)
+        self.message = message
+
+
 class MFAVersionError(Exception):
     # exception raised when enabling MFA and versioning fails
     def __init__(
