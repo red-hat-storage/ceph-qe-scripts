@@ -28,8 +28,8 @@ def sync_status(retry=10, delay=60):
         out = utils.exec_shell_cmd(cmd)
         rgw_name = out.split()[0]
         utils.exec_shell_cmd(f"ceph orch restart {rgw_name}")
-        cmd = "sudo radosgw-admin sync status"
-        check_sync_status = utils.exec_shell_cmd(cmd)
+    cmd = "sudo radosgw-admin sync status"
+    check_sync_status = utils.exec_shell_cmd(cmd)
 
     # check for 'failed' or 'ERROR' in sync status.
     if "failed" in check_sync_status or "ERROR" in check_sync_status:
