@@ -52,7 +52,7 @@ def exec_shell_cmd(cmd, debug_info=False):
         return False
 
 
-def connect_remote(rgw_host, user_nm="root", passw="passwd"):
+def connect_remote(rgw_host, user_nm="cephuser", passw="cephuser"):
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(rgw_host, port=22, username=user_nm, password=passw, timeout=3)
