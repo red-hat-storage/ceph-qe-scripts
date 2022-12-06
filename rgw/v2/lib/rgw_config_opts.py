@@ -41,6 +41,12 @@ class ConfigOpts(object):
     rgw_swift_versioning_enabled = "rgw_swift_versioning_enabled"
     rgw_sts_key = "rgw_sts_key"
     rgw_s3_auth_use_sts = "rgw_s3_auth_use_sts"
+    rgw_crypt_require_ssl = "rgw_crypt_require_ssl"
+    rgw_crypt_sse_s3_backend = "rgw_crypt_sse_s3_backend"
+    rgw_crypt_sse_s3_vault_addr = "rgw_crypt_sse_s3_vault_addr"
+    rgw_crypt_sse_s3_vault_auth = "rgw_crypt_sse_s3_vault_auth"
+    rgw_crypt_sse_s3_vault_prefix = "rgw_crypt_sse_s3_vault_prefix"
+    rgw_crypt_sse_s3_vault_secret_engine = "rgw_crypt_sse_s3_vault_secret_engine"
 
 
 class CephConfFileOP(FileOps, ConfigParse):
