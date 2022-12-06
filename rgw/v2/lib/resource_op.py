@@ -245,6 +245,24 @@ class Config(object):
         )
         self.delete_marker_check = self.doc["config"].get("delete_marker_check", False)
         self.invalid_date = self.doc["config"].get("invalid_date", False)
+        self.rgw_crypt_require_ssl = self.doc["config"].get(
+            "rgw_crypt_require_ssl", "false"
+        )
+        self.rgw_crypt_sse_s3_backend = self.doc["config"].get(
+            "rgw_crypt_sse_s3_backend", "vault"
+        )
+        self.rgw_crypt_sse_s3_vault_addr = self.doc["config"].get(
+            "rgw_crypt_sse_s3_vault_addr", "http://127.0.0.1:8100"
+        )
+        self.rgw_crypt_sse_s3_vault_auth = self.doc["config"].get(
+            "rgw_crypt_sse_s3_vault_auth", "agent"
+        )
+        self.rgw_crypt_sse_s3_vault_secret_engine = self.doc["config"].get(
+            "rgw_crypt_sse_s3_vault_secret_engine", "transit"
+        )
+        self.rgw_crypt_sse_s3_vault_prefix = self.doc["config"].get(
+            "rgw_crypt_sse_s3_vault_prefix", "/v1/cephTransit"
+        )
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
         self.reshard_cancel_cmd = self.doc["config"].get("reshard_cancel_cmd", False)
@@ -296,6 +314,7 @@ class Config(object):
         self.persistent_flag = self.test_ops.get("persistent_flag", False)
         self.copy_object = self.test_ops.get("copy_object", False)
         self.get_topic_info = self.test_ops.get("get_topic_info", False)
+        self.sse_s3_per_bucket = self.test_ops.get("sse_s3_per_bucket", False)
         self.test_bi_purge = self.doc["config"].get("test_bi_purge", False)
         self.set_acl = self.test_ops.get("set_acl", None)
         self.put_empty_bucket_notification = self.test_ops.get(
