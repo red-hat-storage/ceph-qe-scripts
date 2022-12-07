@@ -45,9 +45,6 @@ from v2.utils.utils import RGWService
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
-import pdb
-
-pdb.set_trace()
 
 
 def test_exec(config, ssh_con):
