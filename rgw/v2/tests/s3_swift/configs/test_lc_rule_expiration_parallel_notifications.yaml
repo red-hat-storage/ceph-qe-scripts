@@ -1,0 +1,28 @@
+# test_bucket_lifecycle_object_expiration.py
+config:
+  bucket_count: 2
+  objects_count: 5
+  parallel_lc: True
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    enable_versioning: false
+    create_object: true
+    version_count: 3
+    delete_marker: false
+    send_bucket_notifications: true
+    create_topic: true
+    get_topic_info: true
+    endpoint: kafka
+    persistent_flag: true
+    ack_type: broker
+    event_type: LifecycleExpiration
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: single-obj
+      Status: Enabled
+      Expiration:
+        Days: 1

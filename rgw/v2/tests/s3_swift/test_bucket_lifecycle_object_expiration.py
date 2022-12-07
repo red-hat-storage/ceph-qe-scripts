@@ -28,16 +28,18 @@ import json
 import logging
 import time
 import traceback
+import uuid
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
-from v2.lib.exceptions import RGWBaseException, TestExecError
+from v2.lib.exceptions import EventRecordDataError, RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3 import lifecycle_validation as lc_ops
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import bucket_notification as notification
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -46,6 +48,26 @@ log = logging.getLogger()
 
 
 TEST_DATA_PATH = None
+
+
+def start_kafka_and_verify_event_record(
+    topic_name, event, bucket_name, ceph_version_name
+):
+    # start kafka broker and consumer
+    event_record_path = "/tmp/event_record"
+    start_consumer = notification.start_kafka_broker_consumer(
+        topic_name, event_record_path
+    )
+    if start_consumer is False:
+        raise TestExecError("Kafka consumer not running")
+
+    # verify all the attributes of the event record. if event not received abort testcase
+    log.info("verify event record attributes")
+    verify = notification.verify_event_record(
+        event, bucket_name, event_record_path, ceph_version_name
+    )
+    if verify is False:
+        raise EventRecordDataError("Event record is empty! notification is not seen")
 
 
 def test_exec(config, ssh_con):
@@ -99,6 +121,9 @@ def test_exec(config, ssh_con):
     else:
         log.info("RGW service restarted")
 
+    if config.test_ops.get("send_bucket_notifications", False) is True:
+        utils.add_service2_sdk_extras()
+
     config.user_count = config.user_count if config.user_count else 1
     config.bucket_count = config.bucket_count if config.bucket_count else 1
 
@@ -110,6 +135,18 @@ def test_exec(config, ssh_con):
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
+        topic_names = {}
+
+        if config.test_ops.get("send_bucket_notifications", False) is True:
+            # authenticate sns client.
+            rgw_sns_conn = auth.do_auth_sns_client()
+
+            # authenticate with s3 client
+            rgw_s3_client = auth.do_auth_using_client()
+
+            # get ceph version
+            ceph_version_id, ceph_version_name = utils.get_ceph_version()
+
         log.info("no of buckets to create: %s" % config.bucket_count)
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(
@@ -129,6 +166,43 @@ def test_exec(config, ssh_con):
                 )
             )
             prefix = prefix if prefix else ["dummy1"]
+
+            if config.test_ops.get("send_bucket_notifications", False) is True:
+                endpoint = config.test_ops.get("endpoint")
+                ack_type = config.test_ops.get("ack_type")
+                topic_id = str(uuid.uuid4().hex[:16])
+                persistent = False
+                topic_name = "cephci-kafka-" + ack_type + "-ack-type-" + topic_id
+                log.info(
+                    f"creating a topic with {endpoint} endpoint with ack type {ack_type}"
+                )
+                if config.test_ops.get("persistent_flag", False):
+                    log.info("topic with peristent flag enabled")
+                    persistent = config.test_ops.get("persistent_flag")
+                topic = notification.create_topic(
+                    rgw_sns_conn, endpoint, ack_type, topic_name, persistent
+                )
+
+                # get topic attributes
+                log.info("get topic attributes")
+                notification.get_topic(rgw_sns_conn, topic, ceph_version_name)
+
+                # put bucket notification with topic configured for event
+                event = config.test_ops.get("event_type")
+                events = ["s3:ObjectLifecycle:Expiration:*"]
+                notification_name = "notification-" + str(event)
+                notification.put_bucket_notification(
+                    rgw_s3_client,
+                    bucket_name,
+                    notification_name,
+                    topic,
+                    events,
+                )
+
+                # get bucket notification
+                log.info(f"get bucket notification for bucket : {bucket_name}")
+                notification.get_bucket_notification(rgw_s3_client, bucket_name)
+
             if config.test_ops["enable_versioning"] is True:
                 reusable.enable_versioning(
                     bucket, rgw_conn, each_user, write_bucket_io_info
@@ -305,6 +379,13 @@ def test_exec(config, ssh_con):
                 else:
                     log.info("Inside parallel lc")
                     buckets.append(bucket)
+            if config.test_ops.get("send_bucket_notifications", False) is True:
+                if config.parallel_lc:
+                    topic_names[bucket_name] = topic_name
+                else:
+                    start_kafka_and_verify_event_record(
+                        topic_name, event, bucket_name, ceph_version_name
+                    )
         if config.parallel_lc:
             log.info("Inside parallel lc processing")
             life_cycle_rule = {"Rules": config.lifecycle_conf}
@@ -318,6 +399,10 @@ def test_exec(config, ssh_con):
                     lc_ops.validate_prefix_rule_non_versioned(bucket)
                 else:
                     lc_ops.validate_prefix_rule(bucket, config)
+                if config.test_ops.get("send_bucket_notifications", False) is True:
+                    start_kafka_and_verify_event_record(
+                        topic_names[bucket.name], event, bucket.name, ceph_version_name
+                    )
 
         if not config.rgw_enable_lc_threads:
             ceph_conf.set_to_ceph_conf(

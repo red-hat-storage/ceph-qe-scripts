@@ -83,7 +83,7 @@ def del_topic_from_kafka_broker(topic_name):
 
 
 def put_bucket_notification(
-    rgw_s3_client, bucketname, notification_name, topic_arn, event
+    rgw_s3_client, bucketname, notification_name, topic_arn, events
 ):
     """
     put bucket notification on bucket for specified events with given endpoint and topic
@@ -96,7 +96,7 @@ def put_bucket_notification(
                 {
                     "Id": notification_name,
                     "TopicArn": topic_arn,
-                    "Events": ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"],
+                    "Events": events,
                 }
             ]
         },
@@ -169,12 +169,20 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
                 raise EventRecordDataError("eventName: s3 prefix present in eventName")
 
             # verify event record for a particular event type
+            events = []
             if "Delete" in event_type:
                 events = ["Put", "Delete"]
             if "Copy" in event_type:
                 events = ["Put", "Copy"]
             if "Multipart" in event_type:
                 events = ["Post", "Put", "CompleteMultipartUpload"]
+            if "LifecycleExpiration" in event_type:
+                events = [
+                    "Current",
+                    "NonCurrent",
+                    "DeleteMarker",
+                    "AbortMultipartUpload",
+                ]
             for event in events:
                 if event in eventName:
                     log.info(f"eventName: {eventName} in event record")
