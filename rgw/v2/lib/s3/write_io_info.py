@@ -3,6 +3,7 @@ import os
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
+from v2.utils.io_info_config import IoInfoConfig
 from v2.utils.utils import FileOps
 
 log = logging.getLogger()
@@ -87,7 +88,9 @@ class AddIOInfo(object):
     This class creates yaml with fname provided
     """
 
-    def __init__(self, yaml_fname=IO_INFO_FNAME):
+    def __init__(self, yaml_fname=None):
+        if yaml_fname == None:
+            yaml_fname = IoInfoConfig().io_info_fname
         self.yaml_fname = yaml_fname
         self.file_op = FileOps(self.yaml_fname, type="yaml")
 

@@ -16,7 +16,6 @@ from re import S
 import paramiko
 import yaml
 from v2.lib.exceptions import SyncFailedError
-from v2.utils.io_info_config import IoInfoConfig
 
 BUCKET_NAME_PREFIX = "bucky" + "-" + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = "key"
@@ -147,7 +146,6 @@ class FileOps(object):
 
     def get_data(self):
         data = None
-        self.fname = IoInfoConfig().io_info_fname
         with open(self.fname, "r") as fp:
             if self.type == "json":
                 data = json.load(fp)
@@ -161,7 +159,6 @@ class FileOps(object):
         return data
 
     def add_data(self, data, ssh_con=None):
-        self.fname = IoInfoConfig().io_info_fname
         with open(self.fname, "w") as fp:
             if self.type == "json":
                 json.dump(data, fp, indent=4)
