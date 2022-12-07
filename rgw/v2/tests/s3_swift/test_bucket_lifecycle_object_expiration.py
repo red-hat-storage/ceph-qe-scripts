@@ -5,7 +5,10 @@ a) Prefix filters
 b) ANDing of Prefix and TAG filters
 
 Usage: test_bucket_lifecycle_object_expiration.py -c configs/<input-yaml>
-where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, test_lc_multiple_rule_prefix_current_days.yaml, test_lc_rule_delete_marker.yaml, test_lc_rule_prefix_and_tag.yaml and test_lc_rule_prefix_non_current_days.yaml
+where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, test_lc_multiple_rule_prefix_current_days.yaml,
+ test_lc_rule_delete_marker.yaml, test_lc_rule_prefix_and_tag.yaml, test_lc_rule_prefix_non_current_days.yaml,
+ test_lc_rule_delete_marker_notifications.yaml, test_lc_rule_expiration_notifications.yaml, test_lc_rule_expiration_parallel_notifications.yaml,
+ test_lc_rule_prefix_non_current_days_notifications.yaml
 
 Operation:
 
@@ -38,6 +41,7 @@ from v2.lib.s3 import lifecycle_validation as lc_ops
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -106,10 +110,19 @@ def test_exec(config, ssh_con):
     log.info(f"bucket count is {config.bucket_count}")
     # create user
     user_info = s3lib.create_users(config.user_count)
+
+    if config.test_ops.get("send_bucket_notifications", False) is True:
+        utils.add_service2_sdk_extras()
+
     for each_user in user_info:
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
+        notification = None
+
+        if config.test_ops.get("send_bucket_notifications", False) is True:
+            notification = NotificationService(config, auth)
+
         log.info("no of buckets to create: %s" % config.bucket_count)
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(
@@ -129,6 +142,11 @@ def test_exec(config, ssh_con):
                 )
             )
             prefix = prefix if prefix else ["dummy1"]
+
+            if config.test_ops.get("send_bucket_notifications", False) is True:
+                events = ["s3:ObjectLifecycle:Expiration:*"]
+                notification.apply(bucket_name, events)
+
             if config.test_ops["enable_versioning"] is True:
                 reusable.enable_versioning(
                     bucket, rgw_conn, each_user, write_bucket_io_info
@@ -305,6 +323,11 @@ def test_exec(config, ssh_con):
                 else:
                     log.info("Inside parallel lc")
                     buckets.append(bucket)
+            if (
+                not config.parallel_lc
+                and config.test_ops.get("send_bucket_notifications", False) is True
+            ):
+                notification.verify(bucket_name)
         if config.parallel_lc:
             log.info("Inside parallel lc processing")
             life_cycle_rule = {"Rules": config.lifecycle_conf}
@@ -318,6 +341,8 @@ def test_exec(config, ssh_con):
                     lc_ops.validate_prefix_rule_non_versioned(bucket)
                 else:
                     lc_ops.validate_prefix_rule(bucket, config)
+                if config.test_ops.get("send_bucket_notifications", False) is True:
+                    notification.verify(bucket.name)
 
         if not config.rgw_enable_lc_threads:
             ceph_conf.set_to_ceph_conf(

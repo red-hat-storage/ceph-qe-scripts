@@ -121,13 +121,14 @@ def test_exec(config, ssh_con):
                 # put bucket notification with topic configured for event
                 if config.test_ops["put_get_bucket_notification"] is True:
                     event = config.test_ops.get("event_type")
+                    events = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
                     notification_name = "notification-" + str(event)
                     notification.put_bucket_notification(
                         rgw_s3_client,
                         bucket_name_to_create,
                         notification_name,
                         topic,
-                        event,
+                        events,
                     )
 
                     # get bucket notification

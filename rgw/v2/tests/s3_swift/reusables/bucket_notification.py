@@ -4,10 +4,11 @@ import os
 import random
 import time
 import timeit
+import uuid
 from urllib import parse as urlparse
 
 import v2.utils.utils as utils
-from v2.lib.exceptions import EventRecordDataError
+from v2.lib.exceptions import EventRecordDataError, TestExecError
 
 log = logging.getLogger()
 
@@ -32,6 +33,7 @@ def start_kafka_broker_consumer(topic_name, event_record_path):
     # start kafka consumer
     cmd = f"sudo {KAFKA_HOME}/bin/kafka-console-consumer.sh --bootstrap-server kafka://localhost:9092 --from-beginning --topic {topic_name} --timeout-ms 30000 >> {event_record_path}"
     start_consumer_kafka = utils.exec_shell_cmd(cmd)
+    return start_consumer_kafka
 
 
 def create_topic(sns_client, endpoint, ack_type, topic_name, persistent_flag=False):
@@ -60,7 +62,7 @@ def create_topic(sns_client, endpoint, ack_type, topic_name, persistent_flag=Fal
 
 def get_topic(client, topic_arn, ceph_version):
     """
-    get the topic with spedified topic_arn
+    get the topic with specified topic_arn
     """
     if "nautilus" in ceph_version:
         pass
@@ -83,7 +85,7 @@ def del_topic_from_kafka_broker(topic_name):
 
 
 def put_bucket_notification(
-    rgw_s3_client, bucketname, notification_name, topic_arn, event
+    rgw_s3_client, bucketname, notification_name, topic_arn, events
 ):
     """
     put bucket notification on bucket for specified events with given endpoint and topic
@@ -96,7 +98,7 @@ def put_bucket_notification(
                 {
                     "Id": notification_name,
                     "TopicArn": topic_arn,
-                    "Events": ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"],
+                    "Events": events,
                 }
             ]
         },
@@ -169,12 +171,20 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
                 raise EventRecordDataError("eventName: s3 prefix present in eventName")
 
             # verify event record for a particular event type
+            events = []
             if "Delete" in event_type:
                 events = ["Put", "Delete"]
             if "Copy" in event_type:
                 events = ["Put", "Copy"]
             if "Multipart" in event_type:
                 events = ["Post", "Put", "CompleteMultipartUpload"]
+            if "LifecycleExpiration" in event_type:
+                events = [
+                    "Current",
+                    "NonCurrent",
+                    "DeleteMarker",
+                    "AbortMultipartUpload",
+                ]
             for event in events:
                 if event in eventName:
                     log.info(f"eventName: {eventName} in event record")
@@ -221,7 +231,89 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
                     raise EventRecordDataError("size: Object size is 0")
             else:
                 log.info(f"size: {size}")
+            log.info(f"size: {size}")
 
     # delete event record
     log.info("deleting local file to verify event record")
     utils.exec_shell_cmd("rm -rf %s" % event_record_path)
+
+
+class NotificationService:
+    config = None
+    auth = None
+    rgw_sns_conn = None
+    rgw_s3_client = None
+    ceph_version_id = None
+    ceph_version_name = None
+    topic_detials = lambda topic_name, events: {
+        "topic_name": topic_name,
+        "events": events,
+    }
+    bucket_topic_map = {}
+
+    def __init__(self, config, auth):
+        self.config = config
+        self.auth = auth
+        # authenticate sns client.
+        self.rgw_sns_conn = auth.do_auth_sns_client()
+
+        # authenticate with s3 client
+        self.rgw_s3_client = auth.do_auth_using_client()
+
+        # get ceph version
+        self.ceph_version_id, self.ceph_version_name = utils.get_ceph_version()
+
+    def apply(self, bucket_name, events):
+        endpoint = self.config.test_ops.get("endpoint")
+        ack_type = self.config.test_ops.get("ack_type")
+        topic_id = str(uuid.uuid4().hex[:16])
+        persistent = False
+        topic_name = "cephci-kafka-" + ack_type + "-ack-type-" + topic_id
+        log.info(f"creating a topic with {endpoint} endpoint with ack type {ack_type}")
+        if self.config.test_ops.get("persistent_flag", False):
+            log.info("topic with peristent flag enabled")
+            persistent = self.config.test_ops.get("persistent_flag")
+        topic = create_topic(
+            self.rgw_sns_conn, endpoint, ack_type, topic_name, persistent
+        )
+        self.bucket_topic_map[bucket_name] = self.__class__.topic_detials(
+            topic_name, events
+        )
+
+        # get topic attributes
+        log.info("get topic attributes")
+        get_topic(self.rgw_sns_conn, topic, self.ceph_version_name)
+
+        # put bucket notification with topic configured for event
+        event = self.config.test_ops.get("event_type")
+        notification_name = "notification-" + str(event)
+        put_bucket_notification(
+            self.rgw_s3_client,
+            bucket_name,
+            notification_name,
+            topic,
+            events,
+        )
+
+        # get bucket notification
+        log.info(f"get bucket notification for bucket : {bucket_name}")
+        get_bucket_notification(self.rgw_s3_client, bucket_name)
+
+    def verify(self, bucket_name):
+        # start kafka broker and consumer
+        event_record_path = "/tmp/event_record"
+        topic_name = self.bucket_topic_map[bucket_name]["topic_name"]
+        event = self.config.test_ops.get("event_type")
+        start_consumer = start_kafka_broker_consumer(topic_name, event_record_path)
+        if start_consumer is False:
+            raise Exception("Kafka consumer not running")
+
+        # verify all the attributes of the event record. if event not received abort testcase
+        log.info("verify event record attributes")
+        verify = verify_event_record(
+            event, bucket_name, event_record_path, self.ceph_version_name
+        )
+        if verify is False:
+            raise EventRecordDataError(
+                "Event record is empty! notification is not seen"
+            )
