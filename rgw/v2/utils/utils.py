@@ -697,6 +697,19 @@ def is_cluster_primary():
     # checks if the cluster is primary or not
     # if primary return True or return False if not, assume as secondary
     log.info("verify if cluster is primary or not")
+    ceph_version = exec_shell_cmd("ceph version").split()[4]
+    if ceph_version == "pacific":
+        cmd = " ceph orch ps | grep rgw"
+        out = exec_shell_cmd(cmd)
+        rgw_process_name = out.split()[0]
+        out = exec_shell_cmd(
+            f"ceph config set client.{rgw_process_name} rgw_sync_lease_period 120"
+        )
+        cmd = " ceph orch ls | grep rgw"
+        out = exec_shell_cmd(cmd)
+        rgw_name = out.split()[0]
+        exec_shell_cmd(f"ceph orch restart {rgw_name}")
+        time.sleep(20)
     cmd = "sudo radosgw-admin sync status"
     out = exec_shell_cmd(cmd)
     if "zone is master" in out:
