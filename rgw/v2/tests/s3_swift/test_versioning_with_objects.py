@@ -1,4 +1,4 @@
-""" test_versioning_with_objects - Tests ersioned and non-versionsed buckets.
+""" test_versioning_with_objects - Tests versioned and non-versionsed buckets.
 
 Usage: test_versioning_with_objects.py -c <input_yaml>
 
@@ -12,6 +12,7 @@ Usage: test_versioning_with_objects.py -c <input_yaml>
 	test_versioning_objects_suspend_from_another_user.yaml
 	test_versioning_objects_suspend_re-upload.yaml
 	test_versioning_suspend.yaml
+	test_versioning_objects_suspended_delete.yaml
 Operation:
 	Create a bucket and enable versioning. Verify object versioning after copy operation 
 	Create a bucket and enable versioning. Verify deletion of versioned objects succeeds
@@ -21,6 +22,7 @@ Operation:
 	Create a bucket and enable versioning. Verfiy versioning is not suspended from another user.
 	Create a bucket and enable versioning. Verify versions are not created after versioning.
 	Create a bucket and enable versioning. Verify versioning is suspended on the bucket.
+	Create a bucket and enable versioning. Verify versioning is suspended on the bucket verify delete.
 """
 # test basic bucket versioning with objects
 import os
@@ -51,7 +53,6 @@ from v2.utils.utils import HttpResponseParser
 
 log = logging.getLogger()
 
-
 TEST_DATA_PATH = None
 
 VERSIONING_STATUS = {
@@ -62,7 +63,6 @@ VERSIONING_STATUS = {
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
@@ -507,6 +507,37 @@ def test_exec(config, ssh_con):
                                 "key_name: %s --> version_id: %s"
                                 % (version.object_key, version.version_id)
                             )
+                    if config.test_ops.get("delete_after_suspend") is True:
+                        log.info("Deleting after suspending versioning on bucket")
+                        s3_obj = s3lib.resource_op(
+                            {
+                                "obj": rgw_conn,
+                                "resource": "Object",
+                                "args": [bucket.name, s3_object_name],
+                            }
+                        )
+                        for version in versions:
+                            log.info("Deleting obj version: %s" % version.version_id)
+                            del_obj_version = s3lib.resource_op(
+                                {
+                                    "obj": s3_obj,
+                                    "resource": "delete",
+                                    "kwargs": dict(VersionId=version.version_id),
+                                }
+                            )
+                            log.info("response:\n%s" % del_obj_version)
+                            if del_obj_version:
+                                response = HttpResponseParser(del_obj_version)
+                                if response.status_code == 204:
+                                    log.info(
+                                        "Bucket is suspended and version was deleted which is expected"
+                                    )
+                                else:
+                                    raise TestExecError(
+                                        "Bucket is suspended and the version did not delete which is not expected"
+                                    )
+                            else:
+                                raise TestExecError("The version did not delete")
                 if config.test_ops.get("suspend_from_extra_user") is True:
                     log.info("suspending versioning from extra user")
                     # suspend_version_status = s3_ops.resource_op(bucket_versioning, 'suspend')
