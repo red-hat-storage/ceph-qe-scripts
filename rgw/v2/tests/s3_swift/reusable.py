@@ -27,10 +27,6 @@ from v2.lib.s3.write_io_info import (
 from v2.lib.sync_status import sync_status
 from v2.utils.utils import HttpResponseParser, RGWService
 
-io_info_initialize = IOInfoInitialize()
-basic_io_structure = BasicIOInfoStructure()
-write_bucket_io_info = BucketIoInfo()
-write_key_io_info = KeyIoInfo()
 rgw_service = RGWService()
 
 log = logging.getLogger()
@@ -209,6 +205,7 @@ def upload_version_object(
             log.info("object uploaded")
             s3_obj = rgw_conn.Object(bucket.name, s3_object_name)
             log.info("current_version_id: %s" % s3_obj.version_id)
+            basic_io_structure = BasicIOInfoStructure()
             key_version_info = basic_io_structure.version_info(
                 **{
                     "version_id": s3_obj.version_id,
@@ -218,6 +215,7 @@ def upload_version_object(
                 }
             )
             log.info("key_version_info: %s" % key_version_info)
+            write_key_io_info = KeyIoInfo()
             write_key_io_info.add_versioning_info(
                 user_info["access_key"], bucket.name, s3_object_path, key_version_info
             )
@@ -803,6 +801,7 @@ def delete_version_object(
             response = HttpResponseParser(del_obj_version)
             if response.status_code == 204:
                 log.info("version deleted ")
+                write_key_io_info = KeyIoInfo()
                 write_key_io_info.delete_version_info(
                     user_info["access_key"],
                     bucket.name,

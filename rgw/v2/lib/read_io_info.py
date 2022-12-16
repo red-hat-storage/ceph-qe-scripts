@@ -225,5 +225,5 @@ if __name__ == "__main__":
     yaml_file = args.config
     IO_INFO_FNAME = f"io_info_{os.path.basename(yaml_file)}"
     IoInfoConfig(io_info_fname=IO_INFO_FNAME)
-    read_io_info = ReadIOInfo()
+    read_io_info = ReadIOInfo(IO_INFO_FNAME)
     read_io_info.verify_io()
