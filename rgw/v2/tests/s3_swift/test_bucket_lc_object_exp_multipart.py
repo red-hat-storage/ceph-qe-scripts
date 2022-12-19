@@ -1,7 +1,8 @@
 """
 Test bucket lifecycle for multipart object expiration: CEPH-83574797
 Usage: test_bucket_lc_object_exp_multipart.py -c configs/<input-yaml>
-where : <input-yaml> are test_bucket_lc_object_exp_multipart.yaml, test_bucket_lc_multipart_object_expiration.yaml
+where : <input-yaml> are test_bucket_lc_object_exp_multipart.yaml, test_bucket_lc_multipart_object_expiration.yaml,
+ test_bucket_lc_object_exp_multipart.yaml
 Operation:
 -Update rgw daemon with conf(rgw_lc_debug_interval = 1, rgw_lifecycle_work_time = 00:00-23:59)
 -Restart the daemon
@@ -30,6 +31,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -60,12 +62,20 @@ def test_exec(config, ssh_con):
     if srv_restarted is False:
         raise TestExecError("RGW service restart failed")
 
+    if config.test_ops.get("send_bucket_notifications", False) is True:
+        utils.add_service2_sdk_extras()
+
     # create user
     user_info = s3lib.create_users(config.user_count)
     for each_user in user_info:
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
+        notification = None
+
+        if config.test_ops.get("send_bucket_notifications", False) is True:
+            notification = NotificationService(config, auth)
+
         if config.test_ops["create_bucket"]:
             log.info("no of buckets to create: %s" % config.bucket_count)
             # create bucket
@@ -78,6 +88,11 @@ def test_exec(config, ssh_con):
                 reusable.put_bucket_lifecycle(
                     bucket, rgw_conn, rgw_conn2, life_cycle_rule
                 )
+
+                if config.test_ops.get("send_bucket_notifications", False) is True:
+                    events = ["s3:ObjectLifecycle:Expiration:*"]
+                    notification.apply(bucket_name, events)
+
                 if config.test_ops["create_object"]:
                     for oc, size in list(config.mapped_sizes.items()):
                         config.obj_size = size
@@ -150,6 +165,9 @@ def test_exec(config, ssh_con):
                             raise TestExecError(
                                 "Objects are not listed but can be downloadable"
                             )
+
+                if config.test_ops.get("send_bucket_notifications", False) is True:
+                    notification.verify(bucket.name)
 
                 reusable.delete_bucket(bucket)
         reusable.remove_user(each_user)

@@ -13,6 +13,7 @@ import time
 from random import randint
 from re import S
 
+import botocore
 import paramiko
 import yaml
 from v2.lib.exceptions import SyncFailedError
@@ -748,3 +749,23 @@ def disable_async_data_notifications():
     if not (search_string in open(rgw_log_file, encoding="latin1").read()):
         return True
     return False
+
+
+def add_service2_sdk_extras():
+    """
+    download service-2.sdk-extras.json into botocore python module path
+    """
+    log.info(
+        "downloading service-2.sdk-extras.json to enable extra functionality supported by Ceph Extension"
+    )
+    botocore_paths = botocore.__path__
+    log.info(f"botocore python module path: {botocore_paths[0]}")
+    extras_json_path = (
+        f"{botocore_paths[0]}/data/s3/2006-03-01/service-2.sdk-extras.json"
+    )
+    exec_shell_cmd(
+        f"sudo curl -o {extras_json_path} -L https://github.com/ceph/ceph/blob/main/examples/boto3/service-2.sdk-extras.json?raw=true"
+    )
+    log.info(f"service-2.sdk-extras.json is downloaded to {extras_json_path}")
+    time.sleep(10)
+    return True
