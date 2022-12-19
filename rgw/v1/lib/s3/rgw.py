@@ -228,7 +228,7 @@ class ObjectOps(BucketOps):
                 put = multipart.put()
                 print(put["status"])
                 if not put["status"]:
-                    raise AssertionError(put["msgs"])
+                    raise AssertionError(put["msg"])
 
     def delete_key_version(self):
         for bucket_name in self.bucket_names:
