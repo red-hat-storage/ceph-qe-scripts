@@ -77,6 +77,7 @@ def test_exec(config, ssh_con):
         else:
             rgw_conn = auth.do_auth()
         objects_created_list = []
+        bucket_created = []
         if config.test_ops["create_bucket"] is True:
             log.info("no of buckets to create: %s" % config.bucket_count)
             for bc in range(config.bucket_count):
@@ -87,6 +88,7 @@ def test_exec(config, ssh_con):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
                 )
+                bucket_created.append(bucket)
                 if config.test_ops.get("enable_version", False):
                     log.info("enable bucket version")
                     reusable.enable_versioning(
@@ -286,15 +288,16 @@ def test_exec(config, ssh_con):
             reusable.get_radoslist()
 
         if config.test_ops.get("delete_bucket_object", False):
-            if config.test_ops.get("enable_version", False):
-                for name, path in objects_created_list:
-                    reusable.delete_version_object(
-                        bucket, name, path, rgw_conn, each_user
-                    )
-            else:
-                reusable.delete_objects(bucket)
+            for bkt in bucket_created:
+                if config.test_ops.get("enable_version", False):
+                    for name, path in objects_created_list:
+                        reusable.delete_version_object(
+                            bkt, name, path, rgw_conn, each_user
+                        )
+                else:
+                    reusable.delete_objects(bkt)
                 time.sleep(30)
-                reusable.delete_bucket(bucket)
+                reusable.delete_bucket(bkt)
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
