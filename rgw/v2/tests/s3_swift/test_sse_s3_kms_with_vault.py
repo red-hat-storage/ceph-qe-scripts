@@ -1,5 +1,6 @@
 """
 test sse-s3 encryption with vault backend at per-bucket or per-object level.
+Additionally, also test sse-kms with per-object
 Usage: test_sse_s3_with_vault.py -c <input_yaml>
 <input_yaml>
     Note: any one of these yamls can be used
@@ -8,6 +9,8 @@ Usage: test_sse_s3_with_vault.py -c <input_yaml>
     test_sse_s3_per_bucket_encryption_version_enabled.yaml
     test_sse_s3_per_object.yaml
     test_sse_s3_per_object_versioninig_enabled.yaml
+    test_sse_kms_per_object.yaml
+    test_sse_kms_per_object_versioninig_enabled.yaml
 
 Operation:
     Create a user and create a bucket with user credentials
@@ -32,7 +35,7 @@ import uuid
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
-from v2.lib.exceptions import EventRecordDataError, RGWBaseException, TestExecError
+from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
@@ -68,51 +71,51 @@ def test_exec(config, ssh_con):
 
         # get ceph version
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
-        log.info("sse-s3 configuration will be added now.")
-        ceph_conf.set_to_ceph_conf(
-            "global",
-            ConfigOpts.rgw_crypt_require_ssl,
-            str(config.rgw_crypt_require_ssl),
-            ssh_con,
-        )
-        ceph_conf.set_to_ceph_conf(
-            "global",
-            ConfigOpts.rgw_crypt_sse_s3_backend,
-            str(config.rgw_crypt_sse_s3_backend),
-            ssh_con,
-        )
-        ceph_conf.set_to_ceph_conf(
-            "global",
-            ConfigOpts.rgw_crypt_sse_s3_vault_auth,
-            str(config.rgw_crypt_sse_s3_vault_auth),
-            ssh_con,
-        )
-        ceph_conf.set_to_ceph_conf(
-            "global",
-            ConfigOpts.rgw_crypt_sse_s3_vault_prefix,
-            str(config.rgw_crypt_sse_s3_vault_prefix),
-            ssh_con,
-        )
-        ceph_conf.set_to_ceph_conf(
-            "global",
-            ConfigOpts.rgw_crypt_sse_s3_vault_secret_engine,
-            str(config.rgw_crypt_sse_s3_vault_secret_engine),
-            ssh_con,
-        )
-        ceph_conf.set_to_ceph_conf(
-            "global",
-            ConfigOpts.rgw_crypt_sse_s3_vault_addr,
-            str(config.rgw_crypt_sse_s3_vault_addr),
-            ssh_con,
-        )
-        log.info("trying to restart services")
-        srv_restarted = rgw_service.restart(ssh_con)
-        time.sleep(30)
-        if srv_restarted is False:
-            raise TestExecError("RGW service restart failed")
-        else:
-            log.info("RGW service restarted")
-
+        if config.encryption_keys == "s3":
+            log.info("sse-s3 configuration will be added now.")
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_crypt_require_ssl,
+                str(config.rgw_crypt_require_ssl),
+                ssh_con,
+            )
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_crypt_sse_s3_backend,
+                str(config.rgw_crypt_sse_s3_backend),
+                ssh_con,
+            )
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_crypt_sse_s3_vault_auth,
+                str(config.rgw_crypt_sse_s3_vault_auth),
+                ssh_con,
+            )
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_crypt_sse_s3_vault_prefix,
+                str(config.rgw_crypt_sse_s3_vault_prefix),
+                ssh_con,
+            )
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_crypt_sse_s3_vault_secret_engine,
+                str(config.rgw_crypt_sse_s3_vault_secret_engine),
+                ssh_con,
+            )
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_crypt_sse_s3_vault_addr,
+                str(config.rgw_crypt_sse_s3_vault_addr),
+                ssh_con,
+            )
+            log.info("trying to restart services")
+            srv_restarted = rgw_service.restart(ssh_con)
+            time.sleep(30)
+            if srv_restarted is False:
+                raise TestExecError("RGW service restart failed")
+            else:
+                log.info("RGW service restarted")
         objects_created_list = []
         if config.test_ops["create_bucket"] is True:
             log.info("no of buckets to create: %s" % config.bucket_count)
@@ -178,14 +181,23 @@ def test_exec(config, ssh_con):
 
                         else:
                             log.info(f"Encryption type is per-object.")
+                            log.info(
+                                f"Test sse with encryption keys {config.encryption_keys}"
+                            )
+                            encryption_method = config.encryption_keys
                             sse_s3.put_object_encryption(
-                                s3_client, bucket_name_to_create, s3_object_name
+                                s3_client,
+                                bucket_name_to_create,
+                                s3_object_name,
+                                encryption_method,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
                             )
                         # test the object uploaded is encrypted with AES256
                         sse_s3.get_object_encryption(
                             s3_client, bucket_name_to_create, s3_object_name
                         )
-
     # check sync status if a multisite cluster
     reusable.check_sync_status()
 
@@ -197,7 +209,7 @@ def test_exec(config, ssh_con):
 
 if __name__ == "__main__":
 
-    test_info = AddTestInfo("test bucket notification")
+    test_info = AddTestInfo("test server-side-encryption with s3 and kms")
     test_info.started_info()
 
     try:
