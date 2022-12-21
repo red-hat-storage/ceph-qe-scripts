@@ -22,6 +22,37 @@ S3_OBJECT_NAME_PREFIX = "key"
 log = logging.getLogger()
 
 
+def exec_long_running_shell_cmd(cmd):
+    try:
+        log.info("executing cmd: %s" % cmd)
+        pr = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            shell=True,
+        )
+        # Poll process.stdout to show stdout live
+        while True:
+            output = pr.stdout.readline()
+            if pr.poll() is not None:
+                break
+            if output:
+                log.info(output.strip())
+        print()
+        rc = pr.poll()
+        if rc == 0:
+            log.info("cmd excuted")
+            return True
+        else:
+            raise Exception("error occured \nreturncode: %s" % (rc))
+    except Exception as e:
+        log.error("cmd execution failed")
+        log.error(e)
+        get_crash_log()
+        return False
+
+
 def exec_shell_cmd(cmd, debug_info=False):
     try:
         log.info("executing cmd: %s" % cmd)

@@ -1,0 +1,9 @@
+# script: test_bucket_stats.py
+config:
+  user_count: 1
+  bucket_count: 1
+  permutation_count: 3
+  test_ops:
+    operation: "del"
+    params:
+      - "s3uri"
