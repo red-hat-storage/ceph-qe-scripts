@@ -11,7 +11,7 @@ from v2.lib.exceptions import SyncFailedError
 log = logging.getLogger(__name__)
 
 
-def sync_status(retry=10, delay=60):
+def sync_status(retry=25, delay=60):
     """
     verify multisite sync status
     """
