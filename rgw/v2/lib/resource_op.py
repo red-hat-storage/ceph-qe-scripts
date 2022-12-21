@@ -328,6 +328,7 @@ class Config(object):
         self.user_max_read_bytes = self.doc["config"].get("user_max_read_bytes")
         self.user_max_write_ops = self.doc["config"].get("user_max_write_ops")
         self.user_max_write_bytes = self.doc["config"].get("user_max_write_bytes")
+        self.permutation_count = self.doc["config"].get("permutation_count")
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:
