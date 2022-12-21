@@ -215,6 +215,7 @@ class Config(object):
         self.user_remove = self.doc["config"].get("user_remove", True)
         self.user_type = self.doc["config"].get("user_type")
         self.bucket_count = self.doc["config"].get("bucket_count")
+        self.encryption_keys = self.doc["config"].get("encryption_keys")
         self.objects_count = self.doc["config"].get("objects_count")
         self.pseudo_dir_count = self.doc["config"].get("pseudo_dir_count")
         self.use_aws4 = self.doc["config"].get("use_aws4", None)
