@@ -562,6 +562,8 @@ def test_exec(config, ssh_con):
                             raise TestExecError(
                                 "Command is throwing error while running bucket sync run"
                             )
+                if config.test_ops.get("delete_bucket") is True:
+                    reusable.delete_bucket(bucket)
         if config.bucket_sync_run_with_disable_sync_thread:
             log.info("making changes to ceph.conf")
             ceph_conf.set_to_ceph_conf(
