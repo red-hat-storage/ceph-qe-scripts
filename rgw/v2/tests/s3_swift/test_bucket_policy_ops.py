@@ -82,9 +82,6 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
 
-    if config.test_ops.get("upload_type") == "multipart":
-        srv_time_pre_op = get_svc_time(ssh_con)
-
     # create user
     config.user_count = 1
     tenant1 = "MountEverest"
@@ -157,6 +154,8 @@ def test_exec(config, ssh_con):
         raise TestExecError("bucket policy creation failed")
 
     if config.test_ops.get("upload_type") == "multipart":
+        # verifies bug 1960262 rgw: Crash on multipart upload to bucket with policy
+        srv_time_pre_op = get_svc_time(ssh_con)
         for oc, size in list(config.mapped_sizes.items()):
             config.obj_size = size
             s3_object_name = utils.gen_s3_object_name(t1_u1_bucket1.name, oc)
