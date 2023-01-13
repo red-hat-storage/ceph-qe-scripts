@@ -71,7 +71,8 @@ def test_exec(config, ssh_con):
 
         # get ceph version
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
-        if config.encryption_keys == "s3":
+        is_multisite = utils.is_cluster_multisite()
+        if config.encryption_keys == "s3" and not is_multisite:
             log.info("sse-s3 configuration will be added now.")
             ceph_conf.set_to_ceph_conf(
                 "global",
@@ -146,12 +147,14 @@ def test_exec(config, ssh_con):
                         log.info("s3 object path: %s" % s3_object_path)
                         # Choose encryption type, per-object or per-bucket:
                         log.info("Choose encryption type, per-object or per-bucket")
+                        # Choose the encryption_method sse-s3 or sse-kms
+                        encryption_method = config.encryption_keys
                         if config.test_ops["sse_s3_per_bucket"] is True:
                             log.info(
                                 f"Encryption type is per-bucket, enable it on bucket : {bucket_name_to_create}"
                             )
                             sse_s3.put_bucket_encryption(
-                                s3_client, bucket_name_to_create
+                                s3_client, bucket_name_to_create, encryption_method
                             )
                             # get bucket encryption
                             log.info(
@@ -184,7 +187,6 @@ def test_exec(config, ssh_con):
                             log.info(
                                 f"Test sse with encryption keys {config.encryption_keys}"
                             )
-                            encryption_method = config.encryption_keys
                             sse_s3.put_object_encryption(
                                 s3_client,
                                 bucket_name_to_create,
