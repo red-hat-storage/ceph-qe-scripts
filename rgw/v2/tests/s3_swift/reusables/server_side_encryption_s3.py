@@ -15,16 +15,30 @@ from v2.lib.rgw_config_opts import ConfigOpts
 log = logging.getLogger()
 
 
-def put_bucket_encryption(s3_client, bucketname):
+def put_bucket_encryption(s3_client, bucketname, encryption_method):
     """
     put bucket encryption on a given bucket.
     """
     log.info(f"put bucket encryption on {bucketname}")
-    ssec_s3 = {
-        "Rules": [{"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}]
-    }
+    if encryption_method == "s3":
+        ssec_s3_kms = {
+            "Rules": [
+                {"ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}}
+            ]
+        }
+    else:
+        ssec_s3_kms = {
+            "Rules": [
+                {
+                    "ApplyServerSideEncryptionByDefault": {
+                        "SSEAlgorithm": "aws:kms",
+                        "KMSMasterKeyID": "testKey01",
+                    }
+                }
+            ]
+        }
     put_bkt_encryption = s3_client.put_bucket_encryption(
-        Bucket=bucketname, ServerSideEncryptionConfiguration=ssec_s3
+        Bucket=bucketname, ServerSideEncryptionConfiguration=ssec_s3_kms
     )
 
     if put_bkt_encryption is False:
