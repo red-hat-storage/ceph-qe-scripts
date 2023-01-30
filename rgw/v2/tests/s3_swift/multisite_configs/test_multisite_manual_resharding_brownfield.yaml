@@ -5,10 +5,10 @@ config:
   bucket_count: 1
   objects_count: 100
   manual_resharding: true
-  shards: 997
+  shards: 37
   objects_size_range:
     min: 15K
-    max: 5M
+    max: 500K
   dbr_scenario: brownfield
   local_file_delete: true
   test_ops:

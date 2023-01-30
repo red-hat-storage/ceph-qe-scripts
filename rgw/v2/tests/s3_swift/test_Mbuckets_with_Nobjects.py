@@ -245,14 +245,9 @@ def test_exec(config, ssh_con):
                                 f"radosgw-admin bucket stats --bucket {bucket.name}"
                             )
                             json_doc = json.loads(op)
-                            if bool(json_doc["usage"]):
-                                num_object = json_doc["usage"]["rgw.main"][
-                                    "num_objects"
-                                ]
-                                config.objects_count = (
-                                    num_object * 2 + config.objects_count
-                                )
-                                config.mapped_sizes = utils.make_mapped_sizes(config)
+                            old_num_shards = json_doc["num_shards"]
+                            config.objects_count = old_num_shards + 10
+                            config.mapped_sizes = utils.make_mapped_sizes(config)
 
                     for oc, size in list(config.mapped_sizes.items()):
                         config.obj_size = size
@@ -460,6 +455,8 @@ def test_exec(config, ssh_con):
                             json_doc = json.loads(op)
                             old_num_shards = json_doc["num_shards"]
                             log.info(f"no_of_shards_created: {old_num_shards}")
+                            if config.shards <= old_num_shards:
+                                config.shards = old_num_shards + 10
                             op = utils.exec_shell_cmd(
                                 f"radosgw-admin reshard add --bucket {bucket.name} --num-shards {config.shards}"
                             )
