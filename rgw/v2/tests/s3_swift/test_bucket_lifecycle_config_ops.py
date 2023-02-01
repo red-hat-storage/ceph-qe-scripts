@@ -409,6 +409,33 @@ def test_exec(config, ssh_con):
                                 f"For bucket {bucket.name} lc disabled before starting lc interval, but objects are expired through lc"
                             )
 
+                # apply lifecycle configuration to bucket which already has lifecycle configuration set.
+                if config.test_ops.get("apply_new_lc", False) is True:
+                    old_lc = json.loads(
+                        utils.exec_shell_cmd(
+                            f"radosgw-admin lc get --bucket={bucket.name}"
+                        )
+                    )["rule_map"][0]["rule"]
+                    new_life_cycle_rule = {"Rules": config.new_lifecycle_conf}
+                    reusable.put_bucket_lifecycle(
+                        bucket, rgw_conn, rgw_conn2, new_life_cycle_rule
+                    )
+                    time.sleep(30)
+                    new_lc = json.loads(
+                        utils.exec_shell_cmd(
+                            f"radosgw-admin lc get --bucket={bucket.name}"
+                        )
+                    )["rule_map"][0]["rule"]
+
+                    if (
+                        old_lc["id"] == new_lc["id"]
+                        or old_lc["expiration"]["days"] == new_lc["expiration"]["days"]
+                        or old_lc["filter"]["prefix"] == new_lc["filter"]["prefix"]
+                    ):
+                        raise TestExecError(
+                            f"For bucket {bucket.name}, failed to apply new LC configuration"
+                        )
+
                 if config.test_ops.get("add_more_objects", False):
                     for oc in range(0, config.test_ops["new_objects_count"]):
                         config.obj_size = utils.get_file_size(

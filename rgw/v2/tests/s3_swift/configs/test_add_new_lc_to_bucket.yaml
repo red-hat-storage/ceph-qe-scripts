@@ -1,0 +1,24 @@
+# script: test_bucket_lifecycle_config_ops.py
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 10
+  rgw_lc_debug_interval: 3600
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    create_object: true
+    enable_versioning: false
+    version_count: 0
+    delete_marker: false
+    apply_new_lc: true
+    rgw_lc_debug: true
+  new_lifecycle_conf:
+    - ID: new_lc_rule
+      Filter:
+        Prefix: newkey
+      Status: Enabled
+      Expiration:
+        Days: 5
