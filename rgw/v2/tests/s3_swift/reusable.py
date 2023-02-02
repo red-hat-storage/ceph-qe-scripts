@@ -1,6 +1,7 @@
 import glob
 import json
 import os
+import random
 import subprocess
 import sys
 
@@ -332,6 +333,7 @@ def upload_mutipart_object(
     user_info,
     append_data=False,
     append_msg=None,
+    abort_multipart=False,
 ):
     log.info("s3 object name: %s" % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
@@ -382,6 +384,7 @@ def upload_mutipart_object(
     part_number = 1
     parts_info = {"Parts": []}
     log.info("no of parts: %s" % len(parts_list))
+    abort_part_no = random.randint(1, len(parts_list) - 1)
     for each_part in parts_list:
         log.info("trying to upload part: %s" % each_part)
         part = mpu.Part(part_number)
@@ -405,6 +408,11 @@ def upload_mutipart_object(
             # increase the part number only if the current part is not the last part
             part_number += 1
         log.info("curr part_number: %s" % part_number)
+
+        if abort_multipart and part_number == abort_part_no:
+            log.info(f"aborting multi part {part_number}")
+            return
+
     if config.local_file_delete is True:
         log.info("deleting local file part")
         utils.exec_shell_cmd(f"rm -rf {mp_dir}")

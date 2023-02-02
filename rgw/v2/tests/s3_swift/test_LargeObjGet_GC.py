@@ -43,6 +43,7 @@ def test_exec(config, ssh_con):
     rgw_conn = auth.do_auth()
     rgw_conn2 = auth.do_auth_using_client()
     log.info("no of buckets to create: %s" % config.bucket_count)
+    abort_multipart = (config.abort_multipart, False)
     # create buckets
     if config.test_ops["create_bucket"] is True:
         for bc in range(config.bucket_count):
@@ -63,13 +64,39 @@ def test_exec(config, ssh_con):
                     if config.test_ops.get("upload_type") == "multipart":
                         log.info("upload type: multipart")
                         reusable.upload_mutipart_object(
-                            s3_object_name, bucket, TEST_DATA_PATH, config, user_info
+                            s3_object_name,
+                            bucket,
+                            TEST_DATA_PATH,
+                            config,
+                            user_info,
+                            abort_multipart=abort_multipart,
                         )
                     else:
                         log.info("upload type: normal")
                         reusable.upload_object(
                             s3_object_name, bucket, TEST_DATA_PATH, config, user_info
                         )
+                    if config.abort_multipart:
+                        log.info(f"verifying abort multipart")
+                        bkt_stat_output = json.loads(
+                            utils.exec_shell_cmd(
+                                f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
+                            )
+                        )
+                        if bkt_stat_output["usage"]["rgw.multimeta"]["num_objects"] > 0:
+                            log.info(f"In complete multipart found")
+                            cmd = f"radosgw-admin bucket rm --bucket={bucket_name_to_create} --bypass-gc --purge-objects"
+                            utils.exec_shell_cmd(cmd)
+                            bucket_list = json.loads(
+                                utils.exec_shell_cmd(f"radosgw-admin bucket list")
+                            )
+                            if bucket_name_to_create in bucket_list:
+                                raise AssertionError(
+                                    "Remove operation failed for {bucket_name_to_create}"
+                                )
+                            crash_info = reusable.check_for_crash()
+                            if crash_info:
+                                raise TestExecError("ceph daemon crash found!")
 
                     if config.gc_verification is True:
                         log.info("making changes to ceph.conf")
