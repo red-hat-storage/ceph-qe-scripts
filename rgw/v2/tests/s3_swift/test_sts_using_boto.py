@@ -198,7 +198,7 @@ def test_exec(config, ssh_con):
             raise TestExecError("ceph daemon crash found!")
     except ClientError as e:
         log.error(e)
-        print("403 Forbidden, invalid arn in the policy")
+        print("403 Forbidden, invalid rule in the policy")
 
 
 if __name__ == "__main__":
