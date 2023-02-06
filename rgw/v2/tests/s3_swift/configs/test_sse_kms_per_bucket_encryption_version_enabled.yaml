@@ -12,3 +12,5 @@ config:
   enable_version: true
   sse_s3_per_bucket: true
   upload_type: normal
+  delete_bucket_object: false
+  delete_bucket_object_version: true

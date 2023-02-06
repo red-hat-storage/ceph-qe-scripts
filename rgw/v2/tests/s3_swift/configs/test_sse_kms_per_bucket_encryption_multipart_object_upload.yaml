@@ -2,7 +2,7 @@ config:
  user_count: 1
  encryption_keys: kms
  bucket_count: 2
- objects_count: 100
+ objects_count: 50
  objects_size_range:
   min: 5
   max: 15
@@ -12,3 +12,5 @@ config:
   enable_version: false
   sse_s3_per_bucket: true
   upload_type: multipart
+  delete_bucket_object: false
+  delete_bucket_object_version: false
