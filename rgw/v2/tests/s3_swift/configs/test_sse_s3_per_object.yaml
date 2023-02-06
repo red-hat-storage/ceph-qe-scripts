@@ -11,3 +11,5 @@ config:
   create_object: true
   enable_version: false
   sse_s3_per_bucket: false
+  delete_bucket_object: true
+  delete_bucket_object_version: false

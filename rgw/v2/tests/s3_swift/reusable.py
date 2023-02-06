@@ -828,6 +828,53 @@ def delete_version_object(
         )
 
 
+def delete_versioned_object(
+    bucket,
+    s3_object_name,
+    s3_object_path,
+    rgw_conn,
+    user_info,
+):
+    """
+    deletes single object and its versions
+    :param bucket: S3bucket object
+    :param s3_object_name: s3 object name
+    :param s3_object_path: path of the object created in the client
+    :param rgw_conn: rgw connection
+    :param user_info: user info dict containing access_key, secret_key and user_id
+    """
+    versions = bucket.object_versions.filter(Prefix=s3_object_name)
+    log.info("deleting s3_obj keys and its versions")
+    s3_obj = s3lib.resource_op(
+        {"obj": rgw_conn, "resource": "Object", "args": [bucket.name, s3_object_name]}
+    )
+    log.info("deleting versions for s3 obj: %s" % s3_object_name)
+    for version in versions:
+        log.info("trying to delete obj version: %s" % version.version_id)
+        del_obj_version = s3lib.resource_op(
+            {
+                "obj": s3_obj,
+                "resource": "delete",
+                "kwargs": dict(VersionId=version.version_id),
+            }
+        )
+        log.info("response:\n%s" % del_obj_version)
+        if del_obj_version is not None:
+            response = HttpResponseParser(del_obj_version)
+            if response.status_code == 204:
+                log.info("version deleted ")
+            else:
+                raise TestExecError("version  deletion failed")
+        else:
+            raise TestExecError("version deletion failed")
+    log.info("available versions for the object")
+    versions = bucket.object_versions.filter(Prefix=s3_object_name)
+    for version in versions:
+        log.info(
+            "key_name: %s --> version_id: %s" % (version.object_key, version.version_id)
+        )
+
+
 def delete_bucket(bucket):
     """
     deletes a given bucket
@@ -1252,3 +1299,28 @@ def get_zg_endpoint_creds():
     endpoint_details["endpoint"] = s3_details["endpoint"]
     endpoint_details["bucket_name"] = s3_details["target_path"]
     return endpoint_details
+
+
+def get_object_upload_type(s3_object_name, bucket, TEST_DATA_PATH, config, user_info):
+    """
+    choose or select type of object upload normal or multipart for an object.
+    """
+    log.info("get the object upload type: multipart or normal")
+    if config.test_ops.get("upload_type") == "multipart":
+        log.info("upload type: multipart")
+        upload_mutipart_object(
+            s3_object_name,
+            bucket,
+            TEST_DATA_PATH,
+            config,
+            user_info,
+        )
+    else:
+        log.info("upload type: normal")
+        upload_object(
+            s3_object_name,
+            bucket,
+            TEST_DATA_PATH,
+            config,
+            user_info,
+        )

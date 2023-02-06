@@ -145,6 +145,14 @@ def test_exec(config, ssh_con):
                         log.info("s3 object name: %s" % s3_object_name)
                         s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                         log.info("s3 object path: %s" % s3_object_path)
+                        # write a few objects and then enabled encryption on the bucket
+                        reusable.get_object_upload_type(
+                            s3_object_name,
+                            bucket,
+                            TEST_DATA_PATH,
+                            config,
+                            each_user,
+                        )
                         # Choose encryption type, per-object or per-bucket:
                         log.info("Choose encryption type, per-object or per-bucket")
                         # Choose the encryption_method sse-s3 or sse-kms
@@ -163,24 +171,13 @@ def test_exec(config, ssh_con):
                             sse_s3.get_bucket_encryption(
                                 s3_client, bucket_name_to_create
                             )
-                            if config.test_ops.get("upload_type") == "multipart":
-                                log.info("upload type: multipart")
-                                reusable.upload_mutipart_object(
-                                    s3_object_name,
-                                    bucket,
-                                    TEST_DATA_PATH,
-                                    config,
-                                    each_user,
-                                )
-                            else:
-                                log.info("upload type: normal")
-                                reusable.upload_object(
-                                    s3_object_name,
-                                    bucket,
-                                    TEST_DATA_PATH,
-                                    config,
-                                    each_user,
-                                )
+                            reusable.get_object_upload_type(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                            )
 
                         else:
                             log.info(f"Encryption type is per-object.")
@@ -200,6 +197,16 @@ def test_exec(config, ssh_con):
                         sse_s3.get_object_encryption(
                             s3_client, bucket_name_to_create, s3_object_name
                         )
+                        if config.test_ops["delete_bucket_object"]:
+                            reusable.delete_objects(bucket)
+                        elif config.test_ops["delete_bucket_object_version"]:
+                            reusable.delete_versioned_object(
+                                bucket,
+                                s3_object_name,
+                                s3_object_path,
+                                rgw_conn,
+                                each_user,
+                            )
     # check sync status if a multisite cluster
     reusable.check_sync_status()
 
