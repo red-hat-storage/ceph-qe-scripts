@@ -231,7 +231,6 @@ class Config(object):
         self.container_count = self.doc["config"].get("container_count")
         self.version_count = self.doc["config"].get("version_count")
         self.version_enable = self.doc["config"].get("version_enable", False)
-        self.delete_using_different_user = self.doc["config"].get("delete_using_different_user", False)
         self.copy_version_object = self.doc["config"].get("copy_version_object", False)
         self.object_expire = self.doc["config"].get("object_expire", False)
         self.rgw_lc_debug_interval = self.doc["config"].get("rgw_lc_debug_interval", 30)

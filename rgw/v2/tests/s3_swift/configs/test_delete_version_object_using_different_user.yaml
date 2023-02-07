@@ -1,6 +1,0 @@
-# polarian:CEPH-9353
-config:
-  objects_size_range:
-    min: 5
-    max: 15
-  delete_using_different_user: true
