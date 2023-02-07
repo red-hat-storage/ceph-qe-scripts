@@ -34,6 +34,7 @@ from v2.lib.s3.write_io_info import (
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
+from v2.utils.utils import HttpResponseParser
 
 log = logging.getLogger()
 
@@ -152,6 +153,51 @@ def test_exec(config, ssh_con):
                 "key_name: %s --> version_id: %s"
                 % (version.object_key, version.version_id)
             )
+    if config.delete_using_different_user:
+        log.info("performing version deletion using different user")
+        # versions of versioning enabled bucket
+        versions = b1.object_versions.filter(
+            Prefix=b1_k2_name
+        )
+        diff_user = s3lib.create_users(1)[0]
+        diff_user_auth = Auth(diff_user, ssh_con, ssl=config.ssl)
+        diff_user_conn = diff_user_auth.do_auth()
+        log.info("Trying to delete objects from different user")
+        s3_obj_new = s3lib.resource_op(
+            {
+                "obj": diff_user_conn,
+                "resource": "Object",
+                "args": [b1_name, b1_k2_name],
+            }
+        )
+
+        for version in versions:
+            log.info(
+                "trying to delete obj version: %s"
+                % version.version_id
+            )
+            del_obj_version = s3lib.resource_op(
+                {
+                    "obj": s3_obj_new,
+                    "resource": "delete",
+                    "kwargs": dict(VersionId=version.version_id),
+                }
+            )
+            if del_obj_version is not False:
+                response = HttpResponseParser(del_obj_version)
+                if response.status_code ==204:
+                    raise TestExecError(
+                        "version is deleted, this should not happen"
+                    )
+                else:
+                    log.info(
+                        "version did not delete, expected behaviour"
+                    )
+            else:
+                log.info(
+                    "version did not delete, expected behaviour"
+                )
+
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
