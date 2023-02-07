@@ -831,9 +831,10 @@ def delete_version_object(
 def delete_versioned_object(
     bucket,
     s3_object_name,
-    s3_object_path,
     rgw_conn,
-    user_info,
+    s3_object_path=None,
+    user_info=None,
+    return_status=False,
 ):
     """
     deletes single object and its versions
@@ -845,6 +846,7 @@ def delete_versioned_object(
     """
     versions = bucket.object_versions.filter(Prefix=s3_object_name)
     log.info("deleting s3_obj keys and its versions")
+    not_deleted = False
     s3_obj = s3lib.resource_op(
         {"obj": rgw_conn, "resource": "Object", "args": [bucket.name, s3_object_name]}
     )
@@ -859,13 +861,18 @@ def delete_versioned_object(
             }
         )
         log.info("response:\n%s" % del_obj_version)
-        if del_obj_version is not None:
+        if (del_obj_version is not None) and (del_obj_version != False):
             response = HttpResponseParser(del_obj_version)
+            if return_status:
+                return response
             if response.status_code == 204:
                 log.info("version deleted ")
             else:
                 raise TestExecError("version  deletion failed")
         else:
+            not_deleted = True
+            if return_status:
+                return not_deleted
             raise TestExecError("version deletion failed")
     log.info("available versions for the object")
     versions = bucket.object_versions.filter(Prefix=s3_object_name)
