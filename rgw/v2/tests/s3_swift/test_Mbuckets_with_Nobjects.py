@@ -49,7 +49,7 @@ from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -65,6 +65,7 @@ def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
+    write_bucket_io_info = BucketIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
@@ -74,7 +75,12 @@ def test_exec(config, ssh_con):
         user_brownfiled = "brownfield_user"
         all_users_info = s3lib.create_users(config.user_count, user_brownfiled)
     else:
-        all_users_info = s3lib.create_users(config.user_count)
+        if config.user_type == "tenanted":
+            all_users_info = s3lib.create_tenant_users(
+                no_of_users_to_create=config.user_count, tenant_name="tenant1"
+            )
+        else:
+            all_users_info = s3lib.create_users(config.user_count)
 
     if config.test_ops.get("encryption_algorithm", None) is not None:
         log.info("encryption enabled, making ceph config changes")
@@ -225,10 +231,20 @@ def test_exec(config, ssh_con):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
                 )
+                bkt = (
+                    "tenant1/" + bucket.name
+                    if config.user_type == "tenanted"
+                    else bucket.name
+                )
                 if config.dynamic_resharding is True:
+                    if config.test_ops.get("enable_version", False):
+                        log.info("Enable bucket versioning")
+                        reusable.enable_versioning(
+                            bucket, rgw_conn, each_user, write_bucket_io_info
+                        )
                     reusable.check_sync_status()
                     op = utils.exec_shell_cmd(
-                        f"radosgw-admin bucket stats --bucket {bucket.name}"
+                        f"radosgw-admin bucket stats --bucket {bkt}"
                     )
                     json_doc = json.loads(op)
                     old_num_shards = json_doc["num_shards"]
@@ -242,7 +258,7 @@ def test_exec(config, ssh_con):
                             "brownfield-manual-bkt",
                         ]:
                             op = utils.exec_shell_cmd(
-                                f"radosgw-admin bucket stats --bucket {bucket.name}"
+                                f"radosgw-admin bucket stats --bucket {bkt}"
                             )
                             json_doc = json.loads(op)
                             old_num_shards = json_doc["num_shards"]
@@ -267,14 +283,25 @@ def test_exec(config, ssh_con):
                                 each_user,
                             )
                         else:
-                            log.info("upload type: normal")
-                            reusable.upload_object(
-                                s3_object_name,
-                                bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                each_user,
-                            )
+                            if config.test_ops.get("enable_version", False):
+                                reusable.upload_version_object(
+                                    config,
+                                    each_user,
+                                    rgw_conn,
+                                    s3_object_name,
+                                    config.obj_size,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                )
+                            else:
+                                log.info("upload type: normal")
+                                reusable.upload_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                )
                         if config.test_ops["download_object"] is True:
                             log.info("trying to download object: %s" % s3_object_name)
                             s3_object_download_name = s3_object_name + "." + "download"
@@ -364,7 +391,7 @@ def test_exec(config, ssh_con):
                                 )
                             eTag_aws = object_info["ETag"].split('"')[1]
                             log.info(f"etag from aws is :{eTag_aws}")
-                            cmd = f"radosgw-admin bucket list --bucket {bucket.name}"
+                            cmd = f"radosgw-admin bucket list --bucket {bkt}"
                             out = utils.exec_shell_cmd(cmd)
                             data = json.loads(out)
                             for object in data:
@@ -381,17 +408,17 @@ def test_exec(config, ssh_con):
                     if config.reshard_cancel_cmd:
                         if utils.check_dbr_support():
                             op = utils.exec_shell_cmd(
-                                f"radosgw-admin reshard add --bucket {bucket.name} --num-shards 29"
+                                f"radosgw-admin reshard add --bucket {bkt} --num-shards 29"
                             )
                             op = utils.exec_shell_cmd(f"radosgw-admin reshard list")
-                            if bucket.name in op:
+                            if bkt in op:
                                 op = utils.exec_shell_cmd(
-                                    f"radosgw-admin reshard cancel --bucket {bucket.name}"
+                                    f"radosgw-admin reshard cancel --bucket {bkt}"
                                 )
                                 cancel_op = utils.exec_shell_cmd(
                                     f"radosgw-admin reshard list"
                                 )
-                                if bucket.name in cancel_op:
+                                if bkt in cancel_op:
                                     raise TestExecError(
                                         "bucket is still in reshard queue"
                                     )
@@ -400,14 +427,14 @@ def test_exec(config, ssh_con):
                                     "Command failed....Bucket is not added into reshard queue"
                                 )
                     if config.bucket_sync_run:
-                        out = utils.check_bucket_sync(bucket.name)
+                        out = utils.check_bucket_sync(bkt)
                         if out is False:
                             raise TestExecError(
                                 "Command is throwing error while running bucket sync run"
                             )
 
                     if config.bucket_sync_status:
-                        out = utils.wait_till_bucket_synced(bucket.name)
+                        out = utils.wait_till_bucket_synced(bkt)
                         if not out:
                             log.info("Bucket sync is not caught up with source.")
 
@@ -436,7 +463,7 @@ def test_exec(config, ssh_con):
                                     60
                                 )  # Adding delay for processing reshard list
                                 op = utils.exec_shell_cmd(
-                                    f"radosgw-admin bucket stats --bucket {bucket.name}"
+                                    f"radosgw-admin bucket stats --bucket {bkt}"
                                 )
                                 json_doc = json.loads(op)
                                 new_num_shards = json_doc["num_shards"]
@@ -450,7 +477,7 @@ def test_exec(config, ssh_con):
                     if config.manual_resharding is True:
                         if utils.check_dbr_support():
                             op = utils.exec_shell_cmd(
-                                f"radosgw-admin bucket stats --bucket {bucket.name}"
+                                f"radosgw-admin bucket stats --bucket {bkt}"
                             )
                             json_doc = json.loads(op)
                             old_num_shards = json_doc["num_shards"]
@@ -458,12 +485,12 @@ def test_exec(config, ssh_con):
                             if config.shards <= old_num_shards:
                                 config.shards = old_num_shards + 10
                             op = utils.exec_shell_cmd(
-                                f"radosgw-admin reshard add --bucket {bucket.name} --num-shards {config.shards}"
+                                f"radosgw-admin reshard add --bucket {bkt} --num-shards {config.shards}"
                             )
                             op = utils.exec_shell_cmd("radosgw-admin reshard process")
                             time.sleep(60)
                             op = utils.exec_shell_cmd(
-                                f"radosgw-admin bucket stats --bucket {bucket.name}"
+                                f"radosgw-admin bucket stats --bucket {bkt}"
                             )
                             json_doc = json.loads(op)
                             new_num_shards = json_doc["num_shards"]
