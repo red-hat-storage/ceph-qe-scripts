@@ -21,8 +21,8 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
 import logging
-import random
 import traceback
+import uuid
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -62,8 +62,8 @@ def test_exec(config, ssh_con):
     user_names = ["user1", "user2", "user3"]
     Bucket_names = ["bucket1", "bucket2", "bucket3"]
     object_names = ["o1", "o2"]
-    tenant1 = "tenant1" + "_" + str(random.randrange(1, 100))
-    tenant2 = "tenant2" + "_" + str(random.randrange(1, 100))
+    tenant1 = "tenant1" + "_" + str(uuid.uuid4().hex[:16])
+    tenant2 = "tenant2" + "_" + str(uuid.uuid4().hex[:16])
     t1_u1_info = create_tenant_user(tenant_name=tenant1, user_id=user_names[0])
     t1_u1_auth = Auth(t1_u1_info, ssh_con, ssl=config.ssl)
     t1_u1 = t1_u1_auth.do_auth()
