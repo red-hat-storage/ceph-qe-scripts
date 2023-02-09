@@ -152,6 +152,23 @@ def test_exec(config, ssh_con):
                 "key_name: %s --> version_id: %s"
                 % (version.object_key, version.version_id)
             )
+    if config.delete_using_different_user:
+        log.info("performing version deletion using different user")
+        diff_user = s3lib.create_users(1)[0]
+        diff_user_auth = Auth(diff_user, ssh_con, ssl=config.ssl)
+        diff_user_conn = diff_user_auth.do_auth()
+        log.info("Trying to delete objects from different user")
+
+        response = reusable.delete_versioned_object(
+            b1, b1_k2_name, rgw_conn=diff_user_conn, return_status=True
+        )
+        if response == True:
+            log.info("version did not delete, expected behaviour")
+        else:
+            if response.status_code == 204:
+                raise TestExecError("version is deleted, this should not happen")
+            else:
+                log.info("version did not delete, expected behaviour")
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
