@@ -3,8 +3,8 @@ config:
  bucket_count: 2
  objects_count: 100
  objects_size_range:
-  min: 5
-  max: 25
+  min: 6M
+  max: 25M
  test_ops:
   create_bucket: true
   create_object: true
@@ -17,3 +17,14 @@ config:
   event_type: Multipart
   upload_type: mulitpart
   delete_bucket_object: false
+  security_types:
+    PLAINTEXT:
+      - None
+    SASL_PLAINTEXT:
+      - PLAIN
+      - SCRAM-SHA-256
+    SASL_SSL:
+      - PLAIN
+      - SCRAM-SHA-256
+    SSL:
+      - None

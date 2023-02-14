@@ -1,7 +1,7 @@
 config:
  user_count: 1
  bucket_count: 2
- objects_count: 100
+ objects_count: 2
  objects_size_range:
   min: 5
   max: 15
@@ -19,3 +19,14 @@ config:
   event_type: Copy
   upload_type: normal
   delete_bucket_object: false
+  security_types:
+    PLAINTEXT:
+      - None
+    SASL_PLAINTEXT:
+      - PLAIN
+      - SCRAM-SHA-256
+    SASL_SSL:
+      - PLAIN
+      - SCRAM-SHA-256
+    SSL:
+      - None
