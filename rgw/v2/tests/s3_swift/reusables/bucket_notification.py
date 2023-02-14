@@ -36,26 +36,43 @@ def start_kafka_broker_consumer(topic_name, event_record_path):
     return start_consumer_kafka
 
 
-def create_topic(sns_client, endpoint, ack_type, topic_name, persistent_flag=False, security_type="PLAINTEXT", mechanism="PLAIN"):
+def create_topic(
+    sns_client,
+    endpoint,
+    ack_type,
+    topic_name,
+    persistent_flag=False,
+    security_type="PLAINTEXT",
+    mechanism="PLAIN",
+):
     """
     to create topic with specified endpoint , ack_level
     return: topic ARN
     """
     if security_type == "PLAINTEXT":
         endpoint_args = (
-            'push-endpoint=kafka://localhost:9092&use-ssl=false&verify-ssl=false&kafka-ack-level='+ack_type
+            "push-endpoint=kafka://localhost:9092&use-ssl=false&verify-ssl=false&kafka-ack-level="
+            + ack_type
         )
     elif security_type == "SSL":
         endpoint_args = (
-            'push-endpoint=kafka://localhost:9093&use-ssl=true&verify-ssl=false&kafka-ack-level='+ack_type+'&ca-location=/usr/local/kafka/y-ca.crt'
+            "push-endpoint=kafka://localhost:9093&use-ssl=true&verify-ssl=false&kafka-ack-level="
+            + ack_type
+            + "&ca-location=/usr/local/kafka/y-ca.crt"
         )
     elif security_type == "SASL_SSL":
         endpoint_args = (
-            'push-endpoint=kafka://alice:alice-secret@localhost:9094&use-ssl=true&verify-ssl=false&kafka-ack-level='+ack_type+'&ca-location=/usr/local/kafka/y-ca.crt&mechanism='+mechanism
+            "push-endpoint=kafka://alice:alice-secret@localhost:9094&use-ssl=true&verify-ssl=false&kafka-ack-level="
+            + ack_type
+            + "&ca-location=/usr/local/kafka/y-ca.crt&mechanism="
+            + mechanism
         )
     elif security_type == "SASL_PLAINTEXT":
         endpoint_args = (
-            'push-endpoint=kafka://alice:alice-secret@localhost:9095&use-ssl=False&verify-ssl=False&kafka-ack-level='+ack_type+'&mechanism='+mechanism
+            "push-endpoint=kafka://alice:alice-secret@localhost:9095&use-ssl=False&verify-ssl=False&kafka-ack-level="
+            + ack_type
+            + "&mechanism="
+            + mechanism
         )
     if persistent_flag:
         endpoint_args = endpoint_args + "&persistent=true"

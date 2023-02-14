@@ -61,9 +61,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
-    default_security_type = {
-        "PLAINTEXT" : [None]
-    }
+    default_security_type = {"PLAINTEXT": [None]}
     security_types = config.test_ops.get("security_types", default_security_type)
 
     # create user
@@ -115,7 +113,13 @@ def test_exec(config, ssh_con):
                                 log.info("topic with peristent flag enabled")
                                 persistent = config.test_ops.get("persistent_flag")
                             topic = notification.create_topic(
-                                rgw_sns_conn, endpoint, ack_type, topic_name, persistent, security_type, mechanism
+                                rgw_sns_conn,
+                                endpoint,
+                                ack_type,
+                                topic_name,
+                                persistent,
+                                security_type,
+                                mechanism,
                             )
                             topics.append(topic_name)
 
@@ -213,7 +217,10 @@ def test_exec(config, ssh_con):
                     # verify all the attributes of the event record. if event not received abort testcase
                     log.info("verify event record attributes")
                     verify = notification.verify_event_record(
-                        config.test_ops.get("event_type"), bucket_name_to_create, event_record_path, ceph_version_name
+                        config.test_ops.get("event_type"),
+                        bucket_name_to_create,
+                        event_record_path,
+                        ceph_version_name,
                     )
                     if verify is False:
                         raise EventRecordDataError(

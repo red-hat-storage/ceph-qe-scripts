@@ -1,7 +1,7 @@
 config:
  user_count: 1
  bucket_count: 2
- objects_count: 10
+ objects_count: 2
  objects_size_range:
   min: 25M
   max: 25M
