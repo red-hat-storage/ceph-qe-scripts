@@ -105,7 +105,8 @@ def test_exec(config, ssh_con):
                             ack_type = config.test_ops.get("ack_type")
                             topic_id = str(uuid.uuid4().hex[:16])
                             persistent = False
-                            topic_name = f"cephci-kafka-{ack_type}-ack-type-{security_type}-{mechanism}-{topic_id}"
+                            # topic_name = f"cephci-kafka-{ack_type}-ack-type-{security_type}-{mechanism}-{topic_id}"
+                            topic_name = "cephci-kafka-" + ack_type + "-ack-type-" + topic_id
                             log.info(
                                 f"creating a topic with {endpoint} endpoint with ack type {ack_type}"
                             )
