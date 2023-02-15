@@ -69,7 +69,7 @@ def create_topic(
         )
     elif security_type == "SASL_PLAINTEXT":
         endpoint_args = (
-            "push-endpoint=kafka://alice:alice-secret@localhost:9095&use-ssl=False&verify-ssl=False&kafka-ack-level="
+            "push-endpoint=kafka://alice:alice-secret@localhost:9095&use-ssl=false&verify-ssl=false&kafka-ack-level="
             + ack_type
             + "&mechanism="
             + mechanism

@@ -105,13 +105,14 @@ def test_exec(config, ssh_con):
                             ack_type = config.test_ops.get("ack_type")
                             topic_id = str(uuid.uuid4().hex[:16])
                             persistent = False
-                            topic_name = f"cephci-kafka-{bucket_name_to_create}-{ack_type}-ack-type-{security_type}-{mechanism}-{topic_id}"
+                            topic_name = f"cephci-kafka-{ack_type}-ack-type-{security_type}-{mechanism}-{topic_id}"
                             log.info(
                                 f"creating a topic with {endpoint} endpoint with ack type {ack_type}"
                             )
                             if config.test_ops.get("persistent_flag", False):
                                 log.info("topic with peristent flag enabled")
                                 persistent = config.test_ops.get("persistent_flag")
+                            log.info(f"topic name: {topic_name}")
                             topic = notification.create_topic(
                                 rgw_sns_conn,
                                 endpoint,
