@@ -4,8 +4,8 @@ config:
   objects_count: 100
   version_count: 2
   objects_size_range:
-    min: 5
-    max: 25
+    min: 6M
+    max: 25M
   local_file_delete: true
   test_ops:
     mfa_create: true

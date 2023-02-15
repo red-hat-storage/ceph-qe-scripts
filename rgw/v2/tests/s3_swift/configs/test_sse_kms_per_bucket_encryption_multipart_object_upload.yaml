@@ -3,9 +3,10 @@ config:
  encryption_keys: kms
  bucket_count: 2
  objects_count: 50
+ local_file_delete: true
  objects_size_range:
-  min: 5
-  max: 15
+  min: 6M
+  max: 15M
  test_ops:
   create_bucket: true
   create_object: true

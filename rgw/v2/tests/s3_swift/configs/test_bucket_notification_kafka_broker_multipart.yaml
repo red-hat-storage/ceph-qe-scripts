@@ -2,9 +2,10 @@ config:
  user_count: 1
  bucket_count: 2
  objects_count: 100
+ local_file_delete: true
  objects_size_range:
-  min: 5
-  max: 25
+  min: 6M
+  max: 25M
  test_ops:
   create_bucket: true
   create_object: true

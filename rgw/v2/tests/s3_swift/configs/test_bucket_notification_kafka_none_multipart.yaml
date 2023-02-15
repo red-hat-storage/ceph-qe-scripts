@@ -3,8 +3,8 @@ config:
  bucket_count: 2
  objects_count: 100
  objects_size_range:
-  min: 5
-  max: 25
+  min: 6M
+  max: 25M
  test_ops:
   create_bucket: true
   create_object: true
