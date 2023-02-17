@@ -1235,7 +1235,8 @@ def get_object_list(bucket_name, s3_conn_client, prefix=None):
     object_resp = s3_conn_client.list_objects(Bucket=bucket_name)
     log.info(object_resp)
     if "Contents" not in object_resp.keys():
-        log.error("Objects not exists in bucket")
+        log.info("Objects do not exist in the bucket")
+        return []
     object_list = [di["Key"] for di in object_resp["Contents"]]
     if prefix is not None:
         object_list_with_prefix = []

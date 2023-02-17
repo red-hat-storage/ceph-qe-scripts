@@ -1,4 +1,5 @@
 # script: test_cloud_transitions.py
+# Polarion ID : CEPH-83575278
 config:
   user_count: 1
   bucket_count: 1
@@ -10,3 +11,4 @@ config:
     create_bucket: true
     create_object: true
     lc_id: cloud_transit
+    retain_head_object: true

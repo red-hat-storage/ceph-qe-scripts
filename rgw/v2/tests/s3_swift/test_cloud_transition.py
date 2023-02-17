@@ -117,6 +117,23 @@ def test_exec(config, ssh_con):
     message = "Expected: %s, Actual: %s" % (config.objects_count, len(object_list))
     assert len(object_list) == config.objects_count, message
 
+    # check retain_head_object behaviour
+    s3_client_local = reusable.get_s3_client(
+        user_info["access_key"], user_info["secret_key"], auth.endpoint_url
+    )
+    object_list = reusable.get_object_list(bucket.name, s3_client_local)
+    if config.test_ops["retain_head_object"] is True:
+        if object_list:
+            log.info("Head objects retained post transition as expected")
+        else:
+            raise TestExecError("Bucket is empty, head objects not retained")
+
+    if config.test_ops["retain_head_object"] is False:
+        if len(object_list) == 0:
+            log.info("Head objects not retained post transition as expected")
+        else:
+            raise TestExecError("Bucket is not empty, head objects retained")
+
     # check sync status if a multisite cluster
     reusable.check_sync_status()
 
