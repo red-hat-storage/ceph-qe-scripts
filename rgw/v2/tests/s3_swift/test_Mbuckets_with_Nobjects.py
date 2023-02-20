@@ -249,6 +249,16 @@ def test_exec(config, ssh_con):
                     json_doc = json.loads(op)
                     old_num_shards = json_doc["num_shards"]
                     log.info(f"no_of_shards_created: {old_num_shards}")
+                if config.test_ops["sharding"]["enable"] is True:
+                    op = utils.exec_shell_cmd(
+                        f"radosgw-admin bucket stats --bucket {bkt}"
+                    )
+                    json_doc = json.loads(op)
+                    default_num_shards = json_doc["num_shards"]
+                    log.info(f"no_of_shards_created: {default_num_shards}")
+                    if config.test_ops["sharding"]["max_shards"] != default_num_shards:
+                        raise TestExecError("Default shards are not changed")
+
                 if config.test_ops["create_object"] is True:
                     # uploading data
                     log.info("s3 objects to create: %s" % config.objects_count)
@@ -664,6 +674,12 @@ def test_exec(config, ssh_con):
                 "No 'notifying datalog change' entries should be seen in rgw logs when rgw_data_notify_interval_msec=0 "
             )
         ceph_conf.set_to_ceph_conf("global", ConfigOpts.debug_rgw, "0", ssh_con)
+
+    if config.test_ops["sharding"]["enable"] is True:
+        ceph_conf.set_to_ceph_conf(
+            "global", ConfigOpts.rgw_override_bucket_index_max_shards, 0, ssh_con
+        )
+        srv_restarted = rgw_service.restart(ssh_con)
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
