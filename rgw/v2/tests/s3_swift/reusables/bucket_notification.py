@@ -233,6 +233,17 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
                 log.info(f"size: {size}")
             log.info(f"size: {size}")
 
+            # verify the zonegroup in event record
+            zonegroup_get = utils.exec_shell_cmd("radosgw-admin zonegroup get")
+            zonegroup_get_json = json.loads(zonegroup_get)
+            zonegroup_name = zonegroup_get_json["name"]
+            awsRegion = event_record_json["Records"][0]["awsRegion"]
+            # verify awsRegion in event record is the zonegroup ref BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2004171
+            if awsRegion == zonegroup_name:
+                log.info(f"awsRegion: {awsRegion}")
+            else:
+                raise EventRecordDataError("awsRegion not in event record")
+
     # delete event record
     log.info("deleting local file to verify event record")
     utils.exec_shell_cmd("rm -rf %s" % event_record_path)
