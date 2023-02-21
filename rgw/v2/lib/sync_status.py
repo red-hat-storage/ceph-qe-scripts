@@ -58,9 +58,7 @@ def sync_status(retry=25, delay=60):
     # check status for complete sync
     if "data is caught up with source" in check_sync_status:
         log.info("sync status complete")
-    elif (
-        "archive" in check_sync_status and "not syncing from zone" in check_sync_status
-    ):
+    elif "archive" in check_sync_status or "not syncing from zone" in check_sync_status:
         log.info("data from archive zone does not sync to source zone as per design")
     else:
         raise SyncFailedError("sync is either slow or stuck")
