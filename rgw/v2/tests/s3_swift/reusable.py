@@ -575,6 +575,13 @@ def put_get_bucket_lifecycle_test(
             log.info("LC is applied on the bucket")
         else:
             raise TestExecError("LC is not applied")
+    op_lc_get = utils.exec_shell_cmd(f"radosgw-admin lc get --bucket {bucket.name}")
+    json_doc = json.loads(op_lc_get)
+    rule_map = json_doc["rule_map"][0]["rule"]
+    if not rule_map:
+        raise TestExecError(
+            f"radosgw-admin lc get is not applied on bucket {bucket.name}"
+        )
 
 
 def remove_user(user_info, cluster_name="ceph", tenant=False):
