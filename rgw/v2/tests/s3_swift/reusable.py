@@ -1254,6 +1254,21 @@ def get_object_list(bucket_name, s3_conn_client, prefix=None):
     return object_list
 
 
+def get_object_list_etag(bucket_name, s3_conn_client):
+    """
+    Returns object Key,Etag for the given bucket
+    """
+    object_resp = s3_conn_client.list_objects(Bucket=bucket_name)
+    if "Contents" not in object_resp.keys():
+        log.info("Objects do not exist in the bucket")
+        return []
+    object_dict = {}
+    for di in object_resp["Contents"]:
+        object_dict.update({di["Key"]: di["ETag"]})
+    log.info(object_dict)
+    return object_dict
+
+
 def add_zonegroup_placement(
     storage_class=None,
     tier_type=None,

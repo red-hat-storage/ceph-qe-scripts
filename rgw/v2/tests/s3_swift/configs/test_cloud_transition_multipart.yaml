@@ -1,15 +1,16 @@
 # script: test_cloud_transitions.py
-# Polarion ID : CEPH-83575278
+# Polarion ID : CEPH-83575283
 config:
   user_count: 1
   bucket_count: 1
-  objects_count: 100
-  etag_verification: true
+  objects_count: 10
+  split_size: 10
   objects_size_range:
-    min: 5
-    max: 15
+    min: 20M
+    max: 50M
   test_ops:
     create_bucket: true
     create_object: true
+    upload_type: multipart
     lc_id: cloud_transit
     retain_head_object: false

@@ -20,7 +20,7 @@ import traceback
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
 from botocore.exceptions import ClientError
-from v2.lib.exceptions import RGWBaseException
+from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
@@ -66,10 +66,24 @@ def test_exec(config, ssh_con):
                     log.info("s3 object name: %s" % s3_object_name)
                     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                     log.info("s3 object path: %s" % s3_object_path)
-                    log.info("upload type: normal")
-                    reusable.upload_object(
-                        s3_object_name, bucket, TEST_DATA_PATH, config, user_info
-                    )
+                    if config.test_ops.get("upload_type") == "multipart":
+                        log.info("upload type: multipart")
+                        reusable.upload_mutipart_object(
+                            s3_object_name, bucket, TEST_DATA_PATH, config, user_info
+                        )
+                    else:
+                        log.info("upload type: normal")
+                        reusable.upload_object(
+                            s3_object_name, bucket, TEST_DATA_PATH, config, user_info
+                        )
+    s3_client_local = reusable.get_s3_client(
+        user_info["access_key"], user_info["secret_key"], auth.endpoint_url
+    )
+    # If Etag verification is enabled get local bucket Etag
+    if config.etag_verification is True:
+        local_dict = reusable.get_object_list_etag(
+            bucket_name_to_create, s3_client_local
+        )
 
     log.info("Create bucket in remote cluster if not exists")
     remote_creds = reusable.get_zg_endpoint_creds()
@@ -118,9 +132,6 @@ def test_exec(config, ssh_con):
     assert len(object_list) == config.objects_count, message
 
     # check retain_head_object behaviour
-    s3_client_local = reusable.get_s3_client(
-        user_info["access_key"], user_info["secret_key"], auth.endpoint_url
-    )
     object_list = reusable.get_object_list(bucket.name, s3_client_local)
     if config.test_ops["retain_head_object"] is True:
         if object_list:
@@ -133,6 +144,18 @@ def test_exec(config, ssh_con):
             log.info("Head objects not retained post transition as expected")
         else:
             raise TestExecError("Bucket is not empty, head objects retained")
+
+    if config.etag_verification is True:
+        log.info("Verifying ETags before and after transition")
+        cloud_dict = reusable.get_object_list_etag(remote_bucket, s3_client_remote)
+        if not local_dict or not cloud_dict:
+            raise TestExecError("ETags not obtained")
+        for key in local_dict:
+            local_etag = local_dict[key]
+            remote_key = bucket_name_to_create + "/" + key
+            cloud_etag = cloud_dict[remote_key]
+            if local_etag != cloud_etag:
+                raise AssertionError(f"mismatch found in the eTAG from aws and radosgw")
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
