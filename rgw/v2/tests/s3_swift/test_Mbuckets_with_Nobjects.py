@@ -285,13 +285,33 @@ def test_exec(config, ssh_con):
                         log.info("s3 object path: %s" % s3_object_path)
                         if config.test_ops.get("upload_type") == "multipart":
                             log.info("upload type: multipart")
+                            abort_multipart = config.abort_multipart
+                            log.info(f"value of abort_multipart {abort_multipart}")
                             reusable.upload_mutipart_object(
                                 s3_object_name,
                                 bucket,
                                 TEST_DATA_PATH,
                                 config,
                                 each_user,
+                                abort_multipart=abort_multipart,
                             )
+                            if abort_multipart:
+                                log.info(f"verifying abort multipart")
+                                bkt_stat_output = json.loads(
+                                    utils.exec_shell_cmd(
+                                        f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
+                                    )
+                                )
+                                if (
+                                    bkt_stat_output["usage"]["rgw.multimeta"][
+                                        "num_objects"
+                                    ]
+                                    > 0
+                                ):
+                                    log.info(f"In complete multipart found")
+                                else:
+                                    raise AssertionError("Abort multipart failed")
+
                         else:
                             if config.test_ops.get("enable_version", False):
                                 reusable.upload_version_object(
@@ -596,6 +616,52 @@ def test_exec(config, ssh_con):
                             raise TestExecError(
                                 "Command is throwing error while running bucket sync run"
                             )
+
+                    if config.bucket_check_fix:
+                        log.info(f"Verify bucket check fix removes orphaned objects")
+                        index_pool_list = utils.exec_shell_cmd(
+                            f"rados ls -p default.rgw.buckets.index"
+                        ).split("\n")
+                        index_pool_list.pop()
+                        log.info(f"Index pool list: {index_pool_list}")
+
+                        bucket_stats = utils.exec_shell_cmd(
+                            f"radosgw-admin bucket stats --bucket {bucket.name}"
+                        )
+                        bucket_id = json.loads(bucket_stats)["id"]
+                        log.info(f"bucket id is {bucket_id}")
+
+                        bucket_list = utils.exec_shell_cmd(
+                            f"radosgw-admin bucket list --bucket {bucket.name}"
+                        )
+                        bucket_list = json.loads(bucket_list)
+                        for bkt in bucket_list:
+                            if ".meta" in bkt["name"]:
+                                meta_file = bkt["name"]
+                        for i in index_pool_list:
+                            if bucket_id in i:
+                                utils.exec_shell_cmd(
+                                    f"rados -p default.rgw.buckets.index rmomapkey {i} {meta_file}"
+                                )
+                        cmd = f"radosgw-admin bucket check --bucket={bucket.name}"
+                        bkt_check_before = utils.exec_shell_cmd(cmd)
+                        bkt_check_before = json.loads(bkt_check_before)
+                        if len(bkt_check_before) < 1:
+                            raise AssertionError(
+                                f"Orphaned object not found in bucket {bucket.name}"
+                            )
+                        log.info(f"o/p of bucket check before fix: {bkt_check_before}")
+                        utils.exec_shell_cmd(
+                            f"radosgw-admin bucket check --fix --bucket={bucket.name}"
+                        )
+                        bkt_check_after = utils.exec_shell_cmd(cmd)
+                        bkt_check_after = json.loads(bkt_check_after)
+                        log.info(f"o/p of bucket check after fix: {bkt_check_after}")
+                        if len(bkt_check_after) != 0:
+                            raise AssertionError(
+                                f"bucket check fix did not removed orphan objects on a bucket {bucket.name}"
+                            )
+
                 if config.test_ops.get("delete_bucket") is True:
                     reusable.delete_bucket(bucket)
         if config.bucket_sync_run_with_disable_sync_thread:

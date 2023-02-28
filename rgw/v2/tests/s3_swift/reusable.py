@@ -385,6 +385,7 @@ def upload_mutipart_object(
     parts_info = {"Parts": []}
     log.info("no of parts: %s" % len(parts_list))
     abort_part_no = random.randint(1, len(parts_list) - 1)
+    log.info(f"abort part no is: {abort_part_no}")
     for each_part in parts_list:
         log.info("trying to upload part: %s" % each_part)
         part = mpu.Part(part_number)
