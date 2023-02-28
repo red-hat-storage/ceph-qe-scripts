@@ -559,7 +559,7 @@ def put_get_bucket_lifecycle_test(
                 )
                 json_doc1 = json.loads(bucket_stats_op)
                 obj_pre_lc = json_doc1["usage"]["rgw.main"]["num_objects"]
-                if obj_pre_lc == objs_total:
+                if obj_pre_lc == objs_total or config.test_lc_transition:
                     time.sleep(config.rgw_lc_debug_interval)
                 else:
                     raise TestExecError("Objects expired before the expected days")
@@ -1339,3 +1339,52 @@ def get_object_upload_type(s3_object_name, bucket, TEST_DATA_PATH, config, user_
             config,
             user_info,
         )
+
+
+def prepare_for_bucket_lc_transition(config):
+    """
+    This function is to set the prereqs for LC transiton testing
+
+    Parameters:
+        config(list): config
+    """
+    pool_name = config.pool_name
+    storage_class = config.storage_class
+    ec_pool_name = config.ec_pool_name
+    ec_storage_class = config.ec_storage_class
+    if config.ec_pool_transition:
+        utils.exec_shell_cmd(
+            f"radosgw-admin zonegroup placement add  --rgw-zonegroup default --placement-id default-placement --storage-class {ec_storage_class}"
+        )
+        utils.exec_shell_cmd(
+            f"radosgw-admin zone placement add --rgw-zone default --placement-id default-placement --storage-class {ec_storage_class} --data-pool {ec_pool_name}"
+        )
+        utils.exec_shell_cmd(
+            "ceph osd erasure-code-profile set rgwec01 k=4 m=2 crush-failure-domain=host crush-device-class=hdd"
+        )
+        utils.exec_shell_cmd(
+            f"ceph osd pool create {ec_pool_name} 32 32 erasure rgwec01"
+        )
+        utils.exec_shell_cmd(f"ceph osd pool application enable {ec_pool_name} rgw")
+    else:
+        utils.exec_shell_cmd(
+            f"radosgw-admin zonegroup placement add  --rgw-zonegroup default --placement-id default-placement --storage-class {storage_class}"
+        )
+        utils.exec_shell_cmd(
+            f"radosgw-admin zone placement add --rgw-zone default --placement-id default-placement --storage-class {storage_class} --data-pool {pool_name}"
+        )
+        utils.exec_shell_cmd(f"ceph osd pool create {pool_name}")
+        utils.exec_shell_cmd(f"ceph osd pool application enable {pool_name} rgw")
+        if config.multiple_transitions:
+            second_pool_name = config.second_pool_name
+            second_storage_class = config.second_storage_class
+            utils.exec_shell_cmd(f"ceph osd pool create {second_pool_name}")
+            utils.exec_shell_cmd(
+                f"ceph osd pool application enable {second_pool_name} rgw"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup default --placement-id default-placement --storage-class {second_storage_class}"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zone placement add --rgw-zone default --placement-id default-placement --storage-class {second_storage_class} --data-pool {second_pool_name}"
+            )
