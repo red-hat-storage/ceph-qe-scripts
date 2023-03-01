@@ -95,6 +95,11 @@ def test_exec(config, ssh_con):
             value=str(config.rgw_lc_max_worker),
             ssh_con=ssh_con,
         )
+
+    if config.test_lc_transition:
+        log.info("Set the Bucket LC transitions pre-requisites.")
+        reusable.prepare_for_bucket_lc_transition(config)
+
     log.info("trying to restart services")
     srv_restarted = rgw_service.restart(ssh_con)
     time.sleep(30)
@@ -198,6 +203,7 @@ def test_exec(config, ssh_con):
                     )
                     time.sleep(30)
                     lc_ops.validate_prefix_rule(bucket, config)
+
                     if config.test_ops["delete_marker"] is True:
                         life_cycle_rule_new = {"Rules": config.delete_marker_ops}
                         reusable.put_get_bucket_lifecycle_test(
@@ -338,7 +344,7 @@ def test_exec(config, ssh_con):
             time.sleep(60)
             for bucket in buckets:
                 if config.test_ops["enable_versioning"] is False:
-                    lc_ops.validate_prefix_rule_non_versioned(bucket)
+                    lc_ops.validate_prefix_rule_non_versioned(bucket, config)
                 else:
                     lc_ops.validate_prefix_rule(bucket, config)
                 if config.test_ops.get("send_bucket_notifications", False) is True:
@@ -358,7 +364,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("bucket life cycle: test object expiration")
     test_info.started_info()
 

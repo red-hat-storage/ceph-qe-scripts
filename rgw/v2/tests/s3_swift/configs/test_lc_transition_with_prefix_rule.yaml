@@ -1,0 +1,33 @@
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  parallel_lc: False
+  test_lc_transition: True
+  pool_name: data.cold
+  storage_class: cold
+  ec_pool_transition: False
+  multiple_transitions: True
+  two_pool_transition: False
+  second_pool_name: data.glacier
+  second_storage_class: glacier
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    create_object: true
+    enable_versioning: true
+    version_count: 3
+    delete_marker: false
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: key1
+      Status: Enabled
+      Transitions:
+        - Days: 2
+          StorageClass: cold
+      NoncurrentVersionTransitions:
+        - NoncurrentDays: 2
+          StorageClass: glacier

@@ -129,6 +129,7 @@ gen_key = lambda key: {"Key": key}
 gen_value = lambda value: {"Value": value}
 gen_and = lambda: {"And": {}}
 gen_noncurrent_version_expiration = lambda: {"NoncurrentVersionExpiration": {}}
+gen_noncurrent_version_transition = lambda: {"NoncurrentVersionTransitions": []}
 gen_noncurrent_days = lambda days: {"NoncurrentDays": days}
 gen_expiration_date = lambda date: {"Date": date}
 gen_expiration_days = lambda days: {"Days": days}
