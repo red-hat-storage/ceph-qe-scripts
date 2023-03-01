@@ -5,7 +5,7 @@ config:
  local_file_delete: true
  objects_size_range:
   min: 6M
-  max: 25M
+  max: 8M
  test_ops:
   create_bucket: true
   create_object: true

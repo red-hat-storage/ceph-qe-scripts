@@ -1,21 +1,25 @@
+# polarian:CEPH-83575407
 config:
  user_count: 1
  bucket_count: 2
  objects_count: 10
  objects_size_range:
-  min: 6M
-  max: 8M
- local_file_delete: true
+  min: 5
+  max: 15
  test_ops:
   create_bucket: true
   create_object: true
+  copy_object: true
+  delete_bucket_object: true
   enable_version: false
   create_topic: true
+  event_type:
+   - Copy
+   - Delete
   get_topic_info: true
   endpoint: kafka
-  persistent_flag: true
-  ack_type: none
+  ack_type: broker
+  security_type: SASL_PLAINTEXT
+  mechanism: PLAIN
   put_get_bucket_notification: true
-  event_type: Multipart
-  upload_type: multipart
-  delete_bucket_object: false
+  upload_type: normal
