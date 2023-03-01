@@ -664,6 +664,24 @@ def test_exec(config, ssh_con):
 
                 if config.test_ops.get("delete_bucket") is True:
                     reusable.delete_bucket(bucket)
+
+        if config.user_reset:
+            log.info(f"Verify user reset doesn't throw any error")
+            bucket_list = utils.exec_shell_cmd(
+                f"radosgw-admin bucket list --uid={each_user['user_id']}"
+            )
+            log.info(
+                f"bucket list for the user {each_user['user_id']} is {bucket_list}"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin user stats --uid={each_user['user_id']}"
+            )
+            stats_reset = utils.exec_shell_cmd(
+                f"radosgw-admin user stats --uid={each_user['user_id']} --reset-stats"
+            )
+            if not stats_reset:
+                raise AssertionError(f"user reset failed!!")
+
         if config.bucket_sync_run_with_disable_sync_thread:
             log.info("making changes to ceph.conf")
             ceph_conf.set_to_ceph_conf(

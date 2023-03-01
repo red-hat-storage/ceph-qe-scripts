@@ -294,6 +294,7 @@ class Config(object):
         self.abort_multipart = self.doc["config"].get("abort_multipart", False)
         self.bucket_check_fix = self.doc["config"].get("bucket_check_fix", False)
         self.rgw_ops_log = self.doc["config"].get("rgw_ops_log", False)
+        self.user_reset = self.doc["config"].get("user_reset", False)
         self.multisite_global_sync_policy = self.doc["config"].get(
             "multisite_global_sync_policy", False
         )
