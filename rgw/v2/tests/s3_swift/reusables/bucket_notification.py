@@ -36,17 +36,52 @@ def start_kafka_broker_consumer(topic_name, event_record_path):
     return start_consumer_kafka
 
 
-def create_topic(sns_client, endpoint, ack_type, topic_name, persistent_flag=False):
+def create_topic(
+    sns_client,
+    endpoint,
+    ack_type,
+    topic_name,
+    persistent_flag=False,
+    security_type="PLAINTEXT",
+    mechanism="PLAIN",
+):
     """
     to create topic with specified endpoint , ack_level
     return: topic ARN
     """
-    endpoint_args = (
-        "push-endpoint="
-        + endpoint
-        + "://localhost&verify-ssl=False&kafka-ack-level="
-        + ack_type
-    )
+    if security_type == "PLAINTEXT":
+        endpoint_args = (
+            "push-endpoint="
+            + endpoint
+            + "://localhost:9092&use-ssl=false&verify-ssl=false&kafka-ack-level="
+            + ack_type
+        )
+    elif security_type == "SSL":
+        endpoint_args = (
+            "push-endpoint="
+            + endpoint
+            + "://localhost:9093&use-ssl=true&verify-ssl=false&kafka-ack-level="
+            + ack_type
+            + "&ca-location=/usr/local/kafka/y-ca.crt"
+        )
+    elif security_type == "SASL_SSL":
+        endpoint_args = (
+            "push-endpoint="
+            + endpoint
+            + "://alice:alice-secret@localhost:9094&use-ssl=true&verify-ssl=false&kafka-ack-level="
+            + ack_type
+            + "&ca-location=/usr/local/kafka/y-ca.crt&mechanism="
+            + mechanism
+        )
+    elif security_type == "SASL_PLAINTEXT":
+        endpoint_args = (
+            "push-endpoint="
+            + endpoint
+            + "://alice:alice-secret@localhost:9095&use-ssl=false&verify-ssl=false&kafka-ack-level="
+            + ack_type
+            + "&mechanism="
+            + mechanism
+        )
     if persistent_flag:
         endpoint_args = endpoint_args + "&persistent=true"
     attributes = {
@@ -146,12 +181,54 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
     if os.path.getsize(event_record_path) == 0:
         raise EventRecordDataError("event record not generated! File is empty")
 
+    # verify event record for a particular event type
+    notifications_received = False
+    events = []
+    if "Delete" in event_type:
+        events = [
+            "ObjectRemoved:Delete",
+            "ObjectRemoved:DeleteMarkerCreated",
+        ]
+    if "Copy" in event_type:
+        events = ["ObjectCreated:Copy"]
+    if "Multipart" in event_type:
+        events = [
+            "ObjectCreated:Post",
+            "ObjectCreated:Put",
+            "ObjectCreated:CompleteMultipartUpload",
+        ]
+    if "LifecycleExpiration" in event_type:
+        events = [
+            "ObjectLifecycle:Expiration:Current",
+            "ObjectLifecycle:Expiration:NonCurrent",
+            "ObjectLifecycle:Expiration:DeleteMarker",
+            "ObjectLifecycle:Expiration:AbortMultipartUpload",
+        ]
+    log.info(f"verifying event record for event type {event_type}")
+    log.info(f"valid event names are :{events}")
+
     # read the file event_record
     with open(event_record_path, "r") as records:
         for record in records:
             event_record = record.strip()
             log.info(f" event record \n {record}")
             event_record_json = json.loads(event_record)
+
+            # verify "eventName" attribute
+            eventName = event_record_json["Records"][0]["eventName"]
+            for event in events:
+                if event in eventName:
+                    log.info(f"eventName: {eventName} in event record")
+                    notifications_received = True
+                    break
+            else:
+                log.info(
+                    f"skipping this event record as this is not of event_type: {event_type}"
+                )
+                continue
+            # s3Prefix removed with BZ: https://bugzilla.redhat.com/show_bug.cgi?id=1966676
+            if "s3:" in eventName and "nautilus" not in ceph_version:
+                raise EventRecordDataError("eventName: s3 prefix present in eventName")
 
             # verify "eventTime" attribute
             eventTime = event_record_json["Records"][0]["eventTime"]
@@ -163,31 +240,6 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
                 log.info(f"eventTime: {eventTime},Timestamp format validated")
             else:
                 raise EventRecordDataError("eventTime: Incorrect timestamp format")
-
-            # verify "eventName" attribute
-            eventName = event_record_json["Records"][0]["eventName"]
-            # s3Prefix removed with BZ: https://bugzilla.redhat.com/show_bug.cgi?id=1966676
-            if "s3:" in eventName and "nautilus" not in ceph_version:
-                raise EventRecordDataError("eventName: s3 prefix present in eventName")
-
-            # verify event record for a particular event type
-            events = []
-            if "Delete" in event_type:
-                events = ["Put", "Delete"]
-            if "Copy" in event_type:
-                events = ["Put", "Copy"]
-            if "Multipart" in event_type:
-                events = ["Post", "Put", "CompleteMultipartUpload"]
-            if "LifecycleExpiration" in event_type:
-                events = [
-                    "Current",
-                    "NonCurrent",
-                    "DeleteMarker",
-                    "AbortMultipartUpload",
-                ]
-            for event in events:
-                if event in eventName:
-                    log.info(f"eventName: {eventName} in event record")
 
             # fetch bucket details and verify bucket attributes in event record
             bucket_stats = utils.exec_shell_cmd(
@@ -244,9 +296,10 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
             else:
                 raise EventRecordDataError("awsRegion not in event record")
 
-    # delete event record
-    log.info("deleting local file to verify event record")
-    utils.exec_shell_cmd("rm -rf %s" % event_record_path)
+    if notifications_received is False:
+        raise EventRecordDataError(
+            f"Notifications not received for event type {event_type}"
+        )
 
 
 class NotificationService:
