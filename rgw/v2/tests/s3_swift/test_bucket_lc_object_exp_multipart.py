@@ -3,6 +3,9 @@ Test bucket lifecycle for multipart object expiration: CEPH-83574797
 Usage: test_bucket_lc_object_exp_multipart.py -c configs/<input-yaml>
 where : <input-yaml> are test_bucket_lc_object_exp_multipart.yaml, test_bucket_lc_multipart_object_expiration.yaml,
  test_bucket_lc_object_exp_multipart.yaml
+ test_bucket_lc_object_exp_multipart_manual_reahrd.yaml
+ test_bucket_lc_object_exp_multipartdynamic_reshard.yaml
+ test_bucket_lc_object_exp_multipart_manual_reshard_notifications.yaml
 Operation:
 -Update rgw daemon with conf(rgw_lc_debug_interval = 1, rgw_lifecycle_work_time = 00:00-23:59)
 -Restart the daemon
@@ -32,6 +35,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
+from v2.tests.s3_swift.reusables.bucket_resharding import ReshardingService
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -64,6 +68,10 @@ def test_exec(config, ssh_con):
 
     if config.test_ops.get("send_bucket_notifications", False) is True:
         utils.add_service2_sdk_extras()
+
+    resharding_service = None
+    if config.test_ops.get("enable_resharding", False) is True:
+        resharding_service = ReshardingService(config, ssh_con)
 
     # create user
     user_info = s3lib.create_users(config.user_count)
@@ -110,8 +118,28 @@ def test_exec(config, ssh_con):
                         if config.local_file_delete is True:
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
-                time.sleep(config.rgw_lc_debug_interval)
 
+                days = config.lifecycle_conf[0]["Expiration"]["Days"]
+                lifecycle_trigger_sleep = days * config.rgw_lc_debug_interval
+
+                if config.test_ops.get("enable_resharding", False) is True:
+                    resharding_service.apply(bucket)
+                    resharding_sleep_time = config.rgw_reshard_thread_interval
+                    log.info(
+                        "verification of resharding starts after waiting for reshard_thread_interval:"
+                        + f"{resharding_sleep_time} seconds"
+                    )
+                    time.sleep(resharding_sleep_time)
+                    resharding_service.verify(bucket)
+                    lifecycle_trigger_sleep = (
+                        lifecycle_trigger_sleep - resharding_sleep_time
+                    )
+
+                log.info(
+                    f"Sleeping for {lifecycle_trigger_sleep} seconds to trigger lifecycle exipration"
+                )
+                time.sleep(lifecycle_trigger_sleep)
+                log.info("Verification of lifecycele deletion started")
                 for _ in range(1, 10):
                     time.sleep(60)
                     bucket_details = json.loads(

@@ -1,0 +1,25 @@
+# test_bucket_lc_object_exp_multipart.py
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  rgw_lc_debug_interval: 30
+  objects_size_range:
+    min: 16M
+    max: 25M
+  local_file_delete: true
+
+  sharding_type: manual
+  shards: 97
+
+  test_ops:
+    create_bucket: true
+    create_object: true
+    enable_resharding: true
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: multipart-obj
+      Status: Enabled
+      Expiration:
+        Days: 10
