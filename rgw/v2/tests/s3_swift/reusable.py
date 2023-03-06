@@ -1404,3 +1404,16 @@ def prepare_for_bucket_lc_transition(config):
             utils.exec_shell_cmd(
                 f"radosgw-admin zone placement add --rgw-zone default --placement-id default-placement --storage-class {second_storage_class} --data-pool {second_pool_name}"
             )
+
+
+def bucket_reshard_manual(bucket, config):
+    cmd = utils.exec_shell_cmd(
+        f"radosgw-admin bucket reshard --bucket {bucket.name} --num-shards {config.shards}"
+    )
+    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
+    json_doc = json.loads(op)
+    shards = json_doc["num_shards"]
+    if shards == config.shards:
+        log.info(f"num_shards for bucket {bucket.name} after reshard are {shards}")
+    else:
+        raise TestExecError(f"Bucket {bucket.name} not resharded to {config.shards}")

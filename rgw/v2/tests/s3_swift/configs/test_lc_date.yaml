@@ -1,5 +1,8 @@
 # script: test_bucket_lifecycle_object_expiration.py
 config:
+  enable_resharding: True
+  shards: 211
+  sharding_type: manual
   objects_count: 100
   objects_size_range:
     min: 5
