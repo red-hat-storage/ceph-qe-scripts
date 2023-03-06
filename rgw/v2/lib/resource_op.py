@@ -271,6 +271,9 @@ class Config(object):
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
         self.reshard_cancel_cmd = self.doc["config"].get("reshard_cancel_cmd", False)
+        self.sync_disable_and_enable = self.doc["config"].get(
+            "sync_disable_and_enable", False
+        )
         self.large_object_upload = self.doc["config"].get("large_object_upload", False)
         self.test_aync_data_notifications = self.doc["config"].get(
             "test_aync_data_notifications", False

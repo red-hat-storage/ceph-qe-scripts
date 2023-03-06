@@ -1,0 +1,26 @@
+# script: test_Mbuckets_with_Nobjects.py
+# Polarian id: CEPH-83574434
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  manual_resharding: true
+  shards: 57
+  objects_size_range:
+    min: 15K
+    max: 5M
+  dbr_scenario: greenfield
+  max_objects_per_shard: 5
+  sync_disable_and_enable: true
+  local_file_delete: true
+  test_ops:
+    create_bucket: true
+    create_object: true
+    download_object: false
+    delete_bucket_object: false
+    sharding:
+      enable: false
+      max_shards: 0
+    compression:
+      enable: false
+      type: zlib
