@@ -1070,6 +1070,13 @@ def check_sync_status(retry=None, delay=None):
         sync_status()
 
 
+def check_bucket_sync_status(bkt=None):
+    bucket_sync_status = utils.exec_shell_cmd(
+        f"radosgw-admin bucket sync status --bucket {bkt}"
+    )
+    return bucket_sync_status
+
+
 def get_default_datalog_type():
     """
     get the default datalog type i.e. omap or fifo

@@ -505,6 +505,23 @@ def test_exec(config, ssh_con):
                                     "num shards are same after processing resharding"
                                 )
                     if config.manual_resharding is True:
+                        if config.sync_disable_and_enable:
+                            reusable.check_sync_status()
+                            op = utils.exec_shell_cmd(
+                                f"radosgw-admin bucket sync disable --bucket {bkt}"
+                            )
+                            for i in range(10):
+                                bucket_sync_status = reusable.check_bucket_sync_status(
+                                    bkt
+                                )
+                                if "disabled" in bucket_sync_status:
+                                    log.info("Sync disabled successfully")
+                                    break
+                                else:
+                                    time.sleep(60)
+                            else:
+                                raise TestExecError("Bucket did not got disabled")
+
                         if utils.check_dbr_support():
                             op = utils.exec_shell_cmd(
                                 f"radosgw-admin bucket stats --bucket {bkt}"
@@ -529,6 +546,45 @@ def test_exec(config, ssh_con):
                                 raise TestExecError(
                                     "num shards are same after processing resharding"
                                 )
+                        if config.sync_disable_and_enable:
+                            config.objects_count = config.objects_count + 10
+                            config.mapped_sizes = utils.make_mapped_sizes(config)
+                            for oc, size in list(config.mapped_sizes.items()):
+                                config.obj_size = size
+                                s3_object_name = utils.gen_s3_object_name(
+                                    bucket_name_to_create, oc
+                                )
+                                log.info("s3 object name: %s" % s3_object_name)
+                                s3_object_path = os.path.join(
+                                    TEST_DATA_PATH, s3_object_name
+                                )
+                                log.info("s3 object path: %s" % s3_object_path)
+                                reusable.upload_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                )
+                            op = utils.exec_shell_cmd(
+                                f"radosgw-admin bucket sync enable --bucket {bkt}"
+                            )
+                            for i in range(10):
+                                bucket_sync_status = reusable.check_bucket_sync_status(
+                                    bkt
+                                )
+                                if (
+                                    "behind" in bucket_sync_status
+                                    or "recovering" in bucket_sync_status
+                                    or "caught up" in bucket_sync_status
+                                ):
+                                    log.info("Sync enabled successfully")
+                                    break
+                                else:
+                                    time.sleep(60)
+                            else:
+                                raise TestExecError("Bucket did not got disabled")
+                        reusable.check_sync_status()
                     # verification of shards after upload
                     if config.test_datalog_trim_command is True:
                         shard_id, end_marker = reusable.get_datalog_marker()
