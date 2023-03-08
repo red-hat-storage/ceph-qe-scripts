@@ -222,6 +222,7 @@ class Config(object):
         self.two_pool_transition = self.doc["config"].get("two_pool_transition")
         self.ec_storage_class = self.doc["config"].get("ec_storage_class")
         self.ec_pool_name = self.doc["config"].get("ec_pool_name")
+        self.enable_resharding = self.doc["config"].get("enable_resharding")
         self.download_object = self.doc["config"].get("download_object")
         self.user_remove = self.doc["config"].get("user_remove", True)
         self.user_type = self.doc["config"].get("user_type")

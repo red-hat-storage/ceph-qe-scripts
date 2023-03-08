@@ -147,6 +147,8 @@ def test_exec(config, ssh_con):
                 )
             )
             prefix = prefix if prefix else ["dummy1"]
+            if config.enable_resharding and config.sharding_type == "manual":
+                reusable.bucket_reshard_manual(bucket, config)
 
             if config.test_ops.get("send_bucket_notifications", False) is True:
                 events = ["s3:ObjectLifecycle:Expiration:*"]

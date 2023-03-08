@@ -4,6 +4,9 @@ config:
   objects_count: 10
   parallel_lc: False
   test_lc_transition: True
+  enable_resharding: True
+  sharding_type: manual
+  shards: 211
   pool_name: data.cold
   storage_class: cold
   ec_pool_transition: False
