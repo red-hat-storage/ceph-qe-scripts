@@ -41,7 +41,6 @@ TEST_DATA_PATH = None
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -84,26 +83,8 @@ def test_exec(config, ssh_con):
                             each_user,
                         )
 
-                # Verify bilog list is not empty after creating objects
-                cmd = f"radosgw-admin bilog list --bucket {bucket_name_to_create}"
-                output1 = json.loads(utils.exec_shell_cmd(cmd))
-                if len(output1) > 0:
-                    log.info("Bucket index log is not empty")
-                else:
-                    raise TestExecError("Bucket index log is empty")
-
-                # Setting interval to default time of 20 minutes
-                time.sleep(1260)
-
-                # Verify bilog list is empty after the interval of creating objects
-                output2 = json.loads(utils.exec_shell_cmd(cmd))
-
-                if len(output2) == 0:
-                    log.info("Bucket index log is empty after the interval")
-                else:
-                    raise TestExecError(
-                        "Bucket index log is not empty after the interval"
-                    )
+                # test log trimming
+                reusable.test_log_trimming(bucket, config)
 
 
 if __name__ == "__main__":
