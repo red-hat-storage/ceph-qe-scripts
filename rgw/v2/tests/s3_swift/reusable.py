@@ -17,7 +17,7 @@ import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
 from v2.lib.exceptions import DefaultDatalogBackingError, MFAVersionError, TestExecError
-from v2.lib.rgw_config_opts import ConfigOpts
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.write_io_info import (
     AddUserInfo,
     BasicIOInfoStructure,
@@ -500,7 +500,13 @@ def enable_mfa_versioning(
 
 
 def put_get_bucket_lifecycle_test(
-    bucket, rgw_conn, rgw_conn2, life_cycle_rule, config, upload_start_time=None
+    bucket,
+    rgw_conn,
+    rgw_conn2,
+    life_cycle_rule,
+    config,
+    upload_start_time=None,
+    upload_end_time=None,
 ):
     bucket_life_cycle = s3lib.resource_op(
         {
@@ -546,7 +552,9 @@ def put_get_bucket_lifecycle_test(
     objs_total = (config.test_ops["version_count"]) * (config.objects_count)
     if not upload_start_time:
         upload_start_time = time.time()
-    time_diff = math.ceil(time.time() - upload_start_time)
+    if not upload_end_time:
+        upload_end_time = time.time()
+    time_diff = math.ceil(upload_end_time - upload_start_time)
     time_limit = upload_start_time + (config.rgw_lc_debug_interval * 20)
     for rule in config.lifecycle_conf:
         if rule.get("Expiration", {}).get("Date", False):
@@ -1424,6 +1432,7 @@ def bucket_reshard_manual(bucket, config):
         log.info(f"num_shards for bucket {bucket.name} after reshard are {shards}")
     else:
         raise TestExecError(f"Bucket {bucket.name} not resharded to {config.shards}")
+    verify_attrs_after_resharding(bucket)
 
 
 def test_log_trimming(bucket, config):
@@ -1464,3 +1473,84 @@ def test_log_trimming(bucket, config):
         ec, _ = subprocess.getstatusoutput(cmd)
         if ec != 2:
             raise TestExecError("bilog trim should fail for a non-existent bucket")
+
+
+def set_dynamic_reshard_ceph_conf(config, ssh_con):
+    ceph_conf = CephConfOp(ssh_con)
+    log.info("sharding type is dynamic. setting ceph conf parameters")
+    time.sleep(15)
+    log.info("making changes to ceph.conf")
+    ceph_conf.set_to_ceph_conf(
+        "global",
+        ConfigOpts.rgw_max_objs_per_shard,
+        str(config.max_objects_per_shard),
+        ssh_con,
+    )
+
+    ceph_conf.set_to_ceph_conf(
+        "global", ConfigOpts.rgw_dynamic_resharding, "True", ssh_con
+    )
+    ceph_conf.set_to_ceph_conf(
+        "global",
+        ConfigOpts.rgw_max_dynamic_shards,
+        str(config.max_rgw_dynamic_shards),
+        ssh_con,
+    )
+
+    ceph_conf.set_to_ceph_conf(
+        "global",
+        ConfigOpts.rgw_reshard_thread_interval,
+        str(config.rgw_reshard_thread_interval),
+        ssh_con,
+    )
+
+
+def bucket_reshard_dynamic(bucket, config):
+    # for dynamic,
+    # the number of shards  should be greater than   [ (no of objects)/(max objects per shard) ]
+    # example: objects = 500 ; max object per shard = 10
+    # then no of shards should be at least 50 or more
+    resharding_sleep_time = config.rgw_reshard_thread_interval
+    log.info(
+        "verification of dynamic resharding starts after waiting for reshard_thread_interval:"
+        + f"{resharding_sleep_time} seconds"
+    )
+    time.sleep(resharding_sleep_time)
+
+    num_shards_expected = config.objects_count / config.max_objects_per_shard
+    log.info("num_shards_expected: %s" % num_shards_expected)
+    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket.name)
+    json_doc = json.loads(op)
+    bucket_id = json_doc["id"]
+    num_shards_created = json_doc["num_shards"]
+    log.info("no_of_shards_created: %s" % num_shards_created)
+    log.info("Verify if resharding list is empty")
+    reshard_list_op = json.loads(utils.exec_shell_cmd("radosgw-admin reshard list"))
+    if not reshard_list_op:
+        log.info(
+            "for dynamic number of shards created should be greater than or equal to number of expected shards"
+        )
+        log.info("no_of_shards_expected: %s" % num_shards_expected)
+        if int(num_shards_created) >= int(num_shards_expected):
+            log.info("Expected number of shards created")
+        else:
+            raise TestExecError("Expected number of shards not created")
+    else:
+        raise TestExecError("reshard list is still not empty")
+    verify_attrs_after_resharding(bucket)
+
+
+def verify_attrs_after_resharding(bucket):
+    log.info("Test acls are preserved after a resharding operation.")
+    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
+    json_doc = json.loads(op)
+    bucket_id = json_doc["id"]
+    cmd = utils.exec_shell_cmd(
+        f"radosgw-admin metadata get bucket.instance:{bucket.name}:{bucket_id}"
+    )
+    json_doc = json.loads(cmd)
+    log.info("The attrs field should not be empty.")
+    attrs = json_doc["data"]["attrs"][0]
+    if not attrs["key"]:
+        raise TestExecError("Acls lost after bucket resharding, test failure.")
+    return True
