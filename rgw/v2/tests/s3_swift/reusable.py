@@ -1424,3 +1424,43 @@ def bucket_reshard_manual(bucket, config):
         log.info(f"num_shards for bucket {bucket.name} after reshard are {shards}")
     else:
         raise TestExecError(f"Bucket {bucket.name} not resharded to {config.shards}")
+
+
+def test_log_trimming(bucket, config):
+    log.info("Choose the type of log trimming to test.")
+    if config.log_trimming == "mdlog":
+        period_op = json.loads(utils.exec_shell_cmd(f"radosgw-admin period get"))
+        period_id = period_op["id"]
+        cmd = f"radosgw-admin mdlog list --period {period_id}"
+    elif config.log_trimming == "datalog":
+        for i in range(0, 128):
+            shard_id = i
+            cmd = f"radosgw-admin datalog list --shard-id {shard_id}"
+            output1 = json.loads(utils.exec_shell_cmd(cmd))
+            if len(output1) > 0:
+                break
+    else:
+        cmd = f"radosgw-admin bilog list --bucket {bucket.name}"
+
+    output1 = json.loads(utils.exec_shell_cmd(cmd))
+    if len(output1) > 0:
+        log.info(f"{config.log_trimming} log is not empty")
+    else:
+        raise TestExecError(f"{config.log_trimming} log is empty")
+    log.info("Sleep for log_trim_interval of 20mins")
+    time.sleep(1260)
+    output2 = json.loads(utils.exec_shell_cmd(cmd))
+    if len(output2) == 0:
+        log.info(f"{config.log_trimming} log is empty after the interval")
+    else:
+        raise TestExecError(
+            f"{config.log_trimming} log is not empty after the interval"
+        )
+    if config.test_bilog_trim_on_non_existent_bucket:
+        utils.exec_shell_cmd(
+            f"radosgw-admin bucket rm --purge-objects --bucket {bucket.name}"
+        )
+        cmd = utils.exec_shell_cmd(f"radosgw-admin bilog trim --bucket {bucket.name}")
+        ec, _ = subprocess.getstatusoutput(cmd)
+        if ec != 2:
+            raise TestExecError("bilog trim should fail for a non-existent bucket")

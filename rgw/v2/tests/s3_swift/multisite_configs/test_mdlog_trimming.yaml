@@ -1,9 +1,8 @@
 # upload type: non multipart
 # script: test_bilog_trimming.py
-# polarion_id: CEPH-83572658
+# polarion_id: CEPH-10544
 config:
-  log_trimming: bilog
-  test_bilog_trim_on_non_existent_bucket: true
+  log_trimming: mdlog
   user_count: 1
   bucket_count: 2
   objects_count: 100

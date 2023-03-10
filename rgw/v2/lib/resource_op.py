@@ -223,6 +223,10 @@ class Config(object):
         self.ec_storage_class = self.doc["config"].get("ec_storage_class")
         self.ec_pool_name = self.doc["config"].get("ec_pool_name")
         self.enable_resharding = self.doc["config"].get("enable_resharding")
+        self.log_trimming = self.doc["config"].get("log_trimming")
+        self.test_bilog_trim_on_non_existent_bucket = self.doc["config"].get(
+            "test_bilog_trim_on_non_existent_bucket"
+        )
         self.download_object = self.doc["config"].get("download_object")
         self.user_remove = self.doc["config"].get("user_remove", True)
         self.user_type = self.doc["config"].get("user_type")
