@@ -9,6 +9,8 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_rule_delete_marker.yaml, test_lc_rule_prefix_and_tag.yaml, test_lc_rule_prefix_non_current_days.yaml,
  test_lc_rule_delete_marker_notifications.yaml, test_lc_rule_expiration_notifications.yaml, test_lc_rule_expiration_parallel_notifications.yaml,
  test_lc_rule_prefix_non_current_days_notifications.yaml
+ test_lc_rule_expiration_dynamic_reshard.yaml, test_lc_rule_expiration_manual_reshard.yaml,
+ test_lc_rule_expiration_manual_reshard_verify_attr.yaml
 
 Operation:
 
@@ -99,6 +101,8 @@ def test_exec(config, ssh_con):
     if config.test_lc_transition:
         log.info("Set the Bucket LC transitions pre-requisites.")
         reusable.prepare_for_bucket_lc_transition(config)
+    if config.enable_resharding and config.sharding_type == "dynamic":
+        reusable.set_dynamic_reshard_ceph_conf(config, ssh_con)
 
     log.info("trying to restart services")
     srv_restarted = rgw_service.restart(ssh_con)
@@ -192,6 +196,16 @@ def test_exec(config, ssh_con):
                                 config,
                                 each_user,
                             )
+                upload_end_time = time.time()
+
+                if config.enable_resharding and config.sharding_type == "dynamic":
+                    reusable.bucket_reshard_dynamic(bucket, config)
+
+                if config.test_ops.get("verify_attr", False) is True:
+                    # refer https://bugzilla.redhat.com/show_bug.cgi?id=2037330#c17
+                    log.info("verify attr after sleeping for 20 mins again")
+                    time.sleep(20 * 60)
+                    reusable.verify_attrs_after_resharding(bucket)
 
                 if not config.parallel_lc:
                     life_cycle_rule = {"Rules": config.lifecycle_conf}
@@ -202,6 +216,7 @@ def test_exec(config, ssh_con):
                         life_cycle_rule,
                         config,
                         upload_start_time,
+                        upload_end_time,
                     )
                     time.sleep(30)
                     lc_ops.validate_prefix_rule(bucket, config)
@@ -247,6 +262,17 @@ def test_exec(config, ssh_con):
                             each_user,
                             obj_tag,
                         )
+                upload_end_time = time.time()
+
+                if config.enable_resharding and config.sharding_type == "dynamic":
+                    reusable.bucket_reshard_dynamic(bucket, config)
+
+                if config.test_ops.get("verify_attr", False) is True:
+                    # refer https://bugzilla.redhat.com/show_bug.cgi?id=2037330#c17
+                    log.info("verify attr after sleeping for 20 mins again")
+                    time.sleep(20 * 60)
+                    reusable.verify_attrs_after_resharding(bucket)
+
                 if not config.parallel_lc:
                     life_cycle_rule = {"Rules": config.lifecycle_conf}
                     if not config.invalid_date and config.rgw_enable_lc_threads:
@@ -257,6 +283,7 @@ def test_exec(config, ssh_con):
                             life_cycle_rule,
                             config,
                             upload_start_time,
+                            upload_end_time,
                         )
                         time.sleep(30)
                         lc_ops.validate_and_rule(bucket, config)
