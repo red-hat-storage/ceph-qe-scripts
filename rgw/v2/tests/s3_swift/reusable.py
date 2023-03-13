@@ -1469,10 +1469,14 @@ def test_log_trimming(bucket, config):
         utils.exec_shell_cmd(
             f"radosgw-admin bucket rm --purge-objects --bucket {bucket.name}"
         )
-        cmd = utils.exec_shell_cmd(f"radosgw-admin bilog trim --bucket {bucket.name}")
-        ec, _ = subprocess.getstatusoutput(cmd)
-        if ec != 2:
-            raise TestExecError("bilog trim should fail for a non-existent bucket")
+        cmd = "radosgw-admin bilog trim --bucket {bucket.name} | egrep -i 'error|ret=-'"
+        _, err = subprocess.getstatusoutput(cmd)
+        if not err:
+            raise TestExecError(
+                f"Test failure, bilog trim should fail for a non-existent bucket with no such file or directory"
+            )
+        else:
+            log.info(f"Bilog trim for a non-existent bucket fails with {err}")
 
 
 def set_dynamic_reshard_ceph_conf(config, ssh_con):
