@@ -20,8 +20,10 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_bucket_notification_sasl_ssl_plain_.*.yaml
     test_bucket_notification_sasl_ssl_scram_sha_256_.*.yaml
     test_bucket_notification_ssl_.*.yaml
+    test_bucket_notification_with_tenant_user.yaml
 Operation:
-    Create topic 
+    create user (tenant/non-tenant)
+    Create topic and get topic
     put bucket notifcation and get bucket notification
     create, copy objects, multipart uploads, delete objects in the yaml
     verify events are generated on the broker.
@@ -43,6 +45,7 @@ import uuid
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
+from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import EventRecordDataError, RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
@@ -68,7 +71,18 @@ def test_exec(config, ssh_con):
     rgw_service = RGWService()
 
     # create user
-    all_users_info = s3lib.create_users(config.user_count)
+    if config.user_type == "non-tenanted":
+        all_users_info = s3lib.create_users(config.user_count)
+    else:
+        umgmt = UserMgmt()
+        all_users_info = []
+        for i in range(config.user_count):
+            user_name = "user" + str(uuid.uuid4().hex[:16])
+            tenant_name = "tenant" + str(i)
+            tenant_user = umgmt.create_tenant_user(
+                tenant_name=tenant_name, user_id=user_name, displayname=user_name
+            )
+            all_users_info.append(tenant_user)
     for each_user in all_users_info:
         # authenticate
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
@@ -84,7 +98,7 @@ def test_exec(config, ssh_con):
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
 
         objects_created_list = []
-        if config.test_ops["create_bucket"] is True:
+        if config.test_ops.get("create_bucket", False):
             log.info("no of buckets to create: %s" % config.bucket_count)
             for bc in range(config.bucket_count):
                 bucket_name_to_create = utils.gen_bucket_name_from_userid(
@@ -105,7 +119,7 @@ def test_exec(config, ssh_con):
                 security_type = config.test_ops.get("security_type", "PLAINTEXT")
                 mechanism = config.test_ops.get("mechanism", None)
                 # create topic with endpoint
-                if config.test_ops["create_topic"] is True:
+                if config.test_ops.get("create_topic", False):
                     endpoint = config.test_ops.get("endpoint")
                     ack_type = config.test_ops.get("ack_type")
                     topic_id = str(uuid.uuid4().hex[:16])
@@ -135,7 +149,7 @@ def test_exec(config, ssh_con):
                     )
 
                 # put bucket notification with topic configured for event
-                if config.test_ops["put_get_bucket_notification"] is True:
+                if config.test_ops.get("put_get_bucket_notification", False):
                     events = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
                     notification_name = "notification-" + "-".join(event_types)
                     notification.put_bucket_notification(
@@ -155,7 +169,7 @@ def test_exec(config, ssh_con):
                     )
 
                 # create objects
-                if config.test_ops["create_object"] is True:
+                if config.test_ops.get("create_object", False):
                     # uploading data
                     log.info("s3 objects to create: %s" % config.objects_count)
                     for oc, size in list(config.mapped_sizes.items()):
@@ -218,6 +232,10 @@ def test_exec(config, ssh_con):
 
                 # verify all the attributes of the event record. if event not received abort testcase
                 log.info("verify event record attributes")
+                if config.user_type != "non-tenanted":
+                    bucket_name_to_create = (
+                        each_user["tenant"] + "/" + bucket_name_to_create
+                    )
                 for event in event_types:
                     verify = notification.verify_event_record(
                         event,
@@ -236,8 +254,8 @@ def test_exec(config, ssh_con):
                         bucket_name_to_create,
                     )
 
-        # delete topic logs on kafka broker
-        notification.del_topic_from_kafka_broker(topic_name)
+                # delete topic logs on kafka broker
+                notification.del_topic_from_kafka_broker(topic_name)
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
@@ -246,6 +264,13 @@ def test_exec(config, ssh_con):
     crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
+
+    if config.user_remove:
+        for i in all_users_info:
+            if config.user_type == "non-tenanted":
+                reusable.remove_user(i)
+            else:
+                reusable.remove_user(i, tenant=i["tenant"])
 
 
 if __name__ == "__main__":
