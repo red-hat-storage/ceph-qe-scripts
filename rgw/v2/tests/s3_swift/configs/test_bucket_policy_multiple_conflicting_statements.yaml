@@ -1,0 +1,32 @@
+# script: test_bucket_policy_ops.py
+# bucket policy with conflicting statements
+# polarion id: CEPH-11217
+config:
+  objects_count: 25
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    upload_type: normal
+    verify_policy: True
+    conflicting_statements: True
+    policy_document:
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": ["s3:GetObject"],
+            "Principal": {"AWS": "arn:aws:iam::<tenant_name>:user/<user_name>"},
+            "Resource": ["arn:aws:s3:::<bucket_name>", "arn:aws:s3:::<bucket_name>/*"],
+            "Effect": "Allow",
+            "Sid": "statement1",
+          },
+          {
+            "Action": ["s3:GetObject"],
+            "Principal": {"AWS": "arn:aws:iam::<tenant_name>:user/<user_name>"},
+            "Resource": ["arn:aws:s3:::<bucket_name>", "arn:aws:s3:::<bucket_name>/*"],
+            "Effect": "Deny",
+            "Sid": "statement2",
+          }
+        ],
+      }
