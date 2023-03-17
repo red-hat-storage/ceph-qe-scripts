@@ -2,12 +2,14 @@
 Reusable methods for S3CMD
 """
 
-
 import logging
 import os
 import socket
 import subprocess
 import sys
+
+import boto
+import boto.s3.connection
 
 log = logging.getLogger()
 
@@ -40,6 +42,27 @@ def create_bucket(bucket_name, ssl=None):
     expected_response = f"Bucket 's3://{bucket_name}/' created"
     error_message = f"Expected: {expected_response}, Actual: {mb_response}"
     assert expected_response in mb_response, error_message
+
+
+def create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl=None):
+    """
+    Creates bucket
+    Args:
+        user_info : User details json
+        bucket_name(str): Name of the bucket to be created
+        ip_and_port (str) : hostname and port where rgw daemon is running
+    """
+    port = int(ip_and_port.split(":")[1])
+    conn = boto.connect_s3(
+        aws_access_key_id=user_info["access_key"],
+        aws_secret_access_key=user_info["secret_key"],
+        host=ip_and_port.split(":")[0],
+        port=port,
+        is_secure=False,  # Change it to True if RGW running using SSL
+        calling_format=boto.s3.connection.OrdinaryCallingFormat(),
+    )
+    bucket = conn.create_bucket(bucket_name)
+    bucket.configure_versioning(versioning=True)
 
 
 def upload_file(bucket_name, file_name=None, file_size=1024, test_data_path=None):
@@ -203,10 +226,14 @@ def rate_limit_read(bucket, max_read_ops, ssl=None, file=None):
     slowdown warning
     """
     # increment max_read_ops to induce warning
+    if "/" in bucket:
+        bucket = bucket.split("/")[1]
     max_read_ops += 1
     range_val = f"1..{max_read_ops}"
     if ssl:
         ssl_param = "-s"
+    else:
+        ssl_param = ""
     cmd = (
         f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd ls "
         f"s3://{bucket}/{file} {ssl_param};done;"
@@ -222,11 +249,15 @@ def rate_limit_write(bucket, max_write_ops, ssl=None):
     :param file: file to write
     """
     # increment max_write_ops to induce warning
+    if "/" in bucket:
+        bucket = bucket.split("/")[1]
     max_write_ops += 1
     create_local_file("1k", "file1")
     range_val = f"1..{max_write_ops}"
     if ssl:
         ssl_param = "-s"
+    else:
+        ssl_param = ""
     cmd = (
         f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd "
         f"put file1 s3://{bucket}/file$i {ssl_param};done;"

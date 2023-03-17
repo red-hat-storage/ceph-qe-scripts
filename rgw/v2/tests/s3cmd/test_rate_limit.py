@@ -54,16 +54,28 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    user_info = resource_op.create_users(no_of_users_to_create=config.user_count)[0]
-    user_name = user_info["user_id"]
+    # add rate limit capability to rgw user
+    if config.user_type == "tenanted":
+        user_info = resource_op.create_tenant_users(
+            no_of_users_to_create=config.user_count, tenant_name="tenant1"
+        )[0]
+        user_name = "tenant1" + "$" + user_info["user_id"]
+        uid = user_info["user_id"]
+        caps_add = utils.exec_shell_cmd(
+            f"radosgw-admin caps add --uid {uid} --tenant tenant1 "
+            + "--caps='users=*;buckets=*;ratelimit=*'"
+        )
+    else:
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)[0]
+        user_name = user_info["user_id"]
+        caps_add = utils.exec_shell_cmd(
+            f"radosgw-admin caps add --uid {user_name} "
+            + "--caps='users=*;buckets=*;ratelimit=*'"
+        )
 
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
     s3_auth.do_auth(user_info, ip_and_port)
-    # add rate limit capability to rgw user
-    caps_add = utils.exec_shell_cmd(
-        f"radosgw-admin caps add --uid {user_name} "
-        + "--caps='users=*;buckets=*;ratelimit=*'"
-    )
+
     data = json.loads(caps_add)
     caps = data["caps"]
     log.info(f" User Caps are :{caps}")
@@ -79,8 +91,16 @@ def test_exec(config, ssh_con):
     # create bucket and set limits
     bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
 
-    ssl = config.ssl
-    s3cmd_reusable.create_bucket(bucket_name, ssl)
+    if config.version_enable:
+        ssl = config.ssl
+        s3cmd_reusable.create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl)
+    else:
+        ssl = config.ssl
+        s3cmd_reusable.create_bucket(bucket_name, ssl)
+
+    if config.user_type == "tenanted":
+        bucket_name = f"tenant1/{bucket_name}"
+
     log.info(f"Bucket {bucket_name} created")
     limset = utils.exec_shell_cmd(
         f"radosgw-admin ratelimit set --ratelimit-scope=bucket "
@@ -100,6 +120,7 @@ def test_exec(config, ssh_con):
     log.info(f"Rate limits enabled on bucket : {limget} ")
 
     # test the read and write ops limit
+    log.info(f"Test the read and write ops limits")
     s3cmd_reusable.rate_limit_read(bucket_name, max_read_ops, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
@@ -112,6 +133,7 @@ def test_exec(config, ssh_con):
     sleep(61)
 
     # test the read and write data limit
+    log.info(f"Test the read and write data limits")
     s3cmd_reusable.rate_limit_read(bucket_name, max_read_bytes_kb, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
@@ -147,10 +169,16 @@ def test_exec(config, ssh_con):
     )
     log.info(f"Rate limits enabled on bucket : {limget} ")
 
-    # test the read and write ops limit
     bucket_name2 = utils.gen_bucket_name_from_userid(user_name, rand_no=1)
-    s3cmd_reusable.create_bucket(bucket_name2, ssl)
+    if config.version_enable:
+        s3cmd_reusable.create_versioned_bucket(
+            user_info, bucket_name2, ip_and_port, ssl
+        )
+    else:
+        s3cmd_reusable.create_bucket(bucket_name2, ssl)
 
+    # test the read and write ops limit
+    log.info(f"Test the read and write ops limits")
     s3cmd_reusable.rate_limit_read(bucket_name2, max_read_ops, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
@@ -163,6 +191,7 @@ def test_exec(config, ssh_con):
     sleep(61)
 
     # test the read and write data limit
+    log.info(f"Test the read and write data limits")
     s3cmd_reusable.rate_limit_read(bucket_name2, max_read_bytes_kb, ssl)
 
     log.info(f"Sleeping for a minute to reset limits")
@@ -171,7 +200,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test bucket and user rate limits")
 
     try:
