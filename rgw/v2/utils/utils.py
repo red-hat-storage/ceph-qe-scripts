@@ -795,7 +795,7 @@ def add_service2_sdk_extras():
         f"{botocore_paths[0]}/data/s3/2006-03-01/service-2.sdk-extras.json"
     )
     exec_shell_cmd(
-        f"sudo curl -o {extras_json_path} -L https://github.com/ceph/ceph/blob/main/examples/boto3/service-2.sdk-extras.json?raw=true"
+        f"sudo curl -o {extras_json_path} -L https://github.com/boto/botocore/blob/develop/botocore/data/s3/2006-03-01/service-2.json?raw=true"
     )
     log.info(f"service-2.sdk-extras.json is downloaded to {extras_json_path}")
     time.sleep(10)

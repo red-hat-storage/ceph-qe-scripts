@@ -7,7 +7,7 @@ config:
   test_ops:
     enable_versioning: false
     create_object: true
-    version_count: 3
+    version_count: 1
     delete_marker: false
     send_bucket_notifications: true
     create_topic: true
