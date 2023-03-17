@@ -243,16 +243,17 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
 
             # fetch bucket details and verify bucket attributes in event record
             bucket_stats = utils.exec_shell_cmd(
-                "radosgw-admin bucket stats --bucket  %s" % bucket
+                "radosgw-admin bucket stats --bucket %s" % bucket
             )
             bucket_stats_json = json.loads(bucket_stats)
             log.info("verify bucket attributes in event record")
             # verify bucket name in event record
             bucket_name = event_record_json["Records"][0]["s3"]["bucket"]["name"]
-            if bucket in bucket_name:
+            bkt_name = bucket.split("/")[-1] if "/" in bucket else bucket
+            if bkt_name == bucket_name:
                 log.info(f"Bucket-name: {bucket_name}")
             else:
-                raise EventRecordDataError("BucketName not in event record")
+                raise EventRecordDataError(f"BucketName {bkt_name} not in event record")
 
             # verify bucket id in event record
             bucket_id = bucket_stats_json["id"]
@@ -260,17 +261,21 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
             if bucket_id in bucket_id_evnt:
                 log.info(f"Bucket-id: {bucket_id}")
             else:
-                raise EventRecordDataError("BucketID not in event record")
+                raise EventRecordDataError(f"BucketID {bucket_id} not in event record")
 
             # verify bucket owner in event record
             bucket_owner = bucket_stats_json["owner"]
+            if "$" in bucket_owner:
+                bucket_owner = bucket_owner.split("$")[-1]
             bkt_owner_evnt = event_record_json["Records"][0]["s3"]["bucket"][
                 "ownerIdentity"
             ]["principalId"]
             if bucket_owner == bkt_owner_evnt:
                 log.info(f"Bucket-owner: {bucket_owner}")
             else:
-                raise EventRecordDataError("BucketOwner not in event record")
+                raise EventRecordDataError(
+                    f"BucketOwner {bucket_owner} not in event record"
+                )
 
             log.info("verify object attributes")
             # verify object size attribute
