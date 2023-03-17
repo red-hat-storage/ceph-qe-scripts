@@ -21,6 +21,8 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_bucket_notification_sasl_ssl_scram_sha_256_.*.yaml
     test_bucket_notification_ssl_.*.yaml
     test_bucket_notification_with_tenant_user.yaml
+    test_bucket_notification_kafka_broker_persistent_dynamic_reshard.yaml
+    test_bucket_notification_kafka_broker_persistent_manual_reshard.yaml
 Operation:
     create user (tenant/non-tenant)
     Create topic and get topic
@@ -69,6 +71,16 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+
+    if config.enable_resharding and config.sharding_type == "dynamic":
+        reusable.set_dynamic_reshard_ceph_conf(config, ssh_con)
+        log.info("trying to restart services")
+        srv_restarted = rgw_service.restart(ssh_con)
+        time.sleep(30)
+        if srv_restarted is False:
+            raise TestExecError("RGW service restart failed")
+        else:
+            log.info("RGW service restarted")
 
     # create user
     if config.user_type == "non-tenanted":
@@ -198,6 +210,13 @@ def test_exec(config, ssh_con):
                                 config,
                                 each_user,
                             )
+
+                if config.enable_resharding:
+                    if config.sharding_type == "manual":
+                        reusable.bucket_reshard_manual(bucket, config)
+                    if config.sharding_type == "dynamic":
+                        reusable.bucket_reshard_dynamic(bucket, config)
+
                 # copy objects
                 if config.test_ops.get("copy_object", False):
                     log.info("copy object")
