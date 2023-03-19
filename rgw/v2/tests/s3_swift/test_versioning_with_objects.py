@@ -176,7 +176,7 @@ def test_exec(config, ssh_con):
                                 s3_object_path,
                                 s3_object_size,
                                 op="append",
-                                **{"message": "\nhello for version: %s\n" % str(vc)}
+                                **{"message": "\nhello for version: %s\n" % str(vc)},
                             )
                             if modified_data_info is False:
                                 TestExecError("data modification failed")
@@ -187,7 +187,7 @@ def test_exec(config, ssh_con):
                                     "versioning_status": VERSIONING_STATUS["ENABLED"],
                                     "version_count_no": vc,
                                 },
-                                **modified_data_info
+                                **modified_data_info,
                             )
                             s3_obj = s3lib.resource_op(
                                 {
@@ -373,6 +373,67 @@ def test_exec(config, ssh_con):
                                 )
                             # log.info('downloading current s3object: %s' % s3_object_name)
                             # s3_obj.download_file(s3_object_name + ".download")
+                        if config.delete_object_current_versions:
+                            log.info("deleting current version of s3_obj")
+                            s3_obj = s3lib.resource_op(
+                                {
+                                    "obj": rgw_conn,
+                                    "resource": "Object",
+                                    "args": [bucket.name, s3_object_name],
+                                }
+                            )
+                            version_ids = []
+                            all_versions = bucket.object_versions.filter(
+                                Prefix=s3_object_name
+                            )
+                            for ver in all_versions:
+                                version_ids.append(ver.version_id)
+                            current_version_id = s3_obj.version_id
+                            log.info(f"all old versions {version_ids}")
+                            log.info(f"current_version_id:{current_version_id}")
+                            log.info(
+                                f"deleting current version for s3 obj:{s3_object_name}"
+                            )
+                            del_obj_curr_version = s3lib.resource_op(
+                                {
+                                    "obj": s3_obj,
+                                    "resource": "delete",
+                                    "kwargs": dict(VersionId=current_version_id),
+                                }
+                            )
+                            if del_obj_curr_version is None:
+                                raise AssertionError(
+                                    "current version deletion failed for version-id {current_version_id}"
+                                )
+                            s3_obj = s3lib.resource_op(
+                                {
+                                    "obj": rgw_conn,
+                                    "resource": "Object",
+                                    "args": [bucket.name, s3_object_name],
+                                }
+                            )
+                            new_current_version_id = s3_obj.version_id
+                            all_new_versions = bucket.object_versions.filter(
+                                Prefix=s3_object_name
+                            )
+                            new_version_ids = []
+                            for ver in all_new_versions:
+                                new_version_ids.append(ver.version_id)
+                            log.info(
+                                f"new current_version_id: {new_current_version_id}"
+                            )
+                            log.info(f"all new versions {new_version_ids}")
+                            if current_version_id == new_current_version_id:
+                                raise AssertionError(
+                                    "current version deletion failed for version-id {current_version_id}"
+                                )
+                            version_ids.remove(current_version_id)
+                            for ver in version_ids:
+                                if ver not in new_version_ids:
+                                    raise AssertionError(
+                                        "older version of object is not present!!"
+                                    )
+
                         if config.test_ops["delete_object_versions"] is True:
                             log.info("deleting s3_obj keys and its versions")
                             s3_obj = s3lib.resource_op(
@@ -578,7 +639,7 @@ def test_exec(config, ssh_con):
                         s3_object_path,
                         s3_object_size,
                         op="append",
-                        **{"message": "\nhello for non version\n"}
+                        **{"message": "\nhello for non version\n"},
                     )
                     if non_version_data_info is False:
                         TestExecError("data creation failed")
@@ -588,7 +649,7 @@ def test_exec(config, ssh_con):
                             "access_key": each_user["access_key"],
                             "versioning_status": "suspended",
                         },
-                        **non_version_data_info
+                        **non_version_data_info,
                     )
                     s3_obj = s3lib.resource_op(
                         {
