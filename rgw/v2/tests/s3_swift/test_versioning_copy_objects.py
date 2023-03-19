@@ -152,6 +152,58 @@ def test_exec(config, ssh_con):
                 "key_name: %s --> version_id: %s"
                 % (version.object_key, version.version_id)
             )
+    if config.copy_versioned_obj_to_versioned_bkt:
+        versioned_bkt_name = "new-ver-bkt"
+        new_bkt = reusable.create_bucket(versioned_bkt_name, rgw_conn, s3_user)
+        reusable.enable_versioning(new_bkt, rgw_conn, s3_user, write_bucket_io_info)
+        new_bkt_k1_name = versioned_bkt_name + ".key.1"  # key1
+        # upload object to version enabled bucket new-ver-bkt
+        obj_sizes = list(config.mapped_sizes.values())
+        config.obj_size = obj_sizes[0]
+        for vc in range(version_count):
+            reusable.upload_object(
+                new_bkt_k1_name,
+                new_bkt,
+                TEST_DATA_PATH,
+                config,
+                s3_user,
+                append_data=True,
+                append_msg="hello vc count: %s" % str(vc),
+            )
+        log.info(
+            "copy from b1_k1 key to new_bkt_k1 to new-ver-bkt -> version enabled bucket"
+        )
+        new_bkt_k1 = s3lib.resource_op(
+            {
+                "obj": rgw_conn,
+                "resource": "Object",
+                "args": [new_bkt.name, new_bkt_k1_name],
+            }
+        )
+        copy_response = new_bkt_k1.copy_from(
+            CopySource={
+                "Bucket": b1.name,
+                "Key": b1_k1_name,
+            }
+        )
+        log.info("copy_response: %s" % copy_response)
+        if copy_response is None:
+            raise TestExecError("copy object failed")
+        log.info("checking if copies object has version id created")
+        new_bkt_k1_version_id = new_bkt_k1.version_id
+        log.info("version id: %s" % new_bkt_k1_version_id)
+        if new_bkt_k1_version_id is None:
+            raise TestExecError(
+                "Version ID not created for the copied object on to the versioned enabled bucket"
+            )
+        else:
+            log.info(
+                "Version ID created for the copied object on to the versioned bucket"
+            )
+
+        objects = reusable.list_versioned_objects(new_bkt, new_bkt_k1_name)
+        log.info(f"objects are {objects}")
+
     if config.delete_using_different_user:
         log.info("performing version deletion using different user")
         diff_user = s3lib.create_users(1)[0]
@@ -177,6 +229,8 @@ def test_exec(config, ssh_con):
     crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
+
+    reusable.remove_user(s3_user)
 
 
 if __name__ == "__main__":

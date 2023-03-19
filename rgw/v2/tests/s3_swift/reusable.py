@@ -779,7 +779,7 @@ def list_objects(bucket):
         log.info("object_name: %s" % obj.key)
 
 
-def list_versioned_objects(bucket, s3_object_name, s3_object_path, rgw_conn):
+def list_versioned_objects(bucket, s3_object_name, s3_object_path=None, rgw_conn=None):
     """
     list all versions of the objects in a given bucket
     :param bucket: S3Bucket object
