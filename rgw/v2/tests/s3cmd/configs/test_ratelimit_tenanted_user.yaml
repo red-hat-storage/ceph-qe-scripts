@@ -1,8 +1,9 @@
 # script: test_rate_limit.py
+# Polarion ID : CEPH-83574914
 config:
   user_count: 1
+  user_type: tenanted
   bucket_count: 2
-  user_type: non-tenanted
   version_enable: False
   bucket_max_read_ops: 2
   bucket_max_read_bytes: 4096
