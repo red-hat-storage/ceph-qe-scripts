@@ -3,6 +3,7 @@
 
 usage : test_bucket_policy_ops.py -c configs/<input-yaml>
 where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml and test_bucket_policy_replace.yaml
+  test_bucket_policy_multiple_conflicting_statements.yaml, test_bucket_policy_multiple_statements.yaml
 
 Operation:
 - create bucket in tenant1 for user1
@@ -27,6 +28,7 @@ import botocore.exceptions as boto3exception
 import v2.lib.resource_op as s3lib
 import v2.lib.s3.bucket_policy as s3_bucket_policy
 import v2.utils.utils as utils
+from botocore.handlers import validate_bucket_name
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
@@ -118,13 +120,23 @@ def test_exec(config, ssh_con):
         rgw_tenant1_user1,
         tenant1_user1_info,
     )
-    bucket_policy_generated = s3_bucket_policy.gen_bucket_policy(
-        tenants_list=[tenant1],
-        userids_list=[tenant2_user1_info["user_id"]],
-        actions_list=["CreateBucket"],
-        resources=[t1_u1_bucket1.name],
-    )
-    bucket_policy = json.dumps(bucket_policy_generated)
+    if not config.test_ops.get("policy_document", False):
+        bucket_policy_generated = s3_bucket_policy.gen_bucket_policy(
+            tenants_list=[tenant2],
+            userids_list=[tenant2_user1_info["user_id"]],
+            actions_list=["CreateBucket"],
+            resources=[t1_u1_bucket1.name],
+        )
+        bucket_policy = json.dumps(bucket_policy_generated)
+    else:
+        bucket_policy_generated = config.test_ops["policy_document"]
+        bucket_policy = json.dumps(bucket_policy_generated)
+        bucket_policy = bucket_policy.replace("<tenant_name>", tenant2)
+        bucket_policy = bucket_policy.replace("<bucket_name>", t1_u1_bucket1.name)
+        bucket_policy = bucket_policy.replace(
+            "<user_name>", tenant2_user1_info["user_id"]
+        )
+        bucket_policy_generated = json.loads(bucket_policy)
     log.info("jsoned policy:%s\n" % bucket_policy)
     log.info("bucket_policy_generated:%s\n" % bucket_policy_generated)
     bucket_policy_obj = s3lib.resource_op(
@@ -143,7 +155,7 @@ def test_exec(config, ssh_con):
     )
     log.info("put policy response:%s\n" % put_policy)
     if put_policy is False:
-        raise TestExecError("Resource execution failed: bucket creation faield")
+        raise TestExecError("Resource execution failed: bucket policy put failed")
     if put_policy is not None:
         response = HttpResponseParser(put_policy)
         if response.status_code == 200 or response.status_code == 204:
@@ -175,10 +187,58 @@ def test_exec(config, ssh_con):
             log.info("Service is running without crash")
         else:
             raise TestExecError("Service got crashed")
+    elif config.test_ops.get("upload_type") == "normal":
+        for oc, size in list(config.mapped_sizes.items()):
+            config.obj_size = size
+            s3_object_name = utils.gen_s3_object_name(t1_u1_bucket1.name, oc)
+            log.info("s3 object name: %s" % s3_object_name)
+            s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+            log.info("s3 object path: %s" % s3_object_path)
+            log.info("upload type: normal")
+            reusable.upload_object(
+                s3_object_name,
+                t1_u1_bucket1,
+                TEST_DATA_PATH,
+                config,
+                tenant1_user1_info,
+            )
 
     # get policy
     get_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
     log.info("got bucket policy:%s\n" % get_policy["Policy"])
+
+    if config.test_ops.get("verify_policy"):
+        log.info(f"s3 object name to download: {s3_object_name}")
+        bucket_name_verify_policy = f"{tenant1}:{t1_u1_bucket1.name}"
+        rgw_tenant2_user1_c.meta.events.unregister(
+            "before-parameter-build.s3", validate_bucket_name
+        )
+        object_get_status = s3lib.resource_op(
+            {
+                "obj": rgw_tenant2_user1_c,
+                "resource": "get_object",
+                "kwargs": dict(Bucket=bucket_name_verify_policy, Key=s3_object_name),
+            }
+        )
+        log.info(object_get_status)
+        conflicting_statements = config.test_ops.get("conflicting_statements", False)
+        if object_get_status is False:
+            if not conflicting_statements:
+                raise TestExecError(
+                    "not able to get object from other tenanted user after setting bucket policy"
+                )
+            else:
+                log.info(
+                    "object get is failed as expected, deny is taken effect if conflict between allow and deny"
+                )
+        elif object_get_status is not None:
+            response = HttpResponseParser(object_get_status)
+            if response.status_code == 200 and conflicting_statements:
+                log.info(
+                    "object get is allowed with conflicting statements in policy,"
+                    + "ideally it should deny object get from other tenanted user"
+                )
+
     # modifying bucket policy to take new policy
     if config.bucket_policy_op == "modify":
         # adding new action list: ListBucket to existing action: CreateBucket
@@ -329,7 +389,7 @@ if __name__ == "__main__":
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read(ssh_con)
-        if config.test_ops.get("upload_type") == "multipart":
+        if config.test_ops.get("upload_type"):
             if config.mapped_sizes is None:
                 config.mapped_sizes = utils.make_mapped_sizes(config)
 
