@@ -222,6 +222,9 @@ class Config(object):
         self.two_pool_transition = self.doc["config"].get("two_pool_transition")
         self.ec_storage_class = self.doc["config"].get("ec_storage_class")
         self.ec_pool_name = self.doc["config"].get("ec_pool_name")
+        self.test_with_bucket_index_shards = self.doc["config"].get(
+            "test_with_bucket_index_shards"
+        )
         self.enable_resharding = self.doc["config"].get("enable_resharding")
         self.log_trimming = self.doc["config"].get("log_trimming")
         self.test_bilog_trim_on_non_existent_bucket = self.doc["config"].get(
