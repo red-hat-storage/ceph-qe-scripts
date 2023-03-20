@@ -247,6 +247,9 @@ class Config(object):
         self.container_count = self.doc["config"].get("container_count")
         self.version_count = self.doc["config"].get("version_count")
         self.version_enable = self.doc["config"].get("version_enable", False)
+        self.delete_object_current_versions = self.doc["config"].get(
+            "delete_object_current_versions", False
+        )
         self.delete_using_different_user = self.doc["config"].get(
             "delete_using_different_user", False
         )
