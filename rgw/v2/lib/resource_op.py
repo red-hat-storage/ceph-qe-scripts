@@ -250,6 +250,9 @@ class Config(object):
         self.delete_using_different_user = self.doc["config"].get(
             "delete_using_different_user", False
         )
+        self.copy_versioned_obj_to_versioned_bkt = self.doc["config"].get(
+            "copy_versioned_obj_to_versioned_bkt", False
+        )
         self.copy_version_object = self.doc["config"].get("copy_version_object", False)
         self.object_expire = self.doc["config"].get("object_expire", False)
         self.rgw_lc_debug_interval = self.doc["config"].get("rgw_lc_debug_interval", 30)

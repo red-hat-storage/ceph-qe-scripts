@@ -1,0 +1,6 @@
+# CEPH-10644
+config:
+  objects_size_range:
+    min: 5
+    max: 15
+  copy_versioned_obj_to_versioned_bkt: true
