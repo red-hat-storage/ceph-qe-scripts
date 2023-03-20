@@ -5,7 +5,7 @@ config:
     min: 5
     max: 10
   sharding_type: dynamic
-  max_objects_per_shard: 1
+  max_objects_per_shard: 5
   max_rgw_dynamic_shards: 200
   test_ops:
     delete_bucket_object: true
