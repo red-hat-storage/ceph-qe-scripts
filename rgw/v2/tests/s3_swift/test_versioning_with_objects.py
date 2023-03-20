@@ -111,7 +111,7 @@ def test_exec(config, ssh_con):
                 raise TestExecError("bucket creation failed")
             # getting bucket version object
             if config.test_ops["enable_version"] is True:
-                log.info("bucket versionig test on bucket: %s" % bucket.name)
+                log.info("bucket versioning test on bucket: %s" % bucket.name)
                 # bucket_versioning = s3_ops.resource_op(rgw_conn, 'BucketVersioning', bucket.name)
                 bucket_versioning = s3lib.resource_op(
                     {
@@ -167,6 +167,7 @@ def test_exec(config, ssh_con):
                         if original_data_info is False:
                             TestExecError("data creation failed")
                         created_versions_count = 0
+                        md5_dict = {}
                         for vc in range(config.version_count):
                             log.info(
                                 "version count for %s is %s" % (s3_object_name, str(vc))
@@ -176,7 +177,7 @@ def test_exec(config, ssh_con):
                                 s3_object_path,
                                 s3_object_size,
                                 op="append",
-                                **{"message": "\nhello for version: %s\n" % str(vc)}
+                                **{"message": "\nhello for version: %s\n" % str(vc)},
                             )
                             if modified_data_info is False:
                                 TestExecError("data modification failed")
@@ -187,7 +188,7 @@ def test_exec(config, ssh_con):
                                     "versioning_status": VERSIONING_STATUS["ENABLED"],
                                     "version_count_no": vc,
                                 },
-                                **modified_data_info
+                                **modified_data_info,
                             )
                             s3_obj = s3lib.resource_op(
                                 {
@@ -297,6 +298,8 @@ def test_exec(config, ssh_con):
                             )
                             log.info("downloaded_md5: %s" % s3_object_downloaded_md5)
                             log.info("uploaded_md5: %s" % modified_data_info["md5"])
+                            md5_dict[s3_obj.version_id] = modified_data_info["md5"]
+                            log.info(f"md5_dict: {md5_dict}")
                             # tail_op = utils.exec_shell_cmd('tail -l %s' % s3_object_download_path)
                         log.info("all versions for the object: %s\n" % s3_object_name)
                         versions = bucket.object_versions.filter(Prefix=s3_object_name)
@@ -305,6 +308,57 @@ def test_exec(config, ssh_con):
                                 "key_name: %s --> version_id: %s"
                                 % (version.object_key, version.version_id)
                             )
+                        if (
+                            config.test_ops.get("access_versioned_object", False)
+                            is True
+                        ):
+                            versions = bucket.object_versions.filter(
+                                Prefix=s3_object_name
+                            )
+                            for version in versions:
+                                version_id = version.version_id
+                                log.info(
+                                    f"downloading {version_id}: version of object {s3_object_name}"
+                                )
+                                s3_ver_object_download_path = os.path.join(
+                                    TEST_DATA_PATH,
+                                    s3_object_name + version_id + ".download",
+                                )
+                                object_ver_downloaded_status = s3lib.resource_op(
+                                    {
+                                        "obj": bucket,
+                                        "resource": "download_file",
+                                        "args": [
+                                            s3_object_name,
+                                            s3_ver_object_download_path,
+                                            {"VersionId": version_id},
+                                        ],
+                                    }
+                                )
+                                if object_ver_downloaded_status is False:
+                                    raise TestExecError(
+                                        "Resource execution failed: object download failed"
+                                    )
+                                if object_ver_downloaded_status is None:
+                                    log.info("object downloaded")
+                                    log.info(
+                                        f"downloaded path: {s3_ver_object_download_path}"
+                                    )
+                                    s3_object_downloaded_md5 = utils.get_md5(
+                                        s3_ver_object_download_path
+                                    )
+                                    log.info(
+                                        f"downloaded_md5 for version-id {version_id} is {s3_object_downloaded_md5}"
+                                    )
+                                    if s3_object_downloaded_md5 != md5_dict[version_id]:
+                                        raise AssertionError(
+                                            f"MD5 mismatched for the object version:{version_id}"
+                                        )
+                                    else:
+                                        log.info(
+                                            f"MD5 matched for the object version:{version_id}"
+                                        )
+
                         if config.test_ops.get("set_acl", None) is True:
                             s3_obj_acl = s3lib.resource_op(
                                 {
@@ -335,7 +389,7 @@ def test_exec(config, ssh_con):
                                     }
                                 )
                                 log.info(
-                                    "obj get detils :%s\n"
+                                    "obj get details :%s\n"
                                     % (obj.get(VersionId=version.version_id))
                                 )
                         if config.test_ops["copy_to_version"] is True:
@@ -578,7 +632,7 @@ def test_exec(config, ssh_con):
                         s3_object_path,
                         s3_object_size,
                         op="append",
-                        **{"message": "\nhello for non version\n"}
+                        **{"message": "\nhello for non version\n"},
                     )
                     if non_version_data_info is False:
                         TestExecError("data creation failed")
@@ -588,7 +642,7 @@ def test_exec(config, ssh_con):
                             "access_key": each_user["access_key"],
                             "versioning_status": "suspended",
                         },
-                        **non_version_data_info
+                        **non_version_data_info,
                     )
                     s3_obj = s3lib.resource_op(
                         {
