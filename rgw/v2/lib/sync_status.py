@@ -62,3 +62,20 @@ def sync_status(retry=25, delay=60):
         log.info("data from archive zone does not sync to source zone as per design")
     else:
         raise SyncFailedError("sync is either slow or stuck")
+
+    # check for cluster health status and omap if any
+    ceph_status = check_ceph_status()
+
+
+def check_ceph_status():
+    """
+    get the ceph cluster status and health
+    """
+    log.info("get ceph status")
+    ceph_status = utils.exec_shell_cmd(cmd="sudo ceph status")
+    if "HEALTH_ERR" in ceph_status or "large omap objects" in ceph_status:
+        raise Exception(
+            "ceph status is either in HEALTH_ERR or we have large omap objects."
+        )
+    else:
+        log.info("ceph status - HEALTH_OK")
