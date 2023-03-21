@@ -27,6 +27,7 @@ import traceback
 import botocore.exceptions as boto3exception
 import v2.lib.resource_op as s3lib
 import v2.lib.s3.bucket_policy as s3_bucket_policy
+import v2.tests.s3_swift.reusables.bucket_policy_ops as bucket_policy_ops
 import v2.utils.utils as utils
 from botocore.handlers import validate_bucket_name
 from v2.lib.exceptions import RGWBaseException, TestExecError
@@ -137,6 +138,7 @@ def test_exec(config, ssh_con):
             "<user_name>", tenant2_user1_info["user_id"]
         )
         bucket_policy_generated = json.loads(bucket_policy)
+        config.test_ops["policy_document"] = bucket_policy_generated
     log.info("jsoned policy:%s\n" % bucket_policy)
     log.info("bucket_policy_generated:%s\n" % bucket_policy_generated)
     bucket_policy_obj = s3lib.resource_op(
@@ -208,36 +210,16 @@ def test_exec(config, ssh_con):
     log.info("got bucket policy:%s\n" % get_policy["Policy"])
 
     if config.test_ops.get("verify_policy"):
-        log.info(f"s3 object name to download: {s3_object_name}")
         bucket_name_verify_policy = f"{tenant1}:{t1_u1_bucket1.name}"
         rgw_tenant2_user1_c.meta.events.unregister(
             "before-parameter-build.s3", validate_bucket_name
         )
-        object_get_status = s3lib.resource_op(
-            {
-                "obj": rgw_tenant2_user1_c,
-                "resource": "get_object",
-                "kwargs": dict(Bucket=bucket_name_verify_policy, Key=s3_object_name),
-            }
+        bucket_policy_ops.verify_policy(
+            config=config,
+            rgw_client=rgw_tenant2_user1_c,
+            bucket_name=bucket_name_verify_policy,
+            object_name=s3_object_name,
         )
-        log.info(object_get_status)
-        conflicting_statements = config.test_ops.get("conflicting_statements", False)
-        if object_get_status is False:
-            if not conflicting_statements:
-                raise TestExecError(
-                    "not able to get object from other tenanted user after setting bucket policy"
-                )
-            else:
-                log.info(
-                    "object get is failed as expected, deny is taken effect if conflict between allow and deny"
-                )
-        elif object_get_status is not None:
-            response = HttpResponseParser(object_get_status)
-            if response.status_code == 200 and conflicting_statements:
-                log.info(
-                    "object get is allowed with conflicting statements in policy,"
-                    + "ideally it should deny object get from other tenanted user"
-                )
 
     # modifying bucket policy to take new policy
     if config.bucket_policy_op == "modify":
