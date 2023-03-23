@@ -58,6 +58,10 @@ def test_exec(config, ssh_con):
     user_info = user_info[0]
     auth = Auth(user_info, ssh_con, ssl=config.ssl)
     rgw_conn = auth.do_auth()
+    if config.test_with_bucket_index_shards:
+        utils.exec_shell_cmd(
+            "radosgw-admin zonegroup modify --bucket_index_max_shards 0"
+        )
     log.info("sharding configuration will be added now.")
     if config.sharding_type == "dynamic":
         log.info("sharding type is dynamic")
@@ -93,13 +97,13 @@ def test_exec(config, ssh_con):
 
         num_shards_expected = config.objects_count / config.max_objects_per_shard
         log.info("num_shards_expected: %s" % num_shards_expected)
-        log.info("trying to restart services ")
-        srv_restarted = rgw_service.restart(ssh_con)
-        time.sleep(30)
-        if srv_restarted is False:
-            raise TestExecError("RGW service restart failed")
-        else:
-            log.info("RGW service restarted")
+    log.info("trying to restart services ")
+    srv_restarted = rgw_service.restart(ssh_con)
+    time.sleep(30)
+    if srv_restarted is False:
+        raise TestExecError("RGW service restart failed")
+    else:
+        log.info("RGW service restarted")
 
     config.bucket_count = 1
     objects_created_list = []
@@ -170,6 +174,11 @@ def test_exec(config, ssh_con):
                 log.info("Expected number of shards created")
         else:
             raise TestExecError("Expected number of shards not created")
+    # test bug 2174235
+    if config.test_with_bucket_index_shards:
+        log.info("Bucket stats should have same num_objects post a resharding event.")
+        if config.objects_count != json_doc["usage"]["rgw.main"]["num_objects"]:
+            raise TestExecError("Bucket metadata lost post resharding")
 
     log.info("Test acls are preserved after a resharding operation.")
     cmd = utils.exec_shell_cmd(
