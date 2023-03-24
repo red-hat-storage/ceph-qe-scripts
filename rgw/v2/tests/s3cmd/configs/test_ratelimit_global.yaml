@@ -1,0 +1,13 @@
+# script: test_rate_limit.py
+# Polarion ID : CEPH-83574915, CEPH-83574916
+config:
+  user_count: 1
+  bucket_count: 2
+  bucket_max_read_ops: 2
+  bucket_max_read_bytes: 4096
+  bucket_max_write_ops: 2
+  bucket_max_write_bytes: 4096
+  user_max_read_bytes: 4096
+  user_max_read_ops: 2
+  user_max_write_bytes: 4096
+  user_max_write_ops: 2

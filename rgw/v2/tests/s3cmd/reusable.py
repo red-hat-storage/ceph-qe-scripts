@@ -220,6 +220,26 @@ def run_subprocess(cmd):
     return stdout, stderr
 
 
+def rate_limit_set_enable(
+    scope,
+    max_read_ops,
+    max_read_bytes,
+    max_write_ops,
+    max_write_bytes,
+    global_scope=None,
+):
+    """Set and enable rate limits for the scope mentioned"""
+    limset = utils.exec_shell_cmd(
+        f"radosgw-admin {global_scope} ratelimit set --ratelimit-scope={scope}"
+        + f" --max-read-ops={max_read_ops} --max-read-bytes={max_read_bytes}"
+        + f" --max-write-bytes={max_write_bytes} --max-write-ops={max_write_ops}"
+    )
+    log.info(f"Rate limits set on {scope}")
+    limenable = utils.exec_shell_cmd(
+        f"radosgw-admin {global_scope} ratelimit enable --ratelimit-scope={scope}"
+    )
+
+
 def rate_limit_read(bucket, max_read_ops, ssl=None, file=None):
     """
     max_read_ops: Loop until the max_read_ops value to check for a 503

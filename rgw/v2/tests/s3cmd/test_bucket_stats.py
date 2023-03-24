@@ -8,6 +8,7 @@ Usage: test_bucket_stats.py -c <input_yaml>
     test_bucket_stats.yaml
 
 Operation:
+    Tracks BZ : https://bugzilla.redhat.com/show_bug.cgi?id=2181424
     Create an user
     Create a bucket with user credentials
     Performs multipart upload with object name consist of whitespace
@@ -72,6 +73,7 @@ def test_exec(config, ssh_con):
             )
 
             rc = utils.exec_shell_cmd(cmd)
+            log.info(rc)
 
             if rc:
                 raise AssertionError("expected scenario is not achieved!!!")
@@ -99,7 +101,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test bucket stats consistency")
 
     try:
