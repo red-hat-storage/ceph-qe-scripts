@@ -56,6 +56,16 @@ class S3CMDConfigFileNotFound(RGWBaseException):
         self.message = message
 
 
+class AWSConfigFileNotFound(RGWBaseException):
+    # aws file not exists
+    def __init__(
+        self,
+        message=None,
+    ):
+        super().__init__(message)
+        self.message = message
+
+
 class AccessDeniedObjectDeleted(RGWBaseException):
     # Access denied object got deleted
     def __init__(
@@ -78,6 +88,16 @@ class ObjectVersionCountMismatch(RGWBaseException):
 
 class S3CommandExecError(RGWBaseException):
     # s3cmd Command execution error
+    def __init__(
+        self,
+        message=None,
+    ):
+        super().__init__(message)
+        self.message = message
+
+
+class AWSCommandExecError(RGWBaseException):
+    # AWS Command execution error
     def __init__(
         self,
         message=None,
