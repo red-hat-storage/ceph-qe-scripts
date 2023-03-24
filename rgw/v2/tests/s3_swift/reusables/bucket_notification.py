@@ -13,6 +13,25 @@ from v2.lib.exceptions import EventRecordDataError, TestExecError
 log = logging.getLogger()
 
 
+Filter = {
+    "Key": {
+        "FilterRules": [
+            {"Name": "prefix", "Value": "prefix1"},
+        ]
+    }
+}
+
+
+def get_affixed_obj_name(config, obj_name):
+    filter_rules = config.test_ops["Filter"]["Key"]["FilterRules"]
+    for rule in filter_rules:
+        if rule["Name"] == "prefix":
+            obj_name = f"{rule['Value']}{obj_name}"
+        if rule["Name"] == "suffix":
+            obj_name = f"{obj_name}{rule['Value']}"
+    return obj_name
+
+
 def start_kafka_broker_consumer(topic_name, event_record_path):
     """
     start kafka consumer
@@ -120,23 +139,24 @@ def del_topic_from_kafka_broker(topic_name):
 
 
 def put_bucket_notification(
-    rgw_s3_client, bucketname, notification_name, topic_arn, events
+    rgw_s3_client, bucketname, notification_name, topic_arn, events, config=None
 ):
     """
     put bucket notification on bucket for specified events with given endpoint and topic
     """
     log.info(f"put bucket notification on {bucketname}")
+    TopicConfigurations = [
+        {
+            "Id": notification_name,
+            "TopicArn": topic_arn,
+            "Events": events,
+        }
+    ]
+    if config and config.test_ops.get("Filter"):
+        TopicConfigurations[0]["Filter"] = config.test_ops.get("Filter")
     put_bkt_notification = rgw_s3_client.put_bucket_notification_configuration(
         Bucket=bucketname,
-        NotificationConfiguration={
-            "TopicConfigurations": [
-                {
-                    "Id": notification_name,
-                    "TopicArn": topic_arn,
-                    "Events": events,
-                }
-            ]
-        },
+        NotificationConfiguration={"TopicConfigurations": TopicConfigurations},
     )
     if put_bkt_notification is False:
         raise TestExecError("put bucket notification failed")

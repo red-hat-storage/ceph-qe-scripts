@@ -72,6 +72,9 @@ def test_exec(config, ssh_con):
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
 
+    if config.test_ops.get("Filter", False) is False:
+        config.test_ops["Filter"] = notification.Filter
+
     if config.enable_resharding and config.sharding_type == "dynamic":
         reusable.set_dynamic_reshard_ceph_conf(config, ssh_con)
         log.info("trying to restart services")
@@ -81,6 +84,9 @@ def test_exec(config, ssh_con):
             raise TestExecError("RGW service restart failed")
         else:
             log.info("RGW service restarted")
+
+    if config.user_type is None:
+        config.user_type = "non-tenanted"
 
     # create user
     if config.user_type == "non-tenanted":
@@ -170,6 +176,7 @@ def test_exec(config, ssh_con):
                         notification_name,
                         topic,
                         events,
+                        config,
                     )
 
                     # get bucket notification
@@ -189,6 +196,11 @@ def test_exec(config, ssh_con):
                         s3_object_name = utils.gen_s3_object_name(
                             bucket_name_to_create, oc
                         )
+                        obj_name_temp = s3_object_name
+                        if config.test_ops.get("Filter"):
+                            s3_object_name = notification.get_affixed_obj_name(
+                                config, obj_name_temp
+                            )
                         log.info("s3 object name: %s" % s3_object_name)
                         s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                         log.info("s3 object path: %s" % s3_object_path)
@@ -220,9 +232,12 @@ def test_exec(config, ssh_con):
                 # copy objects
                 if config.test_ops.get("copy_object", False):
                     log.info("copy object")
+                    obj_name = notification.get_affixed_obj_name(
+                        config, "copy_of_object" + obj_name_temp
+                    )
                     status = rgw_s3_client.copy_object(
                         Bucket=bucket_name_to_create,
-                        Key="copy_of_object" + s3_object_name,
+                        Key=obj_name,
                         CopySource={
                             "Bucket": bucket_name_to_create,
                             "Key": s3_object_name,
