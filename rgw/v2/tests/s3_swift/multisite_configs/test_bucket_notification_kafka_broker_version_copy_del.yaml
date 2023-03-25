@@ -1,0 +1,25 @@
+# version enabled + broker type + persistent=false - CEPH-83574073
+config:
+ user_count: 1
+ bucket_count: 2
+ objects_count: 2
+ version_count: 5
+ objects_size_range:
+  min: 5
+  max: 15
+ test_ops:
+  create_bucket: true
+  create_object: true
+  enable_version: true
+  create_topic: true
+  copy_object: true
+  get_topic_info: true
+  persistent_flag: false
+  endpoint: kafka
+  ack_type: broker
+  put_get_bucket_notification: true
+  event_type:
+    - Copy
+    - Delete
+  upload_type: normal
+  delete_bucket_object: false
