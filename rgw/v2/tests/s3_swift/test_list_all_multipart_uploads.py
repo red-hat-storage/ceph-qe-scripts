@@ -1,14 +1,20 @@
 """
 # test list bucket multipart uploads
 
-usage : test_list_all_multipart_uploads.py -c configs/test_list_all_multipart_uploads.yaml
+usage : test_list_all_multipart_uploads.py -c <input_yaml>
+
+<input_yaml>
+    Note: any one of these yamls can be used
+    configs/test_list_all_multipart_uploads.yaml
+    configs/test_listbucketversion_with_bucketpolicy_for_tenant_user.yaml
 
 Operation:
-- Create two users in the same tenant, user1 and user2
-- Create two buckets(bucket1, bucket2) and upload multipart object with user1.
-- Using user1 credentials, set bucket policy for user2 to list the multipart objects of
+- Create users in the same tenant, user1 and user2 (if required user3)
+- Create buckets user1
+- Using user1 credentials, set bucket policy for user2(if required user3) to access objects of
   bucket1 created with user1
-- Verify user2 can list the object multiparts of bucket1
+- upload objects to bucket1.
+- Verify user2(user3 if created and given access) can access the objects of bucket1
 - Verify permission denied for user2 to list objects in bucket2
 
 
@@ -31,7 +37,7 @@ from botocore.exceptions import ClientError
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -73,15 +79,18 @@ def test_exec(config, ssh_con):
 
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
+    write_bucket_io_info = BucketIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
 
     if config.test_ops.get("upload_type") == "multipart":
         srv_time_pre_op = get_svc_time(ssh_con)
+        config.test_ops["sub_user_count"] = 2
+        action_list = ["ListBucketMultiPartUploads"]
 
     # create user
     tenant1 = "tenant_" + random.choice(string.ascii_letters)
     tenant1_user_info = s3lib.create_tenant_users(
-        tenant_name=tenant1, no_of_users_to_create=2
+        tenant_name=tenant1, no_of_users_to_create=config.test_ops["sub_user_count"]
     )
     tenant1_user1_info = tenant1_user_info[0]
     tenant1_user2_info = tenant1_user_info[1]
@@ -91,102 +100,148 @@ def test_exec(config, ssh_con):
 
     rgw_tenant1_user1 = tenant1_user1_auth.do_auth()
     rgw_tenant1_user1_c = tenant1_user1_auth.do_auth_using_client()
-    rgw_tenant1_user2 = tenant1_user2_auth.do_auth()
     rgw_tenant1_user2_c = tenant1_user2_auth.do_auth_using_client()
 
-    bucket_name1 = utils.gen_bucket_name_from_userid(
-        tenant1_user1_info["user_id"], rand_no=1
-    )
-    t1_u1_bucket1 = reusable.create_bucket(
-        bucket_name1,
-        rgw_tenant1_user1,
-        tenant1_user1_info,
-    )
-    bucket_name2 = utils.gen_bucket_name_from_userid(
-        tenant1_user1_info["user_id"], rand_no=2
-    )
-    t1_u1_bucket2 = reusable.create_bucket(
-        bucket_name2,
-        rgw_tenant1_user1,
-        tenant1_user1_info,
-    )
-    bucket_policy_generated = s3_bucket_policy.gen_bucket_policy(
-        tenants_list=[tenant1],
-        userids_list=[tenant1_user2_info["user_id"]],
-        actions_list=["ListBucketMultiPartUploads"],
-        resources=[t1_u1_bucket1.name],
-    )
-    bucket_policy = json.dumps(bucket_policy_generated)
-    log.info("jsoned policy:%s\n" % bucket_policy)
-    bucket_policy_obj = s3lib.resource_op(
-        {
-            "obj": rgw_tenant1_user1,
-            "resource": "BucketPolicy",
-            "args": [t1_u1_bucket1.name],
-        }
-    )
-    put_policy = s3lib.resource_op(
-        {
-            "obj": bucket_policy_obj,
-            "resource": "put",
-            "kwargs": dict(ConfirmRemoveSelfBucketAccess=True, Policy=bucket_policy),
-        }
-    )
-    log.info("put policy response:%s\n" % put_policy)
-    if put_policy is False:
-        raise TestExecError("Resource execution failed: bucket creation faield")
-    if put_policy is not None:
-        response = HttpResponseParser(put_policy)
-        if response.status_code == 200 or response.status_code == 204:
-            log.info("bucket policy created")
-        else:
-            raise TestExecError("bucket policy creation failed")
-    else:
-        raise TestExecError("bucket policy creation failed")
+    if config.test_ops.get("list_bucket_versions", False):
+        tenant1_user3_info = tenant1_user_info[2]
+        tenant1_user3_auth = Auth(tenant1_user3_info, ssh_con, ssl=config.ssl)
+        rgw_tenant1_user3_c = tenant1_user3_auth.do_auth_using_client()
+        action_list = ["ListBucketVersions"]
+        user3_aws_principle = [
+            f"arn:aws:iam::{tenant1}:user/{tenant1_user3_info['user_id']}"
+        ]
 
-    if config.test_ops.get("upload_type") == "multipart":
-        for oc, size in list(config.mapped_sizes.items()):
-            config.obj_size = size
-            for bucket in [t1_u1_bucket1, t1_u1_bucket2]:
-                s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
-                log.info("s3 objects to create: %s" % config.objects_count)
-                reusable.upload_mutipart_object(
-                    s3_object_name,
-                    bucket,
-                    TEST_DATA_PATH,
-                    config,
-                    tenant1_user1_info,
+    if config.test_ops.get("create_bucket", False):
+        log.info(f"no of buckets to create: {config.bucket_count}")
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                tenant1_user1_info["user_id"], rand_no=bc
+            )
+            bucket = reusable.create_bucket(
+                bucket_name, rgw_tenant1_user1, tenant1_user1_info
+            )
+            if config.test_ops.get("enable_version", False):
+                log.info(f"bucket versionig test on bucket: {bucket.name}")
+                reusable.enable_versioning(
+                    bucket, rgw_tenant1_user1, tenant1_user1_info, write_bucket_io_info
                 )
-        srv_time_post_op = get_svc_time(ssh_con)
-        log.info(srv_time_pre_op)
-        log.info(srv_time_post_op)
 
-        if srv_time_post_op > srv_time_pre_op:
-            log.info("Service is running without crash")
-        else:
-            raise TestExecError("Service got crashed")
+            bucket_policy_generated = s3_bucket_policy.gen_bucket_policy(
+                tenants_list=[tenant1],
+                userids_list=[tenant1_user2_info["user_id"]],
+                actions_list=action_list,
+                resources=[bucket_name],
+            )
 
-    # get policy
-    get_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
-    log.info("got bucket policy:%s\n" % get_policy["Policy"])
+            if config.test_ops.get("list_bucket_versions", False):
+                bucket_policy_generated["Statement"][0]["Principal"][
+                    "AWS"
+                ] += user3_aws_principle
 
-    # List multipart uploads with tenant1_user2 user with bucket t1_u1_bucket1
-    multipart_object1 = rgw_tenant1_user2_c.list_multipart_uploads(
-        Bucket=t1_u1_bucket1.name
-    )
-    log.info("Multipart object %s" % multipart_object1)
+            bucket_policy = json.dumps(bucket_policy_generated)
+            log.info(f"bucket_policy_generated :{bucket_policy}")
+            bucket_policy_obj = s3lib.resource_op(
+                {
+                    "obj": rgw_tenant1_user1,
+                    "resource": "BucketPolicy",
+                    "args": [bucket_name],
+                }
+            )
+            put_policy = s3lib.resource_op(
+                {
+                    "obj": bucket_policy_obj,
+                    "resource": "put",
+                    "kwargs": dict(
+                        ConfirmRemoveSelfBucketAccess=True, Policy=bucket_policy
+                    ),
+                }
+            )
+            log.info(f"put policy response: {put_policy}\n")
+            if put_policy is False:
+                raise TestExecError(f"Set bucket policy failed with {put_policy}")
+            if put_policy is not None:
+                response = HttpResponseParser(put_policy)
+                if response.status_code == 200 or response.status_code == 204:
+                    log.info("bucket policy created")
+                else:
+                    raise TestExecError("bucket policy creation failed")
+            else:
+                raise TestExecError("bucket policy creation failed")
 
-    # Verify tenant1_user2 not having permission for listing multipart uploads in t1_u1_bucket2
-    try:
-        multipart_object2 = rgw_tenant1_user2_c.list_multipart_uploads(
-            Bucket=t1_u1_bucket2.name
-        )
-        raise Exception(
-            "%s user should not list multipart uploads in bucket: %s"
-            % (tenant1_user2_info["user_id"], t1_u1_bucket2.name)
-        )
-    except ClientError as err:
-        log.error("Listing failed as expected with exception: %s" % err)
+            if config.test_ops.get("upload_type") == "multipart":
+                bucket2_name = tenant1_user1_info["user_id"] + "bkt-multipart-0"
+                bucket2 = reusable.create_bucket(
+                    bucket2_name, rgw_tenant1_user1, tenant1_user1_info
+                )
+                for oc, size in list(config.mapped_sizes.items()):
+                    config.obj_size = size
+                    for bkt in [bucket, bucket2]:
+                        s3_object_name = utils.gen_s3_object_name(bkt.name, oc)
+                        log.info(f"s3 objects to create: {config.objects_count}")
+                        reusable.upload_mutipart_object(
+                            s3_object_name,
+                            bkt,
+                            TEST_DATA_PATH,
+                            config,
+                            tenant1_user1_info,
+                        )
+                srv_time_post_op = get_svc_time(ssh_con)
+                log.info(srv_time_pre_op)
+                log.info(srv_time_post_op)
+
+                if srv_time_post_op > srv_time_pre_op:
+                    log.info("Service is running without crash")
+                else:
+                    raise TestExecError("Service got crashed")
+
+                # get policy
+                get_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=bucket.name)
+                log.info(f"got bucket policy: {get_policy['Policy']}\n")
+
+                # List multipart uploads with tenant1_user2 user with bucket t1_u1_bucket1
+                multipart_object1 = rgw_tenant1_user2_c.list_multipart_uploads(
+                    Bucket=bucket.name
+                )
+                log.info(f"Multipart object :{multipart_object1}")
+
+                # Verify tenant1_user2 not having permission for listing multipart uploads in t1_u1_bucket2
+                try:
+                    multipart_object2 = rgw_tenant1_user2_c.list_multipart_uploads(
+                        Bucket=bucket2.name
+                    )
+                    raise Exception(
+                        f"{tenant1_user2_info['user_id']} user should not list multipart uploads in bucket: {bucket2.name}"
+                    )
+                except ClientError as err:
+                    log.error(f"Listing failed as expected with exception: {err}")
+
+            if config.test_ops.get("list_bucket_versions", False):
+                log.info(f"s3 versioned objects to create: {config.objects_count}")
+                for oc, size in list(config.mapped_sizes.items()):
+                    config.obj_size = size
+                    s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
+                    log.info(f"s3 object name: {s3_object_name}")
+                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                    log.info(f"s3 object path: {s3_object_path}")
+                    log.info("upload versioned objects")
+                    reusable.upload_version_object(
+                        config,
+                        tenant1_user1_info,
+                        rgw_tenant1_user1,
+                        s3_object_name,
+                        config.obj_size,
+                        bucket,
+                        TEST_DATA_PATH,
+                    )
+                # listing the objects
+                try:
+                    rgw_tenant1_user1_c.list_object_versions(Bucket=bucket.name)
+                    rgw_tenant1_user2_c.list_object_versions(Bucket=bucket.name)
+                    rgw_tenant1_user3_c.list_object_versions(Bucket=bucket.name)
+                except ClientError as err:
+                    raise AssertionError(
+                        f"Failed to perform object version listing: {err}"
+                    )
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
@@ -206,7 +261,7 @@ if __name__ == "__main__":
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
         test_data_dir = "test_data"
         TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
-        log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
+        log.info(f"TEST_DATA_PATH: {TEST_DATA_PATH}")
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
@@ -232,9 +287,8 @@ if __name__ == "__main__":
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
         config.read(ssh_con)
-        if config.test_ops.get("upload_type") == "multipart":
-            if config.mapped_sizes is None:
-                config.mapped_sizes = utils.make_mapped_sizes(config)
+        if config.mapped_sizes is None:
+            config.mapped_sizes = utils.make_mapped_sizes(config)
 
         test_exec(config, ssh_con)
         test_info.success_status("test passed")

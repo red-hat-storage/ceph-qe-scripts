@@ -1,11 +1,12 @@
 # Polarian id: CEPH-11116
 # Script: test_list_all_multipart_uploads.py
 config:
+  bucket_count: 1
   objects_count: 1
   split_size: 100
   objects_size_range:
     min: 200M
     max: 300M
   test_ops:
+    create_bucket: true
     upload_type: multipart
-  local_file_delete: true

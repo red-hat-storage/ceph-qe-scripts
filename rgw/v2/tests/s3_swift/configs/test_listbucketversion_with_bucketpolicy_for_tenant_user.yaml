@@ -1,0 +1,16 @@
+# Polarian id:
+# Script: test_list_all_multipart_uploads.py
+config:
+    bucket_count: 2
+    objects_count: 15
+    version_count: 5
+    objects_size_range:
+      min: 5
+      max: 15
+    test_ops:
+      sub_user_count: 3
+      create_bucket: true
+      create_object: true
+      enable_version: true
+      upload_type: normal
+      list_bucket_versions: true
