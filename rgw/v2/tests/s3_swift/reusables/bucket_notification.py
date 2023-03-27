@@ -129,6 +129,26 @@ def get_topic(client, topic_arn, ceph_version):
             log.info(f"get topic attributes: {get_topic_info_json}")
 
 
+def rgw_topic_ops(op, args):
+    """
+    perform radosgw-admin topic operation with arguments passed
+    args:
+        op: one of get, list, rm
+    """
+    cmd = f"radosgw-admin topic {op}"
+    for arg, val in args.items():
+        cmd = f"{cmd} --{arg} {val}"
+    out = utils.exec_shell_cmd(cmd)
+    log.info(out)
+    if out is False:
+        log.info(f"topic {op} using rgw cli is failed")
+        return False
+    log.info(f"topic {op} using rgw cli is successful")
+    if out:
+        out = json.loads(out)
+    return out
+
+
 def del_topic_from_kafka_broker(topic_name):
     """
     delete topic from kafka broker
