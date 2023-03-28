@@ -1,4 +1,4 @@
-# script: test_bucket_lifecycle_object_expiration.py
+# script: test_lc_multiple_rule_prefix_current_days.yaml
 config:
   objects_count: 100
   objects_size_range:
