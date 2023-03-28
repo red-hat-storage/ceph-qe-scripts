@@ -1,4 +1,4 @@
-# test_bucket_lifecycle_object_expiration.py
+# test_bucket_lifecycle_object_expiration_transition.py
 config:
   objects_count: 100
   objects_size_range:
