@@ -1558,3 +1558,44 @@ def verify_attrs_after_resharding(bucket):
     if not attrs["key"]:
         raise TestExecError("Acls lost after bucket resharding, test failure.")
     return True
+
+
+def group_operation(group_id, group_op, group_status="enabled", bucket_name=None):
+    if bucket_name is not None:
+        bkt = f" --bucket={bucket_name}"
+    else:
+        bkt = ""
+    cmd = (
+        f"radosgw-admin sync group {group_op} --group-id={group_id} --status={group_status}"
+        + bkt
+    )
+    utils.exec_shell_cmd(cmd)
+
+
+def flow_operation(group_id, flow_op, flow_type="symmetrical"):
+    flow_id = group_id + "flow"
+    zone_names, _ = get_multisite_info()
+    cmd = f"radosgw-admin sync group flow {flow_op} --group-id={group_id} --flow-id={flow_id} --flow-type={flow_type} --zones={zone_names}"
+    utils.exec_shell_cmd(cmd)
+    return zone_names
+
+
+def pipe_operation(group_id, pipe_op, zone_names=None, bucket_name=None):
+    pipe_id = group_id + "pipe"
+    if zone_names is not None:
+        zone_name = zone_names.split(",")
+        zn = f" --source-zones={zone_name[0]} --dest-zones={zone_name[1]}"
+    else:
+        zn = " --source-zones='*' --dest-zones='*'"
+    if bucket_name is not None:
+        bkt = f" --bucket={bucket_name}"
+    else:
+        bkt = ""
+    cmd = (
+        f"radosgw-admin sync group pipe {pipe_op} --group-id={group_id} --pipe-id={pipe_id}"
+        + zn
+        + bkt
+    )
+    utils.exec_shell_cmd(cmd)
+    update_commit()
+    return pipe_id

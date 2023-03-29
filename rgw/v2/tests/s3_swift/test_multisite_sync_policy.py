@@ -38,49 +38,7 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
-def group_operation(group_id, group_op, group_status="enabled", bucket_name=None):
-    if bucket_name is not None:
-        bkt = f" --bucket={bucket_name}"
-    else:
-        bkt = ""
-    cmd = (
-        f"radosgw-admin sync group {group_op} --group-id={group_id} --status={group_status}"
-        + bkt
-    )
-    utils.exec_shell_cmd(cmd)
-
-
-def flow_operation(group_id, flow_op, flow_type="symmetrical"):
-    flow_id = group_id + "flow"
-    zone_names, _ = reusable.get_multisite_info()
-    cmd = f"radosgw-admin sync group flow {flow_op} --group-id={group_id} --flow-id={flow_id} --flow-type={flow_type} --zones={zone_names}"
-    utils.exec_shell_cmd(cmd)
-    return zone_names
-
-
-def pipe_operation(group_id, pipe_op, zone_names=None, bucket_name=None):
-    pipe_id = group_id + "pipe"
-    if zone_names is not None:
-        zone_name = zone_names.split(",")
-        zn = f" --source-zones={zone_name[0]} --dest-zones={zone_name[1]}"
-    else:
-        zn = " --source-zones='*' --dest-zones='*'"
-    if bucket_name is not None:
-        bkt = f" --bucket={bucket_name}"
-    else:
-        bkt = ""
-    cmd = (
-        f"radosgw-admin sync group pipe {pipe_op} --group-id={group_id} --pipe-id={pipe_id}"
-        + zn
-        + bkt
-    )
-    utils.exec_shell_cmd(cmd)
-    reusable.update_commit()
-    return pipe_id
-
-
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -96,20 +54,37 @@ def test_exec(config, ssh_con):
                 if config.test_ops["group_create"]:
                     group_status = config.test_ops["group_status"]
                     group_id = "global_group"
-                    group_operation(group_id, "create", group_status)
+                    reusable.group_operation(group_id, "create", group_status)
                     if config.test_ops["flow_create"]:
                         flow_type = config.test_ops["flow_type"]
-                        zone_names = flow_operation(group_id, "create", flow_type)
+                        zone_names = reusable.flow_operation(
+                            group_id, "create", flow_type
+                        )
                     if config.test_ops["pipe_create"]:
-                        pipe_id = pipe_operation(group_id, "create", zone_names)
+                        pipe_id = reusable.pipe_operation(
+                            group_id, "create", zone_names
+                        )
+                    if config.test_ops.get("group_transition", False):
+                        transition_status = config.test_ops["group_transition_status"]
+                        reusable.group_operation(group_id, "modify", transition_status)
+                        log.info("Creating new group after transition of old group")
+                        group_id2 = "new_group"
+                        reusable.group_operation(group_id2, "create", group_status)
+                        pipe2 = reusable.pipe_operation(group_id2, "create", zone_names)
                     if config.test_ops["pipe_remove"]:
-                        pipe_id = pipe_operation(group_id, "remove", zone_names)
+                        pipe_id = reusable.pipe_operation(
+                            group_id, "remove", zone_names
+                        )
                     if config.test_ops["flow_remove"]:
                         flow_type = config.test_ops["flow_type"]
-                        zone_names = flow_operation(group_id, "remove", flow_type)
+                        zone_names = reusable.flow_operation(
+                            group_id, "remove", flow_type
+                        )
                 if config.test_ops["group_remove"]:
                     group_status = config.test_ops["group_status"]
-                    group_operation(group_id, "remove", group_status)
+                    reusable.group_operation(group_id, "remove", group_status)
+                    if config.test_ops["group_transition"]:
+                        reusable.group_operation(group_id2, "remove", group_status)
 
     for each_user in all_users_info:
         # authenticate
@@ -140,13 +115,13 @@ def test_exec(config, ssh_con):
                                 bucket_group_status = config.test_ops[
                                     "bucket_group_status"
                                 ]
-                                group_operation(
+                                reusable.group_operation(
                                     group_id,
                                     "modify",
                                     group_status,
                                 )
                                 group_id1 = "group-" + bucket_name_to_create
-                                group_operation(
+                                reusable.group_operation(
                                     group_id1,
                                     "create",
                                     bucket_group_status,
@@ -154,14 +129,14 @@ def test_exec(config, ssh_con):
                                 )
                                 zone_names = None
                                 if config.test_ops["pipe_create"]:
-                                    pipe_id = pipe_operation(
+                                    pipe_id = reusable.pipe_operation(
                                         group_id1,
                                         "create",
                                         zone_names,
                                         bucket_name=bucket_name_to_create,
                                     )
                                 if config.test_ops["pipe_remove"]:
-                                    pipe_id = pipe_operation(
+                                    pipe_id = reusable.pipe_operation(
                                         group_id1,
                                         "remove",
                                         zone_names,
@@ -169,12 +144,12 @@ def test_exec(config, ssh_con):
                                     )
                                 if config.test_ops["flow_remove"]:
                                     flow_type = config.test_ops["flow_type"]
-                                    zone_names = flow_operation(
+                                    zone_names = reusable.flow_operation(
                                         group_id1, "remove", flow_type
                                     )
                             if config.test_ops["group_remove"]:
                                 group_status = config.test_ops["group_status"]
-                                group_id = group_operation(
+                                group_id = reusable.group_operation(
                                     group_id1, "remove", group_status
                                 )
     # check for any crashes during the execution
@@ -191,7 +166,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("Test multisite sync policy")
     test_info.started_info()
 
