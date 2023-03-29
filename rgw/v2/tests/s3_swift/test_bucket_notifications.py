@@ -131,6 +131,12 @@ def test_exec(config, ssh_con):
                         bucket, rgw_conn, each_user, write_bucket_io_info
                     )
 
+                extra_topic_args = {}
+                if config.user_type == "tenanted":
+                    extra_topic_args = {
+                        "tenant": each_user["tenant"],
+                        "uid": each_user["user_id"],
+                    }
                 event_types = config.test_ops.get("event_type")
                 if type(event_types) == str:
                     event_types = [event_types]
@@ -166,10 +172,20 @@ def test_exec(config, ssh_con):
                         rgw_sns_conn, topic, ceph_version_name
                     )
 
+                    log.info("get kafka topic using rgw cli")
+                    get_rgw_topic = notification.rgw_topic_ops(
+                        op="get", args={"topic": topic_name, **extra_topic_args}
+                    )
+                    if get_rgw_topic is False:
+                        raise TestExecError(
+                            "radosgw-admin topic get failed for kafka topic"
+                        )
+
                 # put bucket notification with topic configured for event
                 if config.test_ops.get("put_get_bucket_notification", False):
                     events = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
                     notification_name = "notification-" + "-".join(event_types)
+                    bkt_notif_topic_name = f"{notification_name}_{topic_name}"
                     notification.put_bucket_notification(
                         rgw_s3_client,
                         bucket_name_to_create,
@@ -186,6 +202,17 @@ def test_exec(config, ssh_con):
                     notification.get_bucket_notification(
                         rgw_s3_client, bucket_name_to_create
                     )
+
+                    # get bucket notification using rgw cli
+                    log.info("get notification topic using rgw cli")
+                    get_notif_topic = notification.rgw_topic_ops(
+                        op="get",
+                        args={"topic": bkt_notif_topic_name, **extra_topic_args},
+                    )
+                    if get_notif_topic is False:
+                        raise TestExecError(
+                            "radosgw-admin topic get failed for bucket notification topic"
+                        )
 
                 # create objects
                 if config.test_ops.get("create_object", False):
@@ -267,13 +294,15 @@ def test_exec(config, ssh_con):
                 # verify all the attributes of the event record. if event not received abort testcase
                 log.info("verify event record attributes")
                 if config.user_type != "non-tenanted":
-                    bucket_name_to_create = (
+                    bucket_name_for_verification = (
                         each_user["tenant"] + "/" + bucket_name_to_create
                     )
+                else:
+                    bucket_name_for_verification = bucket_name_to_create
                 for event in event_types:
                     verify = notification.verify_event_record(
                         event,
-                        bucket_name_to_create,
+                        bucket_name_for_verification,
                         event_record_path,
                         ceph_version_name,
                     )
@@ -287,6 +316,42 @@ def test_exec(config, ssh_con):
                         rgw_s3_client,
                         bucket_name_to_create,
                     )
+                    log.info(
+                        "verify topic list using rgw cli after put empty notification"
+                    )
+                    topics_list = notification.rgw_topic_ops(
+                        op="list",
+                        args={"bucket": bucket_name_to_create, **extra_topic_args},
+                    )
+                    log.info(topics_list["topics"])
+                    if topics_list["topics"]:
+                        raise TestExecError(
+                            "radosgw-admin topic list is not empty even after put empty notifications"
+                        )
+
+                # delete bucket and verify if associated topic is also deleted
+                if config.test_ops.get("delete_bucket_object", False):
+                    reusable.delete_bucket(bucket)
+
+                    # verify deleting a bucket deletes its associated notification topic.
+                    # refer https://bugzilla.redhat.com/show_bug.cgi?id=1936415
+                    log.info("verify get notification topic failure using rgw cli")
+                    get_notif_topic = notification.rgw_topic_ops(
+                        op="get",
+                        args={"topic": bkt_notif_topic_name, **extra_topic_args},
+                    )
+                    if get_notif_topic is not False:
+                        raise TestExecError(
+                            "radosgw-admin topic get is successful even after deleting the bucket"
+                        )
+
+                    # delete rgw topic
+                    log.info("remove kafka topic using rgw cli")
+                    topic_rm = notification.rgw_topic_ops(
+                        op="rm", args={"topic": topic_name, **extra_topic_args}
+                    )
+                    if topic_rm is False:
+                        raise TestExecError("kafka topic rm using rgw cli failed")
 
                 # delete topic logs on kafka broker
                 notification.del_topic_from_kafka_broker(topic_name)
