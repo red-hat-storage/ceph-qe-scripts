@@ -83,7 +83,7 @@ def test_exec(config, ssh_con):
                 if config.test_ops["group_remove"]:
                     group_status = config.test_ops["group_status"]
                     reusable.group_operation(group_id, "remove", group_status)
-                    if config.test_ops["group_transition"]:
+                    if config.test_ops.get("group_transition", False):
                         reusable.group_operation(group_id2, "remove", group_status)
 
     for each_user in all_users_info:

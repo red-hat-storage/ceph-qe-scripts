@@ -1599,3 +1599,20 @@ def pipe_operation(group_id, pipe_op, zone_names=None, bucket_name=None):
     utils.exec_shell_cmd(cmd)
     update_commit()
     return pipe_id
+
+
+def object_put_hold(client, body, bucket, key, LegalHold):
+    # boto3 put object with object legal hold ON or OFF
+    client.put_object(
+        Body=body,
+        Bucket=bucket,
+        Key=key,
+        ObjectLockLegalHoldStatus=LegalHold,
+    )
+
+
+def object_lock_put(client, bucket, lock_configuration):
+    # boto3 put object lock configuration on bucket
+    client.put_object_lock_configuration(
+        Bucket=bucket, ObjectLockConfiguration=lock_configuration
+    )

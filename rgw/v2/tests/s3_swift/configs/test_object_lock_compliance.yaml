@@ -11,3 +11,4 @@ config:
   test_ops:
     create_bucket: true
     create_object: true
+    compliance_mode: true
