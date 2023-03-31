@@ -51,7 +51,6 @@ encryption_key = hashlib.md5(password).hexdigest()
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -77,13 +76,23 @@ def test_exec(config, ssh_con):
                     Bucket=bucket_name_to_create, ObjectLockEnabledForBucket=True
                 )
                 # put object lock configuration for bucket
-                s3_conn_client.put_object_lock_configuration(
-                    Bucket=bucket_name_to_create,
-                    ObjectLockConfiguration={
+                if config.test_ops["compliance_mode"] is True:
+                    ObjectLockConfiguration = {
                         "ObjectLockEnabled": "Enabled",
                         "Rule": {"DefaultRetention": {"Mode": "COMPLIANCE", "Days": 1}},
-                    },
-                )
+                    }
+                    reusable.object_lock_put(
+                        s3_conn_client, bucket_name_to_create, ObjectLockConfiguration
+                    )
+                else:
+                    ObjectLockConfiguration = {
+                        "ObjectLockEnabled": "Enabled",
+                        "Rule": {"DefaultRetention": {"Mode": "GOVERNANCE", "Days": 1}},
+                    }
+                    reusable.object_lock_put(
+                        s3_conn_client, bucket_name_to_create, ObjectLockConfiguration
+                    )
+
                 if config.test_ops["create_object"] is True:
                     # uploading data
                     log.info(f"s3 objects to create: {config.objects_count}")
@@ -94,12 +103,15 @@ def test_exec(config, ssh_con):
                         log.info(f"s3 object name: {s3_object_name}")
                         s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                         log.info(f"s3 object path: {s3_object_path}")
-                        log.info("upload type: normal")
+                        log.info("upload type: normal with Legal Hold ON")
                         io_generator(TEST_DATA_PATH + "/" + s3_object_name, size)
-                        s3_conn_client.put_object(
-                            Body=TEST_DATA_PATH + "/" + s3_object_name,
-                            Bucket=bucket_name_to_create,
-                            Key=s3_object_name,
+                        obj_body = TEST_DATA_PATH + "/" + s3_object_name
+                        reusable.object_put_hold(
+                            s3_conn_client,
+                            obj_body,
+                            bucket_name_to_create,
+                            s3_object_name,
+                            "ON",
                         )
                     log.info("Verify version count")
                     # Verify version count
@@ -133,6 +145,16 @@ def test_exec(config, ssh_con):
                                 actual_code == expected_code
                             ), "Expected: {expected_code}, Actual: {actual_code}"
 
+                    if config.test_ops["compliance_mode"] is False:
+                        log.info("Remove legal hold in Governance mode")
+                        for version_dict in versions["Versions"]:
+                            s3_conn_client.put_object_legal_hold(
+                                Bucket=bucket_name_to_create,
+                                Key=s3_object_name,
+                                VersionId=version_dict["VersionId"],
+                                LegalHold={"Status": "OFF"},
+                            )
+
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
     if crash_info:
@@ -140,7 +162,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("create m buckets with n objects")
     test_info.started_info()
 
