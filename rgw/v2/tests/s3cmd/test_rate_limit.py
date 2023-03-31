@@ -59,7 +59,9 @@ def test_exec(config, ssh_con):
         user_info = resource_op.create_tenant_users(
             no_of_users_to_create=config.user_count, tenant_name="tenant1"
         )[0]
-        user_name = "tenant1" + "$" + user_info["user_id"]
+        name = user_info["user_id"]
+        user_name = "'tenant1$" + f"{name}'"
+        log.info(f"tenanted user name {user_name}")
         uid = user_info["user_id"]
         caps_add = utils.exec_shell_cmd(
             f"radosgw-admin caps add --uid {uid} --tenant tenant1 "
@@ -90,6 +92,7 @@ def test_exec(config, ssh_con):
 
     # create bucket and set limits
     bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
+    bucket_name = bucket_name.replace("'", "")
 
     if config.version_enable:
         ssl = config.ssl
@@ -170,6 +173,7 @@ def test_exec(config, ssh_con):
     log.info(f"Rate limits enabled on bucket : {limget} ")
 
     bucket_name2 = utils.gen_bucket_name_from_userid(user_name, rand_no=1)
+    bucket_name2 = bucket_name2.replace("'", "")
     if config.version_enable:
         s3cmd_reusable.create_versioned_bucket(
             user_info, bucket_name2, ip_and_port, ssl
