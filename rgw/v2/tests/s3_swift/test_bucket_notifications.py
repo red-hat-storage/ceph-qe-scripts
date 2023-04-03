@@ -1,5 +1,5 @@
 """
-test_bucket_notification - Test bucket notifcations 
+test_bucket_notification - Test bucket notifcations
 Usage: test_bucket_notification.py -c <input_yaml>
 <input_yaml>
     Note: any one of these yamls can be used
@@ -9,7 +9,7 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_bucket_notification_kafka_none_persistent_delete.yaml
     test_bucket_notification_kafka_none_persistent_copy.yaml
     test_bucket_notification_kafka_none_persistent_multipart.yaml
-    test_bucket_notification_kafka_broker_delete.yaml		
+    test_bucket_notification_kafka_broker_delete.yaml
     test_bucket_notification_kafka_broker_copy.yaml
     test_bucket_notification_kafka_broker_multipart.yaml
     test_bucket_notification_kafka_none_delete.yaml
@@ -214,6 +214,10 @@ def test_exec(config, ssh_con):
                             "radosgw-admin topic get failed for bucket notification topic"
                         )
 
+                # stop kafka server
+                if config.test_ops.get("verify_persistence_with_kafka_stop", False):
+                    notification.start_stop_kafka_server("stop")
+
                 # create objects
                 if config.test_ops.get("create_object", False):
                     # uploading data
@@ -282,6 +286,10 @@ def test_exec(config, ssh_con):
                             )
                     else:
                         reusable.delete_objects(bucket)
+
+                # start kafka server
+                if config.test_ops.get("verify_persistence_with_kafka_stop", False):
+                    notification.start_stop_kafka_server("start")
 
                 # start kafka broker and consumer
                 event_record_path = "/tmp/event_record"

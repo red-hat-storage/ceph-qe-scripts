@@ -13,6 +13,7 @@ from v2.lib.exceptions import EventRecordDataError, TestExecError
 log = logging.getLogger()
 
 
+KAFKA_HOME = "/usr/local/kafka"
 Filter = {
     "Key": {
         "FilterRules": [
@@ -32,6 +33,27 @@ def get_affixed_obj_name(config, obj_name):
     return obj_name
 
 
+def start_stop_kafka_server(option):
+    """
+    stop/start kafka and zookeeper servers based on option provided
+    """
+    log.info(f"Performing kafka and zookeeper servers {option}")
+    zookeeper_cmd = f"sudo {KAFKA_HOME}/bin/zookeeper-server-{option}.sh"
+    kafka_cmd = f"sudo {KAFKA_HOME}/bin/kafka-server-{option}.sh"
+    commands = [kafka_cmd, zookeeper_cmd]
+    if option == "start":
+        zookeeper_cmd = (
+            f"{zookeeper_cmd} -daemon {KAFKA_HOME}/config/zookeeper.properties"
+        )
+        kafka_cmd = f"{kafka_cmd} -daemon {KAFKA_HOME}/config/server.properties"
+        commands = [zookeeper_cmd, kafka_cmd]
+    for cmd in commands:
+        utils.exec_shell_cmd(cmd)
+        log.info("sleeping for 30 seconds")
+        time.sleep(30)
+    log.info(f"kafka and zookeeper servers {option} successful")
+
+
 def start_kafka_broker_consumer(topic_name, event_record_path):
     """
     start kafka consumer
@@ -46,8 +68,6 @@ def start_kafka_broker_consumer(topic_name, event_record_path):
         cmd = f"rm -f {event_record_path}"
         t = utils.exec_shell_cmd(cmd)
         print("path exists :", t)
-
-    KAFKA_HOME = "/usr/local/kafka"
 
     # start kafka consumer
     cmd = f"sudo {KAFKA_HOME}/bin/kafka-console-consumer.sh --bootstrap-server kafka://localhost:9092 --from-beginning --topic {topic_name} --timeout-ms 30000 >> {event_record_path}"

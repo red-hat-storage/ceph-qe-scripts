@@ -1,0 +1,22 @@
+config:
+ user_count: 1
+ bucket_count: 2
+ objects_count: 25
+ local_file_delete: true
+ objects_size_range:
+  min: 6M
+  max: 8M
+ test_ops:
+  create_bucket: true
+  create_object: true
+  enable_version: false
+  create_topic: true
+  get_topic_info: true
+  endpoint: kafka
+  persistent_flag: true
+  ack_type: broker
+  put_get_bucket_notification: true
+  event_type: Multipart
+  upload_type: multipart
+  delete_bucket_object: false
+  verify_persistence_with_kafka_stop: true
