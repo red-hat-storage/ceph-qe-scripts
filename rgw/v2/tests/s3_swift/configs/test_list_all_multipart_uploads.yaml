@@ -1,5 +1,5 @@
 # Polarian id: CEPH-11116
-# Script: test_list_all_multipart_uploads.py
+# Script: test_bucket_policy_with_tenant_user.py
 config:
   bucket_count: 1
   objects_count: 1
@@ -10,3 +10,4 @@ config:
   test_ops:
     create_bucket: true
     upload_type: multipart
+    list_bucket_multipart_uploads: true

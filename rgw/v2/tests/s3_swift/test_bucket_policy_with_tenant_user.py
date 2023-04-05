@@ -7,6 +7,7 @@ usage : test_list_all_multipart_uploads.py -c <input_yaml>
     Note: any one of these yamls can be used
     configs/test_list_all_multipart_uploads.yaml
     configs/test_listbucketversion_with_bucketpolicy_for_tenant_user.yaml
+    configs/test_bucketlocation_using_bucketpolicy_with_tenantuser.yaml
 
 Operation:
 - Create users in the same tenant, user1 and user2 (if required user3)
@@ -14,8 +15,10 @@ Operation:
 - Using user1 credentials, set bucket policy for user2(if required user3) to access objects of
   bucket1 created with user1
 - upload objects to bucket1.
-- Verify user2(user3 if created and given access) can access the objects of bucket1
-- Verify permission denied for user2 to list objects in bucket2
+- Verify
+    - user2(user3 if created and given access) can access the objects of bucket1
+    - Verify permission denied for user2 to list objects in bucket2
+    - Verify get bucket location from all users of same tenant
 
 
 """
@@ -34,6 +37,7 @@ import v2.lib.resource_op as s3lib
 import v2.lib.s3.bucket_policy as s3_bucket_policy
 import v2.utils.utils as utils
 from botocore.exceptions import ClientError
+from botocore.handlers import validate_bucket_name
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
@@ -82,7 +86,9 @@ def test_exec(config, ssh_con):
     write_bucket_io_info = BucketIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
 
-    if config.test_ops.get("upload_type") == "multipart":
+    additional_aws_principle = []
+    location = None
+    if config.test_ops.get("list_bucket_multipart_uploads", False):
         srv_time_pre_op = get_svc_time(ssh_con)
         config.test_ops["sub_user_count"] = 2
         action_list = ["ListBucketMultiPartUploads"]
@@ -92,6 +98,19 @@ def test_exec(config, ssh_con):
     tenant1_user_info = s3lib.create_tenant_users(
         tenant_name=tenant1, no_of_users_to_create=config.test_ops["sub_user_count"]
     )
+
+    if not config.test_ops.get("list_bucket_multipart_uploads", False):
+        tenant1_user3_info = tenant1_user_info[2]
+        tenant1_user3_auth = Auth(tenant1_user3_info, ssh_con, ssl=config.ssl)
+        rgw_tenant1_user3_c = tenant1_user3_auth.do_auth_using_client()
+        if config.test_ops.get("list_bucket_versions", False):
+            action_list = ["ListBucketVersions"]
+        elif config.test_ops.get("get_bucket_location", False):
+            action_list = ["GetBucketLocation"]
+        additional_aws_principle = [
+            f"arn:aws:iam::{tenant1}:user/{tenant1_user3_info['user_id']}"
+        ]
+
     tenant1_user1_info = tenant1_user_info[0]
     tenant1_user2_info = tenant1_user_info[1]
 
@@ -102,15 +121,6 @@ def test_exec(config, ssh_con):
     rgw_tenant1_user1_c = tenant1_user1_auth.do_auth_using_client()
     rgw_tenant1_user2_c = tenant1_user2_auth.do_auth_using_client()
 
-    if config.test_ops.get("list_bucket_versions", False):
-        tenant1_user3_info = tenant1_user_info[2]
-        tenant1_user3_auth = Auth(tenant1_user3_info, ssh_con, ssl=config.ssl)
-        rgw_tenant1_user3_c = tenant1_user3_auth.do_auth_using_client()
-        action_list = ["ListBucketVersions"]
-        user3_aws_principle = [
-            f"arn:aws:iam::{tenant1}:user/{tenant1_user3_info['user_id']}"
-        ]
-
     if config.test_ops.get("create_bucket", False):
         log.info(f"no of buckets to create: {config.bucket_count}")
         for bc in range(config.bucket_count):
@@ -118,7 +128,7 @@ def test_exec(config, ssh_con):
                 tenant1_user1_info["user_id"], rand_no=bc
             )
             bucket = reusable.create_bucket(
-                bucket_name, rgw_tenant1_user1, tenant1_user1_info
+                bucket_name, rgw_tenant1_user1, tenant1_user1_info, location=location
             )
             if config.test_ops.get("enable_version", False):
                 log.info(f"bucket versionig test on bucket: {bucket.name}")
@@ -133,10 +143,9 @@ def test_exec(config, ssh_con):
                 resources=[bucket_name],
             )
 
-            if config.test_ops.get("list_bucket_versions", False):
-                bucket_policy_generated["Statement"][0]["Principal"][
-                    "AWS"
-                ] += user3_aws_principle
+            bucket_policy_generated["Statement"][0]["Principal"][
+                "AWS"
+            ] += additional_aws_principle
 
             bucket_policy = json.dumps(bucket_policy_generated)
             log.info(f"bucket_policy_generated :{bucket_policy}")
@@ -168,7 +177,7 @@ def test_exec(config, ssh_con):
             else:
                 raise TestExecError("bucket policy creation failed")
 
-            if config.test_ops.get("upload_type") == "multipart":
+            if config.test_ops.get("list_bucket_multipart_uploads", False):
                 bucket2_name = tenant1_user1_info["user_id"] + "bkt-multipart-0"
                 bucket2 = reusable.create_bucket(
                     bucket2_name, rgw_tenant1_user1, tenant1_user1_info
@@ -242,6 +251,20 @@ def test_exec(config, ssh_con):
                     raise AssertionError(
                         f"Failed to perform object version listing: {err}"
                     )
+
+            if config.test_ops.get("get_bucket_location", False):
+                log.info("Perform get bucket location: from users of same tenant")
+                try:
+                    rgw_tenant1_user1_c.get_bucket_location(Bucket=bucket.name)
+                    rgw_tenant1_user2_c.get_bucket_location(Bucket=bucket.name)
+                    rgw_tenant1_user3_c.get_bucket_location(Bucket=bucket.name)
+                except ClientError as err:
+                    raise AssertionError(
+                        f"Failed to perform get_bucket_location: {err}"
+                    )
+
+    for i in tenant1_user_info:
+        reusable.remove_user(i, tenant=i["tenant"])
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()

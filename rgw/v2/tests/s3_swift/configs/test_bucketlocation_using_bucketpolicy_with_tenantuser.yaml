@@ -1,0 +1,12 @@
+# Polarian id: CEPH-11623
+# Script: test_bucket_policy_with_tenant_user.py
+config:
+    bucket_count: 2
+    objects_count: 1
+    objects_size_range:
+      min: 5
+      max: 15
+    test_ops:
+      create_bucket: true
+      sub_user_count: 3
+      get_bucket_location: true

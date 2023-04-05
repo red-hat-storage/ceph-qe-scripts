@@ -1,5 +1,5 @@
-# Polarian id:
-# Script: test_list_all_multipart_uploads.py
+# Polarian id: CEPH-11574
+# Script: test_bucket_policy_with_tenant_user.py
 config:
     bucket_count: 2
     objects_count: 15
