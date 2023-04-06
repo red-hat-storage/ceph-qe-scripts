@@ -33,20 +33,25 @@ rgw_service = RGWService()
 log = logging.getLogger()
 
 
-def create_bucket(bucket_name, rgw, user_info):
+def create_bucket(bucket_name, rgw, user_info, location=None):
     log.info("creating bucket with name: %s" % bucket_name)
     # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
     bucket = s3lib.resource_op(
         {"obj": rgw, "resource": "Bucket", "args": [bucket_name]}
     )
+    kw_args = None
+    if location is not None:
+        kw_args = dict(CreateBucketConfiguration={"LocationConstraint": location})
     created = s3lib.resource_op(
         {
             "obj": bucket,
             "resource": "create",
             "args": None,
+            "kwargs": kw_args,
             "extra_info": {"access_key": user_info["access_key"]},
         }
     )
+    log.info(f"bucket creation data: {created}")
     if created is False:
         raise TestExecError("Resource execution failed: bucket creation failed")
     if created is not None:
