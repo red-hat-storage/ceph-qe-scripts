@@ -53,9 +53,10 @@ def resource_op(exec_info):
                 else:
                     result = getattr(obj, resource)()
             if "kwargs" in exec_info:
-                log.info("in kwargs")
-                log.info("kwargs value: %s" % exec_info["kwargs"])
-                result = getattr(obj, resource)(**dict(exec_info["kwargs"]))
+                if exec_info["kwargs"] is not None:
+                    log.info("in kwargs")
+                    log.info("kwargs value: %s" % exec_info["kwargs"])
+                    result = getattr(obj, resource)(**dict(exec_info["kwargs"]))
         else:
             log.info(" type is: %s" % type(getattr(obj, resource)))
             result = getattr(obj, resource)
