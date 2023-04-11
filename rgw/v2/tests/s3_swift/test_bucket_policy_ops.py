@@ -4,6 +4,7 @@
 usage : test_bucket_policy_ops.py -c configs/<input-yaml>
 where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml and test_bucket_policy_replace.yaml
   test_bucket_policy_multiple_conflicting_statements.yaml, test_bucket_policy_multiple_statements.yaml
+  test_bucket_policy_condition.yaml, test_bucket_policy_condition_explicit_deny.yaml
 
 Operation:
 - create bucket in tenant1 for user1
