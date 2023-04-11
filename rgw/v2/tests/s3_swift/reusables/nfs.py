@@ -9,8 +9,11 @@ log = logging.getLogger()
 
 
 def create_nfs_cluster(cluster_id, placement=None):
-    log.info("Creating a NFS cluster")
-    cmd = f"ceph nfs cluster create {cluster_id} {placement}"
+    log.info(f"Creating a NFS cluster {cluster_id}")
+    if placement:
+        cmd = f"ceph nfs cluster create {cluster_id} {placement}"
+    else:
+        cmd = f"ceph nfs cluster create {cluster_id}"
     out = utils.exec_shell_cmd(cmd)
     if out == False:
         raise TestExecError("Cluster creation failed")
@@ -40,3 +43,20 @@ def remove_nfs_cluster(cluster_id):
     out = utils.exec_shell_cmd(cmd)
     if out == False:
         raise TestExecError("Export creation failed")
+
+
+def remove_nfs_export(cluster_id, pseudo_path=None):
+    log.info("Removing Nfs RGW exports")
+    if pseudo_path:
+        cmd = f"ceph nfs export rm {cluster_id} {pseudo_path}"
+        out = utils.exec_shell_cmd(cmd)
+        if out == False:
+            raise TestExecError("Export remove failed")
+
+    cmd = f"ceph nfs export ls {cluster_id}"
+    out = utils.exec_shell_cmd(cmd)
+    for export in out.splitlines()[1:-1]:
+        cmd = f"ceph nfs export rm {cluster_id} {export}"
+        op = utils.exec_shell_cmd(cmd)
+        if op == False:
+            raise TestExecError("Export remove failed")

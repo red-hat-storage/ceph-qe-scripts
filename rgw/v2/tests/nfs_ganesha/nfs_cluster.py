@@ -9,6 +9,8 @@ Usage: nfs_cluster.py -c <input_yaml>
 
 Polarion Tests:
 CEPH-83574597
+CEPH-83574601
+CEPH-83574600
 
 Operation:
     Create a NFS cluster
@@ -57,12 +59,18 @@ def test_exec(config, ssh_con):
     user_info = s3lib.create_users(config.user_count)
 
     # Create a NFS cluster without ingress
-    rgw_host, _ = utils.get_hostname_ip()
+    rgw_host, _ = utils.get_hostname_ip(ssh_con)
     cluster_id = "rgw-nfs"
     cluster_info = nfs.create_nfs_cluster(cluster_id, rgw_host)
     sleep(5)
     # check cluster details
     cluster_info = utils.exec_shell_cmd(f"ceph nfs cluster info {cluster_id}")
+
+    # If multi cluster scenario is defined
+    if config.test_ops.get("multi_cluster", False):
+        cluster_id2 = "rgw-nfs2"
+        nfs.create_nfs_cluster(cluster_id2)
+        utils.exec_shell_cmd(f"ceph nfs cluster info {cluster_id2}")
 
     # create user export for each user and bucket export for each bucket under
     if config.test_ops["create_user_export"]:
@@ -85,12 +93,15 @@ def test_exec(config, ssh_con):
                         cluster_id, pseudo_buck, export_type, uid, bucket_name
                     )
 
+    if config.test_ops.get("remove_export", False):
+        nfs.remove_nfs_export(cluster_id)
+
     if config.test_ops["delete_cluster"]:
-        cluster_info = nfs.remove_nfs_cluster(cluster_id)
+        for cluster in cluster_id, cluster_id2:
+            nfs.remove_nfs_cluster(cluster)
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test bucket and user rate limits")
 
     try:
