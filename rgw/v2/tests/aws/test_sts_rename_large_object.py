@@ -6,9 +6,9 @@ Usage: test_sts_rename_large_object.py -c <input_yaml>
     configs/test_sts_rename_large_object.yaml
 
 Operation:
-    s1: Create 2 Users[t1user, t2user].
+    s1: Create 2 Users[t1user, t2user], where t1user is the admin user and t2user is the sts user
     s2: Create a bucket for t1user
-    s3: Create a role, that can be assumed by t2user
+    s3: Add role caps to the t1user and create a role, that can be assumed by t2user
     s4: Attach role policy to role created
     s5: Get role and verify the role information
     s6: create a large file, 1 GB or more
@@ -96,7 +96,7 @@ def test_exec(config, ssh_con):
     else:
         log.info("RGW service restarted")
 
-    auth = Auth(user2, ssh_con, ssl=config.ssl)
+    auth = Auth(user1, ssh_con, ssl=config.ssl)
     iam_client = auth.do_auth_iam_client()
 
     policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
@@ -107,12 +107,12 @@ def test_exec(config, ssh_con):
 
     add_caps_cmd = (
         'sudo radosgw-admin caps add --uid="{user_id}" --caps="roles=*"'.format(
-            user_id=user2["user_id"]
+            user_id=user1["user_id"]
         )
     )
     utils.exec_shell_cmd(add_caps_cmd)
 
-    role_name = f"S3RoleOf.{user2['user_id']}"
+    role_name = f"S3RoleOf.{user1['user_id']}"
     log.info(f"creating role: {role_name}")
     create_role_response = iam_client.create_role(
         AssumeRolePolicyDocument=policy_document,
@@ -121,7 +121,7 @@ def test_exec(config, ssh_con):
     )
     log.info(f"create_role_response {create_role_response}")
 
-    policy_name = f"policy.{user2['user_id']}"
+    policy_name = f"policy.{user1['user_id']}"
     log.info(f"putting role policy: {policy_name}")
     try:
         put_policy_response = iam_client.put_role_policy(
