@@ -9,6 +9,7 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     test_swift_versioning.yaml
     test_swift_version_copy_op.yaml
     test_swift_large_upload.yaml
+    test_get_objects_from_tenant_swift_user.yaml
 
 Operation:
     Create swift user
@@ -42,6 +43,7 @@ import names
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as swiftlib
 import v2.utils.utils as utils
+from swiftclient import ClientException
 from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
@@ -127,14 +129,26 @@ def test_exec(config, ssh_con):
     log.info(type(ceph_conf))
     rgw_service = RGWService()
     # preparing data
+    tenants_user_info = []
     user_name = names.get_first_name() + random.choice(string.ascii_letters)
     tenant = "tenant"
     tenant_user_info = umgmt.create_tenant_user(
         tenant_name=tenant, user_id=user_name, displayname=user_name
     )
+    tenants_user_info.append(tenant_user_info)
     user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_name)
     auth = Auth(user_info, ssh_con, config.ssl)
     rgw = auth.do_auth()
+
+    if config.test_ops.get("new_tenant", False):
+        new_tenant = "tenant" + random.choice(string.ascii_letters)
+        new_tenant_info = umgmt.create_tenant_user(
+            tenant_name=new_tenant, user_id=user_name, displayname=user_name
+        )
+        tenants_user_info.append(new_tenant_info)
+        new_user_info = umgmt.create_subuser(tenant_name=new_tenant, user_id=user_name)
+        new_auth = Auth(new_user_info, ssh_con, config.ssl)
+        rgw_client = new_auth.do_auth_using_client()
 
     for cc in range(config.container_count):
         if config.version_enable is True:
@@ -348,6 +362,59 @@ def test_exec(config, ssh_con):
                     else:
                         raise TestExecError("md5 mismatch")
 
+        if config.test_ops.get("create_container", False):
+            container_name = utils.gen_bucket_name_from_userid(
+                user_info["user_id"], rand_no=cc
+            )
+            container = swiftlib.resource_op(
+                {"obj": rgw, "resource": "put_container", "args": [container_name]}
+            )
+            if container is False:
+                raise TestExecError(
+                    "Resource execution failed: container creation failed"
+                )
+            if config.test_ops.get("fill_container", False):
+                for oc, size in list(config.mapped_sizes.items()):
+                    swift_object_name = fill_container(
+                        rgw,
+                        container_name,
+                        user_name,
+                        oc,
+                        cc,
+                        size,
+                    )
+
+                    if config.test_ops.get(
+                        "create_same_swift_tenant_user_under_diff_tenant", False
+                    ):
+                        log.info(
+                            f"Get object {swift_object_name} with owner of container"
+                        )
+                        get_container_obj = swiftlib.resource_op(
+                            {
+                                "obj": rgw,
+                                "resource": "get_object",
+                                "args": [container_name, swift_object_name],
+                            }
+                        )
+                        if get_container_obj is False:
+                            raise TestExecError(
+                                f"Get object failed for container owner: {get_container_obj}"
+                            )
+                        log.info(
+                            f"Get object {swift_object_name} with different tenant of with same user {new_user_info}"
+                        )
+                        # Verify same user in different tenant not having permission for container can get objects
+                        try:
+                            rgw_client.get_object(container_name, swift_object_name)
+                            raise Exception(
+                                f"{new_user_info['user_id']} user should not get objects in bucket: {container_name}"
+                            )
+                        except ClientException as e:
+                            log.error(
+                                f"Get object with different tenant of with same user failed as expected: {e}"
+                            )
+
         else:
             container_name = utils.gen_bucket_name_from_userid(
                 user_info["user_id"], rand_no=cc
@@ -395,11 +462,13 @@ def test_exec(config, ssh_con):
             log.info("deleting swift container")
             rgw.delete_container(container_name)
 
+    for tuser in tenants_user_info:
+        reusable.remove_user(tuser, tenant=tuser["tenant"])
+
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
-    reusable.remove_user(tenant_user_info, tenant=tenant)
 
 
 if __name__ == "__main__":

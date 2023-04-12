@@ -56,3 +56,23 @@ class Auth(object):
             authurl=f"{proto}://{self.hostname}:{self.port}/auth",
         )
         return rgw
+
+    def do_auth_using_client(self):
+        """
+        This function is to perform authentication using client module
+
+        Parameters:
+
+        Returns:
+            rgw: Connection status
+        """
+        log.info("performing authentication using client module")
+        proto = "https" if self.is_secure else "http"
+
+        rgw = swiftclient.client.Connection(
+            user=self.user_id,
+            key=self.secret_key,
+            insecure=True,
+            authurl=f"{proto}://{self.hostname}:{self.port}/auth",
+        )
+        return rgw
