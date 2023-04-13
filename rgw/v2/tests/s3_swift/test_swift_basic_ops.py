@@ -20,6 +20,7 @@ Operation:
     Download uploaded objects from container
     Modify downloaded objects and re-upload it to the container
     Delete objects from container
+    Get object from container
     Delete container
     Copy versioned object
     Multipart upload
