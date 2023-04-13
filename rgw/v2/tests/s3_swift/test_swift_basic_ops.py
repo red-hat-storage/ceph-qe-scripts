@@ -385,6 +385,37 @@ def test_exec(config, ssh_con):
                         size,
                     )
 
+                    if config.test_ops.get(
+                        "create_same_swift_tenant_user_under_diff_tenant", False
+                    ):
+                        log.info(
+                            f"Get object {swift_object_name} with owner of container"
+                        )
+                        get_container_obj = swiftlib.resource_op(
+                            {
+                                "obj": rgw,
+                                "resource": "get_object",
+                                "args": [container_name, swift_object_name],
+                            }
+                        )
+                        if get_container_obj is False:
+                            raise TestExecError(
+                                f"Get object failed for container owner: {get_container_obj}"
+                            )
+                        log.info(
+                            f"Get object {swift_object_name} with different tenant of with same user {new_user_info}"
+                        )
+                        # Verify same user in different tenant not having permission for container can get objects
+                        try:
+                            rgw_client.get_object(container_name, swift_object_name)
+                            raise Exception(
+                                f"{new_user_info['user_id']} user should not get objects in bucket: {container_name}"
+                            )
+                        except ClientException as e:
+                            log.error(
+                                f"Get object with different tenant of with same user failed as expected: {e}"
+                            )
+
             if config.test_ops.get("delete_container_same_user", False):
 
                 if config.test_ops.get("fill_container", False):

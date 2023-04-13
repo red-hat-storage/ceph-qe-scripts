@@ -1,0 +1,12 @@
+# test case id: CEPH-9744
+config:
+    objects_count: 20
+    container_count: 2
+    objects_size_range:
+        min: 5
+        max: 15
+    test_ops:
+        create_container: true
+        fill_container: true
+        new_tenant: true
+        create_same_swift_tenant_user_under_diff_tenant: true
