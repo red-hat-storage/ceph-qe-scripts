@@ -1,0 +1,12 @@
+# Polarian TC : CEPH-83574601
+# Polarion TC : CEPH-83574600
+# script: nfs_cluster.py
+config:
+  user_count: 1
+  bucket_count: 2
+  test_ops:
+    create_user_export: true
+    create_bucket_export: true
+    multi_cluster: true
+    remove_export: true
+    delete_cluster: true
