@@ -10,6 +10,7 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     test_swift_version_copy_op.yaml
     test_swift_large_upload.yaml
     test_get_objects_from_tenant_swift_user.yaml
+    test_delete_container_from_user_of_diff_tenant.yaml
 
 Operation:
     Create swift user
@@ -19,6 +20,7 @@ Operation:
     Download uploaded objects from container
     Modify downloaded objects and re-upload it to the container
     Delete objects from container
+    Get object from container
     Delete container
     Copy versioned object
     Multipart upload
@@ -362,7 +364,7 @@ def test_exec(config, ssh_con):
                     else:
                         raise TestExecError("md5 mismatch")
 
-        if config.test_ops.get("create_container", False):
+        elif config.test_ops.get("create_container", False):
             container_name = utils.gen_bucket_name_from_userid(
                 user_info["user_id"], rand_no=cc
             )
@@ -385,7 +387,8 @@ def test_exec(config, ssh_con):
                     )
 
                     if config.test_ops.get(
-                        "create_same_swift_tenant_user_under_diff_tenant", False
+                        "get_object_with_same_swift_tenant_user_under_diff_tenant",
+                        False,
                     ):
                         log.info(
                             f"Get object {swift_object_name} with owner of container"
@@ -414,6 +417,31 @@ def test_exec(config, ssh_con):
                             log.error(
                                 f"Get object with different tenant of with same user failed as expected: {e}"
                             )
+
+            if config.test_ops.get(
+                "delete_container_with_same_swift_tenant_user_under_diff_tenant", False
+            ):
+                if config.test_ops.get("fill_container", False):
+                    headers, items = rgw.get_container(container_name)
+                    for i in items:
+                        rgw.delete_object(container_name, i["name"])
+
+                log.info(
+                    f"Delete container {container_name} with different tenant having same user name {new_user_info}"
+                )
+                # Verify same user in different tenant not having permission for deleting of container
+                try:
+                    rgw_client.delete_container(container_name)
+                    raise Exception(
+                        f"{new_user_info['user_id']} user should not be able to delete container: {container_name}"
+                    )
+                except ClientException as e:
+                    log.error(
+                        f"Delete container with different tenant tenant having same user name failed as expected: {e}"
+                    )
+
+                log.info(f"Delete container {container_name} with container owner")
+                rgw.delete_container(container_name)
 
         else:
             container_name = utils.gen_bucket_name_from_userid(

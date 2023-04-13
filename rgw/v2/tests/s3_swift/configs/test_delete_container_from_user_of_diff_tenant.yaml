@@ -1,6 +1,6 @@
-# test case id: CEPH-9744
+# test case id: CEPH-9749
 config:
-    objects_count: 20
+    objects_count: 100
     container_count: 2
     objects_size_range:
         min: 5
@@ -9,4 +9,4 @@ config:
         create_container: true
         fill_container: true
         new_tenant: true
-        get_object_with_same_swift_tenant_user_under_diff_tenant: true
+        delete_container_with_same_swift_tenant_user_under_diff_tenant: true
