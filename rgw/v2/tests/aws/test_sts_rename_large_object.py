@@ -154,14 +154,30 @@ def test_exec(config, ssh_con):
 
         source_file = "obj1_1g.txt"
         utils.exec_shell_cmd(f"fallocate -l 1G {source_file}")
-
         aws_cli = "/usr/local/bin/aws s3"
-        utils.exec_shell_cmd(
-            f"{aws_cli} cp {source_file} s3://{bucket_name} --endpoint {endpoint} --profile=sts"
-        )
-        utils.exec_shell_cmd(
-            f"{aws_cli} mv s3://{bucket_name}/{source_file} s3://{bucket_name}/obj2_1g.txt --endpoint {endpoint} --profile=sts"
-        )
+
+        if config.s3_copy_obj:
+            add_admin_flag = (
+                'sudo radosgw-admin user modify --uid="{user_id}" --admin true'.format(
+                    user_id=user1["user_id"]
+                )
+            )
+
+            utils.exec_shell_cmd(add_admin_flag)
+            log.info("Test s3_copy_obj for an rgw user with admin flag true.")
+            utils.exec_shell_cmd(
+                f"{aws_cli} cp {source_file} s3://{bucket_name}/all_buckets/{source_file} --endpoint {endpoint} "
+            )
+            utils.exec_shell_cmd(
+                f"{aws_cli}api copy-object --copy-source {bucket_name}/all_buckets/{source_file} --key all_buckets/{source_file} --bucket {bucket_name}  --endpoint {endpoint} "
+            )
+        else:
+            utils.exec_shell_cmd(
+                f"{aws_cli} cp {source_file} s3://{bucket_name} --endpoint {endpoint} --profile=sts"
+            )
+            utils.exec_shell_cmd(
+                f"{aws_cli} mv s3://{bucket_name}/{source_file} s3://{bucket_name}/obj2_1g.txt --endpoint {endpoint} --profile=sts"
+            )
 
     except ClientError as e:
         raise TestExecError(f"Rename of large object using sts user failed: {e}")
