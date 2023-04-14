@@ -210,6 +210,7 @@ class Config(object):
         self.max_objects = None
         self.user_max_objects = self.doc["config"].get("user_max_objects")
         self.user_max_size = self.doc["config"].get("user_max_size")
+        self.s3_copy_obj = self.doc["config"].get("s3_copy_obj", False)
         self.bucket_max_objects = self.doc["config"].get("bucket_max_objects")
         self.bucket_max_size = self.doc["config"].get("bucket_max_size")
         self.user_count = self.doc["config"].get("user_count")
