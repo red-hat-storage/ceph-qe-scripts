@@ -1,0 +1,47 @@
+# script: test_bucket_policy_ops.py
+# bucket policy condition block with explicit deny
+# polarion id: CEPH-11590
+config:
+  objects_count: 25
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    upload_type: normal
+    verify_policy: True
+    policy_document:
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Sid": "statement1",
+            "Action": "s3:ListBucket",
+            "Principal": {"AWS": "arn:aws:iam::<tenant_name>:user/<user_name>"},
+            "Resource": "arn:aws:s3:::<bucket_name>",
+            "Effect": "Allow",
+            "Condition": {
+              "StringEquals": {
+                "s3:prefix": "key"
+              },
+              "NumericEquals": {
+                "s3:max-keys": 10
+              }
+            }
+          },
+          {
+            "Sid": "statement2",
+            "Action": "s3:ListBucket",
+            "Principal": {"AWS": "arn:aws:iam::<tenant_name>:user/<user_name>"},
+            "Resource": "arn:aws:s3:::<bucket_name>",
+            "Effect": "Deny",
+            "Condition": {
+              "StringNotEquals": {
+                "s3:prefix": "key"
+              },
+              "NumericNotEquals": {
+                "s3:max-keys": 10
+              }
+            }
+          },
+        ],
+      }

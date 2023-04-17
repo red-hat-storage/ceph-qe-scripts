@@ -8,6 +8,9 @@ from v2.utils.utils import HttpResponseParser
 log = logging.getLogger()
 
 
+# s3 actions verification
+
+
 def AbortMultipartUpload(**kw):
     rgw_client = kw.get("rgw_client")
     bucket_name = kw.get("bucket_name")
@@ -142,6 +145,27 @@ def GetObject(**kw):
     return object_get_status
 
 
+def ListBucket(**kw):
+    rgw_client = kw.get("rgw_client")
+    bucket_name = kw.get("bucket_name")
+    prefix = kw.get("prefix")
+    max_keys = kw.get("max-keys")
+    kwargs = {"Bucket": bucket_name}
+    if prefix:
+        kwargs["Prefix"] = prefix
+    if max_keys:
+        kwargs["MaxKeys"] = max_keys
+    objects = s3lib.resource_op(
+        {
+            "obj": rgw_client,
+            "resource": "list_objects",
+            "kwargs": kwargs,
+        }
+    )
+    log.info(objects)
+    return objects
+
+
 def PutBucketPolicy(**kw):
     config = kw.get("config")
     rgw_client = kw.get("rgw_client")
@@ -198,6 +222,29 @@ def PutObject(**kw):
     return object_put_status
 
 
+# fetch condition key value pairs
+def get_condition_keys(condition_dict):
+    condition_keys = {}
+    for condition, s3_condition_keys in condition_dict.items():
+        for s3_condition_key, val in s3_condition_keys.items():
+            c_key = s3_condition_key.split(":")[-1]
+            if condition in [
+                "StringEquals",
+                "NumericEquals",
+                "NumericLessThanEquals",
+                "NumericGreaterThanEquals",
+            ]:
+                condition_keys[c_key] = val
+            elif condition == "StringNotEquals":
+                condition_keys[c_key] = f"modified-{val}"
+            elif condition in ["NumericNotEquals", "NumericLessThan"]:
+                condition_keys[c_key] = val - 1
+            elif condition in ["NumericGreaterThan"]:
+                condition_keys[c_key] = val + 1
+    return condition_keys
+
+
+# bucket policy verification
 def verify_policy(**kw):
     log.info("Verifying all statements in Bucket Policy")
     config = kw.get("config")
@@ -210,6 +257,8 @@ def verify_policy(**kw):
     for statement in statements:
         effect = statement.get("Effect", "Allow")
         actions = statement.get("Action", [])
+        condition_block = statement.get("Condition", {})
+        condition_keys = get_condition_keys(condition_block)
         if type(actions) is str:
             actions = [actions]
         for action in actions:
@@ -222,6 +271,7 @@ def verify_policy(**kw):
                 bucket_name=bucket_name,
                 object_name=object_name,
                 config=config,
+                **condition_keys,
             )
             if out is False:
                 if effect == "Deny":
