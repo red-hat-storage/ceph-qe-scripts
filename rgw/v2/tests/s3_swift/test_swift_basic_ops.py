@@ -9,8 +9,10 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     test_swift_versioning.yaml
     test_swift_version_copy_op.yaml
     test_swift_large_upload.yaml
+    test_swift_large_download.yaml
     test_get_objects_from_tenant_swift_user.yaml
     test_delete_container_from_user_of_diff_tenant.yaml
+    test_upload_large_obj_with_same_obj_name.yaml
 
 Operation:
     Create swift user
@@ -77,8 +79,10 @@ def fill_container(
     multipart=False,
     split_size=0,
     header=None,
+    swift_object_name=None,
 ):
-    swift_object_name = utils.gen_s3_object_name("%s.container.%s" % (user_id, cc), oc)
+    if swift_object_name is None:
+        swift_object_name = utils.gen_s3_object_name(f"{user_id}.container.{cc}", oc)
     log.info("object name: %s" % swift_object_name)
     object_path = os.path.join(TEST_DATA_PATH, swift_object_name)
     log.info("object path: %s" % object_path)
@@ -105,6 +109,15 @@ def fill_container(
                     content_type="text/plain",
                     headers=header,
                 )
+
+        if config.local_file_delete is True:
+            log.info("Remove local multipart object part dir")
+            rmdir = utils.exec_shell_cmd(f"sudo rm -rf {mp_dir}")
+            if rmdir is False:
+                raise TestExecError(
+                    f"Failed removing local multipart object part dir: {rmdir}"
+                )
+
         return swift_object_name
     else:
         if data_info is False:
@@ -377,14 +390,26 @@ def test_exec(config, ssh_con):
                 )
             if config.test_ops.get("fill_container", False):
                 for oc, size in list(config.mapped_sizes.items()):
-                    swift_object_name = fill_container(
-                        rgw,
-                        container_name,
-                        user_name,
-                        oc,
-                        cc,
-                        size,
-                    )
+                    if config.test_ops.get("upload_type") == "multipart":
+                        swift_object_name = fill_container(
+                            rgw,
+                            container_name,
+                            user_name,
+                            oc,
+                            cc,
+                            size,
+                            multipart=True,
+                            split_size=config.split_size,
+                        )
+                    else:
+                        swift_object_name = fill_container(
+                            rgw,
+                            container_name,
+                            user_name,
+                            oc,
+                            cc,
+                            size,
+                        )
 
                     if config.test_ops.get(
                         "get_object_with_same_swift_tenant_user_under_diff_tenant",
@@ -407,7 +432,7 @@ def test_exec(config, ssh_con):
                         log.info(
                             f"Get object {swift_object_name} with different tenant of with same user {new_user_info}"
                         )
-                        # Verify same user in different tenant not having permission for container can get objects
+                        # Verify same user in different tenant not having permission for container can not get objects
                         try:
                             rgw_client.get_object(container_name, swift_object_name)
                             raise Exception(
@@ -417,6 +442,54 @@ def test_exec(config, ssh_con):
                             log.error(
                                 f"Get object with different tenant of with same user failed as expected: {e}"
                             )
+
+                    if config.test_ops.get(
+                        "upload_another_large_object_with_same_name_with_diff_tenants",
+                        False,
+                    ):
+                        log.info(
+                            f"Upload large object {swift_object_name} again with container owner"
+                        )
+                        large_object_name = fill_container(
+                            rgw,
+                            container_name,
+                            user_name,
+                            oc,
+                            cc,
+                            size,
+                            multipart=True,
+                            split_size=config.split_size,
+                            swift_object_name=swift_object_name,
+                        )
+                        if swift_object_name != large_object_name:
+                            raise TestExecError(
+                                f"Try Upload large object:{swift_object_name} twice failed, but uploaded {large_object_name}"
+                            )
+
+                        if config.test_ops.get("new_tenant", False):
+                            log.info(
+                                f"Upload large object:{large_object_name},  with different tenant user"
+                            )
+                            # Verify same user in different tenant not having permission for container can not upload objects
+                            try:
+                                upload_large_object = fill_container(
+                                    rgw_client,
+                                    container_name,
+                                    user_name,
+                                    oc,
+                                    cc,
+                                    size,
+                                    multipart=True,
+                                    split_size=config.split_size,
+                                    swift_object_name=swift_object_name,
+                                )
+                                raise Exception(
+                                    f"{new_user_info['user_id']} user should not upload objects to container:{container_name}"
+                                )
+                            except ClientException as e:
+                                log.error(
+                                    f"Upload large object with different tenant of with same user failed as expected: {e}"
+                                )
 
             if config.test_ops.get(
                 "delete_container_with_same_swift_tenant_user_under_diff_tenant", False

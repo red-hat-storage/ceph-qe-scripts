@@ -1,0 +1,15 @@
+# test case id: CEPH-9814
+config:
+    objects_count: 1
+    container_count: 2
+    split_size: 100
+    objects_size_range:
+        min: 300M
+        max: 500M
+    test_ops:
+        create_container: true
+        upload_type: multipart
+        fill_container: true
+        new_tenant: true
+        upload_another_large_object_with_same_name_with_diff_tenants: true
+    local_file_delete: true
