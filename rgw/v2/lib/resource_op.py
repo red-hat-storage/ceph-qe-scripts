@@ -349,6 +349,13 @@ class Config(object):
         self.suspend_user = self.doc["config"].get("suspend_user", False)
         self.enable_user = self.doc["config"].get("enable_user", False)
         self.delete_user = self.doc["config"].get("delete_user", False)
+
+        self.d3n_feature = self.doc["config"].get("d3n_feature", False)
+        self.datacache_path = self.doc["config"].get(
+            "datacache_path", "/tmp/rgw_datacache/"
+        )
+        self.datacache_size = self.doc["config"].get("datacache_size", 10737418240)
+
         self.persistent_flag = self.test_ops.get("persistent_flag", False)
         self.copy_object = self.test_ops.get("copy_object", False)
         self.get_topic_info = self.test_ops.get("get_topic_info", False)
