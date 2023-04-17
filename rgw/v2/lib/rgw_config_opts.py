@@ -17,6 +17,9 @@ class ConfigOpts(object):
         pass
 
     rgw_override_bucket_index_max_shards = "rgw_override_bucket_index_max_shards"
+    rgw_d3n_l1_local_datacache_enabled = "rgw_d3n_l1_local_datacache_enabled"
+    rgw_d3n_l1_datacache_persistent_path = "rgw_d3n_l1_datacache_persistent_path"
+    rgw_d3n_l1_datacache_size = "rgw_d3n_l1_datacache_size"
     rgw_bucket_default_quota_max_objects = "rgw_bucket_default_quota_max_objects"
     rgw_dynamic_resharding = "rgw_dynamic_resharding"
     rgw_max_objs_per_shard = "rgw_max_objs_per_shard"
