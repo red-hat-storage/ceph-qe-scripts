@@ -2,9 +2,10 @@
 # test s3 bucket policy operations (create/modify/replace existing policy)
 
 usage : test_bucket_policy_ops.py -c configs/<input-yaml>
-where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml and test_bucket_policy_replace.yaml
-  test_bucket_policy_multiple_conflicting_statements.yaml, test_bucket_policy_multiple_statements.yaml
-  test_bucket_policy_condition.yaml, test_bucket_policy_condition_explicit_deny.yaml
+where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml and test_bucket_policy_replace.yaml,
+  test_bucket_policy_multiple_conflicting_statements.yaml, test_bucket_policy_multiple_statements.yaml,
+  test_bucket_policy_condition.yaml, test_bucket_policy_condition_explicit_deny.yaml,
+  test_bucket_policy_invalid_*.yaml
 
 Operation:
 - create bucket in tenant1 for user1
@@ -158,175 +159,188 @@ def test_exec(config, ssh_con):
     )
     log.info("put policy response:%s\n" % put_policy)
     if put_policy is False:
-        raise TestExecError("Resource execution failed: bucket policy put failed")
-    if put_policy is not None:
-        response = HttpResponseParser(put_policy)
-        if response.status_code == 200 or response.status_code == 204:
-            log.info("bucket policy created")
+        if config.test_ops.get("invalid_policy", False):
+            log.info("Invalid bucket policy creation failed as expected")
         else:
-            raise TestExecError("bucket policy creation failed")
+            raise TestExecError(
+                "Resource execution failed: bucket policy creation faield"
+            )
     else:
-        raise TestExecError("bucket policy creation failed")
-
-    if config.test_ops.get("upload_type") == "multipart":
-        # verifies bug 1960262 rgw: Crash on multipart upload to bucket with policy
-        srv_time_pre_op = get_svc_time(ssh_con)
-        for oc, size in list(config.mapped_sizes.items()):
-            config.obj_size = size
-            s3_object_name = utils.gen_s3_object_name(t1_u1_bucket1.name, oc)
-            log.info("s3 objects to create: %s" % config.objects_count)
-            reusable.upload_mutipart_object(
-                s3_object_name,
-                t1_u1_bucket1,
-                TEST_DATA_PATH,
-                config,
-                tenant1_user1_information,
-            )
-        srv_time_post_op = get_svc_time(ssh_con)
-        log.info(srv_time_pre_op)
-        log.info(srv_time_post_op)
-
-        if srv_time_post_op > srv_time_pre_op:
-            log.info("Service is running without crash")
-        else:
-            raise TestExecError("Service got crashed")
-    elif config.test_ops.get("upload_type") == "normal":
-        for oc, size in list(config.mapped_sizes.items()):
-            config.obj_size = size
-            s3_object_name = utils.gen_s3_object_name(t1_u1_bucket1.name, oc)
-            log.info("s3 object name: %s" % s3_object_name)
-            s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
-            log.info("s3 object path: %s" % s3_object_path)
-            log.info("upload type: normal")
-            reusable.upload_object(
-                s3_object_name,
-                t1_u1_bucket1,
-                TEST_DATA_PATH,
-                config,
-                tenant1_user1_info,
-            )
-
-    # get policy
-    get_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
-    log.info("got bucket policy:%s\n" % get_policy["Policy"])
-
-    if config.test_ops.get("verify_policy"):
-        bucket_name_verify_policy = f"{tenant1}:{t1_u1_bucket1.name}"
-        rgw_tenant2_user1_c.meta.events.unregister(
-            "before-parameter-build.s3", validate_bucket_name
-        )
-        bucket_policy_ops.verify_policy(
-            config=config,
-            rgw_client=rgw_tenant2_user1_c,
-            bucket_name=bucket_name_verify_policy,
-            object_name=s3_object_name,
-        )
-
-    # modifying bucket policy to take new policy
-    if config.bucket_policy_op == "modify":
-        # adding new action list: ListBucket to existing action: CreateBucket
-        log.info("modifying buckey policy")
-        actions_list = ["ListBucket", "CreateBucket"]
-        actions = list(map(s3_bucket_policy.gen_action, actions_list))
-        bucket_policy2_generated = s3_bucket_policy.gen_bucket_policy(
-            tenants_list=[tenant1],
-            userids_list=[tenant2_user1_info["user_id"]],
-            actions_list=actions_list,
-            resources=[t1_u1_bucket1.name],
-        )
-        bucket_policy2 = json.dumps(bucket_policy2_generated)
-        put_policy = s3lib.resource_op(
-            {
-                "obj": bucket_policy_obj,
-                "resource": "put",
-                "kwargs": dict(
-                    ConfirmRemoveSelfBucketAccess=True, Policy=bucket_policy2
-                ),
-            }
-        )
-        log.info("put policy response:%s\n" % put_policy)
-        if put_policy is False:
-            raise TestExecError("Resource execution failed: bucket creation faield")
         if put_policy is not None:
             response = HttpResponseParser(put_policy)
             if response.status_code == 200 or response.status_code == 204:
-                log.info("bucket policy created")
+                if config.test_ops.get("invalid_policy", False):
+                    raise TestExecError("Invalid bucket policy creation passed")
+                else:
+                    log.info("bucket policy created")
             else:
                 raise TestExecError("bucket policy creation failed")
         else:
             raise TestExecError("bucket policy creation failed")
-        get_modified_policy = rgw_tenant1_user1_c.get_bucket_policy(
-            Bucket=t1_u1_bucket1.name
-        )
-        modified_policy = json.loads(get_modified_policy["Policy"])
-        log.info("got bucket policy:%s\n" % modified_policy)
-        actions_list_from_modified_policy = modified_policy["Statement"][0]["Action"]
-        cleaned_actions_list_from_modified_policy = list(
-            map(str, actions_list_from_modified_policy)
-        )
-        log.info(
-            "cleaned_actions_list_from_modified_policy: %s"
-            % cleaned_actions_list_from_modified_policy
-        )
-        log.info("actions list to be modified: %s" % actions)
-        cmp_val = utils.cmp(actions, cleaned_actions_list_from_modified_policy)
-        log.info("cmp_val: %s" % cmp_val)
-        if cmp_val != 0:
-            raise TestExecError("modification of bucket policy failed ")
-    if config.bucket_policy_op == "replace":
-        log.info("replacing new bucket policy")
-        new_policy_generated = s3_bucket_policy.gen_bucket_policy(
-            tenants_list=[tenant1],
-            userids_list=[tenant2_user1_info["user_id"]],
-            actions_list=["ListBucket"],
-            resources=[t1_u1_bucket2.name],
-        )
-        new_policy = json.dumps(new_policy_generated)
-        put_policy = s3lib.resource_op(
-            {
-                "obj": bucket_policy_obj,
-                "resource": "put",
-                "kwargs": dict(ConfirmRemoveSelfBucketAccess=True, Policy=new_policy),
-            }
-        )
-        log.info("put policy response:%s\n" % put_policy)
-        if put_policy is False:
-            raise TestExecError("Resource execution failed: bucket creation faield")
-        if put_policy is not None:
-            response = HttpResponseParser(put_policy)
-            if response.status_code == 200 or response.status_code == 204:
-                log.info("new bucket policy created")
+
+        if config.test_ops.get("upload_type") == "multipart":
+            # verifies bug 1960262 rgw: Crash on multipart upload to bucket with policy
+            srv_time_pre_op = get_svc_time(ssh_con)
+            for oc, size in list(config.mapped_sizes.items()):
+                config.obj_size = size
+                s3_object_name = utils.gen_s3_object_name(t1_u1_bucket1.name, oc)
+                log.info("s3 objects to create: %s" % config.objects_count)
+                reusable.upload_mutipart_object(
+                    s3_object_name,
+                    t1_u1_bucket1,
+                    TEST_DATA_PATH,
+                    config,
+                    tenant1_user1_information,
+                )
+            srv_time_post_op = get_svc_time(ssh_con)
+            log.info(srv_time_pre_op)
+            log.info(srv_time_post_op)
+
+            if srv_time_post_op > srv_time_pre_op:
+                log.info("Service is running without crash")
+            else:
+                raise TestExecError("Service got crashed")
+        elif config.test_ops.get("upload_type") == "normal":
+            for oc, size in list(config.mapped_sizes.items()):
+                config.obj_size = size
+                s3_object_name = utils.gen_s3_object_name(t1_u1_bucket1.name, oc)
+                log.info("s3 object name: %s" % s3_object_name)
+                s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                log.info("s3 object path: %s" % s3_object_path)
+                log.info("upload type: normal")
+                reusable.upload_object(
+                    s3_object_name,
+                    t1_u1_bucket1,
+                    TEST_DATA_PATH,
+                    config,
+                    tenant1_user1_info,
+                )
+
+        # get policy
+        get_policy = rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
+        log.info("got bucket policy:%s\n" % get_policy["Policy"])
+
+        if config.test_ops.get("verify_policy"):
+            bucket_name_verify_policy = f"{tenant1}:{t1_u1_bucket1.name}"
+            rgw_tenant2_user1_c.meta.events.unregister(
+                "before-parameter-build.s3", validate_bucket_name
+            )
+            bucket_policy_ops.verify_policy(
+                config=config,
+                rgw_client=rgw_tenant2_user1_c,
+                bucket_name=bucket_name_verify_policy,
+                object_name=s3_object_name,
+            )
+
+        # modifying bucket policy to take new policy
+        if config.bucket_policy_op == "modify":
+            # adding new action list: ListBucket to existing action: CreateBucket
+            log.info("modifying buckey policy")
+            actions_list = ["ListBucket", "CreateBucket"]
+            actions = list(map(s3_bucket_policy.gen_action, actions_list))
+            bucket_policy2_generated = s3_bucket_policy.gen_bucket_policy(
+                tenants_list=[tenant1],
+                userids_list=[tenant2_user1_info["user_id"]],
+                actions_list=actions_list,
+                resources=[t1_u1_bucket1.name],
+            )
+            bucket_policy2 = json.dumps(bucket_policy2_generated)
+            put_policy = s3lib.resource_op(
+                {
+                    "obj": bucket_policy_obj,
+                    "resource": "put",
+                    "kwargs": dict(
+                        ConfirmRemoveSelfBucketAccess=True, Policy=bucket_policy2
+                    ),
+                }
+            )
+            log.info("put policy response:%s\n" % put_policy)
+            if put_policy is False:
+                raise TestExecError("Resource execution failed: bucket creation faield")
+            if put_policy is not None:
+                response = HttpResponseParser(put_policy)
+                if response.status_code == 200 or response.status_code == 204:
+                    log.info("bucket policy created")
+                else:
+                    raise TestExecError("bucket policy creation failed")
             else:
                 raise TestExecError("bucket policy creation failed")
-        else:
-            raise TestExecError("bucket policy creation failed")
-    if config.bucket_policy_op == "delete":
-        log.info("in delete bucket policy")
-        delete_policy = s3lib.resource_op(
-            {"obj": bucket_policy_obj, "resource": "delete", "args": None}
-        )
-        if delete_policy is False:
-            raise TestExecError("Resource execution failed: bucket creation faield")
-        if delete_policy is not None:
-            response = HttpResponseParser(delete_policy)
-            if response.status_code == 200 or response.status_code == 204:
-                log.info("bucket policy deleted")
+            get_modified_policy = rgw_tenant1_user1_c.get_bucket_policy(
+                Bucket=t1_u1_bucket1.name
+            )
+            modified_policy = json.loads(get_modified_policy["Policy"])
+            log.info("got bucket policy:%s\n" % modified_policy)
+            actions_list_from_modified_policy = modified_policy["Statement"][0][
+                "Action"
+            ]
+            cleaned_actions_list_from_modified_policy = list(
+                map(str, actions_list_from_modified_policy)
+            )
+            log.info(
+                "cleaned_actions_list_from_modified_policy: %s"
+                % cleaned_actions_list_from_modified_policy
+            )
+            log.info("actions list to be modified: %s" % actions)
+            cmp_val = utils.cmp(actions, cleaned_actions_list_from_modified_policy)
+            log.info("cmp_val: %s" % cmp_val)
+            if cmp_val != 0:
+                raise TestExecError("modification of bucket policy failed ")
+        if config.bucket_policy_op == "replace":
+            log.info("replacing new bucket policy")
+            new_policy_generated = s3_bucket_policy.gen_bucket_policy(
+                tenants_list=[tenant1],
+                userids_list=[tenant2_user1_info["user_id"]],
+                actions_list=["ListBucket"],
+                resources=[t1_u1_bucket2.name],
+            )
+            new_policy = json.dumps(new_policy_generated)
+            put_policy = s3lib.resource_op(
+                {
+                    "obj": bucket_policy_obj,
+                    "resource": "put",
+                    "kwargs": dict(
+                        ConfirmRemoveSelfBucketAccess=True, Policy=new_policy
+                    ),
+                }
+            )
+            log.info("put policy response:%s\n" % put_policy)
+            if put_policy is False:
+                raise TestExecError("Resource execution failed: bucket creation faield")
+            if put_policy is not None:
+                response = HttpResponseParser(put_policy)
+                if response.status_code == 200 or response.status_code == 204:
+                    log.info("new bucket policy created")
+                else:
+                    raise TestExecError("bucket policy creation failed")
+            else:
+                raise TestExecError("bucket policy creation failed")
+        if config.bucket_policy_op == "delete":
+            log.info("in delete bucket policy")
+            delete_policy = s3lib.resource_op(
+                {"obj": bucket_policy_obj, "resource": "delete", "args": None}
+            )
+            if delete_policy is False:
+                raise TestExecError("Resource execution failed: bucket creation faield")
+            if delete_policy is not None:
+                response = HttpResponseParser(delete_policy)
+                if response.status_code == 200 or response.status_code == 204:
+                    log.info("bucket policy deleted")
+                else:
+                    raise TestExecError("bucket policy deletion failed")
             else:
                 raise TestExecError("bucket policy deletion failed")
-        else:
-            raise TestExecError("bucket policy deletion failed")
-        # confirming once again by calling get_bucket_policy
-        try:
-            rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
-            raise TestExecError("bucket policy did not get deleted")
-        except boto3exception.ClientError as e:
-            log.info(e.response)
-            response = HttpResponseParser(e.response)
-            if response.error["Code"] == "NoSuchBucketPolicy":
-                log.info("bucket policy deleted")
-            else:
+            # confirming once again by calling get_bucket_policy
+            try:
+                rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_bucket1.name)
                 raise TestExecError("bucket policy did not get deleted")
-        # log.info('get_policy after deletion: %s' % get_policy)
+            except boto3exception.ClientError as e:
+                log.info(e.response)
+                response = HttpResponseParser(e.response)
+                if response.error["Code"] == "NoSuchBucketPolicy":
+                    log.info("bucket policy deleted")
+                else:
+                    raise TestExecError("bucket policy did not get deleted")
+            # log.info('get_policy after deletion: %s' % get_policy)
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
