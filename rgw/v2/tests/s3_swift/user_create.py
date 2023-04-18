@@ -9,6 +9,8 @@ import traceback
 
 import v2.lib.resource_op as s3lib
 import yaml
+from swiftclient import ClientException
+from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import RGWBaseException
 from v2.lib.resource_op import Config
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
@@ -26,6 +28,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    umgmt = UserMgmt()
     user_detail_file = os.path.join(lib_dir, "user_details.json")
     try:
         test_info.started_info()
@@ -45,6 +48,39 @@ def test_exec(config, ssh_con):
                 with open(user_detail_file, "w") as fout:
                     json.dump(all_users_info, fout)
                 test_info.success_status("tenanted users creation completed")
+                if config.test_ops.get("swift_user", False):
+                    user_name = all_users_info[0]["user_id"]
+                    user_info = umgmt.create_subuser(
+                        tenant_name=tenant_name, user_id=user_name
+                    )
+                    log.info(f"tenant subuser info: {user_info}")
+                    if config.test_ops.get("modify_swift_user", False):
+                        try:
+                            access = "write"
+                            cmd = f"radosgw-admin subuser modify --subuser={user_name}:swift --tenant={tenant_name} --uid={tenant_name}${user_name} --cluster ceph"
+                            access_modify = f"{cmd} --access={access}"
+                            subuser_info = json.loads(
+                                utils.exec_shell_cmd(access_modify)
+                            )
+                            if subuser_info["subusers"][0]["permissions"] != access:
+                                raise Exception(
+                                    f"Failed to modify subuser {user_name}:swift access to {access}"
+                                )
+                            secret_key = "swiftsecretkey"
+                            key_modify = f"{cmd}  --secret-key {secret_key}"
+                            subuser_info = json.loads(utils.exec_shell_cmd(key_modify))
+                            if (
+                                subuser_info["swift_keys"][0]["secret_key"]
+                                != secret_key
+                            ):
+                                raise Exception(
+                                    f"Failed to modify subuser {user_name}:swift secret_key to {secret_key}"
+                                )
+                        except ClientException as e:
+                            log.error(f"Subuser modification failed: {e}")
+                        test_info.success_status(
+                            f"Tenanted Swift user modification completed for {user_name}:swift"
+                        )
 
         test_info.success_status("test passed")
         sys.exit(0)

@@ -1,0 +1,8 @@
+# script: user_create.py
+# Polarion TC: CEPH-9750
+config:
+    user_count: 2
+    user_type: tenanted
+    test_ops:
+        swift_user: true
+        modify_swift_user: true
