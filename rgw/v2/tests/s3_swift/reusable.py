@@ -1585,7 +1585,9 @@ def flow_operation(group_id, flow_op, flow_type="symmetrical"):
     return zone_names
 
 
-def pipe_operation(group_id, pipe_op, zone_names=None, bucket_name=None):
+def pipe_operation(
+    group_id, pipe_op, zone_names=None, bucket_name=None, policy_detail=None
+):
     pipe_id = group_id + "pipe"
     if zone_names is not None:
         zone_name = zone_names.split(",")
@@ -1596,11 +1598,15 @@ def pipe_operation(group_id, pipe_op, zone_names=None, bucket_name=None):
         bkt = f" --bucket={bucket_name}"
     else:
         bkt = ""
+
     cmd = (
         f"radosgw-admin sync group pipe {pipe_op} --group-id={group_id} --pipe-id={pipe_id}"
         + zn
         + bkt
     )
+    if policy_detail is not None:
+        cmd = cmd + policy_detail
+
     utils.exec_shell_cmd(cmd)
     update_commit()
     return pipe_id
