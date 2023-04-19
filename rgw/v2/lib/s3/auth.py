@@ -36,6 +36,9 @@ class Auth(object):
             self.port = utils.get_radosgw_port_no()
         self.ip = socket.gethostbyname(self.hostname)
         self.ssl = extra_kwargs.get("ssl", False)
+        self.haproxy = extra_kwargs.get("haproxy", False)
+        if self.haproxy:
+            self.port = 5000
         self.endpoint_url = (
             "https://{}:{}".format(self.ip, self.port)
             if self.ssl
