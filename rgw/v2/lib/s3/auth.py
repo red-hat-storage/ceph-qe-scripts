@@ -31,10 +31,14 @@ class Auth(object):
             stdin, stdout, stderr = ssh_con.exec_command("hostname")
             self.hostname = stdout.readline().strip()
             self.port = utils.get_radosgw_port_no(ssh_con)
+            stdin, stdout, stderr = ssh_con.exec_command(
+                "hostname -I | awk '{print $1}'"
+            )
+            self.ip = stdout.readline().strip()
         else:
             self.hostname = socket.gethostname()
             self.port = utils.get_radosgw_port_no()
-        self.ip = socket.gethostbyname(self.hostname)
+            self.ip = socket.gethostbyname(self.hostname)
         self.ssl = extra_kwargs.get("ssl", False)
         self.haproxy = extra_kwargs.get("haproxy", False)
         if self.haproxy:

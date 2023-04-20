@@ -1,0 +1,21 @@
+config:
+ user_count: 1
+ bucket_count: 1
+ objects_count: 25
+ objects_size_range:
+  min: 5
+  max: 15
+ test_ops:
+  create_bucket: true
+  create_object: true
+  enable_version: false
+  create_topic: true
+  get_topic_info: true
+  endpoint: kafka
+  ack_type: broker
+  put_get_bucket_notification: true
+  event_type:
+    - MultisiteReplication
+  upload_type: normal
+  delete_bucket_object: false
+  sync_source_zone_master: False
