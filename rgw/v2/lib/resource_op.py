@@ -339,6 +339,7 @@ class Config(object):
         self.ssl = self.doc["config"].get(
             "ssl",
         )
+        self.haproxy = self.doc["config"].get("haproxy", False)
         self.frontend = self.doc["config"].get("frontend")
         self.io_op_config = self.doc.get("config").get("io_op_config")
         self.radoslist_all = self.test_ops.get("radoslist_all", False)
