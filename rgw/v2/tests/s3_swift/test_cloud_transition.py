@@ -157,13 +157,20 @@ def test_exec(config, ssh_con):
             if local_etag != cloud_etag:
                 raise AssertionError(f"mismatch found in the eTAG from aws and radosgw")
 
+    # verify tier-type cannot be changed from cloud-s3 CEPH-83575280
+    log.info("Try to modify the tier-type of the Cloud Storage Class")
+    cmd = "radosgw-admin zonegroup placement modify --storage-class CLOUDTIER --tier-type new1 --placement-id default-placement"
+    op = utils.exec_shell_cmd(cmd)
+    op = json.loads(op)
+    if op[0]["val"]["tier_targets"][0]["val"]["tier_type"] != "cloud-s3":
+        raise TestExecError("Tier target has been modified")
+
     # check sync status if a multisite cluster
     reusable.check_sync_status()
 
 
 if __name__ == "__main__":
-
-    test_info = AddTestInfo("bucket life cycle: test object expiration")
+    test_info = AddTestInfo("Test for cloud transition workflow")
     test_info.started_info()
 
     try:
