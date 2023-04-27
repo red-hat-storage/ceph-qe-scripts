@@ -1622,6 +1622,17 @@ def object_put_hold(client, body, bucket, key, LegalHold):
     )
 
 
+def object_lock_retention(client, bucket, key, body, lock_mode, retain_until):
+    # boto3 put object with retention policy set at object level
+    client.put_object(
+        Body=body,
+        Bucket=bucket,
+        Key=key,
+        ObjectLockMode=lock_mode,
+        ObjectLockRetainUntilDate=retain_until,
+    )
+
+
 def object_lock_put(client, bucket, lock_configuration):
     # boto3 put object lock configuration on bucket
     client.put_object_lock_configuration(
