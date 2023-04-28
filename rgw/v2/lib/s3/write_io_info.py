@@ -466,7 +466,7 @@ def logioinfo(func):
 
         if "s3.Object" == type(obj).__name__:
             log.info("in s3.Object logging")
-            resource_names = ["upload_file", "initiate_multipart_upload"]
+            resource_names = ["upload_file", "initiate_multipart_upload", "put"]
             if resource_name in resource_names:
                 log.info(
                     "writing log for upload_type: %s"
