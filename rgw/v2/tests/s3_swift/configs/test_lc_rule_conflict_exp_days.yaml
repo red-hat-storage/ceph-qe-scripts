@@ -1,0 +1,25 @@
+#test_bucket_lifecycle_object_expiration_transition.py
+#polarion-id: CEPH-11184
+config:
+  objects_count: 25
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    enable_versioning: false
+    create_object: true
+    version_count: 1
+    conflict_exp_days: true
+  lifecycle_conf:
+    - ID: rule1
+      Filter:
+          Prefix: key1
+      Status: Enabled
+      Expiration:
+        Days: 20
+    - ID: rule2
+      Filter:
+          Prefix: key1
+      Status: Enabled
+      Expiration:
+        Days: 40

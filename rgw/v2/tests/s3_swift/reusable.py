@@ -579,6 +579,19 @@ def put_get_bucket_lifecycle_test(
                     raise TestExecError("Objects expired before the expected days")
             time.sleep(time_diff + 60)
 
+            if config.test_ops.get("conflict_exp_days"):
+                bucket_stats_op = utils.exec_shell_cmd(
+                    "radosgw-admin bucket stats --bucket=%s" % bucket.name
+                )
+                json_doc1 = json.loads(bucket_stats_op)
+                obj_post_lc = json_doc1["usage"]["rgw.main"]["num_objects"]
+                if obj_post_lc == objs_total:
+                    raise TestExecError(
+                        "S3 Lifecycle should choose the path that is least expensive. "
+                        + "But lc expiration is takin more time than least expiration days "
+                        + "when conflict between expiration days exist"
+                    )
+
     log.info("testing if lc is applied via the radosgw-admin cli")
     op = utils.exec_shell_cmd("radosgw-admin lc list")
     json_doc = json.loads(op)

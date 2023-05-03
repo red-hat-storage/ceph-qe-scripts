@@ -64,6 +64,12 @@ def validate_prefix_rule(bucket, config):
             )
         else:
             raise AssertionError("lc validation for object transition failed")
+        if config.test_ops.get("conflict_transition_actions"):
+            log.info(
+                "Transition to latest storage class in lc config taken place"
+                + " when there is a conflict between transition rules having same days and same prefix"
+                + " but different storage class"
+            )
     else:
         log.info("Start the validation of LC expiration.")
 
@@ -127,7 +133,9 @@ def validate_and_rule(bucket, config):
     op2 = utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket.name}")
     json_doc2 = json.loads(op2)
     objects = json_doc["usage"]["rgw.main"]["num_objects"]
-    if config.test_lc_transition:
+    if config.test_lc_transition and not config.test_ops.get(
+        "conflict_btw_exp_transition"
+    ):
         for i in range(0, config.objects_count):
             storage_class = json_doc2[i]["meta"]["storage_class"]
             if storage_class != config.storage_class:
@@ -135,5 +143,11 @@ def validate_and_rule(bucket, config):
         log.info("Lifecycle transition with And rule validated successfully")
     else:
         if objects != 0:
+            if config.test_ops.get("conflict_btw_expiration_transition"):
+                raise AssertionError(
+                    "Idealy expiration action should take effect"
+                    + " when there is conflict between expiration and transition."
+                    + "But all objects are not expired"
+                )
             raise AssertionError("Lifecycle expiration with And rule Failed!!")
         log.info("Lifecycle expiration with And rule validated successfully")
