@@ -1,0 +1,5 @@
+# script: test_check_sharding_enabled.py
+# polarion TC: CEPH-10739
+config:
+    test_ops:
+        realm_rename: true
