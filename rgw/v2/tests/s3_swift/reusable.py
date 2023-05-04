@@ -327,7 +327,29 @@ def upload_object_with_tagging(
     if data_info is False:
         TestExecError("data creation failed")
     log.info("uploading s3 object with object tagging enabled: %s" % s3_object_path)
-    bucket.put_object(Key=s3_object_name, Body=s3_object_path, Tagging=obj_tag)
+    upload_info = dict({"access_key": user_info["access_key"]}, **data_info)
+
+    s3_obj = s3lib.resource_op(
+        {
+            "obj": bucket,
+            "resource": "Object",
+            "args": [s3_object_name],
+        }
+    )
+    with open(s3_object_path, "rb") as fptr:
+        object_uploaded_status = s3lib.resource_op(
+            {
+                "obj": s3_obj,
+                "resource": "put",
+                "kwargs": dict(Body=fptr, Tagging=obj_tag),
+                "extra_info": upload_info,
+            }
+        )
+
+    if object_uploaded_status is False:
+        raise TestExecError("Resource execution failed: object upload failed")
+    if object_uploaded_status is None:
+        log.info("object uploaded")
 
 
 def upload_mutipart_object(
