@@ -23,6 +23,11 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_bucket_notification_with_tenant_user.yaml
     test_bucket_notification_kafka_broker_persistent_dynamic_reshard.yaml
     test_bucket_notification_kafka_broker_persistent_manual_reshard.yaml
+    test_bucket_notification_kafka_none_version_copy_del.yaml
+    test_bucket_notification_kafka_persist_broker_version_copy_del.yaml
+    test_bucket_notification_kafka_persist_none_version_copy_del.yaml
+    test_bucket_notification_kafka_broker_version_copy_del.yaml
+
 Operation:
     create user (tenant/non-tenant)
     Create topic and get topic
@@ -64,7 +69,6 @@ TEST_DATA_PATH = None
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
@@ -125,7 +129,8 @@ def test_exec(config, ssh_con):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
                 )
-                if config.test_ops.get("enable_version", False):
+                versioning = config.test_ops.get("enable_version", False)
+                if versioning:
                     log.info("enable bucket version")
                     reusable.enable_versioning(
                         bucket, rgw_conn, each_user, write_bucket_io_info
@@ -138,8 +143,10 @@ def test_exec(config, ssh_con):
                         "uid": each_user["user_id"],
                     }
                 event_types = config.test_ops.get("event_type")
+                # Adding event_type Put as default
+                event_types = ["Put"]
                 if type(event_types) == str:
-                    event_types = [event_types]
+                    event_types += [event_types]
                 security_type = config.test_ops.get("security_type", "PLAINTEXT")
                 mechanism = config.test_ops.get("mechanism", None)
                 # create topic with endpoint
@@ -244,6 +251,16 @@ def test_exec(config, ssh_con):
                                 config,
                                 each_user,
                             )
+                        elif config.test_ops.get("enable_version", False):
+                            reusable.upload_version_object(
+                                config,
+                                each_user,
+                                rgw_conn,
+                                s3_object_name,
+                                config.obj_size,
+                                bucket,
+                                TEST_DATA_PATH,
+                            )
                         else:
                             log.info("upload type: normal")
                             reusable.upload_object(
@@ -313,6 +330,7 @@ def test_exec(config, ssh_con):
                         bucket_name_for_verification,
                         event_record_path,
                         ceph_version_name,
+                        versioning,
                     )
                     if verify is False:
                         raise EventRecordDataError(
@@ -381,7 +399,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test bucket notification")
     test_info.started_info()
 

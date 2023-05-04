@@ -234,7 +234,9 @@ def get_bucket_notification(rgw_s3_client, bucketname, empty=False):
     )
 
 
-def verify_event_record(event_type, bucket, event_record_path, ceph_version):
+def verify_event_record(
+    event_type, bucket, event_record_path, ceph_version, versioning=False
+):
     """
     verify event records
     """
@@ -244,13 +246,17 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
     # verify event record for a particular event type
     notifications_received = False
     events = []
+    if "Put" in event_type:
+        events = ["ObjectCreated:Put"]
     if "Delete" in event_type:
         events = [
             "ObjectRemoved:Delete",
             "ObjectRemoved:DeleteMarkerCreated",
         ]
     if "Copy" in event_type:
-        events = ["ObjectCreated:Copy"]
+        events = [
+            "ObjectCreated:Copy",
+        ]
     if "Multipart" in event_type:
         events = [
             "ObjectCreated:Post",
@@ -266,6 +272,18 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
         ]
     log.info(f"verifying event record for event type {event_type}")
     log.info(f"valid event names are :{events}")
+
+    # get object list of a bucket
+    cmd = f"radosgw-admin bucket list --bucket {bucket}"
+    bucket_list = utils.exec_shell_cmd(cmd)
+
+    # get zonegroup details
+    zonegroup_get = utils.exec_shell_cmd("radosgw-admin zonegroup get")
+    zonegroup_get_json = json.loads(zonegroup_get)
+
+    # get bucket stats of bucket
+    bucket_stats = utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket}")
+    bucket_stats_json = json.loads(bucket_stats)
 
     # read the file event_record
     with open(event_record_path, "r") as records:
@@ -302,10 +320,6 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
                 raise EventRecordDataError("eventTime: Incorrect timestamp format")
 
             # fetch bucket details and verify bucket attributes in event record
-            bucket_stats = utils.exec_shell_cmd(
-                "radosgw-admin bucket stats --bucket %s" % bucket
-            )
-            bucket_stats_json = json.loads(bucket_stats)
             log.info("verify bucket attributes in event record")
             # verify bucket name in event record
             bucket_name = event_record_json["Records"][0]["s3"]["bucket"]["name"]
@@ -351,8 +365,6 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
             log.info(f"size: {size}")
 
             # verify the zonegroup in event record
-            zonegroup_get = utils.exec_shell_cmd("radosgw-admin zonegroup get")
-            zonegroup_get_json = json.loads(zonegroup_get)
             zonegroup_name = zonegroup_get_json["name"]
             awsRegion = event_record_json["Records"][0]["awsRegion"]
             # verify awsRegion in event record is the zonegroup ref BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2004171
@@ -360,6 +372,18 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
                 log.info(f"awsRegion: {awsRegion}")
             else:
                 raise EventRecordDataError("awsRegion not in event record")
+
+            # verify object version in case versioning is enabled
+            if versioning:
+                # get object version id using radosgw-admin cli
+                object_key = event_record_json["Records"][0]["s3"]["object"]["key"]
+                event_version_id = event_record_json["Records"][0]["s3"]["object"][
+                    "versionId"
+                ]
+                if event_version_id in bucket_list:
+                    log.info(f"object version: {event_version_id} in event record")
+                else:
+                    raise EventRecordDataError("Object version_id not in event record")
 
     if notifications_received is False:
         raise EventRecordDataError(
