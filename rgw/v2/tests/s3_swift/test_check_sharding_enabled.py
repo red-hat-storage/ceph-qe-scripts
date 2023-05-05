@@ -6,7 +6,9 @@ Usage: test_check_sharding_enabled.py -c <input_yaml>
 	Note: Any one of these yamls can be used
 	test_check_sharding_enabled_brownfield.yaml
     test_check_sharding_enabled_greenfield.yaml
-	
+    test_zone_deletion.yaml
+    test_realm_rename.yaml
+
 """
 # test sharding enabled on cluster
 import os
@@ -93,6 +95,59 @@ def test_exec(config, ssh_con):
             log.info("sharding has enabled already")
         else:
             raise TestExecError("sharding has not enabled already")
+
+    if config.test_ops.get("realm_rename", False) is True:
+        log.info("Test realm rename")
+        primary = utils.is_cluster_primary()
+        if primary:
+            realm, source_zone = utils.get_realm_source_zone_info()
+            log.info(f"Realm name: {realm}")
+            log.info(f"Source zone name: {source_zone}")
+            new_realm = "karnataka"
+            log.info(f"change realm name from {realm} to {new_realm}")
+            utils.exec_shell_cmd(
+                f"radosgw-admin realm rename --rgw-realm {realm} --realm-new-name {new_realm}"
+            )
+            updated_realm, sourcezone = utils.get_realm_source_zone_info()
+
+            if updated_realm != new_realm:
+                raise TestExecError(
+                    f"Failed to perform realm rename, realm {new_realm} does not exist"
+                )
+
+            response = json.loads(
+                utils.exec_shell_cmd("radosgw-admin period update --commit")
+            )
+            log.info(
+                "Realm name changed successfully in primary, verify realm in secondary"
+            )
+            zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
+
+            for zone in response["period_map"]["zonegroups"][0]["zones"]:
+                if zone["name"] not in zone_list["zones"]:
+                    secondary_rgw_nodes = zone["endpoints"][0].split(":")
+                    secondary_rgw_node = secondary_rgw_nodes[1].split("//")[-1]
+                    break
+
+            sec_ssh_con = utils.connect_remote(secondary_rgw_node)
+            stdin, stdout, stderr = sec_ssh_con.exec_command(
+                "radosgw-admin sync status"
+            )
+            cmd_output = str(stdout.read())
+            log.info(f"Sync status from secondary site : {cmd_output}")
+            lines = list(cmd_output.split("\n"))
+
+            for line in lines:
+                if "realm" in line:
+                    sec_realm = line[line.find("(") + 1 : line.find(")")]
+                    break
+
+            if new_realm == sec_realm:
+                raise TestExecError(
+                    "change in realm name is not expected in secondary zone"
+                )
+
+    reusable.check_sync_status()
 
 
 if __name__ == "__main__":
