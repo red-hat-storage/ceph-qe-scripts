@@ -264,6 +264,8 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
             "ObjectLifecycle:Expiration:DeleteMarker",
             "ObjectLifecycle:Expiration:AbortMultipartUpload",
         ]
+    if "MultisiteReplication" in event_type:
+        events = ["ObjectSynced:Create"]
     log.info(f"verifying event record for event type {event_type}")
     log.info(f"valid event names are :{events}")
 
