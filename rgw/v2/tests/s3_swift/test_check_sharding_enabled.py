@@ -96,6 +96,35 @@ def test_exec(config, ssh_con):
         else:
             raise TestExecError("sharding has not enabled already")
 
+    if config.test_ops.get("zone_delete", False) is True:
+        log.info("Test zone deletion")
+        op = utils.exec_shell_cmd("radosgw-admin sync status")
+        lines = list(op.split("\n"))
+        for line in lines:
+            if "realm" in line:
+                realm = line[line.find("(") + 1 : line.find(")")]
+            if "zonegroup" in line:
+                zonegroup_name = line[line.find("(") + 1 : line.find(")")]
+                break
+        zone_name = "himalaya"
+        log.info(f"Create zone {zone_name} under zone group {zonegroup_name}")
+        utils.exec_shell_cmd(
+            f"radosgw-admin zone create --rgw-zone {zone_name} --rgw-zonegroup {zonegroup_name} --rgw-realm {realm}"
+        )
+        utils.exec_shell_cmd("radosgw-admin period update --commit")
+        zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
+        if not zone_name in zone_list["zones"]:
+            raise TestExecError(f"Zone {zone_name} does not exist")
+        log.info(f"Delete zone {zone_name} from zone group {zonegroup_name}")
+        utils.exec_shell_cmd(
+            f"radosgw-admin zonegroup remove --rgw-zonegroup {zonegroup_name} --rgw-zone {zone_name}"
+        )
+        utils.exec_shell_cmd(f"radosgw-admin zone delete --rgw-zone {zone_name}")
+        utils.exec_shell_cmd("radosgw-admin period update --commit")
+        zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
+        if zone_name in zone_list["zones"]:
+            raise TestExecError(f"Zone {zone_name} still exist")
+
     if config.test_ops.get("realm_rename", False) is True:
         log.info("Test realm rename")
         primary = utils.is_cluster_primary()
