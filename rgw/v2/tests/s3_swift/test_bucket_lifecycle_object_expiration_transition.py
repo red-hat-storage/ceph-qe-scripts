@@ -11,6 +11,8 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_rule_prefix_non_current_days_notifications.yaml
  test_lc_rule_expiration_dynamic_reshard.yaml, test_lc_rule_expiration_manual_reshard.yaml,
  test_lc_rule_expiration_manual_reshard_verify_attr.yaml
+ test_lc_rule_conflict_btw_exp_transition.yaml, test_lc_rule_conflict_exp_days.yaml,
+ test_lc_rule_conflict_transition_actions.yaml
 
 Operation:
 

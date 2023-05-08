@@ -12,6 +12,7 @@ import subprocess
 import time
 from random import randint
 from re import S
+from urllib.parse import urlparse
 
 import botocore
 import paramiko
@@ -800,3 +801,20 @@ def add_service2_sdk_extras():
     log.info(f"service-2.sdk-extras.json is downloaded to {extras_json_path}")
     time.sleep(10)
     return True
+
+
+def get_rgw_ip(master_zone=True):
+    """
+    returns primary/secondary cluster rgw node ip based on master_zone True/False
+    """
+    out = exec_shell_cmd("radosgw-admin zonegroup get")
+    zonegroup_json = json.loads(out)
+    master_zone_id = zonegroup_json["master_zone"]
+    for zone in zonegroup_json["zones"]:
+        if (zone["id"] == master_zone_id and master_zone) or (
+            zone["id"] != master_zone_id and master_zone == False
+        ):
+            rgw_endpoint_url = zone["endpoints"][0]
+            parse_result = urlparse(rgw_endpoint_url)
+            return parse_result.hostname
+    return False

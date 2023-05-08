@@ -62,7 +62,7 @@ def test_exec(config, ssh_con):
             bucket = reusable.create_bucket(bucket_name, rgw_conn, user)
             log.info(f"Bucket {bucket_name} created")
             prefix = "foo"
-            obj_tag = '{"TagSet":[{"Key":"colour", "Value":"red"}]}'
+            tag = "colour=red"
             # Create bucket sync policy
             group_id1 = "group-" + bucket_name
             reusable.group_operation(
@@ -75,7 +75,7 @@ def test_exec(config, ssh_con):
             if config.test_ops["has_prefix"]:
                 detail = f"{detail} --prefix={prefix}"
             if config.test_ops["has_tag"]:
-                detail = f"{detail} --tags-add={obj_tag}"
+                detail = f"{detail} --tags-add={tag}"
             log.info("Creating bucket policy with details")
             pipe_id = reusable.pipe_operation(
                 group_id1,
@@ -83,7 +83,7 @@ def test_exec(config, ssh_con):
                 bucket_name=bucket_name,
                 policy_detail=detail,
             )
-            time.sleep(60)
+            time.sleep(30)
 
             log.info(f"Creating objects on bucket: {bucket_name}")
             log.info("s3 objects to create: %s" % config.objects_count)
@@ -99,7 +99,6 @@ def test_exec(config, ssh_con):
                 log.info("s3 object path: %s" % s3_object_path)
 
                 if config.test_ops["has_tag"]:
-                    obj_tag = ""
                     log.info("upload type: tagged")
                     reusable.upload_object_with_tagging(
                         s3_object_name,
@@ -107,7 +106,7 @@ def test_exec(config, ssh_con):
                         TEST_DATA_PATH,
                         config,
                         user,
-                        obj_tag,
+                        tag,
                     )
                 else:
                     log.info("upload type: normal")

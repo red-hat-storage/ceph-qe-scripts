@@ -101,10 +101,24 @@ def test_exec(config, ssh_con):
                 tenant_name=tenant_name, user_id=user_name, displayname=user_name
             )
             all_users_info.append(tenant_user)
+
+    event_types = config.test_ops.get("event_type")
+    if type(event_types) == str:
+        event_types = [event_types]
+    if "MultisiteReplication" in event_types:
+        utils.add_service2_sdk_extras()
+        other_site_rgw_ip = utils.get_rgw_ip(
+            config.test_ops.get("sync_source_zone_master", True)
+        )
+        other_site_ssh_con = utils.connect_remote(other_site_rgw_ip)
+
     for each_user in all_users_info:
         # authenticate
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
+        if "MultisiteReplication" in event_types:
+            other_site_auth = Auth(each_user, other_site_ssh_con, ssl=config.ssl)
+            other_site_rgw_conn = other_site_auth.do_auth()
 
         # authenticate sns client.
         rgw_sns_conn = auth.do_auth_sns_client()
@@ -125,6 +139,14 @@ def test_exec(config, ssh_con):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
                 )
+                if "MultisiteReplication" in event_types:
+                    other_site_bucket = s3lib.resource_op(
+                        {
+                            "obj": other_site_rgw_conn,
+                            "resource": "Bucket",
+                            "args": [bucket_name_to_create],
+                        }
+                    )
                 if config.test_ops.get("enable_version", False):
                     log.info("enable bucket version")
                     reusable.enable_versioning(
@@ -137,9 +159,6 @@ def test_exec(config, ssh_con):
                         "tenant": each_user["tenant"],
                         "uid": each_user["user_id"],
                     }
-                event_types = config.test_ops.get("event_type")
-                if type(event_types) == str:
-                    event_types = [event_types]
                 security_type = config.test_ops.get("security_type", "PLAINTEXT")
                 mechanism = config.test_ops.get("mechanism", None)
                 # create topic with endpoint
@@ -184,6 +203,8 @@ def test_exec(config, ssh_con):
                 # put bucket notification with topic configured for event
                 if config.test_ops.get("put_get_bucket_notification", False):
                     events = ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"]
+                    if "MultisiteReplication" in event_types:
+                        events.append("s3:ObjectSynced:*")
                     notification_name = "notification-" + "-".join(event_types)
                     bkt_notif_topic_name = f"{notification_name}_{topic_name}"
                     notification.put_bucket_notification(
@@ -235,11 +256,15 @@ def test_exec(config, ssh_con):
                         log.info("s3 object name: %s" % s3_object_name)
                         s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                         log.info("s3 object path: %s" % s3_object_path)
+                        if "MultisiteReplication" in event_types:
+                            bucket_resource = other_site_bucket
+                        else:
+                            bucket_resource = bucket
                         if config.test_ops.get("upload_type") == "multipart":
                             log.info("upload type: multipart")
                             reusable.upload_mutipart_object(
                                 s3_object_name,
-                                bucket,
+                                bucket_resource,
                                 TEST_DATA_PATH,
                                 config,
                                 each_user,
@@ -248,7 +273,7 @@ def test_exec(config, ssh_con):
                             log.info("upload type: normal")
                             reusable.upload_object(
                                 s3_object_name,
-                                bucket,
+                                bucket_resource,
                                 TEST_DATA_PATH,
                                 config,
                                 each_user,

@@ -327,7 +327,29 @@ def upload_object_with_tagging(
     if data_info is False:
         TestExecError("data creation failed")
     log.info("uploading s3 object with object tagging enabled: %s" % s3_object_path)
-    bucket.put_object(Key=s3_object_name, Body=s3_object_path, Tagging=obj_tag)
+    upload_info = dict({"access_key": user_info["access_key"]}, **data_info)
+
+    s3_obj = s3lib.resource_op(
+        {
+            "obj": bucket,
+            "resource": "Object",
+            "args": [s3_object_name],
+        }
+    )
+    with open(s3_object_path, "rb") as fptr:
+        object_uploaded_status = s3lib.resource_op(
+            {
+                "obj": s3_obj,
+                "resource": "put",
+                "kwargs": dict(Body=fptr, Tagging=obj_tag),
+                "extra_info": upload_info,
+            }
+        )
+
+    if object_uploaded_status is False:
+        raise TestExecError("Resource execution failed: object upload failed")
+    if object_uploaded_status is None:
+        log.info("object uploaded")
 
 
 def upload_mutipart_object(
@@ -578,6 +600,19 @@ def put_get_bucket_lifecycle_test(
                 else:
                     raise TestExecError("Objects expired before the expected days")
             time.sleep(time_diff + 60)
+
+            if config.test_ops.get("conflict_exp_days"):
+                bucket_stats_op = utils.exec_shell_cmd(
+                    "radosgw-admin bucket stats --bucket=%s" % bucket.name
+                )
+                json_doc1 = json.loads(bucket_stats_op)
+                obj_post_lc = json_doc1["usage"]["rgw.main"]["num_objects"]
+                if obj_post_lc == objs_total:
+                    raise TestExecError(
+                        "S3 Lifecycle should choose the path that is least expensive. "
+                        + "But lc expiration is takin more time than least expiration days "
+                        + "when conflict between expiration days exist"
+                    )
 
     log.info("testing if lc is applied via the radosgw-admin cli")
     op = utils.exec_shell_cmd("radosgw-admin lc list")
