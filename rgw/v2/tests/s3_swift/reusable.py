@@ -412,6 +412,10 @@ def upload_mutipart_object(
     parts_info = {"Parts": []}
     log.info("no of parts: %s" % len(parts_list))
     abort_part_no = random.randint(1, len(parts_list) - 1)
+    """if randomly selected abort-part-no is less than 1 then we will increment it by 1 to make sure atleast one part is uploaded
+    before aborting multipart(to avoid some corner case)"""
+    if abort_part_no <= 1:
+        abort_part_no = abort_part_no + 1
     log.info(f"abort part no is: {abort_part_no}")
     for each_part in parts_list:
         log.info("trying to upload part: %s" % each_part)
