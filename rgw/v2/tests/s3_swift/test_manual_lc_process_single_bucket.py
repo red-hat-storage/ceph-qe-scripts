@@ -95,10 +95,10 @@ def test_exec(config, ssh_con):
         completed_bucket = 0
         completed_bkt_name = ""
         for data in lc_list_op_after:
-            if data["status"] == "COMPLETE":
+            if data["status"] == "COMPLETE" and buckets[0] in data["bucket"]:
                 completed_bucket += 1
                 completed_bkt_name = data["bucket"]
-
+        log.info(f"Manual LC process completed bucket is {completed_bkt_name}")
         bucket_details = json.loads(
             utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket={buckets[0]}")
         )
