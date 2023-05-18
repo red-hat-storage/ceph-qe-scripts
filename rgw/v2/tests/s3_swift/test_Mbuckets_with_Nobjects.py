@@ -272,9 +272,10 @@ def test_exec(config, ssh_con):
                             )
                             json_doc = json.loads(op)
                             old_num_shards = json_doc["num_shards"]
-                            config.objects_count = (
-                                old_num_shards * config.max_objects_per_shard + 5
-                            )
+                            if config.dynamic_resharding is True:
+                                config.objects_count = (
+                                    old_num_shards * config.max_objects_per_shard + 5
+                                )
                             config.mapped_sizes = utils.make_mapped_sizes(config)
 
                     for oc, size in list(config.mapped_sizes.items()):
