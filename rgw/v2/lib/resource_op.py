@@ -293,7 +293,7 @@ class Config(object):
             "rgw_crypt_sse_s3_vault_secret_engine", "transit"
         )
         self.rgw_crypt_sse_s3_vault_prefix = self.doc["config"].get(
-            "rgw_crypt_sse_s3_vault_prefix", "/v1/cephTransit"
+            "rgw_crypt_sse_s3_vault_prefix", "/v1/transit"
         )
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
