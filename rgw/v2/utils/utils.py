@@ -645,6 +645,16 @@ def get_realm_source_zone_info():
     return realm, source_zone
 
 
+def get_sync_status_info(search_param):
+    op = exec_shell_cmd("radosgw-admin sync status")
+    lines = list(op.split("\n"))
+    for line in lines:
+        if search_param in line:
+            resp_name = line[line.find("(") + 1 : line.find(")")]
+            break
+    return resp_name
+
+
 def check_bucket_sync(name):
     _, source_zone = get_realm_source_zone_info()
     log.info(f"Source zone name: {source_zone}")
