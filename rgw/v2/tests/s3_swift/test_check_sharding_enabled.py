@@ -8,6 +8,8 @@ Usage: test_check_sharding_enabled.py -c <input_yaml>
     test_check_sharding_enabled_greenfield.yaml
     test_zone_deletion.yaml
     test_realm_rename.yaml
+    test_zonegroup_rename.yaml
+    test_zone_rename.yaml
 
 """
 # test sharding enabled on cluster
@@ -164,7 +166,7 @@ def test_exec(config, ssh_con):
             )
             cmd_output = str(stdout.read())
             log.info(f"Sync status from secondary site : {cmd_output}")
-            lines = list(cmd_output.split("\n"))
+            lines = list(cmd_output.split("\\n"))
 
             for line in lines:
                 if "realm" in line:
@@ -176,7 +178,118 @@ def test_exec(config, ssh_con):
                     "change in realm name is not expected in secondary zone"
                 )
 
-    reusable.check_sync_status()
+    if config.test_ops.get("zonegroup_rename", False) is True:
+        log.info("Test zonegroup rename from master")
+        primary = utils.is_cluster_primary()
+        if primary:
+            new_zonegroup = "states"
+            zonegroup_name = utils.get_sync_status_info("zonegroup")
+            log.info(f"change zonegroup name from {zonegroup_name} to {new_zonegroup}")
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup rename --rgw-zonegroup {zonegroup_name} --zonegroup-new-name {new_zonegroup}"
+            )
+            period_details = json.loads(
+                utils.exec_shell_cmd("radosgw-admin period update --commit")
+            )
+
+            zonegroup_list = json.loads(
+                utils.exec_shell_cmd("radosgw-admin zonegroup list")
+            )
+            if new_zonegroup not in zonegroup_list["zonegroups"]:
+                raise TestExecError(
+                    f"New zonegroup name: {new_zonegroup} not found in zonegroup list {zonegroup_list}"
+                )
+
+            updated_zonegroup = utils.get_sync_status_info("zonegroup")
+            if new_zonegroup != updated_zonegroup:
+                raise TestExecError(
+                    f"Failed to rename zonegroup: {zonegroup_name} with {new_zonegroup}"
+                )
+
+            log.info(
+                "Zonegroup name changed successfully in master zone, verify in non-master zone"
+            )
+            zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
+            for zone in period_details["period_map"]["zonegroups"][0]["zones"]:
+                if zone["name"] not in zone_list["zones"]:
+                    secondary_rgw_nodes = zone["endpoints"][0].split(":")
+                    secondary_rgw_node = secondary_rgw_nodes[1].split("//")[-1]
+                    break
+
+            sec_ssh_con = utils.connect_remote(secondary_rgw_node)
+            stdin, stdout, stderr = sec_ssh_con.exec_command(
+                "radosgw-admin zonegroup list"
+            )
+            cmd_output = json.loads(stdout.read())
+            log.info(f"zonegroup list from non master site: {cmd_output}")
+            if new_zonegroup not in cmd_output["zonegroups"]:
+                raise TestExecError(
+                    f"New zonegroup name: {new_zonegroup} not found in zonegroup list: {cmd_output} of non master zone"
+                )
+
+            stdin, stdout, stderr = sec_ssh_con.exec_command(
+                "radosgw-admin sync status"
+            )
+            cmd_output = str(stdout.read())
+            log.info(f"Sync status from secondary site : {cmd_output}")
+            lines = list(cmd_output.split("\\n"))
+
+            for line in lines:
+                if "zonegroup" in line:
+                    sec_zonegroup = line[line.find("(") + 1 : line.find(")")]
+                    break
+
+            if sec_zonegroup != new_zonegroup:
+                raise TestExecError(
+                    "change in zonegroup name in master not reflected in non master zone"
+                )
+
+    if config.test_ops.get("zone_rename", False) is True:
+        log.info("Test zone rename")
+        new_zone = "delhi"
+        zone_name = utils.get_sync_status_info("zone ")
+        log.info(f"change zone name from: {zone_name} to: {new_zone}")
+        utils.exec_shell_cmd(
+            f"radosgw-admin zone rename --rgw-zone {zone_name} --zone-new-name {new_zone}"
+        )
+        period_details = json.loads(
+            utils.exec_shell_cmd("radosgw-admin period update --commit")
+        )
+        zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
+        if zone_name in zone_list["zones"]:
+            raise TestExecError(f"Zone {zone_name} exist, zone rename failed")
+
+        updated_zone = utils.get_sync_status_info("zone ")
+        if updated_zone != new_zone:
+            raise TestExecError(f"failed to rename zone: {zone_name} to {new_zone}")
+
+        primary = utils.is_cluster_primary()
+        if primary:
+            log.info(
+                "Zone name changed successfully in master zone, verify zone in non-master zone"
+            )
+        else:
+            log.info(
+                "Zone name changed successfully in non-master zone, verify zone in master zone"
+            )
+
+        for zone in period_details["period_map"]["zonegroups"][0]["zones"]:
+            if zone["name"] not in zone_list["zones"]:
+                rgw_nodes = zone["endpoints"][0].split(":")
+                node_rgw = rgw_nodes[1].split("//")[-1]
+                break
+
+        rgw_ssh_con = utils.connect_remote(node_rgw)
+        stdin, stdout, stderr = rgw_ssh_con.exec_command("radosgw-admin period get")
+        cmd_output = json.loads(stdout.read())
+        log.info(f"period get from other site: {cmd_output}")
+        zone_found = 0
+        for zone in cmd_output["period_map"]["zonegroups"][0]["zones"]:
+            if zone["name"] == new_zone:
+                zone_found = 1
+
+        if not zone_found:
+            raise TestExecError("change in zone name not reflected in other site")
 
 
 if __name__ == "__main__":
