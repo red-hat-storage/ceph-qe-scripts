@@ -100,6 +100,9 @@ def test_exec(config, ssh_con):
             rgw_conn = auth.do_auth(**{"signature_version": "s3v4"})
         else:
             rgw_conn = auth.do_auth()
+        # Test multisite sync with 0 shards bugs 2188022, 2180549 Hot Fix for Square eCommerce
+        if config.test_sync_0_shards:
+            reusable.sync_test_0_shards(config)
         # enabling sharding
         if config.test_ops["sharding"]["enable"] is True:
             log.info("enabling sharding on buckets")

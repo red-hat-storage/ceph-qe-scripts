@@ -1416,6 +1416,16 @@ def get_object_upload_type(s3_object_name, bucket, TEST_DATA_PATH, config, user_
         )
 
 
+def sync_test_0_shards(config):
+    """
+    This function sets the bucket_index_max_shards to 0 at the zonegroup
+    """
+    log.info("Test multisite replication with 0 shards")
+    utils.exec_shell_cmd(f"radosgw-admin zonegroup modify --bucket_index_max_shards 0")
+    utils.exec_shell_cmd(f"radosgw-admin period update --commit")
+    utils.exec_shell_cmd(f"radosgw-admin period get")
+
+
 def prepare_for_bucket_lc_transition(config):
     """
     This function is to set the prereqs for LC transiton testing
