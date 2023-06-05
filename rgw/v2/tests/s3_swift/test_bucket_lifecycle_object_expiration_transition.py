@@ -126,7 +126,7 @@ def test_exec(config, ssh_con):
         utils.add_service2_sdk_extras()
 
     for each_user in user_info:
-        auth = Auth(each_user, ssh_con, ssl=config.ssl)
+        auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
         notification = None
@@ -198,6 +198,12 @@ def test_exec(config, ssh_con):
                                 config,
                                 each_user,
                             )
+                        if config.testlc_with_obect_acl_set:
+                            log.info("Test LC transition with object acl set")
+                            reusable.set_get_object_acl(
+                                s3_object_name, bucket_name, rgw_conn2
+                            )
+
                 upload_end_time = time.time()
 
                 if config.enable_resharding and config.sharding_type == "dynamic":
