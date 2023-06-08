@@ -65,6 +65,26 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
     return bucket
 
 
+def set_get_object_acl(
+    s3_object_name,
+    bucket_name,
+    rgw_conn2,
+):
+    """
+    put object acl as private for a given object
+    """
+    log.info("Set object acl on s3 object name: %s" % s3_object_name)
+    put_obj_acl = rgw_conn2.put_object_acl(
+        ACL="private", Bucket=bucket_name, Key=s3_object_name
+    )
+    if put_obj_acl:
+        get_obj_acl = rgw_conn2.get_object_acl(Bucket=bucket_name, Key=s3_object_name)
+        get_obj_acl_json = json.dumps(get_obj_acl, indent=2)
+        log.info(f"object acl set for object: {s3_object_name} is{get_obj_acl_json}")
+    else:
+        raise TestExecError("put object acl failed")
+
+
 def upload_object(
     s3_object_name,
     bucket,
@@ -1416,16 +1436,6 @@ def get_object_upload_type(s3_object_name, bucket, TEST_DATA_PATH, config, user_
         )
 
 
-def sync_test_0_shards(config):
-    """
-    This function sets the bucket_index_max_shards to 0 at the zonegroup
-    """
-    log.info("Test multisite replication with 0 shards")
-    utils.exec_shell_cmd(f"radosgw-admin zonegroup modify --bucket_index_max_shards 0")
-    utils.exec_shell_cmd(f"radosgw-admin period update --commit")
-    utils.exec_shell_cmd(f"radosgw-admin period get")
-
-
 def prepare_for_bucket_lc_transition(config):
     """
     This function is to set the prereqs for LC transiton testing
@@ -1437,12 +1447,22 @@ def prepare_for_bucket_lc_transition(config):
     storage_class = config.storage_class
     ec_pool_name = config.ec_pool_name
     ec_storage_class = config.ec_storage_class
+    is_multisite = utils.is_cluster_multisite()
+    is_primary = utils.is_cluster_primary()
+    if is_multisite:
+        zonegroup = "shared"
+        if is_primary:
+            zone = "primary"
+        else:
+            zone = "secondary"
+    else:
+        zone = zonegroup = "default"
     if config.ec_pool_transition:
         utils.exec_shell_cmd(
-            f"radosgw-admin zonegroup placement add  --rgw-zonegroup default --placement-id default-placement --storage-class {ec_storage_class}"
+            f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {ec_storage_class}"
         )
         utils.exec_shell_cmd(
-            f"radosgw-admin zone placement add --rgw-zone default --placement-id default-placement --storage-class {ec_storage_class} --data-pool {ec_pool_name}"
+            f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {ec_storage_class} --data-pool {ec_pool_name}"
         )
         utils.exec_shell_cmd(
             "ceph osd erasure-code-profile set rgwec01 k=4 m=2 crush-failure-domain=host crush-device-class=hdd"
@@ -1453,10 +1473,10 @@ def prepare_for_bucket_lc_transition(config):
         utils.exec_shell_cmd(f"ceph osd pool application enable {ec_pool_name} rgw")
     else:
         utils.exec_shell_cmd(
-            f"radosgw-admin zonegroup placement add  --rgw-zonegroup default --placement-id default-placement --storage-class {storage_class}"
+            f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {storage_class}"
         )
         utils.exec_shell_cmd(
-            f"radosgw-admin zone placement add --rgw-zone default --placement-id default-placement --storage-class {storage_class} --data-pool {pool_name}"
+            f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {storage_class} --data-pool {pool_name}"
         )
         utils.exec_shell_cmd(f"ceph osd pool create {pool_name}")
         utils.exec_shell_cmd(f"ceph osd pool application enable {pool_name} rgw")
@@ -1468,10 +1488,10 @@ def prepare_for_bucket_lc_transition(config):
                 f"ceph osd pool application enable {second_pool_name} rgw"
             )
             utils.exec_shell_cmd(
-                f"radosgw-admin zonegroup placement add  --rgw-zonegroup default --placement-id default-placement --storage-class {second_storage_class}"
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {second_storage_class}"
             )
             utils.exec_shell_cmd(
-                f"radosgw-admin zone placement add --rgw-zone default --placement-id default-placement --storage-class {second_storage_class} --data-pool {second_pool_name}"
+                f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {second_storage_class} --data-pool {second_pool_name}"
             )
 
 
