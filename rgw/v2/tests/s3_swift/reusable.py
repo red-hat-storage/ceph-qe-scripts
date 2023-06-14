@@ -1707,3 +1707,26 @@ def object_lock_put(client, bucket, lock_configuration):
     client.put_object_lock_configuration(
         Bucket=bucket, ObjectLockConfiguration=lock_configuration
     )
+
+
+def resharding_enable_disable_in_zonegroup(enable=True):
+    log.info("method for enabling or disabling resharding feature in zonegroup!")
+    zonegroup_get_cmd = "radosgw-admin zonegroup get"
+    zonegroups = json.loads(utils.exec_shell_cmd(zonegroup_get_cmd))
+    zonegroup = zonegroups.get("name")
+    log.info(f"zone group is {zonegroup}")
+    if not enable:
+        cmd1 = f"radosgw-admin zonegroup modify --rgw-zonegroup={zonegroup} --disable-feature=resharding"
+    else:
+        cmd1 = f"radosgw-admin zonegroup modify --rgw-zonegroup={zonegroup} --enable-feature=resharding"
+    utils.exec_shell_cmd(cmd1)
+    cmd2 = "radosgw-admin period update --commit"
+    utils.exec_shell_cmd(cmd2)
+    zonegroup = json.loads(utils.exec_shell_cmd(zonegroup_get_cmd))
+    zonegroup_feature = zonegroup.get("enabled_features")
+    if not enable and "resharding" in zonegroup_feature:
+        raise AssertionError("Resharding feature is not disabled in zonegroup")
+    elif enable and "resharding" not in zonegroup_feature:
+        raise AssertionError("Resharding feature is not enabled in zonegroup")
+    else:
+        log.info("Resharding feature is successfully modified in zonegroup")
