@@ -35,6 +35,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import quota_management as quota_mgmt
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -45,7 +46,6 @@ TEST_DATA_PATH = None
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
@@ -113,6 +113,15 @@ def test_exec(config, ssh_con):
     if config.test_ops.get("enable_version", False):
         log.info("enable bucket version")
         reusable.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
+
+    if config.test_ops.get("exceed_quota_access_bucket_sec", False):
+        quota_mgmt.set_quota(
+            quota_scope="bucket",
+            user_info=user_info,
+            max_objects=config.objects_count * 2,
+        )
+        quota_mgmt.toggle_quota("enable", "bucket", user_info)
+
     log.info("s3 objects to create: %s" % config.objects_count)
     for oc, size in list(config.mapped_sizes.items()):
         config.obj_size = size
@@ -190,6 +199,66 @@ def test_exec(config, ssh_con):
     if not attrs["key"]:
         raise TestExecError("Acls lost after bucket resharding, test failure.")
 
+    # test bug 2024408
+    if config.test_ops.get("exceed_quota_access_bucket_sec", False):
+        log.info(
+            f"uploading {config.objects_count} objects again to test multiple reshards"
+        )
+        for oc, size in list(config.mapped_sizes.items()):
+            config.obj_size = size
+            s3_object_name = utils.gen_s3_object_name(
+                bucket.name, oc + config.objects_count
+            )
+            s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+            reusable.upload_object(
+                s3_object_name, bucket, TEST_DATA_PATH, config, user_info
+            )
+            objects_created_list.append((s3_object_name, s3_object_path))
+
+        s3_object_name = utils.gen_s3_object_name(bucket.name, config.objects_count * 2)
+        try:
+            reusable.upload_object(
+                s3_object_name, bucket, TEST_DATA_PATH, config, user_info
+            )
+            AssertionError(
+                "bucket quota with max objects failed as upload object is successful after reaching limit"
+            )
+        except TestExecError as e:
+            log.info(
+                "Upload object failed as expected because it exceeded bucket quota max objects limit"
+            )
+        log.info(
+            f"Sleeping for {config.rgw_reshard_thread_interval} seconds,"
+            + " to test multiple reshards should not cause bucket stats failure"
+        )
+        time.sleep(config.rgw_reshard_thread_interval)
+
+        bucket_stats_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
+        bucket_list_cmd = f"radosgw-admin bucket list --bucket {bucket.name}"
+        utils.exec_shell_cmd(bucket_list_cmd)
+
+        # execute radsogw-admin bucket stats, list and metadata get on sec site
+        sec_site_rgw_ip = utils.get_rgw_ip(master_zone=False)
+        sec_site_ssh_con = utils.connect_remote(sec_site_rgw_ip)
+        stdin, stdout, stderr = sec_site_ssh_con.exec_command(bucket_stats_cmd)
+        bucket_stats_sec = json.loads(stdout.read().decode())
+        log.info(f"Bucket stats output from secondary: {bucket_stats_sec}")
+        bucket_id_sec = bucket_stats_sec["id"]
+        stdin, stdout, stderr = sec_site_ssh_con.exec_command(
+            f"radosgw-admin metadata get bucket.instance:{bucket.name}:{bucket_id_sec}"
+        )
+        metadata_get_sec = json.loads(stdout.read().decode())
+        log.info(f"metadata get output from secondary: {metadata_get_sec}")
+        stdin, stdout, stderr = sec_site_ssh_con.exec_command(bucket_list_cmd)
+        bucket_list_sec = json.loads(stdout.read().decode())
+        log.info(f"Bucket list output from secondary: {bucket_list_sec}")
+
+        # List objects from sec site using boto3 rgw client
+        other_site_auth = Auth(user_info, sec_site_ssh_con, ssl=config.ssl)
+        sec_site_rgw_conn = other_site_auth.do_auth_using_client()
+        resp = sec_site_rgw_conn.list_objects(Bucket=bucket.name)
+        log.info(f"List objects output using rgw client from sec site: {resp}")
+
     if config.test_ops.get("delete_bucket_object", False):
         if config.test_ops.get("enable_version", False):
             for name, path in objects_created_list:
@@ -204,7 +273,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("RGW Dynamic Resharding test")
     test_info.started_info()
 
