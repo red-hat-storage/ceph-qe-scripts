@@ -100,6 +100,7 @@ def test_exec(config, ssh_con):
             rgw_conn = auth.do_auth(**{"signature_version": "s3v4"})
         else:
             rgw_conn = auth.do_auth()
+        rgw_conn2 = auth.do_auth_using_client()
         # Test multisite sync with 0 shards bugs 2188022, 2180549 Hot Fix for Square eCommerce
         if config.test_sync_0_shards:
             reusable.sync_test_0_shards(config)
@@ -239,6 +240,14 @@ def test_exec(config, ssh_con):
                     if config.user_type == "tenanted"
                     else bucket.name
                 )
+                if config.retain_bucket_pol:
+                    log.info(
+                        "Test bucket policy retained at archive site after writing IOs bug-1937618"
+                    )
+                    reusable.retain_bucket_policy(
+                        rgw_conn2, bucket_name_to_create, config
+                    )
+
                 if config.dynamic_resharding is True:
                     if config.test_ops.get("enable_version", False):
                         log.info("Enable bucket versioning")

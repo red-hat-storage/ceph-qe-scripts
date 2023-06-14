@@ -85,6 +85,19 @@ def set_get_object_acl(
         raise TestExecError("put object acl failed")
 
 
+def retain_bucket_policy(rgw_conn2, bucket_name_to_create, config):
+    """
+    put bucket policy and retain it at archive site
+    """
+    log.info(f"Set bucket policy on {bucket_name_to_create}")
+    put_bucket_pol = rgw_conn2.put_bucket_policy(
+        Bucket=bucket_name_to_create,
+        Policy='{"Version": "2012-10-17", "Statement": [{ "Sid": "id-1","Effect": "Allow","Principal": {"AWS": "arn:aws:iam::123456789012:root"}, "Action": [ "s3:PutObject","s3:PutObjectAcl"], "Resource": ["arn:aws:s3:::acl3/*" ] } ]}',
+    )
+    if not put_bucket_pol:
+        raise TestExecError("put bucket pol failed")
+
+
 def upload_object(
     s3_object_name,
     bucket,
