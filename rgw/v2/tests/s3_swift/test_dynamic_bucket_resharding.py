@@ -174,6 +174,59 @@ def test_exec(config, ssh_con):
                 log.info("Expected number of shards created")
         else:
             raise TestExecError("Expected number of shards not created")
+
+    if config.disable_dynamic_shard:
+        log.info("Testing disable of DBR")
+        bucket_stat_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
+        json_doc = json.loads(utils.exec_shell_cmd(bucket_stat_cmd))
+        num_objects = json_doc["usage"]["rgw.main"]["num_objects"]
+        num_shards_created = json_doc["num_shards"]
+        if num_shards_created > 11:
+            log.info("Dynamic Re-sharding is successfull!")
+        else:
+            raise AssertionError("Dynamic Re-sharding FAILED!")
+
+        log.info("Disabling resharding in Zonegroup")
+        reusable.resharding_enable_disable_in_zonegroup(enable=False)
+
+        config.objects_count = (
+            (num_shards_created * config.max_objects_per_shard) + 2 - num_objects
+        )
+        config.mapped_sizes = utils.make_mapped_sizes(config)
+        for oc, size in list(config.mapped_sizes.items()):
+            config.obj_size = size
+            name = bucket.name + "new"
+            s3_object_name = utils.gen_s3_object_name(name, oc)
+            s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+            if config.test_ops.get("enable_version", False):
+                reusable.upload_version_object(
+                    config,
+                    user_info,
+                    rgw_conn,
+                    s3_object_name,
+                    config.obj_size,
+                    bucket,
+                    TEST_DATA_PATH,
+                )
+            else:
+                reusable.upload_object(
+                    s3_object_name, bucket, TEST_DATA_PATH, config, user_info
+                )
+            objects_created_list.append((s3_object_name, s3_object_path))
+
+        time.sleep(300)
+        json_doc = json.loads(utils.exec_shell_cmd(bucket_stat_cmd))
+        new_num_shards_created = json_doc["num_shards"]
+        log.info(f"new no_of_shards_created {new_num_shards_created}")
+        if new_num_shards_created == num_shards_created:
+            log.info(
+                "Dynamic bucket re-sharding not taken place since feature is disabled!"
+            )
+        else:
+            raise AssertionError("dynamically re-sharded even though DBR is disabled")
+
+        reusable.check_sync_status()
+
     # test bug 2174235
     if config.test_with_bucket_index_shards:
         log.info("Bucket stats should have same num_objects post a resharding event.")

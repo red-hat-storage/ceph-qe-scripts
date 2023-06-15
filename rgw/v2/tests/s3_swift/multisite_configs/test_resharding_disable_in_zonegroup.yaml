@@ -1,0 +1,12 @@
+# Polarian TC CEPH-83574626
+# script file: test_dynamic_bucket_resharding.py
+config:
+  objects_count: 100
+  objects_size_range:
+    min: 15
+    max: 20
+  sharding_type: dynamic
+  max_objects_per_shard: 5
+  disable_dynamic_shard: true
+  test_ops:
+    delete_bucket_object: true
