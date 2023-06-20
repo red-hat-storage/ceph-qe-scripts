@@ -58,6 +58,7 @@ def test_exec(config, ssh_con):
     user_info = user_info[0]
     auth = Auth(user_info, ssh_con, ssl=config.ssl)
     rgw_conn = auth.do_auth()
+    verification = True
     if config.test_with_bucket_index_shards:
         utils.exec_shell_cmd(
             "radosgw-admin zonegroup modify --bucket_index_max_shards 0"
@@ -143,6 +144,44 @@ def test_exec(config, ssh_con):
             )
         objects_created_list.append((s3_object_name, s3_object_path))
 
+    if config.test_ops.get("verify_bucket_gen", False) is True:
+        bucket_gen_before = reusable.fetch_bucket_gen(bucket.name)
+        log.info(f"Current Bucket generation value is {bucket_gen_before}")
+        bkt_sync_status = reusable.check_bucket_sync_status(bucket.name)
+        log.info(f"Bucket sync status is {bkt_sync_status}")
+        if "failed" in bkt_sync_status or "ERROR" in bkt_sync_status:
+            log.info("checking for any sync error")
+            utils.exec_shell_cmd("sudo radosgw-admin sync error list")
+            raise AssertionError("sync status is in failed or errored state!")
+        if "behind" in bkt_sync_status:
+            log.info(
+                f"sync is in progress!, perform resharding of an bucket {bucket.name}"
+            )
+            bkt_stat_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
+            old_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))[
+                "num_shards"
+            ]
+            manual_shard_no = old_shard_value + 5
+            cmd_exec = utils.exec_shell_cmd(
+                f"radosgw-admin bucket reshard --bucket={bucket.name} "
+                f"--num-shards={manual_shard_no}"
+            )
+            if not cmd_exec:
+                raise TestExecError("manual resharding command execution failed")
+            new_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))[
+                "num_shards"
+            ]
+            if new_shard_value == manual_shard_no:
+                log.info("manual reshard succeeded!")
+        bucket_gen_after = reusable.fetch_bucket_gen(bucket.name)
+        log.info(f"Latest generation of a bucket {bucket.name} is :{bucket_gen_after}")
+        if bucket_gen_after > bucket_gen_before:
+            log.info("Bucket generation change success!")
+        else:
+            raise AssertionError("Bucket generation is not changed!")
+        verification = False
+        reusable.check_sync_status()
+
     if config.sharding_type == "manual":
         log.info("sharding type is manual")
         # for manual.
@@ -156,17 +195,19 @@ def test_exec(config, ssh_con):
         if cmd_exec is False:
             raise TestExecError("manual resharding command execution failed")
 
-    log.info(
-        "the sleep time chosen is 180 sec owing to the value of reshard_thread_interval"
-    )
-    sleep_time = 180
-    log.info(f"verification starts after waiting for {sleep_time} seconds")
-    time.sleep(sleep_time)
-    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket.name)
-    json_doc = json.loads(op)
-    bucket_id = json_doc["id"]
-    num_shards_created = json_doc["num_shards"]
-    log.info("no_of_shards_created: %s" % num_shards_created)
+    if verification:
+        log.info(
+            "the sleep time chosen is 180 sec owing to the value of reshard_thread_interval"
+        )
+        sleep_time = 180
+        log.info(f"verification starts after waiting for {sleep_time} seconds")
+        time.sleep(sleep_time)
+        json_doc = json.loads(
+            utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket.name}")
+        )
+        bucket_id = json_doc["id"]
+        num_shards_created = json_doc["num_shards"]
+        log.info(f"no_of_shards_created: {num_shards_created}")
     if config.sharding_type == "manual":
         if config.shards != num_shards_created:
             raise TestExecError("expected number of shards not created")
@@ -242,15 +283,9 @@ def test_exec(config, ssh_con):
         if config.objects_count != json_doc["usage"]["rgw.main"]["num_objects"]:
             raise TestExecError("Bucket metadata lost post resharding")
 
-    log.info("Test acls are preserved after a resharding operation.")
-    cmd = utils.exec_shell_cmd(
-        f"radosgw-admin metadata get bucket.instance:{bucket.name}:{bucket_id}"
-    )
-    json_doc = json.loads(cmd)
-    log.info("The attrs field should not be empty.")
-    attrs = json_doc["data"]["attrs"][0]
-    if not attrs["key"]:
-        raise TestExecError("Acls lost after bucket resharding, test failure.")
+    if verification:
+        log.info("Test acls are preserved after a resharding operation.")
+        reusable.verify_acl_preserved(bucket.name, bucket_id)
 
     # test bug 2024408
     if config.test_ops.get("exceed_quota_access_bucket_sec", False):
