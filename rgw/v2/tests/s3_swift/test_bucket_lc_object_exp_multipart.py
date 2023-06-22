@@ -112,7 +112,7 @@ def test_exec(config, ssh_con):
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
                 time.sleep(config.rgw_lc_debug_interval)
 
-                for _ in range(1, 10):
+                for _ in range(1, 20):
                     time.sleep(60)
                     bucket_details = json.loads(
                         utils.exec_shell_cmd(
