@@ -98,6 +98,16 @@ def retain_bucket_policy(rgw_conn2, bucket_name_to_create, config):
         raise TestExecError("put bucket pol failed")
 
 
+def sync_test_0_shards(config):
+    """
+    This function sets the bucket_index_max_shards to 0 at the zonegroup
+    """
+    log.info("Test multisite replication with 0 shards")
+    utils.exec_shell_cmd(f"radosgw-admin zonegroup modify --bucket_index_max_shards 0")
+    utils.exec_shell_cmd(f"radosgw-admin period update --commit")
+    utils.exec_shell_cmd(f"radosgw-admin period get")
+
+
 def upload_object(
     s3_object_name,
     bucket,
