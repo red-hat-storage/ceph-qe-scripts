@@ -296,7 +296,7 @@ def test_exec(config, ssh_con):
                         )
                 else:
                     reusable.delete_objects(bkt)
-                time.sleep(30)
+                time.sleep(120)
                 reusable.delete_bucket(bkt)
 
     # check sync status if a multisite cluster
