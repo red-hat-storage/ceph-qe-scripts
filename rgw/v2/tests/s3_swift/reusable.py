@@ -1743,3 +1743,25 @@ def resharding_enable_disable_in_zonegroup(enable=True):
         raise AssertionError("Resharding feature is not enabled in zonegroup")
     else:
         log.info("Resharding feature is successfully modified in zonegroup")
+
+
+def fetch_bucket_gen(bucket):
+    log.info(f"fetch bucket gen for the bucket {bucket}")
+    json_doc = json.loads(
+        utils.exec_shell_cmd(f"radosgw-admin bucket layout --bucket {bucket}")
+    )
+    bucket_gen = json_doc["layout"]["current_index"]["gen"]
+    log.info(f"Generation of bucket {bucket} is :{bucket_gen}")
+    return bucket_gen
+
+
+def verify_acl_preserved(bkt_name, bkt_id):
+    json_doc = json.loads(
+        utils.exec_shell_cmd(
+            f"radosgw-admin metadata get bucket.instance:{bkt_name}:{bkt_id}"
+        )
+    )
+    log.info("The attrs field should not be empty.")
+    attrs = json_doc["data"]["attrs"][0]
+    if not attrs["key"]:
+        raise TestExecError("Acls lost after bucket resharding, test failure.")
