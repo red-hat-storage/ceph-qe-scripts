@@ -1781,3 +1781,28 @@ def verify_acl_preserved(bkt_name, bkt_id):
     attrs = json_doc["data"]["attrs"][0]
     if not attrs["key"]:
         raise TestExecError("Acls lost after bucket resharding, test failure.")
+
+
+def create_container_using_swift(container_name, rgw, user_info):
+    """
+    This function is to create container swift user
+
+    Parameters:
+        container_name(str): Name of the container
+        rgw(class_obj): authentication obj
+        user_info(dict): user information
+
+    Returns:
+    """
+    log.info(f"creating container: {container_name} with user {user_info['user_id']}")
+    container = s3lib.resource_op(
+        {
+            "obj": rgw,
+            "resource": "put_container",
+            "kwargs": dict(container=container_name),
+        }
+    )
+    if container is False:
+        raise TestExecError(
+            f"container {container_name} creation failed with user {user_info['user_id']}"
+        )
