@@ -13,6 +13,7 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     test_get_objects_from_tenant_swift_user.yaml
     test_delete_container_from_user_of_diff_tenant.yaml
     test_upload_large_obj_with_same_obj_name.yaml
+    test_swift_enable_version_with_different_user.yaml
 
 Operation:
     Create swift user
@@ -144,16 +145,31 @@ def test_exec(config, ssh_con):
     log.info(type(ceph_conf))
     rgw_service = RGWService()
     # preparing data
-    tenants_user_info = []
     user_name = names.get_first_name() + random.choice(string.ascii_letters)
-    tenant = "tenant"
-    tenant_user_info = umgmt.create_tenant_user(
-        tenant_name=tenant, user_id=user_name, displayname=user_name
-    )
-    tenants_user_info.append(tenant_user_info)
-    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_name)
-    auth = Auth(user_info, ssh_con, config.ssl)
-    rgw = auth.do_auth()
+    if config.user_type == "non-tenanted":
+        users_info = []
+        user_info = swiftlib.create_users(1)[-1]
+        users_info.append(user_info)
+        subuser_info = swiftlib.create_non_tenant_sub_users(1, user_info)
+        auth = Auth(subuser_info[-1], ssh_con, config.ssl)
+        rgw = auth.do_auth()
+    else:
+        tenants_user_info = []
+        tenant = "tenant"
+        tenant_user_info = umgmt.create_tenant_user(
+            tenant_name=tenant, user_id=user_name, displayname=user_name
+        )
+        tenants_user_info.append(tenant_user_info)
+        user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_name)
+        auth = Auth(user_info, ssh_con, config.ssl)
+        rgw = auth.do_auth()
+
+    if config.test_ops.get("new_user", False):
+        new_user_info = swiftlib.create_users(1)[-1]
+        users_info.append(new_user_info)
+        new_sub_user_info = swiftlib.create_non_tenant_sub_users(1, new_user_info)
+        new_auth = Auth(new_sub_user_info[-1], ssh_con, config.ssl)
+        rgw_client = new_auth.do_auth_using_client()
 
     if config.test_ops.get("new_tenant", False):
         new_tenant = "tenant" + random.choice(string.ascii_letters)
@@ -259,6 +275,49 @@ def test_exec(config, ssh_con):
                     log.info("objects and versioned obbjects are correct")
                 else:
                     test_info.failed_status("test failed")
+
+        elif config.test_ops.get("new_user", False):
+            log.info("enabling swift versioning")
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_swift_versioning_enabled, "True", ssh_con
+            )
+            log.info("trying to restart services ")
+            srv_restarted = rgw_service.restart(ssh_con)
+            time.sleep(30)
+            if srv_restarted is False:
+                raise TestExecError("RGW service restart failed")
+            else:
+                log.info("RGW service restarted")
+            container_name = utils.gen_bucket_name_from_userid(
+                user_info["user_id"], rand_no=str(cc) + "_swift"
+            )
+            reusable.create_container_using_swift(container_name, rgw, user_info)
+            new_container_name = utils.gen_bucket_name_from_userid(
+                new_user_info["user_id"], rand_no=str(cc) + "_newswift"
+            )
+            reusable.create_container_using_swift(
+                new_container_name, rgw_client, new_user_info
+            )
+
+            log.info(
+                f"enable versioning on container {container_name} with subuser {new_user_info['user_id']}"
+            )
+            new_container = swiftlib.resource_op(
+                {
+                    "obj": rgw_client,
+                    "resource": "post_container",
+                    "args": [
+                        container_name,
+                        {"X-Versions-Location": new_container_name},
+                    ],
+                }
+            )
+
+            log.info(f"new_container {new_container}")
+            if new_container:
+                raise TestExecError(
+                    f"enable versioning on container {container_name} with subuser {new_user_info['user_id']} should fail"
+                )
 
         elif config.object_expire is True:
             container_name = utils.gen_bucket_name_from_userid(
@@ -563,8 +622,12 @@ def test_exec(config, ssh_con):
             log.info("deleting swift container")
             rgw.delete_container(container_name)
 
-    for tuser in tenants_user_info:
-        reusable.remove_user(tuser, tenant=tuser["tenant"])
+    if config.user_type == "non-tenanted":
+        for user in users_info:
+            reusable.remove_user(user)
+    else:
+        for tuser in tenants_user_info:
+            reusable.remove_user(tuser, tenant=tuser["tenant"])
 
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()

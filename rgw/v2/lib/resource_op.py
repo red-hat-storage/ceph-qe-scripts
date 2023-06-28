@@ -125,6 +125,39 @@ def create_users(no_of_users_to_create, user_names=None, cluster_name="ceph"):
     return all_users_details
 
 
+def create_non_tenant_sub_users(no_of_swift_user_to_create, user_info):
+    """
+    This function is to create m subusers on the cluster
+
+    Parameters:
+        user_info(dict): user information
+        no_of_swift_user_to_create(int): sub users to create
+
+    Returns:
+        sub_user_details
+    """
+    sub_user_details = []
+
+    log.info(f"creating swift user for {user_info['user_id']}")
+    for subuser_count in range(1, no_of_swift_user_to_create + 1):
+        sub_user_name = "swift_" + str(subuser_count)
+        sub_user = json.loads(
+            utils.exec_shell_cmd(
+                f"radosgw-admin subuser create --uid {user_info['user_id']} --subuser={user_info['user_id']}:{sub_user_name} --access=full"
+            )
+        )
+        if not sub_user:
+            raise AssertionError(
+                f"Failed to create subuser {sub_user_name} in user {user_info['user_id']}"
+            )
+        sub_user_info = {
+            "user_id": sub_user["swift_keys"][0]["user"],
+            "key": sub_user["swift_keys"][0]["secret_key"],
+        }
+        sub_user_details.append(sub_user_info)
+    return sub_user_details
+
+
 def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name="ceph"):
     """
     This function is to create n users with tenant on the cluster
