@@ -72,11 +72,11 @@ def test_exec(config, ssh_con):
     # create user
     all_users_info = s3lib.create_users(config.user_count)
     extra_user = s3lib.create_users(1)[0]
-    extra_user_auth = Auth(extra_user, ssh_con, ssl=config.ssl)
+    extra_user_auth = Auth(extra_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
     extra_user_conn = extra_user_auth.do_auth()
     for each_user in all_users_info:
         # authenticate
-        auth = Auth(each_user, ssh_con, ssl=config.ssl)
+        auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
         s3_object_names = []
         # create buckets
@@ -600,6 +600,31 @@ def test_exec(config, ssh_con):
                             bucket.name,
                             VERSIONING_STATUS["SUSPENDED"],
                         )
+                        if config.test_versioning_archive:
+                            arc_site_ip = utils.get_rgw_ip_arc()
+                            arc_site_ssh_con = utils.connect_remote(arc_site_ip)
+                            bucket_id = json.loads(
+                                utils.exec_shell_cmd(
+                                    f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
+                                )
+                            )["id"]
+                            cmd_arc_metadata = f"radosgw-admin metadata get --metadata-key bucket.instance:{bucket_name_to_create}:{bucket_id}"
+                            stdin, stdout, stderr = arc_site_ssh_con.exec_command(
+                                cmd_arc_metadata
+                            )
+                            metadata_bucket_get = json.loads(stdout.read().decode())
+                            log.info(
+                                f"Metadata for the bucket {bucket_name_to_create} is {metadata_bucket_get}"
+                            )
+                            log.info(
+                                "Check the value of flag, it should be 2 for version enabled buckets"
+                            )
+                            if metadata_bucket_get["data"]["bucket_info"]["flags"] != 2:
+
+                                raise TestExecError(
+                                    "versioning suspended at archive, test failed"
+                                )
+
                     else:
                         raise TestExecError("version suspend failed")
                     # getting all objects in the bucket

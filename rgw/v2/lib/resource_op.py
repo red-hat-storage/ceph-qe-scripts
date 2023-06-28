@@ -347,6 +347,9 @@ class Config(object):
             "testlc_with_obect_acl_set", False
         )
         self.test_sync_0_shards = self.doc["config"].get("test_sync_0_shards", False)
+        self.test_versioning_archive = self.doc["config"].get(
+            "test_versioning_archive", False
+        )
         self.retain_bucket_pol = self.doc["config"].get("retain_bucket_pol", False)
         self.frontend = self.doc["config"].get("frontend")
         self.io_op_config = self.doc.get("config").get("io_op_config")
