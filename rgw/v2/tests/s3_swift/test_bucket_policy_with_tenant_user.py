@@ -8,6 +8,7 @@ usage : test_list_all_multipart_uploads.py -c <input_yaml>
     configs/test_list_all_multipart_uploads.yaml
     configs/test_listbucketversion_with_bucketpolicy_for_tenant_user.yaml
     configs/test_bucketlocation_using_bucketpolicy_with_tenantuser.yaml
+    configs/test_bucket_put_get_lifecycle_configuration_with_tenant_users.yaml
 
 Operation:
 - Create users in the same tenant, user1 and user2 (if required user3)
@@ -107,6 +108,8 @@ def test_exec(config, ssh_con):
             action_list = ["ListBucketVersions"]
         elif config.test_ops.get("get_bucket_location", False):
             action_list = ["GetBucketLocation"]
+        elif config.test_ops.get("lifecycle_configuration", False):
+            action_list = ["PutLifecycleConfiguration", "GetLifecycleConfiguration"]
         additional_aws_principle = [
             f"arn:aws:iam::{tenant1}:user/{tenant1_user3_info['user_id']}"
         ]
@@ -261,6 +264,43 @@ def test_exec(config, ssh_con):
                 except ClientError as err:
                     raise AssertionError(
                         f"Failed to perform get_bucket_location: {err}"
+                    )
+            if config.test_ops.get("lifecycle_configuration", False):
+                log.info(
+                    "Perform put and get lifecycle configuration: from users of same tenant"
+                )
+                life_cycle_rule = {"Rules": config.lifecycle_conf}
+                log.info(
+                    "Perform put lifecycle configuration: from one user of same tenant"
+                )
+                reusable.put_bucket_lifecycle(
+                    bucket,
+                    rgw_tenant1_user1,
+                    rgw_tenant1_user1_c,
+                    life_cycle_rule,
+                    get_lc=False,
+                )
+
+                try:
+                    log.info(
+                        "Perform get lifecycle configuration: from all users of same tenant"
+                    )
+                    rgw_clients = [
+                        rgw_tenant1_user1_c,
+                        rgw_tenant1_user2_c,
+                        rgw_tenant1_user3_c,
+                    ]
+                    for rgw_client in rgw_clients:
+                        reusable.put_bucket_lifecycle(
+                            bucket,
+                            rgw_tenant1_user1,
+                            rgw_client,
+                            life_cycle_rule,
+                            put_lc=False,
+                        )
+                except ClientError as err:
+                    raise AssertionError(
+                        f"Failed to perform lifecycle configuration operation: {err}"
                     )
 
     for i in tenant1_user_info:

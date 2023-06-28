@@ -1240,51 +1240,57 @@ def check_datalog_marker():
     raise TestExecError(f"No known identifiers found in datalog marker \n {marker}")
 
 
-def put_bucket_lifecycle(bucket, rgw_conn, rgw_conn2, life_cycle_rule):
+def put_bucket_lifecycle(
+    bucket, rgw_conn, rgw_conn2, life_cycle_rule, put_lc=True, get_lc=True
+):
     """
     Set/Put lifecycle to provided bucket
     """
-    bucket_life_cycle = s3lib.resource_op(
-        {
-            "obj": rgw_conn,
-            "resource": "BucketLifecycleConfiguration",
-            "args": [bucket.name],
-        }
-    )
-    put_bucket_life_cycle = s3lib.resource_op(
-        {
-            "obj": bucket_life_cycle,
-            "resource": "put",
-            "kwargs": dict(LifecycleConfiguration=life_cycle_rule),
-        }
-    )
-    log.info(f"put bucket life cycle:\n{put_bucket_life_cycle}")
-    if not put_bucket_life_cycle:
-        raise TestExecError("Resource execution failed: put bucket lifecycle failed")
-    if put_bucket_life_cycle:
-        response = HttpResponseParser(put_bucket_life_cycle)
-        if response.status_code == 200:
-            log.info("bucket life cycle added")
-        else:
-            raise TestExecError("bucket lifecycle addition failed")
-    log.info("trying to retrieve bucket lifecycle config")
-    get_bucket_life_cycle_config = s3lib.resource_op(
-        {
-            "obj": rgw_conn2,
-            "resource": "get_bucket_lifecycle_configuration",
-            "kwargs": dict(Bucket=bucket.name),
-        }
-    )
-    if not get_bucket_life_cycle_config:
-        raise TestExecError("bucket lifecycle config retrieval failed")
-    if get_bucket_life_cycle_config:
-        response = HttpResponseParser(get_bucket_life_cycle_config)
-        if response.status_code == 200:
-            log.info("bucket life cycle retrieved")
-        else:
+    if put_lc:
+        bucket_life_cycle = s3lib.resource_op(
+            {
+                "obj": rgw_conn,
+                "resource": "BucketLifecycleConfiguration",
+                "args": [bucket.name],
+            }
+        )
+        put_bucket_life_cycle = s3lib.resource_op(
+            {
+                "obj": bucket_life_cycle,
+                "resource": "put",
+                "kwargs": dict(LifecycleConfiguration=life_cycle_rule),
+            }
+        )
+        log.info(f"put bucket life cycle:\n{put_bucket_life_cycle}")
+        if not put_bucket_life_cycle:
+            raise TestExecError(
+                "Resource execution failed: put bucket lifecycle failed"
+            )
+        if put_bucket_life_cycle:
+            response = HttpResponseParser(put_bucket_life_cycle)
+            if response.status_code == 200:
+                log.info("bucket life cycle added")
+            else:
+                raise TestExecError("bucket lifecycle addition failed")
+    if get_lc:
+        log.info("trying to retrieve bucket lifecycle config")
+        get_bucket_life_cycle_config = s3lib.resource_op(
+            {
+                "obj": rgw_conn2,
+                "resource": "get_bucket_lifecycle_configuration",
+                "kwargs": dict(Bucket=bucket.name),
+            }
+        )
+        if not get_bucket_life_cycle_config:
             raise TestExecError("bucket lifecycle config retrieval failed")
-    else:
-        raise TestExecError("bucket life cycle retrieved")
+        if get_bucket_life_cycle_config:
+            response = HttpResponseParser(get_bucket_life_cycle_config)
+            if response.status_code == 200:
+                log.info("bucket life cycle retrieved")
+            else:
+                raise TestExecError("bucket lifecycle config retrieval failed")
+        else:
+            raise TestExecError("bucket life cycle retrieved")
     lc_data = json.loads(utils.exec_shell_cmd("radosgw-admin lc list"))
     log.info(f"lc data is {lc_data}")
 
