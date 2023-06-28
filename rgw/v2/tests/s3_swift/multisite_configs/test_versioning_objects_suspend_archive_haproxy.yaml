@@ -1,0 +1,20 @@
+# upload type: non multipart
+# script: test_versioning_with_objects.py
+# polarian CEPH-83575578
+# bugzilla: 2137596
+config:
+     haproxy: true
+     test_versioning_archive: true
+     user_count: 1
+     bucket_count: 2
+     objects_count: 3
+     version_count: 2
+     objects_size_range:
+          min: 5
+          max: 15
+     test_ops:
+          enable_version: true
+          suspend_version: true
+          copy_to_version: false
+          delete_object_versions: false
+          upload_after_suspend: false
