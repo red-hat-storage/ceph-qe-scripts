@@ -62,7 +62,6 @@ encryption_key = hashlib.md5(password).hexdigest()
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
@@ -104,6 +103,7 @@ def test_exec(config, ssh_con):
         # Test multisite sync with 0 shards bugs 2188022, 2180549 Hot Fix for Square eCommerce
         if config.test_sync_0_shards:
             reusable.sync_test_0_shards(config)
+
         # enabling sharding
         if config.test_ops["sharding"]["enable"] is True:
             log.info("enabling sharding on buckets")
@@ -482,6 +482,10 @@ def test_exec(config, ssh_con):
                         out = utils.wait_till_bucket_synced(bkt)
                         if not out:
                             log.info("Bucket sync is not caught up with source.")
+                    if config.test_sync_consistency_bucket_stats:
+                        log.info("Wait for sync lease period of 120 seconds")
+                        time.sleep(150)
+                        reusable.test_bucket_stats_across_sites(bucket_name_to_create)
 
                     if config.bucket_sync_crash:
                         is_primary = utils.is_cluster_primary()
@@ -853,7 +857,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("create m buckets with n objects")
     test_info.started_info()
 
