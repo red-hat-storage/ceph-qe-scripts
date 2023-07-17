@@ -376,6 +376,9 @@ class Config(object):
             "ssl",
         )
         self.haproxy = self.doc["config"].get("haproxy", False)
+        self.test_sync_consistency_bucket_stats = self.doc["config"].get(
+            "test_sync_consistency_bucket_stats", False
+        )
         self.testlc_with_obect_acl_set = self.doc["config"].get(
             "testlc_with_obect_acl_set", False
         )

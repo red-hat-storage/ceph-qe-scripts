@@ -30,6 +30,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+import json
 import logging
 import random
 import traceback
@@ -601,7 +602,9 @@ def test_exec(config, ssh_con):
                             VERSIONING_STATUS["SUSPENDED"],
                         )
                         if config.test_versioning_archive:
-                            arc_site_ip = utils.get_rgw_ip_arc()
+                            zone_name = "archive"
+                            arc_site_ip = utils.get_rgw_ip_zone(zone_name)
+                            log.info(f"arc_site_ip s {arc_site_ip}")
                             arc_site_ssh_con = utils.connect_remote(arc_site_ip)
                             bucket_id = json.loads(
                                 utils.exec_shell_cmd(
@@ -620,7 +623,6 @@ def test_exec(config, ssh_con):
                                 "Check the value of flag, it should be 2 for version enabled buckets"
                             )
                             if metadata_bucket_get["data"]["bucket_info"]["flags"] != 2:
-
                                 raise TestExecError(
                                     "versioning suspended at archive, test failed"
                                 )
@@ -804,7 +806,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test versioning with objects")
     test_info.started_info()
 

@@ -1806,3 +1806,49 @@ def create_container_using_swift(container_name, rgw, user_info):
         raise TestExecError(
             f"container {container_name} creation failed with user {user_info['user_id']}"
         )
+
+
+def test_bucket_stats_across_sites(bucket_name_to_create):
+    """
+    test bucket stats across all the sites is consistent for a bucket
+    """
+    is_multisite = utils.is_cluster_multisite()
+    if is_multisite:
+        log.info(
+            f"Test sync is consistenct via bucket stats for {bucket_name_to_create}"
+        )
+        is_primary = utils.is_cluster_primary()
+        if is_primary:
+            zone_name = "secondary"
+        else:
+            zone_name = "primary"
+        cmd_bucket_stats = (
+            f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
+        )
+        log.info(f"collect bucket stats for {bucket_name_to_create} at local site")
+        local_bucket_stats = json.loads(utils.exec_shell_cmd(cmd_bucket_stats))
+        local_num_objects = local_bucket_stats["usage"]["rgw.main"]["num_objects"]
+        local_size = local_bucket_stats["usage"]["rgw.main"]["size"]
+
+        log.info(f"remote zone is {zone_name}")
+        remote_ip = utils.get_rgw_ip_zone(zone_name)
+        remote_site_ssh_con = utils.connect_remote(remote_ip)
+        log.info(
+            f"collect bucket stats for {bucket_name_to_create} at remote site {zone_name}"
+        )
+        stdin, stdout, stderr = remote_site_ssh_con.exec_command(cmd_bucket_stats)
+        stats_remote = json.loads(stdout.read().decode())
+        log.info(
+            f"bucket stats at remote site {zone_name} for {bucket_name_to_create} is {stats_remote}"
+        )
+        log.info(
+            "Verify num_objects and size is consistent across local and remote site"
+        )
+        remote_num_objects = stats_remote["usage"]["rgw.main"]["num_objects"]
+        remote_size = stats_remote["usage"]["rgw.main"]["size"]
+        if remote_size == local_size and remote_num_objects == local_num_objects:
+            log.info(f"Data is consistent for bucket {bucket_name_to_create}")
+        else:
+            raise TestExecError(
+                "Data is inconsistent for {bucket_name_to_create} across sites"
+            )

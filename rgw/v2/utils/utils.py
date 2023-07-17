@@ -828,3 +828,16 @@ def get_rgw_ip(master_zone=True):
             parse_result = urlparse(rgw_endpoint_url)
             return parse_result.hostname
     return False
+
+
+def get_rgw_ip_zone(zone_name):
+    """
+    returns the IP of a given site
+    """
+    out = exec_shell_cmd("radosgw-admin zonegroup get")
+    zonegroup_json = json.loads(out)
+    for zone in zonegroup_json["zones"]:
+        if zone["name"] == zone_name:
+            rgw_endpoint_url = zone["endpoints"][0]
+            parse_result = urlparse(rgw_endpoint_url)
+            return parse_result.hostname

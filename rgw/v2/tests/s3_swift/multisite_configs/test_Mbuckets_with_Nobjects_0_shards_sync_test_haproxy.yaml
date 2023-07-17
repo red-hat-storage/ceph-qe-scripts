@@ -3,6 +3,7 @@
 config:
   haproxy: true
   test_sync_0_shards: true
+  test_sync_consistency_bucket_stats: true
   user_count: 1
   bucket_count: 2
   objects_count: 150
