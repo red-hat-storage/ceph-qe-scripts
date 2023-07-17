@@ -841,3 +841,12 @@ def get_rgw_ip_zone(zone_name):
             rgw_endpoint_url = zone["endpoints"][0]
             parse_result = urlparse(rgw_endpoint_url)
             return parse_result.hostname
+
+
+def get_localhost_ip_address():
+    """
+    returns the public ip address of local host
+    """
+    out = exec_shell_cmd("ip -o -f inet addr show | awk '/scope global/ {print $4}'")
+    ip_addr = out.strip().split("/")[0]
+    return ip_addr

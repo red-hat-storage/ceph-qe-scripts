@@ -15,6 +15,48 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
+obtain_oidc_thumbprint_sh = """
+#!/bin/bash
+
+# Get the 'x5c' from this response to turn into an IDP-cert
+KEY1_RESPONSE=$(curl --show-error --fail -k -v \
+     -X GET \
+     -H 'Content-Type: application/x-www-form-urlencoded' \
+     'http://localhost:8180/realms/master/protocol/openid-connect/certs' 2>/dev/null \
+     | jq -r .keys[0].x5c)
+
+KEY2_RESPONSE=$(curl --show-error --fail -k -v \
+     -X GET \
+     -H 'Content-Type: application/x-www-form-urlencoded' \
+     'http://localhost:8180/realms/master/protocol/openid-connect/certs' 2>/dev/null \
+     | jq -r .keys[1].x5c)
+
+# Assemble Cert1
+echo '-----BEGIN CERTIFICATE-----' > certificate1.crt
+echo $(echo $KEY1_RESPONSE) | sed 's/^.//;s/.$//;s/^.//;s/.$//;s/^.//;s/.$//' >> certificate1.crt
+echo '-----END CERTIFICATE-----' >> certificate1.crt
+
+# Assemble Cert2
+echo '-----BEGIN CERTIFICATE-----' > certificate2.crt
+echo $(echo $KEY2_RESPONSE) | sed 's/^.//;s/.$//;s/^.//;s/.$//;s/^.//;s/.$//' >> certificate2.crt
+echo '-----END CERTIFICATE-----' >> certificate2.crt
+
+# Create Thumbprint for both certs
+PRETHUMBPRINT1=$(openssl x509 -in certificate1.crt -fingerprint -noout)
+PRETHUMBPRINT2=$(openssl x509 -in certificate2.crt -fingerprint -noout)
+
+PRETHUMBPRINT1=$(echo $PRETHUMBPRINT1 | awk '{ print substr($0, 18) }')
+PRETHUMBPRINT2=$(echo $PRETHUMBPRINT2 | awk '{ print substr($0, 18) }')
+
+echo ${PRETHUMBPRINT1//:}
+echo ${PRETHUMBPRINT2//:}
+
+#clean up the temp files
+rm certificate1.crt
+rm certificate2.crt
+"""
+
+
 def add_sts_config_to_ceph_conf(
     ceph_config_set, rgw_service, sesison_encryption_token="abcdefghijklmnoq"
 ):
@@ -112,3 +154,377 @@ def assume_role(sts_client, **kwargs):
     assume_role_response = sts_client.assume_role(**kwargs)
     log.info(f"assume_role_response:\n{assume_role_response}")
     return assume_role_response
+
+
+class Keycloak:
+    def __init__(
+        self,
+        client_id="sts_client",
+        client_secret="client_secret1",
+        ip_addr="localhost",
+        attributes=None,
+    ):
+        """
+        Keycloak deployment and administration through curl
+        """
+        self.client_id = client_id
+        self.client_secret = client_secret
+        self.ip_addr = ip_addr
+        out = utils.exec_shell_cmd("sudo podman ps")
+        if "keycloak" in out:
+            log.info("Keycloak is already running. skipping deployment..")
+            return
+        self.install_keycloak()
+        out = utils.exec_shell_cmd("sudo yum install -y jq")
+        if out is False:
+            raise Exception("jq installation failed")
+        self.create_client()
+        self.add_service_account_roles_to_client(client_name=self.client_id)
+        self.set_audience_in_token(
+            self.client_id, "set_audience_scope", "set_audience_protocol_mapper"
+        )
+        self.set_session_tags_in_token(self.client_id)
+        self.realm_keys_workaround()
+        if attributes:
+            self.add_user_attributes(attributes=attributes, username="admin")
+
+    def install_keycloak(self):
+        out = utils.exec_shell_cmd(
+            "sudo podman run -d --name keycloak -p 8180:8180 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:22.0.0-0 start-dev --http-port 8180"
+        )
+        if out is False:
+            raise Exception("keycloak deployment failed")
+        log.info("sleeping for 60 seconds")
+        time.sleep(60)
+        return out
+
+    def get_web_acccess_token(self, initial_token=False):
+        if initial_token:
+            out = utils.exec_shell_cmd(
+                f'curl --show-error --fail --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token | jq -r .access_token'
+            )
+        else:
+            out = utils.exec_shell_cmd(
+                f'curl --show-error --fail -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "scope=openid" -d "grant_type=client_credentials" -d "client_id={self.client_id}" -d "client_secret={self.client_secret}" "http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token" | jq -r .access_token'
+            )
+        if out is False:
+            raise Exception("failed to get access token")
+        return out.strip()
+
+    def introspect_token(self, access_token):
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -d "token={access_token}" -u "{self.client_id}:{self.client_secret}" http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token/introspect | jq .'
+        )
+        if out is False:
+            raise Exception("token introspection failed")
+        log.info(out)
+        json_out = json.loads(out)
+        return json_out
+
+    def create_client(self, client_representation=None):
+        default_client_representation = {
+            "clientId": "sts_client",
+            "enabled": "true",
+            "consentRequired": "false",
+            "protocol": "openid-connect",
+            "standardFlowEnabled": "true",
+            "implicitFlowEnabled": "false",
+            "directAccessGrantsEnabled": "true",
+            "publicClient": "false",
+            "secret": "client_secret1",
+            "serviceAccountsEnabled": "true",
+        }
+        if client_representation:
+            default_client_representation.update(client_representation)
+        access_token = self.get_web_acccess_token(initial_token=True)
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients  -d \'{json.dumps(default_client_representation)}\''
+        )
+        if out is False:
+            raise Exception("client creation failed")
+        return out
+
+    def get_roles(self):
+        access_token = self.get_web_acccess_token(initial_token=True)
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/roles | jq .'
+        )
+        if out is False:
+            raise Exception("failed to get realm roles")
+        json_out = json.loads(out)
+        return json_out
+
+    def get_service_account_user_id(self, client_name):
+        access_token = self.get_web_acccess_token(initial_token=True)
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/?username=service-account-{client_name}'
+        )
+        if out is False:
+            raise Exception("failed to get service account user")
+        json_out = json.loads(out)
+        return json_out
+
+    def add_service_account_roles_to_client(self, client_name):
+        service_account_details = self.get_service_account_user_id(client_name)
+        service_account_user_id = service_account_details[0]["id"]
+        roles = self.get_roles()
+        access_token = self.get_web_acccess_token(initial_token=True)
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(roles)}\''
+        )
+        if out is False:
+            raise Exception("failed to add service account roles to client")
+        return True
+
+    def get_openid_configuration(self):
+        out = utils.exec_shell_cmd(
+            f"curl --show-error --fail http://{self.ip_addr}:8180/realms/master/.well-known/openid-configuration | jq -r .jwks_uri"
+        )
+        if out is False:
+            raise Exception("failed to get openid configuration")
+        return out
+
+    def get_certs(self):
+        out = utils.exec_shell_cmd(
+            f"curl --show-error --fail http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/certs | jq ."
+        )
+        if out is False:
+            raise Exception("failed to get keycloak certs")
+        return out
+
+    def get_user(self, username="admin"):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/?username={username}'
+        )
+        if out is False:
+            raise Exception("failed to get users")
+        return out
+
+    def add_user_attributes(self, attributes, username="admin"):
+        access_token = self.get_web_acccess_token()
+        admin_user = self.get_user(username)[0]
+        user_id = admin_user["id"]
+        existing_attributes = admin_user["attributes"]
+        existing_attributes.update(attributes)
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{user_id} -d \'{{"attributes":{json.dumps(existing_attributes)}}}\''
+        )
+        if out is False:
+            raise Exception("failed to add attributes to user")
+        return out
+
+    def set_audience_in_token(
+        self, client_name, audience_scope_name, protocol_mapper_name
+    ):
+        client_scope_representation = {
+            "attributes": {
+                "display.on.consent.screen": "true",
+                "include.in.token.scope": "true",
+            },
+            "name": audience_scope_name,
+            "description": "scope to set audience in token",
+            "protocol": "openid-connect",
+        }
+        self.create_client_scope(client_scope_representation)
+        client_scope_id = self.get_client_scope(audience_scope_name)["id"]
+        protocol_mapper_representation = {
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-audience-mapper",
+            "name": protocol_mapper_name,
+            "config": {
+                "included.client.audience": client_name,
+                "included.custom.audience": "",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+            },
+        }
+        self.create_protocol_mapper(client_scope_id, protocol_mapper_representation)
+        client_id = self.get_client(client_name)["id"]
+        self.add_client_scope_to_client(client_id, client_scope_id)
+        return True
+
+    def set_session_tags_in_token(self, client_name):
+        client_scope_representation = {
+            "attributes": {
+                "display.on.consent.screen": "true",
+                "include.in.token.scope": "true",
+            },
+            "name": "session_tags_scope",
+            "description": "scope to set session tags in token",
+            "protocol": "openid-connect",
+        }
+        self.create_client_scope(client_scope_representation)
+        client_scope_id = self.get_client_scope("session_tags_scope")["id"]
+        protocol_mapper_representation = {
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-usermodel-attribute-mapper",
+            "name": "https://aws.amazon.com/tags",
+            "config": {
+                "user.attribute": "https://aws.amazon.com/tags",
+                "claim.name": "https://aws\\.amazon\\.com/tags",
+                "jsonType.label": "JSON",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+                "userinfo.token.claim": "true",
+                "multivalued": "true",
+                "aggregate.attrs": "false",
+            },
+        }
+        self.create_protocol_mapper(client_scope_id, protocol_mapper_representation)
+        client_id = self.get_client(client_name)["id"]
+        self.add_client_scope_to_client(client_id, client_scope_id)
+        return True
+
+    def create_client_scope(self, client_scope_representation):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes -d \'{json.dumps(client_scope_representation)}\''
+        )
+        if out is False:
+            raise Exception("client scope creation failed")
+        return out
+
+    def get_client_scope(self, client_scope_name=None):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes/'
+        )
+        if out is False:
+            raise Exception("failed to get client scopes")
+        client_scope_json = json.loads(out)
+        if client_scope_name:
+            for scope in client_scope_json:
+                if scope["name"] == client_scope_name:
+                    return scope
+            raise Exception(f"client scope with name '{client_scope_name}' not found")
+        return client_scope_json
+
+    def create_protocol_mapper(self, client_scope_id, protocol_mapper_representation):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes/{client_scope_id}/protocol-mappers/models -d \'{json.dumps(protocol_mapper_representation)}\''
+        )
+        if out is False:
+            raise Exception("failed to create protocol mapper for client scope")
+        return out
+
+    def get_client(self, client_name=None):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients'
+        )
+        if out is False:
+            raise Exception("failed to get clients")
+        clients_json = json.loads(out)
+        if client_name:
+            for client in clients_json:
+                if client["clientId"] == client_name:
+                    return client
+            raise Exception(f"client scope with name '{client_name}' not found")
+        return clients_json
+
+    def add_client_scope_to_client(self, client_id, client_scope_id):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/{client_id}/default-client-scopes/{client_scope_id}'
+        )
+        if out is False:
+            raise Exception("failed to add client scope to client")
+        return out
+
+    def realm_keys_workaround(self):
+        """
+        This is a workaround to update rsa-enc-generated realm key with priority 90 and keysize 1024
+        to avoid unnecessary failures like using wrong certificate i.e., enc certificate instead of sig certificate
+            that leads to "invalid  padding", "wrong signature length", "signature length long"..
+        refer https://tracker.ceph.com/issues/54562
+        """
+        # updating rsa-enc-generated realm key keysize
+        config_overrides = {"keySize": ["1024"], "priority": ["90"]}
+        rsa_enc_generated_key_metadata_representation = self.get_realm_key(
+            key_name="rsa-enc-generated"
+        )
+        rsa_enc_generated_key_id = rsa_enc_generated_key_metadata_representation["id"]
+        rsa_enc_generated_key_metadata_representation["config"].update(config_overrides)
+        self.update_realm_key(
+            rsa_enc_generated_key_id, rsa_enc_generated_key_metadata_representation
+        )
+        return True
+
+    def get_realm_key(self, key_name=None):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components?type=org.keycloak.keys.KeyProvider'
+        )
+        if out is False:
+            raise Exception("failed to get realm keys")
+        keys_json = json.loads(out)
+        if key_name:
+            for key in keys_json:
+                if key["name"] == key_name:
+                    return key
+            raise Exception(f"realm key with name '{key_name}' not found")
+        return keys_json
+
+    def get_realm_key_by_id(self, key_id):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components/{key_id}'
+        )
+        if out is False:
+            raise Exception("failed to get realm key by id")
+        keys_json = json.loads(out)
+        return keys_json
+
+    def update_realm_key(self, key_id, key_metadata_representation):
+        access_token = self.get_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components/{key_id} -d \'{json.dumps(key_metadata_representation)}\''
+        )
+        if out is False:
+            raise Exception("failed to update realm key")
+        return out
+
+    def create_open_id_connect_provider(self, iam_client):
+        # obtain oidc idp thumbprint
+        global obtain_oidc_thumbprint_sh
+        with open("obtain_oidc_thumbprint.sh", "w") as rsh:
+            rsh.write(f"{obtain_oidc_thumbprint_sh}")
+        utils.exec_shell_cmd("chmod +rwx obtain_oidc_thumbprint.sh")
+        thumbprints = utils.exec_shell_cmd("./obtain_oidc_thumbprint.sh")
+        thumbprints = thumbprints.strip().split("\n")
+        try:
+            # create openid connect provider
+            oidc_response = iam_client.create_open_id_connect_provider(
+                Url=f"http://{self.ip_addr}:8180/realms/master",
+                ClientIDList=["account", self.client_id],
+                ThumbprintList=thumbprints,
+            )
+            log.info(f"create oidc response: {oidc_response}")
+        except Exception as e:
+            log.info(f"Exception {e} occured")
+            log.info("Provider already exists")
+        return True
+
+    def list_open_id_connect_provider(self, iam_client):
+        # list openid connect providers
+        try:
+            oidc_response = iam_client.list_open_id_connect_providers()
+            log.info(f"list oidc response: {oidc_response}")
+            return oidc_response
+        except Exception as e:
+            log.info("No openid connect providers exists")
+
+    def delete_open_id_connect_provider(self, iam_client):
+        json_out = self.list_open_id_connect_provider(iam_client)
+        if json_out:
+            for provider in json_out["OpenIDConnectProviderList"]:
+                arn = provider["Arn"]
+                oidc_response = iam_client.delete_open_id_connect_provider(
+                    OpenIDConnectProviderArn=arn
+                )
+                log.info(f"delete oidc response: {oidc_response}")
+                time.sleep(5)
+        else:
+            log.info("No openid connect providers exists to delete")

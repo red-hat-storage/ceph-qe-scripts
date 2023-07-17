@@ -1,0 +1,37 @@
+# polarion test case id: CEPH-83574501
+# test scripts : test_sts_aswi.py
+# azp - Authorized party - the party to which the ID Token was issued
+config:
+     bucket_count: 2
+     objects_count: 50
+     objects_size_range:
+          min: 5
+          max: 15
+     test_ops:
+          create_bucket: true
+          create_object: true
+     sts:
+          policy_document:
+                "Version": "2012-10-17"
+                "Statement": [
+                    {
+                         "Effect": "Allow",
+                         "Principal": {
+                           "Federated": ["arn:aws:iam:::oidc-provider/ip_addr:8180/realms/master"]
+                         },
+                         "Action": ["sts:AssumeRoleWithWebIdentity"],
+                         "Condition": {
+                           "StringEquals": {
+                             "ip_addr:8180/realms/master:azp": "azp_claim"
+                           }
+                         }
+                    }
+                ]
+          role_policy:
+               "Version": "2012-10-17"
+               "Statement":
+                    {
+                         "Effect": "Allow",
+                         "Action": "s3:*",
+                         "Resource": "arn:aws:s3:::*",
+                    }
