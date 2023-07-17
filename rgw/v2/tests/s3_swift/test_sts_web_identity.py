@@ -28,19 +28,11 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
 import json
 import logging
-<<<<<<< HEAD
-import random
-import time
-import traceback
-
-import boto3
-=======
 import time
 import traceback
 import boto3
 import random
 
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
 from botocore.exceptions import ClientError
@@ -50,17 +42,10 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import AddUserInfo, BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
-<<<<<<< HEAD
-from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
-from v2.utils.log import configure_logging
-from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import RGWService
-=======
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
@@ -178,13 +163,9 @@ def test_exec(config, ssh_con):
     role_name = f"S3RoleOf.{user1['user_id']}"
     log.info(f"role_name: {role_name}")
 
-<<<<<<< HEAD
-    tags_list = [{"Key": "project", "Value": "ceph"}]
-=======
     tags_list = [
         {'Key': 'project', 'Value': 'ceph'}
     ]
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
     log.info("creating role")
     create_role_response = iam_client.create_role(
         AssumeRolePolicyDocument=policy_document,
@@ -197,14 +178,10 @@ def test_exec(config, ssh_con):
 
     if config.test_ops.get("iam_resource_tag"):
         print("Adding tags to role\n")
-<<<<<<< HEAD
-        response = iam_client.tag_role(RoleName=role_name, Tags=tags_list)
-=======
         response = iam_client.tag_role(
             RoleName=role_name,
             Tags=tags_list
         )
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
         log.info("tag_role_response")
         log.info(response)
 
@@ -234,33 +211,11 @@ def test_exec(config, ssh_con):
     # )
     # log.info(f"assume role response: {assume_role_response}")
 
-<<<<<<< HEAD
-    stdout = utils.exec_shell_cmd(
-        "source ./get_web_token.sh | grep kc_access_token | awk '{ print $2 }'"
-    )
-=======
     stdout = utils.exec_shell_cmd("source ./get_web_token.sh | grep kc_access_token | awk '{ print $2 }'")
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
     web_token = stdout.strip()
     log.info(f"web token: {web_token}")
     # isbankidentitypolicy2 = '{\"Version\":\"2012-10-17\",\"Statement\":{\"Effect\":\"Allow\",\"Action\":\"s3:*\",\"Resource\":\"arn:aws:s3:::*\"}}'
     response = sts_client.assume_role_with_web_identity(
-<<<<<<< HEAD
-        RoleArn=create_role_response["Role"]["Arn"],
-        RoleSessionName=user1["user_id"],
-        DurationSeconds=3600,
-        WebIdentityToken=web_token,
-    )
-    log.info(f"assume role with web identity response: {response}")
-    s3client = boto3.client(
-        "s3",
-        aws_access_key_id=response["Credentials"]["AccessKeyId"],
-        aws_secret_access_key=response["Credentials"]["SecretAccessKey"],
-        aws_session_token=response["Credentials"]["SessionToken"],
-        endpoint_url="http://localhost:80",
-        region_name="default",
-    )
-=======
         RoleArn=create_role_response['Role']['Arn'],
         RoleSessionName=user1["user_id"],
         DurationSeconds=3600,
@@ -273,25 +228,10 @@ def test_exec(config, ssh_con):
         aws_session_token=response['Credentials']['SessionToken'],
         endpoint_url="http://localhost:80",
         region_name='default',)
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
     log.info(f"s3 client: {s3client}")
     s3_temp_client = s3client
     if config.test_ops.get("s3_resource_tag"):
         s3client = user1_client
-<<<<<<< HEAD
-    if (
-        config.test_ops.get("s3_resource_tag")
-        or config.test_ops.get("s3_resource_tag")
-        or config.test_ops.get("aws_tag_keys")
-    ):
-        response = user1_client.put_bucket_tagging(
-            Bucket=bucket_name,
-            Tagging={
-                "TagSet": [
-                    {
-                        "Key": "project",
-                        "Value": "ceph",
-=======
     if config.test_ops.get("s3_resource_tag") or config.test_ops.get("s3_resource_tag") or config.test_ops.get("aws_tag_keys"):
         response = user1_client.put_bucket_tagging(
             Bucket=bucket_name,
@@ -300,28 +240,11 @@ def test_exec(config, ssh_con):
                     {
                         'Key': 'project',
                         'Value': 'ceph',
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
                     }
                 ],
             },
         )
         log.info(f"put bucket tagging response: {response}")
-<<<<<<< HEAD
-        bucket_body = "this is a test file"
-        tags = "project=ceph"
-        key = "obj1"
-        s3_put_obj = s3_temp_client.put_object(
-            Body=bucket_body, Bucket=bucket_name, Key=key, Tagging=tags
-        )
-        log.info(f"put object response: {s3_put_obj}")
-    else:
-        bucket_body = "this is a test file"
-        tags = "project=ceph"
-        key = "obj1"
-        s3_put_obj = s3_temp_client.put_object(
-            Body=bucket_body, Bucket=bucket_name, Key=key, Tagging=tags
-        )
-=======
         bucket_body = 'this is a test file'
         tags = 'project=ceph'
         key = "obj1"
@@ -332,7 +255,6 @@ def test_exec(config, ssh_con):
         tags = 'project=ceph'
         key = "obj1"
         s3_put_obj = s3_temp_client.put_object(Body=bucket_body, Bucket=bucket_name, Key=key, Tagging=tags)
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
         log.info(f"put object response: {s3_put_obj}")
 
     if config.test_ops.get("send_bucket_notifications", False) is True:
@@ -423,10 +345,7 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-<<<<<<< HEAD
-=======
 
->>>>>>> 19ca437 (explaration of sts with keycloak and testing them through automation, this includes session tags testing as well)
     test_info = AddTestInfo("Starting STS test for assume-role operation")
     test_info.started_info()
 
