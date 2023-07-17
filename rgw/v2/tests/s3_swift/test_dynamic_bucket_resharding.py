@@ -153,26 +153,18 @@ def test_exec(config, ssh_con):
             log.info("checking for any sync error")
             utils.exec_shell_cmd("sudo radosgw-admin sync error list")
             raise AssertionError("sync status is in failed or errored state!")
-        if "behind" in bkt_sync_status:
-            log.info(
-                f"sync is in progress!, perform resharding of an bucket {bucket.name}"
-            )
-            bkt_stat_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
-            old_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))[
-                "num_shards"
-            ]
-            manual_shard_no = old_shard_value + 5
-            cmd_exec = utils.exec_shell_cmd(
-                f"radosgw-admin bucket reshard --bucket={bucket.name} "
-                f"--num-shards={manual_shard_no}"
-            )
-            if not cmd_exec:
-                raise TestExecError("manual resharding command execution failed")
-            new_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))[
-                "num_shards"
-            ]
-            if new_shard_value == manual_shard_no:
-                log.info("manual reshard succeeded!")
+        bkt_stat_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
+        old_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))["num_shards"]
+        manual_shard_no = old_shard_value + 5
+        cmd_exec = utils.exec_shell_cmd(
+            f"radosgw-admin bucket reshard --bucket={bucket.name} "
+            f"--num-shards={manual_shard_no}"
+        )
+        if not cmd_exec:
+            raise TestExecError("manual resharding command execution failed")
+        new_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))["num_shards"]
+        if new_shard_value == manual_shard_no:
+            log.info("manual reshard succeeded!")
         bucket_gen_after = reusable.fetch_bucket_gen(bucket.name)
         log.info(f"Latest generation of a bucket {bucket.name} is :{bucket_gen_after}")
         if bucket_gen_after > bucket_gen_before:
