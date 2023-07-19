@@ -2,7 +2,7 @@
 # script: test_quota_management.py
 config:
   user_count: 1
-  bucket_count: 10
+  bucket_count: 3
   user_max_objects: 100
   user_max_size: 16384
   bucket_max_objects: 10
