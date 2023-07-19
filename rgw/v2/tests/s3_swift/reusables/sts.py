@@ -112,3 +112,10 @@ def assume_role(sts_client, **kwargs):
     assume_role_response = sts_client.assume_role(**kwargs)
     log.info(f"assume_role_response:\n{assume_role_response}")
     return assume_role_response
+
+
+def install_keycloak():
+    utils.exec_shell_cmd("podman run -d --name keycloak -p 8180:8180 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:22.0.0-0 start-dev --http-port 8180")
+
+def get_keycloak_web_acccess_token(node):
+    utils.exec_shell_cmd('curl --data "username=admin&password=admin&grant_type=password&client_id=account" http://localhost:8180/realms/master/protocol/openid-connect/token')
