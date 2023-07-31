@@ -156,156 +156,253 @@ def assume_role(sts_client, **kwargs):
     return assume_role_response
 
 
-# todo: add --show-error and --fail flags to curl commands
-def install_keycloak():
-    out = utils.exec_shell_cmd(
-        "podman run -d --name keycloak -p 8180:8180 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:22.0.0-0 start-dev --http-port 8180"
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
+class Keycloak:
+    def __init__(self, client_secret):
+        """
+        Constructor for curl class
+        user_info(dict) : user details
+        ssh_con(str) : rgw ip address
+        """
+        self.install_keycloak()
+        self.create_client()
+        self.add_service_account_roles_to_client()
+        self.client_secret = client_secret
 
 
-def get_keycloak_web_acccess_token():
-    out = utils.exec_shell_cmd(
-        'curl --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" http://localhost:8180/realms/master/protocol/openid-connect/token | jq -r .access_token'
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out.strip()
+    # todo: add --show-error and --fail flags to curl commands
+    def install_keycloak(self):
+        out = utils.exec_shell_cmd(
+            "sudo podman run -d --name keycloak -p 8180:8180 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:22.0.0-0 start-dev --http-port 8180"
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        out = utils.exec_shell_cmd(
+            "sudo install jq"
+        )
+        return out
+
+    def get_keycloak_web_acccess_token(self, initial_token=False):
+        if initial_token:
+            out = utils.exec_shell_cmd(
+                'curl --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" http://localhost:8180/realms/master/protocol/openid-connect/token | jq -r .access_token'
+            )
+        else:
+            out = utils.exec_shell_cmd(
+                'curl -k -v -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "scope=openid" -d "grant_type=client_credentials" -d "client_id=sts_client" -d "client_secret=client_secret1" "http://localhost:8180/realms/master/protocol/openid-connect/token" | jq .'
+            )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out.strip()
+
+    def create_client(self, client_representation=None):
+        default_client_representation = {
+            "clientId": "sts_client",
+            "enabled": True,
+            "consentRequired": False,
+            "protocol": "openid-connect",
+            "standardFlowEnabled": True,
+            "implicitFlowEnabled": False,
+            "directAccessGrantsEnabled": True,
+            "publicClient": False,
+            "secret": "client_secret1",
+            "serviceAccountsEnabled": True
+        }
+        if client_representation:
+            default_client_representation.update(client_representation)
+        access_token = self.get_keycloak_web_acccess_token(initial_token=True)
+        out = utils.exec_shell_cmd(
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients  -d \'{default_client_representation}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
+
+    def get_keycloak_roles(self):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/roles | jq .'
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
+
+    def get_service_account_user_id(self, client_name):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/?username=service-account-{client_name}'
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
+
+    def add_service_account_roles_to_client(self, client_name):
+        service_account_details = self.get_service_account_user_id(client_name)
+        service_account_user_id = service_account_details[0]["id"]
+
+        roles = self.get_keycloak_roles()
+        for role in roles:
+            access_token = self.get_keycloak_web_acccess_token()
+            out = utils.exec_shell_cmd(
+                f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{role}\''
+            )
+            if out is False:
+                raise Exception("keycloack deployment failed")
+        return True
+
+    def get_keycloack_openid_configuration(self):
+        out = utils.exec_shell_cmd(
+            "curl http://localhost:8180/realms/master/.well-known/openid-configuration | jq -r .jwks_uri"
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
+
+    def get_keycloack_certs(self):
+        out = utils.exec_shell_cmd(
+            "curl http://localhost:8180/realms/master/protocol/openid-connect/certs | jq ."
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
+
+    def get_keycloak_user(self, username="admin"):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/?username={username}'
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
+
+    def get_keycloak_clients(self):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients'
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
 
-def get_keycloack_openid_configuration():
-    out = utils.exec_shell_cmd(
-        "curl http://localhost:8180/realms/master/.well-known/openid-configuration | jq -r .jwks_uri"
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
+    def add_keycloak_user_attributes(self, attributes, username="admin"):
+        access_token = self.get_keycloak_web_acccess_token()
+        admin_user = self.get_keycloak_user("admin")[0]
+        user_id = admin_user["id"]
+        existing_attributes = admin_user["attributes"]
+        existing_attributes.update(attributes)
+        out = utils.exec_shell_cmd(
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{user_id} -d \'{{"attributes":{existing_attributes}}}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
 
-def get_keycloack_certs():
-    out = utils.exec_shell_cmd(
-        "curl http://localhost:8180/realms/master/protocol/openid-connect/certs | jq ."
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
+    def introspect_token(self):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -d "token={access_token}" -u "account:n2BnvKAYWD1bn1jqpWhAMJB7HxkJ0AFX" http://localhost:8180/realms/master/protocol/openid-connect/token/introspect | jq .'
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
 
-def get_keycloak_user(username="admin"):
-    access_token = get_keycloak_web_acccess_token()
-    out = utils.exec_shell_cmd(
-        f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/?username={username}'
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
+    def enable_client_authentication(self, client_name="account"):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"publicClient":false, "secret": "client_secret1"}}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
 
-def get_keycloak_clients():
-    access_token = get_keycloak_web_acccess_token()
-    out = utils.exec_shell_cmd(
-        f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients'
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
+    def disable_client_authentication(self, client_name="account"):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"publicClient":true}}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
+    def enable_client_direct_access_grants(self, client_name="account"):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"directAccessGrantsEnabled":true}}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
-def add_keycloak_user_attributes(attributes, username="admin"):
-    access_token = get_keycloak_web_acccess_token()
-    admin_user = get_keycloak_user("admin")[0]
-    user_id = admin_user["id"]
-    existing_attributes = admin_user["attributes"]
-    existing_attributes.update(attributes)
-    out = utils.exec_shell_cmd(
-        f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{user_id} -d \'{{"attributes":{existing_attributes}}}\''
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
+    def create_client_scope(self, client_scope_representation):
+        default_client_scope_representation = {
+            "attributes":
+            {
+                "display.on.consent.screen": "true",
+                "include.in.token.scope": "true",
+                "gui.order": "1"
+            },
+            "name": "audience_scope1",
+            "description": "scope to set audience in token",
+            "protocol": "openid-connect"
+        }
+        default_client_scope_representation.update(client_scope_representation)
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/client-scopes -d \'{default_client_scope_representation}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
+    def set_audience_in_token(self, client_name="account"):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"directAccessGrantsEnabled":true}}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
-def introspect_token():
-    access_token = get_keycloak_web_acccess_token()
-    out = utils.exec_shell_cmd(
-        f'curl -d "token={access_token}" -u "account:n2BnvKAYWD1bn1jqpWhAMJB7HxkJ0AFX" http://localhost:8180/realms/master/protocol/openid-connect/token/introspect | jq .'
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
+    def create_open_id_connect_provider(self, iam_client):
+        # obtain oidc idp thumbprint
+        global obtain_oidc_thumbprint_sh
+        thumbprints = utils.exec_shell_cmd(
+            f'echo "{obtain_oidc_thumbprint_sh}" > obtain_oidc_thumbprint.sh'
+        )
+        thumbprints = thumbprints.strip().split("\n")
 
+        # create openid connect provider
+        oidc_response = iam_client.create_open_id_connect_provider(
+            Url="http://localhost:8180/realms/master",
+            ClientIDList=[
+                "account",
+            ],
+            ThumbprintList=thumbprints,
+        )
+        log.info(f"oidc response: {oidc_response}")
+        out = utils.exec_shell_cmd(
+            "curl http://localhost:8180/realms/master/protocol/openid-connect/certs | jq ."
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
-def enable_client_authentication(client_name="account"):
-    access_token = get_keycloak_web_acccess_token()
-    out = utils.exec_shell_cmd(
-        f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"publicClient":false, "secret": "client_secret1"}}\''
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
+    def list_open_id_connect_provider(self, iam_client):
+        # list openid connect providers
+        oidc_response = iam_client.list_open_id_connect_providers()
+        log.info(f"oidc response: {oidc_response}")
 
-
-def disable_client_authentication(client_name="account"):
-    access_token = get_keycloak_web_acccess_token()
-    out = utils.exec_shell_cmd(
-        f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"publicClient":true}}\''
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
-
-
-def enable_client_direct_access_grants(client_name="account"):
-    access_token = get_keycloak_web_acccess_token()
-    out = utils.exec_shell_cmd(
-        f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"directAccessGrantsEnabled":true}}\''
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
-
-
-def create_open_id_connect_provider(iam_client):
-    # obtain oidc idp thumbprint
-    global obtain_oidc_thumbprint_sh
-    thumbprints = utils.exec_shell_cmd(
-        f'echo "{obtain_oidc_thumbprint_sh}" > obtain_oidc_thumbprint.sh'
-    )
-    thumbprints = thumbprints.strip().split("\n")
-
-    # create openid connect provider
-    oidc_response = iam_client.create_open_id_connect_provider(
-        Url="http://localhost:8180/realms/master",
-        ClientIDList=[
-            "account",
-        ],
-        ThumbprintList=thumbprints,
-    )
-    log.info(f"oidc response: {oidc_response}")
-    out = utils.exec_shell_cmd(
-        "curl http://localhost:8180/realms/master/protocol/openid-connect/certs | jq ."
-    )
-    if out is False:
-        raise Exception("keycloack deployment failed")
-    return out
-
-
-def list_open_id_connect_provider(iam_client):
-    # list openid connect providers
-    oidc_response = iam_client.list_open_id_connect_providers()
-    log.info(f"oidc response: {oidc_response}")
-
-
-def delete_open_id_connect_provider(iam_client):
-    # delete openid connect provider
-    oidc_response = iam_client.delete_open_id_connect_provider(
-        OpenIDConnectProviderArn="arn:aws:iam:::oidc-provider/localhost"
-    )
-    log.info(f"oidc response: {oidc_response}")
-    oidc_response = iam_client.delete_open_id_connect_provider(
-        OpenIDConnectProviderArn="arn:aws:iam:::oidc-provider/localhost:8180/realms/master"
-    )
-    log.info(f"oidc response: {oidc_response}")
-    time.sleep(5)
+    def delete_open_id_connect_provider(self, iam_client):
+        # delete openid connect provider
+        oidc_response = iam_client.delete_open_id_connect_provider(
+            OpenIDConnectProviderArn="arn:aws:iam:::oidc-provider/localhost"
+        )
+        log.info(f"oidc response: {oidc_response}")
+        oidc_response = iam_client.delete_open_id_connect_provider(
+            OpenIDConnectProviderArn="arn:aws:iam:::oidc-provider/localhost:8180/realms/master"
+        )
+        log.info(f"oidc response: {oidc_response}")
+        time.sleep(5)
