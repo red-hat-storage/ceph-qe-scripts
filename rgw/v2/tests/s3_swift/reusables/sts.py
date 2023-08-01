@@ -158,7 +158,11 @@ def assume_role(sts_client, **kwargs):
 
 class Keycloak:
     def __init__(
-        self, client_id="sts_client", client_secret="client_secret1", attributes=None
+        self,
+        client_id="sts_client",
+        client_secret="client_secret1",
+        ip_addr="localhost",
+        attributes=None,
     ):
         """
         Constructor for curl class
@@ -167,8 +171,9 @@ class Keycloak:
         """
         self.client_id = client_id
         self.client_secret = client_secret
+        self.ip_addr = ip_addr
         self.install_keycloak()
-        out = utils.exec_shell_cmd("sudo install jq")
+        out = utils.exec_shell_cmd("sudo yum install -y jq")
         if out is False:
             raise Exception("jq installation failed")
         self.create_client()
@@ -178,6 +183,10 @@ class Keycloak:
 
     # todo: add --show-error and --fail flags to curl commands
     def install_keycloak(self):
+        out = utils.exec_shell_cmd("sudo podman ps")
+        if "keycloak" in out:
+            log.info("Keycloak is already running. skipping deployment..")
+            return True
         out = utils.exec_shell_cmd(
             "sudo podman run -d --name keycloak -p 8180:8180 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:22.0.0-0 start-dev --http-port 8180"
         )
@@ -192,39 +201,39 @@ class Keycloak:
             )
         else:
             out = utils.exec_shell_cmd(
-                'curl -k -v -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "scope=openid" -d "grant_type=client_credentials" -d "client_id=sts_client" -d "client_secret=client_secret1" "http://localhost:8180/realms/master/protocol/openid-connect/token" | jq -r .access_token'
+                f'curl -k -v -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "scope=openid" -d "grant_type=client_credentials" -d "client_id={self.client_id}" -d "client_secret={self.client_secret}" "http://localhost:8180/realms/master/protocol/openid-connect/token" | jq -r .access_token'
             )
         if out is False:
             raise Exception("keycloack deployment failed")
         return out.strip()
 
-    def introspect_token(self):
-        access_token = self.get_keycloak_web_acccess_token()
+    def introspect_token(self, access_token):
         out = utils.exec_shell_cmd(
             f'curl -d "token={access_token}" -u "{self.client_id}:{self.client_secret}" http://localhost:8180/realms/master/protocol/openid-connect/token/introspect | jq .'
         )
         if out is False:
             raise Exception("keycloack deployment failed")
+        log.info(out)
         return out
 
     def create_client(self, client_representation=None):
         default_client_representation = {
             "clientId": "sts_client",
-            "enabled": True,
-            "consentRequired": False,
+            "enabled": "true",
+            "consentRequired": "false",
             "protocol": "openid-connect",
-            "standardFlowEnabled": True,
-            "implicitFlowEnabled": False,
-            "directAccessGrantsEnabled": True,
-            "publicClient": False,
+            "standardFlowEnabled": "true",
+            "implicitFlowEnabled": "false",
+            "directAccessGrantsEnabled": "true",
+            "publicClient": "false",
             "secret": "client_secret1",
-            "serviceAccountsEnabled": True,
+            "serviceAccountsEnabled": "true",
         }
         if client_representation:
             default_client_representation.update(client_representation)
         access_token = self.get_keycloak_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients  -d \'{default_client_representation}\''
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients  -d \'{json.dumps(default_client_representation)}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -237,7 +246,8 @@ class Keycloak:
         )
         if out is False:
             raise Exception("keycloack deployment failed")
-        return out
+        json_out = json.loads(out)
+        return json_out
 
     def get_service_account_user_id(self, client_name):
         access_token = self.get_keycloak_web_acccess_token(initial_token=True)
@@ -246,20 +256,27 @@ class Keycloak:
         )
         if out is False:
             raise Exception("keycloack deployment failed")
-        return out
+        json_out = json.loads(out)
+        return json_out
 
     def add_service_account_roles_to_client(self, client_name):
         service_account_details = self.get_service_account_user_id(client_name)
         service_account_user_id = service_account_details[0]["id"]
 
         roles = self.get_keycloak_roles()
-        for role in roles:
-            access_token = self.get_keycloak_web_acccess_token(initial_token=True)
-            out = utils.exec_shell_cmd(
-                f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{role}\''
-            )
-            if out is False:
-                raise Exception("keycloack deployment failed")
+        # for role in roles:
+        #     access_token = self.get_keycloak_web_acccess_token(initial_token=True)
+        #     out = utils.exec_shell_cmd(
+        #         f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(role)}\''
+        #     )
+        #     if out is False:
+        #         raise Exception("keycloack deployment failed")
+        access_token = self.get_keycloak_web_acccess_token(initial_token=True)
+        out = utils.exec_shell_cmd(
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(roles)}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
         return True
 
     def get_keycloack_openid_configuration(self):
@@ -294,7 +311,7 @@ class Keycloak:
         existing_attributes = admin_user["attributes"]
         existing_attributes.update(attributes)
         out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{user_id} -d \'{{"attributes":{existing_attributes}}}\''
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{user_id} -d \'{{"attributes":{json.dumps(existing_attributes)}}}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -438,20 +455,25 @@ class Keycloak:
     def create_open_id_connect_provider(self, iam_client):
         # obtain oidc idp thumbprint
         global obtain_oidc_thumbprint_sh
-        thumbprints = utils.exec_shell_cmd(
-            f'echo "{obtain_oidc_thumbprint_sh}" > obtain_oidc_thumbprint.sh'
-        )
+        # utils.exec_shell_cmd(
+        #     f'echo "{obtain_oidc_thumbprint_sh}" > obtain_oidc_thumbprint.sh'
+        # )
+        with open("obtain_oidc_thumbprint.sh", "w") as rsh:
+            rsh.write(f"{obtain_oidc_thumbprint_sh}")
+        utils.exec_shell_cmd("chmod +rwx obtain_oidc_thumbprint.sh")
+        thumbprints = utils.exec_shell_cmd(f"./obtain_oidc_thumbprint.sh")
         thumbprints = thumbprints.strip().split("\n")
-
-        # create openid connect provider
-        oidc_response = iam_client.create_open_id_connect_provider(
-            Url="http://localhost:8180/realms/master",
-            ClientIDList=[
-                "account",
-            ],
-            ThumbprintList=thumbprints,
-        )
-        log.info(f"oidc response: {oidc_response}")
+        try:
+            # create openid connect provider
+            oidc_response = iam_client.create_open_id_connect_provider(
+                Url=f"http://{self.ip_addr}:8180/realms/master",
+                ClientIDList=[self.client_id],
+                ThumbprintList=thumbprints,
+            )
+            log.info(f"create oidc response: {oidc_response}")
+        except Exception as e:
+            log.info(f"Exception {e} occured")
+            log.info("Provider already exists")
         # out = utils.exec_shell_cmd(
         #     "curl http://localhost:8180/realms/master/protocol/openid-connect/certs | jq ."
         # )
@@ -461,17 +483,25 @@ class Keycloak:
 
     def list_open_id_connect_provider(self, iam_client):
         # list openid connect providers
-        oidc_response = iam_client.list_open_id_connect_providers()
-        log.info(f"oidc response: {oidc_response}")
+        try:
+            oidc_response = iam_client.list_open_id_connect_providers()
+            log.info(f"list oidc response: {oidc_response}")
+            return oidc_response
+        except Exception as e:
+            log.info("No openid connect providers")
 
     def delete_open_id_connect_provider(self, iam_client):
         # delete openid connect provider
-        oidc_response = iam_client.delete_open_id_connect_provider(
-            OpenIDConnectProviderArn="arn:aws:iam:::oidc-provider/localhost"
-        )
-        log.info(f"oidc response: {oidc_response}")
-        oidc_response = iam_client.delete_open_id_connect_provider(
-            OpenIDConnectProviderArn="arn:aws:iam:::oidc-provider/localhost:8180/realms/master"
-        )
-        log.info(f"oidc response: {oidc_response}")
-        time.sleep(5)
+        # oidc_response = iam_client.delete_open_id_connect_provider(
+        #     OpenIDConnectProviderArn="arn:aws:iam:::oidc-provider/localhost"
+        # )
+        # log.info(f"oidc response: {oidc_response}")
+        json_out = self.list_open_id_connect_provider(iam_client)
+        if json_out:
+            for provider in json_out["OpenIDConnectProviderList"]:
+                arn = provider["Arn"]
+                oidc_response = iam_client.delete_open_id_connect_provider(
+                    OpenIDConnectProviderArn=arn
+                )
+                log.info(f"delete oidc response: {oidc_response}")
+                time.sleep(5)

@@ -18,12 +18,12 @@ config:
                          "Principal": {
                            "Federated": ["arn:aws:iam:::oidc-provider/ip_addr:8180/realms/master"]
                          },
-                         "Action": ["sts:AssumeRoleWithWebIdentity"],
-                         "Condition": {
-                           "StringEquals": {
-                             "ip_addr:8180/realms/master:azp": "sts_client"
-                           }
-                         }
+                         "Action": ["sts:AssumeRoleWithWebIdentity"]
+#                         "Condition": {
+#                           "StringEquals": {
+#                             "ip_addr:8180/realms/master:azp": "sts_client"
+#                           }
+#                         }
                     }
                 ]
           role_policy:

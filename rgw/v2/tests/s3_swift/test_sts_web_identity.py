@@ -57,7 +57,10 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_config_set = CephConfOp(ssh_con)
     rgw_service = RGWService()
-    keycloack = Keycloak(client_id="sts_client", client_secret="client_secret1")
+    local_ip_addr = utils.get_localhost_ip_address()
+    keycloack = Keycloak(
+        client_id="sts_client", client_secret="client_secret1", ip_addr=local_ip_addr
+    )
 
     if config.sts is None:
         raise TestExecError("sts policies are missing in yaml config")
@@ -86,7 +89,11 @@ def test_exec(config, ssh_con):
     iam_client = auth.do_auth_iam_client()
     user1_client = auth.do_auth_using_client()
 
-    local_ip_addr = utils.get_localhost_ip_address()
+    auth2 = Auth(user2, ssh_con, ssl=config.ssl)
+    iam_client2 = auth2.do_auth_iam_client()
+    sts_client = auth2.do_auth_sts_client()
+    log.info(f"sts client: {sts_client}")
+
     policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
     policy_document = policy_document.replace("ip_addr", local_ip_addr)
     log.info(policy_document)
@@ -100,7 +107,6 @@ def test_exec(config, ssh_con):
     )
     utils.exec_shell_cmd(add_caps_cmd)
 
-    utils.exec_shell_cmd(add_caps_cmd)
     add_caps_cmd = (
         'radosgw-admin caps add --uid="{user_id}" --caps="oidc-provider=*"'.format(
             user_id=user1["user_id"]
@@ -108,6 +114,23 @@ def test_exec(config, ssh_con):
     )
     utils.exec_shell_cmd(add_caps_cmd)
 
+    add_caps_cmd = (
+        'sudo radosgw-admin caps add --uid="{user_id}" --caps="roles=*"'.format(
+            user_id=user2["user_id"]
+        )
+    )
+    utils.exec_shell_cmd(add_caps_cmd)
+
+    add_caps_cmd = (
+        'radosgw-admin caps add --uid="{user_id}" --caps="oidc-provider=*"'.format(
+            user_id=user2["user_id"]
+        )
+    )
+    utils.exec_shell_cmd(add_caps_cmd)
+
+    keycloack.list_open_id_connect_provider(iam_client)
+    keycloack.delete_open_id_connect_provider(iam_client)
+    keycloack.list_open_id_connect_provider(iam_client)
     keycloack.create_open_id_connect_provider(iam_client)
     keycloack.list_open_id_connect_provider(iam_client)
 
@@ -115,12 +138,17 @@ def test_exec(config, ssh_con):
     log.info(f"role_name: {role_name}")
     tags_list = [{"Key": "project", "Value": "ceph"}]
     log.info("creating role")
-    create_role_response = iam_client.create_role(
-        AssumeRolePolicyDocument=policy_document,
-        Path="/",
-        RoleName=role_name,
-        Tags=tags_list if config.test_ops.get("create_role_tagging") else None,
-    )
+    if config.test_ops.get("create_role_tagging"):
+        create_role_response = iam_client.create_role(
+            AssumeRolePolicyDocument=policy_document,
+            Path="/",
+            RoleName=role_name,
+            Tags=tags_list,
+        )
+    else:
+        create_role_response = iam_client.create_role(
+            AssumeRolePolicyDocument=policy_document, Path="/", RoleName=role_name
+        )
     log.info(f"create_role_response: {create_role_response}")
 
     if config.test_ops.get("iam_resource_tag"):
@@ -139,12 +167,9 @@ def test_exec(config, ssh_con):
     log.info("put_policy_response")
     log.info(put_policy_response)
 
-    auth2 = Auth(user2, ssh_con, ssl=config.ssl)
-    sts_client = auth2.do_auth_sts_client()
-    log.info(f"sts client: {sts_client}")
-
     web_token = keycloack.get_keycloak_web_acccess_token()
     log.info(f"web token: {web_token}")
+    keycloack.introspect_token(web_token)
     assumed_role_user_info = sts_client.assume_role_with_web_identity(
         RoleArn=create_role_response["Role"]["Arn"],
         RoleSessionName=user1["user_id"],
