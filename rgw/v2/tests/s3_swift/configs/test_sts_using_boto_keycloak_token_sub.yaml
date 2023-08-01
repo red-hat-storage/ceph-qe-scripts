@@ -1,5 +1,6 @@
 # polarion test case id: CEPH-83572938 , CEPH-83574539
 # test scripts : test_sts_using_boto.py , test_sts_using_boto_unexisting_object.py
+# sub - subject claim is a string that identifies the principal that is the subject of the JWT
 config:
      bucket_count: 2
      objects_count: 10
@@ -21,7 +22,7 @@ config:
                          "Action": ["sts:AssumeRoleWithWebIdentity"],
                          "Condition": {
                            "StringEquals": {
-                             "10.0.98.207:8180/realms/master:sub": "sub_claim"
+                             "10.0.98.207:8180/realms/master:sub": "8e8fcedd-e800-45a1-86c6-5c71cfcfb284"
                            }
                          }
                     }

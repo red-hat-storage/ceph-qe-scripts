@@ -172,12 +172,18 @@ class Keycloak:
         self.client_id = client_id
         self.client_secret = client_secret
         self.ip_addr = ip_addr
+        # out = utils.exec_shell_cmd("sudo podman ps")
+        # if "keycloak" in out:
+        #     log.info("Keycloak is already running. skipping deployment..")
+        #     return True
         self.install_keycloak()
         out = utils.exec_shell_cmd("sudo yum install -y jq")
         if out is False:
             raise Exception("jq installation failed")
         self.create_client()
         self.add_service_account_roles_to_client(client_name=self.client_id)
+        self.set_audience_in_token(self.client_id, "set_audience_scope", "set_audience_protocol_mapper")
+        self.set_session_tags_in_token(self.client_id)
         if attributes:
             self.add_keycloak_user_attributes(attributes=attributes, username="admin")
 
@@ -347,33 +353,33 @@ class Keycloak:
             raise Exception("keycloack deployment failed")
         return out
 
-    def set_audience_in_token(self, client_name="account"):
+    def set_audience_in_token(self, client_name, audience_scope_name, protocol_mapper_name):
         client_scope_representation = {
             "attributes": {
                 "display.on.consent.screen": "true",
                 "include.in.token.scope": "true",
             },
-            "name": "audience_scope1",
+            "name": audience_scope_name,
             "description": "scope to set audience in token",
             "protocol": "openid-connect",
         }
         self.create_client_scope(client_scope_representation)
-        access_token = self.get_keycloak_web_acccess_token()
-        out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"directAccessGrantsEnabled":true}}\''
-        )
-        if out is False:
-            raise Exception("keycloack deployment failed")
-        return out
-
-    def create_client_scope(self, client_scope_representation):
-        access_token = self.get_keycloak_web_acccess_token()
-        out = utils.exec_shell_cmd(
-            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes -d \'{client_scope_representation}\''
-        )
-        if out is False:
-            raise Exception("keycloack deployment failed")
-        return out
+        client_scope_id = self.get_client_scope(audience_scope_name)["id"]
+        protocol_mapper_representation = {
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-audience-mapper",
+            "name": protocol_mapper_name,
+            "config": {
+                "included.client.audience": client_name,
+                "included.custom.audience": "",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+            },
+        }
+        self.create_protocol_mapper(client_scope_id, protocol_mapper_representation)
+        client_id = self.get_keycloak_client(client_name)["id"]
+        self.add_client_scope_to_client(client_id, client_scope_id)
+        return True
 
     def set_session_tags_in_token(self, client_name):
         client_scope_representation = {
@@ -403,9 +409,18 @@ class Keycloak:
             },
         }
         self.create_protocol_mapper(client_scope_id, protocol_mapper_representation)
-        client_id = self.get_keycloak_client(client_name)
+        client_id = self.get_keycloak_client(client_name)["id"]
         self.add_client_scope_to_client(client_id, client_scope_id)
         return True
+
+    def create_client_scope(self, client_scope_representation):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes -d \'{json.dumps(client_scope_representation)}\''
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
 
     def get_client_scope(self, client_scope_name=None):
         access_token = self.get_keycloak_web_acccess_token()
@@ -414,18 +429,18 @@ class Keycloak:
         )
         if out is False:
             raise Exception("keycloack deployment failed")
+        client_scope_json = json.loads(out)
         if client_scope_name:
-            client_scope_json = json.loads(out)
             for scope in client_scope_json:
                 if scope["name"] == client_scope_name:
                     return scope
             raise Exception(f"client scope with name '{client_scope_name}' not found")
-        return out
+        return client_scope_json
 
     def create_protocol_mapper(self, client_scope_id, protocol_mapper_representation):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://10.0.207.21:8180/admin/realms/master/client-scopes/{client_scope_id}/protocol-mappers/model -d "{protocol_mapper_representation}"'
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes/{client_scope_id}/protocol-mappers/models -d \'{json.dumps(protocol_mapper_representation)}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -438,18 +453,56 @@ class Keycloak:
         )
         if out is False:
             raise Exception("keycloack deployment failed")
+        clients_json = json.loads(out)
         if client_name:
-            clients_json = json.loads(out)
             for client in clients_json:
-                if client["name"] == client_name:
+                if client["clientId"] == client_name:
                     return client
             raise Exception(f"client scope with name '{client_name}' not found")
-        return out
+        return clients_json
 
     def add_client_scope_to_client(self, client_id, client_scope_id):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://10.0.207.21:8180/admin/realms/master/clients/{client_id}/default-client-scopes/{client_scope_id}'
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/{client_id}/default-client-scopes/{client_scope_id}'
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        return out
+
+    def realm_keys_workaround(self, client_name):
+        # updating rsa-generated realm key priority and keysize
+        key_metadata_representation = self.get_realm_key(key_name="rsa-generated")
+        key_id = key_metadata_representation["id"]
+        key_metadata_representation["config"]["keySize"] = "1024"
+        key_metadata_representation["config"]["priority"] = "105"
+        self.update_realm_key(key_id, key_metadata_representation)
+
+        # updating rsa-enc-generated realm key keysize
+        key_metadata_representation = self.get_realm_key(key_name="rsa-enc-generated")
+        key_id = key_metadata_representation["id"]
+        key_metadata_representation["config"]["keySize"] = "1024"
+        self.update_realm_key(key_id, key_metadata_representation)
+
+    def get_realm_key(self, key_name=None):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components?type=org.keycloak.keys.KeyProvider'
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        keys_json = json.loads(out)
+        if key_name:
+            for key in keys_json:
+                if key["name"] == key_name:
+                    return key
+            raise Exception(f"key with name '{key_name}' not found")
+        return keys_json
+
+    def update_realm_key(self, key_id, key_metadata_representation):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components/{key_id} -d \'{json.dumps(key_metadata_representation)}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
