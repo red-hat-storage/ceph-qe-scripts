@@ -1837,7 +1837,8 @@ def test_bucket_stats_across_sites(bucket_name_to_create):
             f"collect bucket stats for {bucket_name_to_create} at remote site {zone_name}"
         )
         stdin, stdout, stderr = remote_site_ssh_con.exec_command(cmd_bucket_stats)
-        stats_remote = json.loads(stdout.read().decode())
+        cmd_output = stdout.read().decode()
+        stats_remote = json.loads(cmd_output)
         log.info(
             f"bucket stats at remote site {zone_name} for {bucket_name_to_create} is {stats_remote}"
         )
