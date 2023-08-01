@@ -16,12 +16,12 @@ config:
                     {
                          "Effect": "Allow",
                          "Principal": {
-                           "Federated": ["arn:aws:iam:::oidc-provider/ip_addr:8180/realms/master"]
+                           "Federated": ["arn:aws:iam:::oidc-provider/ip_addr/realms/master"]
                          },
                          "Action": ["sts:AssumeRoleWithWebIdentity"],
                          "Condition": {
                            "StringEquals": {
-                             "ip_addr:8180/realms/master:azp": "azp_claim"
+                             "ip_addr:8180/realms/master:app_id": "aud_claim"
                            }
                          }
                     }

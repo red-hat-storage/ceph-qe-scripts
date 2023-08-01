@@ -16,15 +16,12 @@ config:
                     {
                          "Effect": "Allow",
                          "Principal": {
-#                           "AWS":
-#                             [ "arn:aws:iam:::user/<user_name>" ],
-                           "Federated": ["arn:aws:iam:::oidc-provider/10.0.98.207:8180/realms/master"]
+                           "Federated": ["arn:aws:iam:::oidc-provider/ip_addr:8180/realms/master"]
                          },
                          "Action": ["sts:AssumeRoleWithWebIdentity"],
-#                         "Action": ["sts:*"],
                          "Condition": {
                            "StringEquals": {
-                             "10.0.98.207:8180/realms/master:app_id": "account"
+                             "ip_addr:8180/realms/master:app_id": "aud_claim"
                            }
                          }
                     }

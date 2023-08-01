@@ -216,7 +216,8 @@ class Keycloak:
         if out is False:
             raise Exception("keycloack deployment failed")
         log.info(out)
-        return out
+        json_out = json.loads(out)
+        return json_out
 
     def create_client(self, client_representation=None):
         default_client_representation = {

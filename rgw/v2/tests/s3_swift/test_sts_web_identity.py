@@ -94,8 +94,14 @@ def test_exec(config, ssh_con):
     sts_client = auth2.do_auth_sts_client()
     log.info(f"sts client: {sts_client}")
 
+    web_token = keycloack.get_keycloak_web_acccess_token()
+    log.info(f"web token: {web_token}")
+    jwt = keycloack.introspect_token(web_token)
     policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
     policy_document = policy_document.replace("ip_addr", local_ip_addr)
+    policy_document = policy_document.replace("aud_claim", jwt["aud"])
+    policy_document = policy_document.replace("azp_claim", jwt["azp"])
+    policy_document = policy_document.replace("sub_claim", jwt["sub"])
     log.info(policy_document)
 
     role_policy = json.dumps(config.sts["role_policy"]).replace(" ", "")

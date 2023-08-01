@@ -16,12 +16,12 @@ config:
                     {
                          "Effect": "Allow",
                          "Principal": {
-                           "Federated": ["arn:aws:iam:::oidc-provider/10.0.98.207:8180/realms/master"]
+                           "Federated": ["arn:aws:iam:::oidc-provider/ip_addr:8180/realms/master"]
                          },
                          "Action": ["sts:AssumeRoleWithWebIdentity"],
                          "Condition": {
                            "StringEquals": {
-                             "10.0.98.207:8180/realms/master:sub": "880d02e7-5dd0-48e2-a71b-3557f952c8a1"
+                             "10.0.98.207:8180/realms/master:sub": "sub_claim"
                            }
                          }
                     }
