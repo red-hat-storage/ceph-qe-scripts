@@ -62,10 +62,12 @@ def exec_shell_cmd(cmd, debug_info=False):
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            universal_newlines=True,
+            universal_newlines=False,
             shell=True,
         )
         out, err = pr.communicate()
+        out = out.decode("utf-8", errors="ignore")
+        err = err.decode("utf-8", errors="ignore")
         if pr.returncode == 0:
             log.info("cmd excuted")
             if out is not None:
