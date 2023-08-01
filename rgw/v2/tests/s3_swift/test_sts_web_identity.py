@@ -170,14 +170,20 @@ def test_exec(config, ssh_con):
     web_token = keycloack.get_keycloak_web_acccess_token()
     log.info(f"web token: {web_token}")
     keycloack.introspect_token(web_token)
-    assumed_role_user_info = sts_client.assume_role_with_web_identity(
+    assume_role_response = sts_client.assume_role_with_web_identity(
         RoleArn=create_role_response["Role"]["Arn"],
         RoleSessionName=user1["user_id"],
         DurationSeconds=3600,
         WebIdentityToken=web_token,
     )
-    log.info(f"assume role with web identity response: {assumed_role_user_info}")
+    log.info(f"assume role with web identity response: {assume_role_response}")
 
+    assumed_role_user_info = {
+        "access_key": assume_role_response["Credentials"]["AccessKeyId"],
+        "secret_key": assume_role_response["Credentials"]["SecretAccessKey"],
+        "session_token": assume_role_response["Credentials"]["SessionToken"],
+        "user_id": user2["user_id"],
+    }
     s3_auth = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
     s3_client_rgw = s3_auth.do_auth()
 

@@ -192,16 +192,18 @@ class Keycloak:
         )
         if out is False:
             raise Exception("keycloack deployment failed")
+        log.info("sleeping for 15 seconds")
+        time.sleep(15)
         return out
 
     def get_keycloak_web_acccess_token(self, initial_token=False):
         if initial_token:
             out = utils.exec_shell_cmd(
-                'curl --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" http://localhost:8180/realms/master/protocol/openid-connect/token | jq -r .access_token'
+                f'curl --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token | jq -r .access_token'
             )
         else:
             out = utils.exec_shell_cmd(
-                f'curl -k -v -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "scope=openid" -d "grant_type=client_credentials" -d "client_id={self.client_id}" -d "client_secret={self.client_secret}" "http://localhost:8180/realms/master/protocol/openid-connect/token" | jq -r .access_token'
+                f'curl -k -v -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "scope=openid" -d "grant_type=client_credentials" -d "client_id={self.client_id}" -d "client_secret={self.client_secret}" "http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token" | jq -r .access_token'
             )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -209,7 +211,7 @@ class Keycloak:
 
     def introspect_token(self, access_token):
         out = utils.exec_shell_cmd(
-            f'curl -d "token={access_token}" -u "{self.client_id}:{self.client_secret}" http://localhost:8180/realms/master/protocol/openid-connect/token/introspect | jq .'
+            f'curl -d "token={access_token}" -u "{self.client_id}:{self.client_secret}" http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token/introspect | jq .'
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -233,7 +235,7 @@ class Keycloak:
             default_client_representation.update(client_representation)
         access_token = self.get_keycloak_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients  -d \'{json.dumps(default_client_representation)}\''
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients  -d \'{json.dumps(default_client_representation)}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -242,7 +244,7 @@ class Keycloak:
     def get_keycloak_roles(self):
         access_token = self.get_keycloak_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/roles | jq .'
+            f'curl -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/roles | jq .'
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -252,7 +254,7 @@ class Keycloak:
     def get_service_account_user_id(self, client_name):
         access_token = self.get_keycloak_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/?username=service-account-{client_name}'
+            f'curl -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/?username=service-account-{client_name}'
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -267,13 +269,13 @@ class Keycloak:
         # for role in roles:
         #     access_token = self.get_keycloak_web_acccess_token(initial_token=True)
         #     out = utils.exec_shell_cmd(
-        #         f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(role)}\''
+        #         f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(role)}\''
         #     )
         #     if out is False:
         #         raise Exception("keycloack deployment failed")
         access_token = self.get_keycloak_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(roles)}\''
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(roles)}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -281,7 +283,7 @@ class Keycloak:
 
     def get_keycloack_openid_configuration(self):
         out = utils.exec_shell_cmd(
-            "curl http://localhost:8180/realms/master/.well-known/openid-configuration | jq -r .jwks_uri"
+            f"curl http://{self.ip_addr}:8180/realms/master/.well-known/openid-configuration | jq -r .jwks_uri"
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -289,7 +291,7 @@ class Keycloak:
 
     def get_keycloack_certs(self):
         out = utils.exec_shell_cmd(
-            "curl http://localhost:8180/realms/master/protocol/openid-connect/certs | jq ."
+            f"curl http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/certs | jq ."
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -298,7 +300,7 @@ class Keycloak:
     def get_keycloak_user(self, username="admin"):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/?username={username}'
+            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/?username={username}'
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -311,7 +313,7 @@ class Keycloak:
         existing_attributes = admin_user["attributes"]
         existing_attributes.update(attributes)
         out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/users/{user_id} -d \'{{"attributes":{json.dumps(existing_attributes)}}}\''
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{user_id} -d \'{{"attributes":{json.dumps(existing_attributes)}}}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -320,7 +322,7 @@ class Keycloak:
     def enable_client_authentication(self, client_name="account"):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"publicClient":false, "secret": "client_secret1"}}\''
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"publicClient":false, "secret": "client_secret1"}}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -329,7 +331,7 @@ class Keycloak:
     def disable_client_authentication(self, client_name="account"):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"publicClient":true}}\''
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"publicClient":true}}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -338,7 +340,7 @@ class Keycloak:
     def enable_client_direct_access_grants(self, client_name="account"):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"directAccessGrantsEnabled":true}}\''
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"directAccessGrantsEnabled":true}}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -357,7 +359,7 @@ class Keycloak:
         self.create_client_scope(client_scope_representation)
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"directAccessGrantsEnabled":true}}\''
+            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/65e70a29-629f-4c53-9c56-4e8b26fe9f1c -d \'{{"directAccessGrantsEnabled":true}}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -366,7 +368,7 @@ class Keycloak:
     def create_client_scope(self, client_scope_representation):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/client-scopes -d \'{client_scope_representation}\''
+            f'curl -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes -d \'{client_scope_representation}\''
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -407,7 +409,7 @@ class Keycloak:
     def get_client_scope(self, client_scope_name=None):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/client-scopes/'
+            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes/'
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -431,7 +433,7 @@ class Keycloak:
     def get_keycloak_client(self, client_name=None):
         access_token = self.get_keycloak_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://localhost:8180/admin/realms/master/clients'
+            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients'
         )
         if out is False:
             raise Exception("keycloack deployment failed")
@@ -475,7 +477,7 @@ class Keycloak:
             log.info(f"Exception {e} occured")
             log.info("Provider already exists")
         # out = utils.exec_shell_cmd(
-        #     "curl http://localhost:8180/realms/master/protocol/openid-connect/certs | jq ."
+        #     "curl http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/certs | jq ."
         # )
         # if out is False:
         #     raise Exception("keycloack deployment failed")
