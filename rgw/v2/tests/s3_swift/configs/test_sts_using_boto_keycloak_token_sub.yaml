@@ -22,7 +22,7 @@ config:
                          "Action": ["sts:AssumeRoleWithWebIdentity"],
                          "Condition": {
                            "StringEquals": {
-                             "10.0.98.207:8180/realms/master:sub": "8e8fcedd-e800-45a1-86c6-5c71cfcfb284"
+                             "ip_addr:8180/realms/master:sub": "sub_claim"
                            }
                          }
                     }

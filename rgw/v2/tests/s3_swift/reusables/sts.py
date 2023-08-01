@@ -1,3 +1,4 @@
+import copy
 import os
 import sys
 
@@ -172,10 +173,10 @@ class Keycloak:
         self.client_id = client_id
         self.client_secret = client_secret
         self.ip_addr = ip_addr
-        # out = utils.exec_shell_cmd("sudo podman ps")
-        # if "keycloak" in out:
-        #     log.info("Keycloak is already running. skipping deployment..")
-        #     return True
+        out = utils.exec_shell_cmd("sudo podman ps")
+        if "keycloak" in out:
+            log.info("Keycloak is already running. skipping deployment..")
+            return
         self.install_keycloak()
         out = utils.exec_shell_cmd("sudo yum install -y jq")
         if out is False:
@@ -184,6 +185,7 @@ class Keycloak:
         self.add_service_account_roles_to_client(client_name=self.client_id)
         self.set_audience_in_token(self.client_id, "set_audience_scope", "set_audience_protocol_mapper")
         self.set_session_tags_in_token(self.client_id)
+        # self.realm_keys_workaround()
         if attributes:
             self.add_keycloak_user_attributes(attributes=attributes, username="admin")
 
@@ -198,8 +200,8 @@ class Keycloak:
         )
         if out is False:
             raise Exception("keycloack deployment failed")
-        log.info("sleeping for 15 seconds")
-        time.sleep(15)
+        log.info("sleeping for 30 seconds")
+        time.sleep(30)
         return out
 
     def get_keycloak_web_acccess_token(self, initial_token=False):
@@ -470,18 +472,22 @@ class Keycloak:
             raise Exception("keycloack deployment failed")
         return out
 
-    def realm_keys_workaround(self, client_name):
+    def realm_keys_workaround(self):
+        config_template = {"enabled": ["true"], "active": ["true"], "keySize": ["1024"]}
+
         # updating rsa-generated realm key priority and keysize
         key_metadata_representation = self.get_realm_key(key_name="rsa-generated")
         key_id = key_metadata_representation["id"]
-        key_metadata_representation["config"]["keySize"] = "1024"
-        key_metadata_representation["config"]["priority"] = "105"
-        self.update_realm_key(key_id, key_metadata_representation)
+        key_data = self.get_realm_key_by_id(key_id)
+        log.info(key_data)
+        # key_metadata_representation["config"].update(config_template)
+        # key_metadata_representation["config"]["priority"] = "105"
+        # self.update_realm_key(key_id, key_metadata_representation)
 
         # updating rsa-enc-generated realm key keysize
         key_metadata_representation = self.get_realm_key(key_name="rsa-enc-generated")
         key_id = key_metadata_representation["id"]
-        key_metadata_representation["config"]["keySize"] = "1024"
+        key_metadata_representation["config"].update(config_template)
         self.update_realm_key(key_id, key_metadata_representation)
 
     def get_realm_key(self, key_name=None):
@@ -497,6 +503,16 @@ class Keycloak:
                 if key["name"] == key_name:
                     return key
             raise Exception(f"key with name '{key_name}' not found")
+        return keys_json
+
+    def get_realm_key_by_id(self, key_id):
+        access_token = self.get_keycloak_web_acccess_token()
+        out = utils.exec_shell_cmd(
+            f'curl -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components/{key_id}'
+        )
+        if out is False:
+            raise Exception("keycloack deployment failed")
+        keys_json = json.loads(out)
         return keys_json
 
     def update_realm_key(self, key_id, key_metadata_representation):
