@@ -407,7 +407,7 @@ class Keycloak:
                 "access.token.claim": "true",
                 "userinfo.token.claim": "true",
                 "multivalued": "true",
-                "aggregate.attrs": "true",
+                "aggregate.attrs": "false"
             },
         }
         self.create_protocol_mapper(client_scope_id, protocol_mapper_representation)
