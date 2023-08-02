@@ -65,7 +65,7 @@ def test_exec(config, ssh_con):
             bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
             s3cmd_reusable.create_bucket(bucket_name)
             log.info(f"Bucket {bucket_name} created")
-            utils.exec_shell_cmd(f"fallocate -l 2m obj25m")
+            utils.exec_shell_cmd(f"fallocate -l 25m obj25m")
             header = "".join(
                 random.choices(ascii_uppercase + digits + ascii_lowercase, k=8192)
             )
