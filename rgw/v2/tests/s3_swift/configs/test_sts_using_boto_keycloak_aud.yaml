@@ -20,9 +20,14 @@ config:
                            "Federated": ["arn:aws:iam:::oidc-provider/ip_addr/realms/master"]
                          },
                          "Action": ["sts:AssumeRoleWithWebIdentity"],
+#                         "Condition": {
+#                           "ForAnyValue:StringEquals": {
+#                             "ip_addr:8180/realms/master:app_id": ["sts_client"]
+#                           }
+#                         }
                          "Condition": {
-                           "ForAnyValue:StringEquals": {
-                             "ip_addr:8180/realms/master:app_id": ["sts_client"]
+                           "StringEquals": {
+                             "ip_addr:8180/realms/master:app_id": "account"
                            }
                          }
                     }
