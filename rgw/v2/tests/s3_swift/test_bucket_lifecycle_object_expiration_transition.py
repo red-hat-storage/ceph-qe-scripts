@@ -293,6 +293,8 @@ def test_exec(config, ssh_con):
                             upload_start_time,
                             upload_end_time,
                         )
+                        if config.test_ops.get("lc_same_rule_id_diff_rules"):
+                            continue
                         time.sleep(30)
                         lc_ops.validate_and_rule(bucket, config)
                     elif not config.invalid_date and not config.rgw_enable_lc_threads:

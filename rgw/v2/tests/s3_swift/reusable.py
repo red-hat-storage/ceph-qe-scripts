@@ -598,7 +598,16 @@ def put_get_bucket_lifecycle_test(
     )
     log.info("put bucket life cycle:\n%s" % put_bucket_life_cycle)
     if put_bucket_life_cycle is False:
+        if config.test_ops.get("lc_same_rule_id_diff_rules"):
+            log.info(
+                "put bucket lifecycle failed as expected as lc has same rule id but different rules"
+            )
+            return
         raise TestExecError("Resource execution failed: put bucket lifecycle failed")
+    if config.test_ops.get("lc_same_rule_id_diff_rules"):
+        raise TestExecError(
+            "put bucket lifecycle expected to fail but it succeded in spite of lc having same rule id but different rules."
+        )
     if put_bucket_life_cycle is not None:
         response = HttpResponseParser(put_bucket_life_cycle)
         if response.status_code == 200:
