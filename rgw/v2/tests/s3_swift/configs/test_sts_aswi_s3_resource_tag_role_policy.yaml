@@ -1,4 +1,4 @@
-# polarion test case id: CEPH-83573497
+# polarion test case id: CEPH-83574496
 # test scripts : test_sts_aswi.py
 config:
      bucket_count: 2
@@ -9,23 +9,38 @@ config:
      test_ops:
           create_bucket: true
           create_object: true
+          s3_resource_tag: true
+          bucket_tags: [
+              {
+                  "Key": "product",
+                  "Value": "ceph"
+              }
+          ]
      sts:
           policy_document:
-                "Version": "2012-10-17"
-                "Statement": [
+               "Version": "2012-10-17"
+               "Statement": [
                     {
                          "Effect": "Allow",
                          "Principal": {
                            "Federated": ["arn:aws:iam:::oidc-provider/ip_addr:8180/realms/master"]
                          },
-                         "Action": ["sts:AssumeRoleWithWebIdentity"],
+                         "Action": ["sts:AssumeRoleWithWebIdentity", "sts:TagSession"],
                     }
-                ]
+               ]
           role_policy:
                "Version": "2012-10-17"
-               "Statement":
+               "Statement": [
                     {
                          "Effect": "Allow",
                          "Action": "s3:*",
                          "Resource": "arn:aws:s3:::*",
+                         "Condition":
+                           {
+                             "StringEquals":
+                               {
+                                 "s3:ResourceTag/product": "ceph"
+                               }
+                           }
                     }
+               ]
