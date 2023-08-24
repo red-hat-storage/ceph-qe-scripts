@@ -9,7 +9,7 @@ Usage: test_sts_aswi.py -c <input_yaml>
 
 Operation:
     s1: Create 2 Users.
-        user1 will be the owner and will give permisison to create bucket to user2
+        user1 will be the owner and will give permission to create bucket to user2
     s2: keycloak deployment and administration
     s3: create openid connect provider
     s4: add caps to user1 for create role and oidc-provider - use radosgw-admin
@@ -62,8 +62,12 @@ def test_exec(config, ssh_con):
     ceph_config_set = CephConfOp(ssh_con)
     rgw_service = RGWService()
     local_ip_addr = utils.get_localhost_ip_address()
+
     keycloak = Keycloak(
-        client_id="sts_client", client_secret="client_secret1", ip_addr=local_ip_addr
+        client_id="sts_client",
+        client_secret="client_secret1",
+        ip_addr=local_ip_addr,
+        attributes=config.test_ops.get("session_tags"),
     )
 
     if config.sts is None:
@@ -92,13 +96,14 @@ def test_exec(config, ssh_con):
     auth = Auth(user1, ssh_con, ssl=config.ssl)
     iam_client = auth.do_auth_iam_client()
     user1_client = auth.do_auth_using_client()
+    rgw_conn_user1 = auth.do_auth()
 
     auth2 = Auth(user2, ssh_con, ssl=config.ssl)
     iam_client2 = auth2.do_auth_iam_client()
     sts_client = auth2.do_auth_sts_client()
     log.info(f"sts client: {sts_client}")
 
-    web_token = keycloak.get_web_acccess_token()
+    web_token = keycloak.get_web_access_token()
     log.info(f"web token: {web_token}")
     jwt = keycloak.introspect_token(web_token)
     policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
@@ -143,26 +148,18 @@ def test_exec(config, ssh_con):
 
     role_name = f"S3RoleOf.{user1['user_id']}"
     log.info(f"role_name: {role_name}")
-    tags_list = [{"Key": "project", "Value": "ceph"}]
     log.info("creating role")
-    if config.test_ops.get("create_role_tagging"):
-        create_role_response = iam_client.create_role(
-            AssumeRolePolicyDocument=policy_document,
-            Path="/",
-            RoleName=role_name,
-            Tags=tags_list,
-        )
-    else:
-        create_role_response = iam_client.create_role(
-            AssumeRolePolicyDocument=policy_document, Path="/", RoleName=role_name
-        )
+    create_role_response = iam_client.create_role(
+        AssumeRolePolicyDocument=policy_document, Path="/", RoleName=role_name
+    )
     log.info(f"create_role_response: {create_role_response}")
 
-    if config.test_ops.get("iam_resource_tag"):
+    if config.test_ops.get("iam_resource_tags"):
         print("Adding tags to role\n")
-        response = iam_client.tag_role(RoleName=role_name, Tags=tags_list)
-        log.info("tag_role_response")
-        log.info(response)
+        tag_role_response = iam_client.tag_role(
+            RoleName=role_name, Tags=config.test_ops.get("iam_resource_tags")
+        )
+        log.info(f"tag_role_response: {tag_role_response}")
 
     policy_name = f"policy.{user1['user_id']}"
     log.info(f"policy_name: {policy_name}")
@@ -174,7 +171,7 @@ def test_exec(config, ssh_con):
     log.info("put_policy_response")
     log.info(put_policy_response)
 
-    web_token = keycloak.get_web_acccess_token()
+    web_token = keycloak.get_web_access_token()
     log.info(f"web token: {web_token}")
     keycloak.introspect_token(web_token)
     assume_role_response = sts_client.assume_role_with_web_identity(
@@ -192,7 +189,8 @@ def test_exec(config, ssh_con):
         "user_id": user2["user_id"],
     }
     s3_auth = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
-    s3_client_rgw = s3_auth.do_auth()
+    rgw_conn_using_sts_creds = s3_auth.do_auth()
+    rgw_client_using_sts_creds = s3_auth.do_auth_using_client()
 
     io_info_initialize.initialize(basic_io_structure.initial())
     write_user_info = AddUserInfo()
@@ -213,19 +211,26 @@ def test_exec(config, ssh_con):
                 assumed_role_user_info["user_id"], rand_no=bc
             )
             log.info("creating bucket with name: %s" % bucket_name_to_create)
+            if config.test_ops.get("s3_resource_tag"):
+                rgw_conn = rgw_conn_user1
+            else:
+                rgw_conn = rgw_conn_using_sts_creds
             bucket = reusable.create_bucket(
-                bucket_name_to_create, s3_client_rgw, assumed_role_user_info
+                bucket_name_to_create, rgw_conn, assumed_role_user_info
             )
-            if config.test_ops.get("bucket_tagging"):
+            if config.test_ops.get("s3_resource_tag"):
+                bucket = s3lib.resource_op(
+                    {
+                        "obj": rgw_conn_using_sts_creds,
+                        "resource": "Bucket",
+                        "args": [bucket_name_to_create],
+                    }
+                )
+            if config.test_ops.get("bucket_tags"):
                 response = user1_client.put_bucket_tagging(
                     Bucket=bucket_name_to_create,
                     Tagging={
-                        "TagSet": [
-                            {
-                                "Key": "project",
-                                "Value": "ceph",
-                            }
-                        ],
+                        "TagSet": config.test_ops.get("bucket_tags"),
                     },
                 )
                 log.info(f"put bucket tagging response: {response}")
@@ -249,24 +254,13 @@ def test_exec(config, ssh_con):
                         )
                     else:
                         log.info("upload type: normal")
-                        if config.test_ops.get("object_tagging"):
-                            tags = "project=ceph"
-                            reusable.upload_object_with_tagging(
-                                s3_object_name,
-                                bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                assumed_role_user_info,
-                                tags,
-                            )
-                        else:
-                            reusable.upload_object(
-                                s3_object_name,
-                                bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                assumed_role_user_info,
-                            )
+                        reusable.upload_object(
+                            s3_object_name,
+                            bucket,
+                            TEST_DATA_PATH,
+                            config,
+                            assumed_role_user_info,
+                        )
 
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()

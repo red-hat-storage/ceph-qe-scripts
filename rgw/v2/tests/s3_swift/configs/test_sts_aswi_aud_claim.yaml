@@ -1,5 +1,6 @@
-# polarion test case id: CEPH-83573497
+# polarion test case id: CEPH-83575817
 # test scripts : test_sts_aswi.py
+# The "aud" (audience) claim identifies the recipients that the JWT is intended for
 config:
      bucket_count: 2
      objects_count: 50
@@ -19,6 +20,11 @@ config:
                            "Federated": ["arn:aws:iam:::oidc-provider/ip_addr:8180/realms/master"]
                          },
                          "Action": ["sts:AssumeRoleWithWebIdentity"],
+                         "Condition": {
+                           "StringEquals": {
+                             "ip_addr:8180/realms/master:app_id": "account"
+                           }
+                         }
                     }
                 ]
           role_policy:

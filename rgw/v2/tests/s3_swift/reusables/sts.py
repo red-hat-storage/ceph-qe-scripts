@@ -173,20 +173,34 @@ class Keycloak:
         out = utils.exec_shell_cmd("sudo podman ps")
         if "keycloak" in out:
             log.info("Keycloak is already running. skipping deployment..")
-            return
-        self.install_keycloak()
-        out = utils.exec_shell_cmd("sudo yum install -y jq")
-        if out is False:
-            raise Exception("jq installation failed")
-        self.create_client()
-        self.add_service_account_roles_to_client(client_name=self.client_id)
-        self.set_audience_in_token(
-            self.client_id, "set_audience_scope", "set_audience_protocol_mapper"
-        )
-        self.set_session_tags_in_token(self.client_id)
-        self.realm_keys_workaround()
-        if attributes:
-            self.add_user_attributes(attributes=attributes, username="admin")
+            self.access_token = self.get_web_access_token()
+        else:
+            self.install_keycloak()
+            out = utils.exec_shell_cmd("sudo yum install -y jq")
+            if out is False:
+                raise Exception("jq installation failed")
+            self.access_token = self.get_initial_web_access_token()
+            self.update_realm_token_lifespan()
+            self.access_token = self.get_initial_web_access_token()
+            set_audience_scope_name = "set_audience_scope"
+            set_audience_protocol_mapper_name = "set_audience_protocol_mapper"
+            self.set_audience_in_token(
+                "account", set_audience_scope_name, set_audience_protocol_mapper_name
+            )
+            self.create_client()
+            self.add_service_account_roles_to_client(client_name=self.client_id)
+            self.access_token = self.get_web_access_token()
+            self.add_client_scope_to_client(
+                client_name=self.client_id, client_scope_name=set_audience_scope_name
+            )
+            self.set_session_tags_in_token(self.client_id)
+            self.realm_keys_workaround()
+        if attributes is None:
+            self.remove_user_attributes(username=f"service-account-{self.client_id}")
+        else:
+            self.set_user_attributes(
+                attributes=attributes, username=f"service-account-{self.client_id}"
+            )
 
     def install_keycloak(self):
         out = utils.exec_shell_cmd(
@@ -198,22 +212,25 @@ class Keycloak:
         time.sleep(60)
         return out
 
-    def get_web_acccess_token(self, initial_token=False):
-        if initial_token:
-            out = utils.exec_shell_cmd(
-                f'curl --show-error --fail --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token | jq -r .access_token'
-            )
-        else:
-            out = utils.exec_shell_cmd(
-                f'curl --show-error --fail -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "scope=openid" -d "grant_type=client_credentials" -d "client_id={self.client_id}" -d "client_secret={self.client_secret}" "http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token" | jq -r .access_token'
-            )
+    def get_web_access_token(self):
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "scope=openid" -d "grant_type=client_credentials" -d "client_id={self.client_id}" -d "client_secret={self.client_secret}" "http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token" | jq -r .access_token'
+        )
+        if out is False:
+            raise Exception("failed to get access token")
+        return out.strip()
+
+    def get_initial_web_access_token(self):
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail --data "username=admin&password=admin&grant_type=password&client_id=admin-cli" http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token | jq -r .access_token'
+        )
         if out is False:
             raise Exception("failed to get access token")
         return out.strip()
 
     def introspect_token(self, access_token):
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -d "token={access_token}" -u "{self.client_id}:{self.client_secret}" http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token/introspect | jq .'
+            f'curl --show-error --fail -d "token={self.access_token}" -u "{self.client_id}:{self.client_secret}" http://{self.ip_addr}:8180/realms/master/protocol/openid-connect/token/introspect | jq .'
         )
         if out is False:
             raise Exception("token introspection failed")
@@ -223,7 +240,7 @@ class Keycloak:
 
     def create_client(self, client_representation=None):
         default_client_representation = {
-            "clientId": "sts_client",
+            "clientId": self.client_id,
             "enabled": "true",
             "consentRequired": "false",
             "protocol": "openid-connect",
@@ -231,23 +248,21 @@ class Keycloak:
             "implicitFlowEnabled": "false",
             "directAccessGrantsEnabled": "true",
             "publicClient": "false",
-            "secret": "client_secret1",
+            "secret": self.client_secret,
             "serviceAccountsEnabled": "true",
         }
         if client_representation:
             default_client_representation.update(client_representation)
-        access_token = self.get_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients  -d \'{json.dumps(default_client_representation)}\''
+            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients  -d \'{json.dumps(default_client_representation)}\''
         )
         if out is False:
             raise Exception("client creation failed")
         return out
 
     def get_roles(self):
-        access_token = self.get_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/roles | jq .'
+            f'curl --show-error --fail -X GET -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/roles | jq .'
         )
         if out is False:
             raise Exception("failed to get realm roles")
@@ -255,9 +270,8 @@ class Keycloak:
         return json_out
 
     def get_service_account_user_id(self, client_name):
-        access_token = self.get_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -X GET -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/?username=service-account-{client_name}'
+            f'curl --show-error --fail -X GET -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/?username=service-account-{client_name}'
         )
         if out is False:
             raise Exception("failed to get service account user")
@@ -268,9 +282,8 @@ class Keycloak:
         service_account_details = self.get_service_account_user_id(client_name)
         service_account_user_id = service_account_details[0]["id"]
         roles = self.get_roles()
-        access_token = self.get_web_acccess_token(initial_token=True)
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(roles)}\''
+            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{service_account_user_id}/role-mappings/realm --data-raw \'{json.dumps(roles)}\''
         )
         if out is False:
             raise Exception("failed to add service account roles to client")
@@ -293,41 +306,53 @@ class Keycloak:
         return out
 
     def get_user(self, username="admin"):
-        access_token = self.get_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/?username={username}'
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/?username={username}'
         )
         if out is False:
             raise Exception("failed to get users")
+        out = json.loads(out)
+        if len(out) == 0:
+            raise Exception("No user found with the given name")
         return out
 
-    def add_user_attributes(self, attributes, username="admin"):
-        access_token = self.get_web_acccess_token()
-        admin_user = self.get_user(username)[0]
-        user_id = admin_user["id"]
-        existing_attributes = admin_user["attributes"]
-        existing_attributes.update(attributes)
+    def set_user_attributes(self, attributes, username):
+        user = self.get_user(username)[0]
+        user_id = user["id"]
+        attributes = json.dumps(attributes)
+        attributes = json.dumps(attributes)
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{user_id} -d \'{{"attributes":{json.dumps(existing_attributes)}}}\''
+            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{user_id} -d \'{{"id": "{user_id}","username":"{username}","attributes": {{"https://aws.amazon.com/tags":{attributes}}}}}\''
+        )
+        if out is False:
+            raise Exception("failed to add attributes to user")
+        return out
+
+    def remove_user_attributes(self, username):
+        user = self.get_user(username)[0]
+        user_id = user["id"]
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/users/{user_id} -d \'{{"id": "{user_id}","username":"{username}","attributes": {{}}}}\''
         )
         if out is False:
             raise Exception("failed to add attributes to user")
         return out
 
     def set_audience_in_token(
-        self, client_name, audience_scope_name, protocol_mapper_name
+        self, client_name, client_scope_name, protocol_mapper_name
     ):
         client_scope_representation = {
             "attributes": {
                 "display.on.consent.screen": "true",
                 "include.in.token.scope": "true",
             },
-            "name": audience_scope_name,
+            "name": client_scope_name,
             "description": "scope to set audience in token",
             "protocol": "openid-connect",
+            "type": "default",
         }
         self.create_client_scope(client_scope_representation)
-        client_scope_id = self.get_client_scope(audience_scope_name)["id"]
+        client_scope_id = self.get_client_scope(client_scope_name)["id"]
         protocol_mapper_representation = {
             "protocol": "openid-connect",
             "protocolMapper": "oidc-audience-mapper",
@@ -340,8 +365,7 @@ class Keycloak:
             },
         }
         self.create_protocol_mapper(client_scope_id, protocol_mapper_representation)
-        client_id = self.get_client(client_name)["id"]
-        self.add_client_scope_to_client(client_id, client_scope_id)
+        self.add_client_scope_to_client(client_name, client_scope_name)
         return True
 
     def set_session_tags_in_token(self, client_name):
@@ -353,6 +377,7 @@ class Keycloak:
             "name": "session_tags_scope",
             "description": "scope to set session tags in token",
             "protocol": "openid-connect",
+            "type": "default",
         }
         self.create_client_scope(client_scope_representation)
         client_scope_id = self.get_client_scope("session_tags_scope")["id"]
@@ -372,23 +397,20 @@ class Keycloak:
             },
         }
         self.create_protocol_mapper(client_scope_id, protocol_mapper_representation)
-        client_id = self.get_client(client_name)["id"]
-        self.add_client_scope_to_client(client_id, client_scope_id)
+        self.add_client_scope_to_client(client_name, "session_tags_scope")
         return True
 
     def create_client_scope(self, client_scope_representation):
-        access_token = self.get_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes -d \'{json.dumps(client_scope_representation)}\''
+            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes -d \'{json.dumps(client_scope_representation)}\''
         )
         if out is False:
             raise Exception("client scope creation failed")
         return out
 
     def get_client_scope(self, client_scope_name=None):
-        access_token = self.get_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes/'
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes/'
         )
         if out is False:
             raise Exception("failed to get client scopes")
@@ -401,18 +423,16 @@ class Keycloak:
         return client_scope_json
 
     def create_protocol_mapper(self, client_scope_id, protocol_mapper_representation):
-        access_token = self.get_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes/{client_scope_id}/protocol-mappers/models -d \'{json.dumps(protocol_mapper_representation)}\''
+            f'curl --show-error --fail -X POST -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/client-scopes/{client_scope_id}/protocol-mappers/models -d \'{json.dumps(protocol_mapper_representation)}\''
         )
         if out is False:
             raise Exception("failed to create protocol mapper for client scope")
         return out
 
     def get_client(self, client_name=None):
-        access_token = self.get_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients'
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients'
         )
         if out is False:
             raise Exception("failed to get clients")
@@ -424,10 +444,11 @@ class Keycloak:
             raise Exception(f"client scope with name '{client_name}' not found")
         return clients_json
 
-    def add_client_scope_to_client(self, client_id, client_scope_id):
-        access_token = self.get_web_acccess_token()
+    def add_client_scope_to_client(self, client_name, client_scope_name):
+        client_scope_id = self.get_client_scope(client_scope_name)["id"]
+        client_id = self.get_client(client_name)["id"]
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/{client_id}/default-client-scopes/{client_scope_id}'
+            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/clients/{client_id}/default-client-scopes/{client_scope_id}'
         )
         if out is False:
             raise Exception("failed to add client scope to client")
@@ -453,9 +474,8 @@ class Keycloak:
         return True
 
     def get_realm_key(self, key_name=None):
-        access_token = self.get_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components?type=org.keycloak.keys.KeyProvider'
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/components?type=org.keycloak.keys.KeyProvider'
         )
         if out is False:
             raise Exception("failed to get realm keys")
@@ -468,9 +488,8 @@ class Keycloak:
         return keys_json
 
     def get_realm_key_by_id(self, key_id):
-        access_token = self.get_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components/{key_id}'
+            f'curl --show-error --fail -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/components/{key_id}'
         )
         if out is False:
             raise Exception("failed to get realm key by id")
@@ -478,12 +497,27 @@ class Keycloak:
         return keys_json
 
     def update_realm_key(self, key_id, key_metadata_representation):
-        access_token = self.get_web_acccess_token()
         out = utils.exec_shell_cmd(
-            f'curl -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {access_token}" http://{self.ip_addr}:8180/admin/realms/master/components/{key_id} -d \'{json.dumps(key_metadata_representation)}\''
+            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master/components/{key_id} -d \'{json.dumps(key_metadata_representation)}\''
         )
         if out is False:
             raise Exception("failed to update realm key")
+        return out
+
+    def update_realm_token_lifespan(self):
+        realm_representation = {
+            "accessTokenLifespan": 3600,
+            "accessTokenLifespanForImplicitFlow": 3600,
+        }
+        self.update_realm(realm_representation)
+        return True
+
+    def update_realm(self, realm_representation):
+        out = utils.exec_shell_cmd(
+            f'curl --show-error --fail -X PUT -H "Content-Type: application/json" -H "Authorization: bearer {self.access_token}" http://{self.ip_addr}:8180/admin/realms/master -d \'{json.dumps(realm_representation)}\''
+        )
+        if out is False:
+            raise Exception("failed to update realm")
         return out
 
     def create_open_id_connect_provider(self, iam_client):

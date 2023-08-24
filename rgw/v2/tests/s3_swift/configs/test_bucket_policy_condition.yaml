@@ -1,6 +1,6 @@
 # script: test_bucket_policy_ops.py
 # bucket policy with condition blocks
-# polarion id: CEPH-11590
+# polarion id: CEPH-11589
 config:
   objects_count: 25
   objects_size_range:
