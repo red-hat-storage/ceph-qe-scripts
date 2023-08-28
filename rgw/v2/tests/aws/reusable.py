@@ -48,6 +48,102 @@ def create_bucket(bucket_name, end_point, ssl=None):
         raise AWSCommandExecError(message=str(e))
 
 
+def list_object_versions(bucket_name, end_point, ssl=None):
+    """
+    Lists object versions for an bucket
+    Ex: /usr/local/bin/aws s3api list-object-versions --bucket <bucket_name> --endpoint <endpoint_url>
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        end_point(str): endpoint
+        ssl:
+    Return:
+        Response of list-object-versions operation
+    """
+    list_method = AWS(operation="list-object-versions")
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = " "
+    command = list_method.command(
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}", ssl_param]
+    )
+    try:
+        create_response = utils.exec_shell_cmd(command)
+        return create_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def put_object(bucket_name, object_name, end_point, ssl=None):
+    """
+    Put/uploads object to the bucket
+    Ex: /usr/local/bin/aws s3api put-object --bucket <bucket_name> --key <object_name> --body <content> --endpoint <endpoint_url>
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        object_name(str): Name of the object/file
+        end_point(str): endpoint
+        ssl:
+    Return:
+        Response of put-object operation
+    """
+    put_method = AWS(operation="put-object")
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = " "
+    command = put_method.command(
+        params=[
+            f"--bucket {bucket_name} --key {object_name} --body {object_name} --endpoint-url {end_point}",
+            ssl_param,
+        ]
+    )
+    try:
+        create_response = utils.exec_shell_cmd(command)
+        return create_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def delete_object(bucket_name, object_name, end_point, ssl=None, versionid=None):
+    """
+    Deletes object from the bucket
+    Ex: /usr/local/bin/aws s3api delete-object --bucket <bucket_name> --key <object_name> --endpoint <endpoint_url>
+        --version-id {versionid}
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        object_name(str): Name of the object/file
+        end_point(str): endpoint
+        ssl:
+        versionid(str): Id of object version which needs to be deleted
+    Return:
+        Response of delete-object operation
+    """
+    delete_method = AWS(operation="delete-object")
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = " "
+    command = delete_method.command(
+        params=[
+            f"--bucket {bucket_name} --key {object_name} --endpoint-url {end_point}",
+            ssl_param,
+        ]
+    )
+    if versionid:
+        command = delete_method.command(
+            params=[
+                f"--bucket {bucket_name} --key {object_name} --endpoint-url {end_point}"
+                f" --version-id {versionid}",
+                ssl_param,
+            ]
+        )
+    try:
+        create_response = utils.exec_shell_cmd(command)
+        return create_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
 def put_get_bucket_versioning(bucket_name, end_point, status="Enabled", ssl=None):
     """
     make bucket created as versioned
@@ -128,3 +224,39 @@ def update_aws_file_with_sts_user(sts_user_info):
     with open(root_path, "a") as file:
         parser.write(file)
     utils.exec_shell_cmd(f"cat {root_path}")
+
+
+def verify_object_with_version_id_null(
+    bucket_name, object_name, endpoint, created=True
+):
+    """
+    Method to verify whether object with version is created or deleted
+    Args:
+        bucket_name(str): Name of the bucket
+        object_name(str): Name of the object
+        endpoint(str): endpoint usrl
+        created(boolean): True for creation validation
+                          False for deletion validation
+    Exception:
+        Raise assertion error when validation fails.
+    """
+    version_id_null = False
+    version_list = list_object_versions(bucket_name, endpoint)
+    version_list = json.loads(version_list)
+    for ver in version_list["Versions"]:
+        log.info(f"ver is {ver}")
+        if ver["Key"] == object_name:
+            log.info(f"version id is {ver['VersionId']}")
+            if ver["VersionId"] == "null":
+                version_id_null = True
+                log.info(
+                    f"object with versioned id null is present at the endpoint:{endpoint}!"
+                )
+    if created and not version_id_null:
+        raise AssertionError(
+            f"Object with version id null is not created at the endpoint {endpoint}!"
+        )
+    elif not created and version_id_null:
+        raise AssertionError(
+            f"Object with version id null is not Deleted at the endpoint {endpoint}!"
+        )
