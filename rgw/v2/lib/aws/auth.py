@@ -20,29 +20,49 @@ from v2.utils import utils
 root_path = str(Path.home())
 root_path = root_path + "/.aws/"
 home_path = os.path.expanduser("~cephuser")
-sample_file_location = home_path + ("/rgw-tests/ceph-qe-scripts/rgw/v2/tests/aws/")
+
+is_multisite = utils.is_cluster_multisite()
+if is_multisite:
+    sample_file_location = home_path + "/rgw-ms-tests/ceph-qe-scripts/rgw/v2/tests/aws/"
+else:
+    sample_file_location = home_path + "/rgw-tests/ceph-qe-scripts/rgw/v2/tests/aws/"
 
 
-def install_aws():
+def install_aws(ssh_con=None):
     """
-    Creates .aws/credentials file from sample file
+    Method to install aws on any site
+    Args:
+        ssh_con: ssh connection object
     """
+
     try:
+        log.info(f"ssh connection is {ssh_con}")
         if not os.path.exists(root_path + "credentials"):
-            utils.exec_shell_cmd(
-                "curl 'https://s3.amazonaws.com/aws-cli/awscli-bundle-1.18.223.zip' -o 'awscli-bundle.zip'"
-            )
-            utils.exec_shell_cmd("yum install unzip -y")
-            utils.exec_shell_cmd("unzip awscli-bundle.zip")
-            utils.exec_shell_cmd(
-                "sudo awscli-bundle/./install -i /usr/local/aws -b /usr/local/bin/aws"
-            )
-            utils.exec_shell_cmd(f"mkdir {root_path}")
+            if ssh_con:
+                ssh_con.exec_command(
+                    "curl 'https://s3.amazonaws.com/aws-cli/awscli-bundle-1.18.223.zip' -o 'awscli-bundle.zip'"
+                )
+                ssh_con.exec_command("yum install unzip -y")
+                ssh_con.exec_command("unzip awscli-bundle.zip")
+                ssh_con.exec_command(
+                    "sudo awscli-bundle/./install -i /usr/local/aws -b /usr/local/bin/aws"
+                )
+                ssh_con.exec_command(f"mkdir {root_path}")
+            else:
+                utils.exec_shell_cmd(
+                    "curl 'https://s3.amazonaws.com/aws-cli/awscli-bundle-1.18.223.zip' -o 'awscli-bundle.zip'"
+                )
+                utils.exec_shell_cmd("yum install unzip -y")
+                utils.exec_shell_cmd("unzip awscli-bundle.zip")
+                utils.exec_shell_cmd(
+                    "sudo awscli-bundle/./install -i /usr/local/aws -b /usr/local/bin/aws"
+                )
+                utils.exec_shell_cmd(f"mkdir {root_path}")
     except:
         raise AssertionError("AWS Installation Failed")
 
 
-def create_aws_file():
+def create_aws_file(ssh_con=None):
     """
     Creates .aws/credentials file from sample file
     """
@@ -53,7 +73,7 @@ def create_aws_file():
         raise AWSConfigFileNotFound("AWS sample config file not found")
 
 
-def update_aws_file(user_info):
+def update_aws_file(user_info, ssh_con=None):
     """
     Updates .aws/credentials file with user information
     Args:
@@ -67,12 +87,12 @@ def update_aws_file(user_info):
         parser.write(file)
 
 
-def do_auth_aws(user_info):
+def do_auth_aws(user_info, ssh_con=None):
     """
     Performs steps for s3 authentication
     Args:
         user_info(dict): User Information
     """
-    install_aws()
-    create_aws_file()
-    update_aws_file(user_info)
+    install_aws(ssh_con)
+    create_aws_file(ssh_con)
+    update_aws_file(user_info, ssh_con)
