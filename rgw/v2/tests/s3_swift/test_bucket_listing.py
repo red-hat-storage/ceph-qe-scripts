@@ -78,6 +78,13 @@ def test_exec(config, ssh_con):
             rgw_conn = auth.do_auth()
         objects_created_list = []
         bucket_created = []
+
+        if config.test_ops.get("modify_user", None) is True:
+            cmd = f"radosgw-admin user modify --uid={each_user['user_id']} --max-buckets {config.bucket_count}"
+            log.info("command is {cmd}")
+            modified_user = utils.exec_shell_cmd(cmd)
+            log.info(f"output is {modified_user}")
+
         if config.test_ops["create_bucket"] is True:
             log.info("no of buckets to create: %s" % config.bucket_count)
             for bc in range(config.bucket_count):
@@ -94,7 +101,7 @@ def test_exec(config, ssh_con):
                     reusable.enable_versioning(
                         bucket, rgw_conn, each_user, write_bucket_io_info
                     )
-                if config.test_ops["create_object"] is True:
+                if config.test_ops.get("create_object", None) is True:
                     if config.test_ops["object_structure"] == "flat":
                         # uploading data
                         log.info(
@@ -185,7 +192,7 @@ def test_exec(config, ssh_con):
                                     utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
 
                 # listing bucket with only pseudo directories ; Bug allows ordered bucket listing to get stuck -- 4.1 https://bugzilla.redhat.com/show_bug.cgi?id=1853052#c0
-                if config.test_ops["create_object"] is False:
+                if config.test_ops.get("create_object", None) is False:
                     if config.test_ops["object_structure"] == "pseudo-dir-only":
                         log.info(
                             f"pseudo directories to create {config.pseudo_dir_count}"
@@ -197,88 +204,106 @@ def test_exec(config, ssh_con):
                             utils.create_psuedo_dir(s3_pseudo_dir_name, bucket)
 
                 # radoslist listing of the bucket
-                if config.test_ops["radoslist"] is True:
-                    log.info("executing the command radosgw-admin bucket radoslist ")
-                    radoslist = utils.exec_shell_cmd(
-                        "radosgw-admin bucket radoslist --bucket %s"
+                if config.test_ops.get("create_object", None) is not None:
+                    if config.test_ops["radoslist"] is True:
+                        log.info("executing the command radosgw-admin bucket radoslist")
+                        radoslist = utils.exec_shell_cmd(
+                            "radosgw-admin bucket radoslist --bucket %s"
+                            % bucket_name_to_create
+                        )
+                        if radoslist is False:
+                            raise TestExecError("Radoslist command execution failed")
+
+                    # get the configuration parameter - rgw_bucket_index_max_aio
+                    ceph_version_id, ceph_version_name = utils.get_ceph_version()
+                    if ceph_version_name in ["luminous", "nautilus"]:
+                        if ssh_con:
+                            cmd = "ceph daemon `ls -t /var/run/ceph/ceph-client.rgw.*.asok|head -1` config show |grep  rgw_bucket_index_max_aio"
+                            _, stdout, _ = ssh_con.exec_command(cmd)
+                            max_aio_output = stdout.readline()
+                        else:
+                            cmd = "ceph daemon `ls -t /var/run/ceph/ceph-client.rgw.*.asok|head -1` config show |grep  rgw_bucket_index_max_aio"
+                            max_aio_output = utils.exec_shell_cmd(cmd)
+                        max_aio = max_aio_output.split()[1]
+                    else:
+                        cmd = "ceph config get mon rgw_bucket_index_max_aio"
+                        max_aio_output = utils.exec_shell_cmd(cmd)
+                        max_aio = max_aio_output.rstrip("\n")
+
+                    # bucket stats to get the num_objects of the bucket
+                    bucket_stats = utils.exec_shell_cmd(
+                        "radosgw-admin bucket stats --bucket  %s"
                         % bucket_name_to_create
                     )
-                    if radoslist is False:
-                        raise TestExecError("Radoslist command execution failed")
+                    bucket_stats_json = json.loads(bucket_stats)
+                    bkt_num_objects = bucket_stats_json["usage"]["rgw.main"][
+                        "num_objects"
+                    ]
 
-                # get the configuration parameter - rgw_bucket_index_max_aio
-                ceph_version_id, ceph_version_name = utils.get_ceph_version()
-                if ceph_version_name in ["luminous", "nautilus"]:
-                    if ssh_con:
-                        cmd = "ceph daemon `ls -t /var/run/ceph/ceph-client.rgw.*.asok|head -1` config show |grep  rgw_bucket_index_max_aio"
-                        _, stdout, _ = ssh_con.exec_command(cmd)
-                        max_aio_output = stdout.readline()
-                    else:
-                        cmd = "ceph daemon `ls -t /var/run/ceph/ceph-client.rgw.*.asok|head -1` config show |grep  rgw_bucket_index_max_aio"
-                        max_aio_output = utils.exec_shell_cmd(cmd)
-                    max_aio = max_aio_output.split()[1]
-                else:
-                    cmd = "ceph config get mon rgw_bucket_index_max_aio"
-                    max_aio_output = utils.exec_shell_cmd(cmd)
-                    max_aio = max_aio_output.rstrip("\n")
-
-                # bucket stats to get the num_objects of the bucket
-                bucket_stats = utils.exec_shell_cmd(
-                    "radosgw-admin bucket stats --bucket  %s" % bucket_name_to_create
-                )
-                bucket_stats_json = json.loads(bucket_stats)
-                bkt_num_objects = bucket_stats_json["usage"]["rgw.main"]["num_objects"]
-
-                # ordered listing via radosgw-admin command and noting time taken
-                log.info(
-                    "measure the execution time taken to list via radosgw-admin command"
-                )
-                if config.test_ops["radosgw_listing_ordered"] is True:
-                    log.info("ordered listing via radosgw-admin command")
-                    rgw_cmd_time = reusable.time_to_list_via_radosgw(
-                        bucket_name_to_create, "ordered"
-                    )
-                    if rgw_cmd_time > 0:
-                        rgw_cmd_time_secs = "{:.4f}".format(rgw_cmd_time)
-                        rgw_cmd_time_mins = "{:.4f}".format(rgw_cmd_time / 60)
-                        log.info(
-                            f"with rgw_bucket_index_max_aio = {max_aio} time taken for ordered listing of {bkt_num_objects} objects is : {rgw_cmd_time_secs} secs ; {rgw_cmd_time_mins} mins"
-                        )
-                    else:
-                        raise TestExecError(
-                            "object listing via radosgw-admin command failed"
-                        )
-
-                # unordered listing via radosgw-admin command and noting time taken
-                if config.test_ops["radosgw_listing_ordered"] is False:
-                    log.info("unordered listing via radosgw-admin command")
-                    rgw_time = reusable.time_to_list_via_radosgw(
-                        bucket_name_to_create, "unordered"
-                    )
-                    if rgw_time > 0:
-                        rgw_time_secs = "{:.4f}".format(rgw_time)
-                        rgw_time_mins = "{:.4f}".format(rgw_time / 60)
-                        log.info(
-                            f"with rgw_bucket_index_max_aio = {max_aio} time taken for unordered listing of {bkt_num_objects} objects is : {rgw_time_secs} secs ; {rgw_time_mins} mins"
-                        )
-                    else:
-                        raise TestExecError(
-                            "object listing via radosgw-admin command failed"
-                        )
-
-                # listing via boto and noting the time taken
-                log.info("measure the execution time taken to list via boto")
-                boto_time = reusable.time_to_list_via_boto(
-                    bucket_name_to_create, rgw_conn
-                )
-                if boto_time > 0:
-                    boto_time_secs = "{:.4f}".format(boto_time)
-                    boto_time_mins = "{:.4f}".format(boto_time / 60)
+                    # ordered listing via radosgw-admin command and noting time taken
                     log.info(
-                        f"with rgw_bucket_index_max_aio = {max_aio} time taken to list {bkt_num_objects} objects via boto : {boto_time_secs} secs ; {boto_time_mins} mins"
+                        "measure the execution time taken to list via radosgw-admin command"
+                    )
+                    if config.test_ops["radosgw_listing_ordered"] is True:
+                        log.info("ordered listing via radosgw-admin command")
+                        rgw_cmd_time = reusable.time_to_list_via_radosgw(
+                            bucket_name_to_create, "ordered"
+                        )
+                        if rgw_cmd_time > 0:
+                            rgw_cmd_time_secs = "{:.4f}".format(rgw_cmd_time)
+                            rgw_cmd_time_mins = "{:.4f}".format(rgw_cmd_time / 60)
+                            log.info(
+                                f"with rgw_bucket_index_max_aio = {max_aio} time taken for ordered listing of {bkt_num_objects} objects is : {rgw_cmd_time_secs} secs ; {rgw_cmd_time_mins} mins"
+                            )
+                        else:
+                            raise TestExecError(
+                                "object listing via radosgw-admin command failed"
+                            )
+
+                    # unordered listing via radosgw-admin command and noting time taken
+                    if config.test_ops["radosgw_listing_ordered"] is False:
+                        log.info("unordered listing via radosgw-admin command")
+                        rgw_time = reusable.time_to_list_via_radosgw(
+                            bucket_name_to_create, "unordered"
+                        )
+                        if rgw_time > 0:
+                            rgw_time_secs = "{:.4f}".format(rgw_time)
+                            rgw_time_mins = "{:.4f}".format(rgw_time / 60)
+                            log.info(
+                                f"with rgw_bucket_index_max_aio = {max_aio} time taken for unordered listing of {bkt_num_objects} objects is : {rgw_time_secs} secs ; {rgw_time_mins} mins"
+                            )
+                        else:
+                            raise TestExecError(
+                                "object listing via radosgw-admin command failed"
+                            )
+
+                    # listing via boto and noting the time taken
+                    log.info("measure the execution time taken to list via boto")
+                    boto_time = reusable.time_to_list_via_boto(
+                        bucket_name_to_create, rgw_conn
+                    )
+                    if boto_time > 0:
+                        boto_time_secs = "{:.4f}".format(boto_time)
+                        boto_time_mins = "{:.4f}".format(boto_time / 60)
+                        log.info(
+                            f"with rgw_bucket_index_max_aio = {max_aio} time taken to list {bkt_num_objects} objects via boto : {boto_time_secs} secs ; {boto_time_mins} mins"
+                        )
+                    else:
+                        raise TestExecError("object listing via boto failed")
+
+            if config.test_ops.get("list_bucket_with_uid", None) is True:
+                log.info(f"each user is {each_user}")
+                cmd = f"radosgw-admin bucket list --uid {each_user['user_id']} |wc -l"
+                bucket_list = int(utils.exec_shell_cmd(cmd)) - 2
+                log.info(f"bucket count is {bucket_list}")
+                if bucket_list != config.bucket_count:
+                    raise AssertionError(
+                        f"failed to list all the buckets for the user {each_user['user_id']}"
                     )
                 else:
-                    raise TestExecError("object listing via boto failed")
+                    log.info(
+                        f"listing of all the buckets for the user {each_user['user_id']} is successful"
+                    )
 
         # radoslist on all buckets. BZ:https://bugzilla.redhat.com/show_bug.cgi?id=1892265
         if config.radoslist_all is True:
