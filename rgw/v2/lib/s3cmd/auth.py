@@ -15,10 +15,18 @@ log = logging.getLogger()
 
 
 from v2.lib.exceptions import S3CMDConfigFileNotFound
+from v2.utils import utils
 
 root_path = str(Path.home())
 home_path = os.path.expanduser("~cephuser")
-sample_file_location = home_path + ("/rgw-tests/ceph-qe-scripts/rgw/v2/tests/s3cmd/")
+
+is_multisite = utils.is_cluster_multisite()
+if is_multisite:
+    sample_file_location = (
+        home_path + "/rgw-ms-tests/ceph-qe-scripts/rgw/v2/tests/s3cmd/"
+    )
+else:
+    sample_file_location = home_path + "/rgw-tests/ceph-qe-scripts/rgw/v2/tests/s3cmd/"
 
 
 def create_s3cfg_file():

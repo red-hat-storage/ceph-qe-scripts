@@ -1,0 +1,8 @@
+# polarion_id: CEPH-83575477
+# script: test_s3cmd.py
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  test_ops:
+    s3cmd_get_objects: true

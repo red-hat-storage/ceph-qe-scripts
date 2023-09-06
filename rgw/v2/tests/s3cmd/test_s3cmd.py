@@ -61,6 +61,55 @@ def test_exec(config, ssh_con):
 
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
+    # CEPH-83575477 - Verify s3cmd get: Bug 2174863 - [cee/sd][RGW] 's3cmd get' fails with EOF error for few objects
+    if config.test_ops.get("s3cmd_get_objects", False):
+        log.info(f"Verify 's3cmd get' or download of objects")
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl)
+        rgw_conn = auth.do_auth()
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info[0]["user_id"], rand_no=bc
+            )
+            s3cmd_reusable.create_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} created")
+            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+            object_count = config.objects_count // 2
+
+            log.info(f"uploading some large objects to bucket {bucket_name}")
+            utils.exec_shell_cmd(f"fallocate -l 20m obj20m")
+            for mobj in range(object_count):
+                cmd = f"{s3cmd_path} put obj20m s3://{bucket_name}/multipart-object-{mobj}"
+                utils.exec_shell_cmd(cmd)
+
+            log.info(f"uploading some small objects to bucket {bucket_name}")
+            utils.exec_shell_cmd(f"fallocate -l 4k obj4k")
+            for sobj in range(object_count):
+                cmd = f"{s3cmd_path} put obj4k s3://{bucket_name}/small-object-{sobj}"
+                utils.exec_shell_cmd(cmd)
+
+            log.info(
+                f"perfotm s3cmd get for all objects resides in bucket: {bucket_name}"
+            )
+            for sobj in range(object_count):
+                cmd = f"{s3cmd_path} get s3://{bucket_name}/multipart-object-{sobj} {bucket_name}-multipart-object-{sobj}"
+                multi_rc = utils.exec_shell_cmd(cmd)
+                if multi_rc is False:
+                    raise AssertionError(
+                        f"Failed to download object multipart-object-{sobj} from bucket {bucket_name}: {multi_rc}"
+                    )
+
+                cmd = f"{s3cmd_path} get s3://{bucket_name}/small-object-{sobj} {bucket_name}-small-object-{sobj}"
+                small_rc = utils.exec_shell_cmd(cmd)
+                if small_rc is False:
+                    raise AssertionError(
+                        f"Failed to download object small-object-{sobj} from bucket {bucket_name}: {small_rc}"
+                    )
+
+        log.info("Remove downloaded objects from cluster")
+        utils.exec_shell_cmd("rm -rf *-object-*")
+
     # Verifying CEPH-83574806
     if config.delete_marker_check:
         log.info(
@@ -150,7 +199,7 @@ def test_exec(config, ssh_con):
 
 if __name__ == "__main__":
 
-    test_info = AddTestInfo("test swift user key gen")
+    test_info = AddTestInfo("rgw test using s3cmd")
 
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
@@ -160,8 +209,8 @@ if __name__ == "__main__":
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
-        parser = argparse.ArgumentParser(description="RGW Swift Automation")
-        parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
+        parser = argparse.ArgumentParser(description="RGW s3cmd Automation")
+        parser.add_argument("-c", dest="config", help="RGW Test using s3cmd tool")
         parser.add_argument(
             "-log_level",
             dest="log_level",
