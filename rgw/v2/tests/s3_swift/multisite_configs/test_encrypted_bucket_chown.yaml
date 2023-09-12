@@ -1,0 +1,16 @@
+#Polarian  CEPH-83574621 Change bucket ownership to a different user when encryption is enabled
+config:
+ user_count: 2
+ haproxy: true
+ encryption_keys: s3
+ bucket_count: 2
+ objects_count: 50
+ local_file_delete: true
+ objects_size_range:
+  min: 1M
+  max: 2M
+ test_ops:
+  create_bucket: true
+  create_object: true
+  enable_version: true
+  upload_type: normal

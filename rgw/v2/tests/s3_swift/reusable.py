@@ -828,6 +828,21 @@ def link_chown_to_nontenanted(new_uid, bucket, tenant):
     return
 
 
+def link_chown_nontenant_to_nontenant(new_uid, bucket):
+    """"""
+    cmd2 = "radosgw-admin bucket link --bucket=%s --uid=%s" % (bucket, new_uid)
+    out3 = utils.exec_shell_cmd(cmd2)
+    if out3 is False:
+        raise TestExecError("RGW Bucket link error")
+    log.info("output :%s" % out3)
+    cmd3 = "radosgw-admin bucket chown --bucket=%s --uid=%s" % (bucket, new_uid)
+    out4 = utils.exec_shell_cmd(cmd3)
+    if out4 is False:
+        raise TestExecError("RGW Bucket chown error")
+    log.info("output :%s" % out4)
+    return
+
+
 def delete_objects(bucket):
     """
     deletes the objects in a given bucket
