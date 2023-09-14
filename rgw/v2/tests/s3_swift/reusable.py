@@ -1518,7 +1518,7 @@ def prepare_for_bucket_lc_transition(config):
             f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {ec_storage_class} --data-pool {ec_pool_name}"
         )
         utils.exec_shell_cmd(
-            "ceph osd erasure-code-profile set rgwec01 k=4 m=2 crush-failure-domain=host crush-device-class=hdd"
+            "ceph osd erasure-code-profile set rgwec01 k=4 m=2 crush-failure-domain=osd crush-device-class=hdd"
         )
         utils.exec_shell_cmd(
             f"ceph osd pool create {ec_pool_name} 32 32 erasure rgwec01"
