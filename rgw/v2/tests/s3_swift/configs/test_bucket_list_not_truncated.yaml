@@ -1,0 +1,14 @@
+#script - test_bucket_listing.py
+# Polarion ID : CEPH-83575816
+config:
+   user_count: 1
+   bucket_count: 1200
+   objects_count: 1
+   objects_size_range:
+        min: 4
+        max: 5
+   test_ops:
+        create_bucket: true
+        modify_user: true
+        list_bucket_with_uid: true
+        user_remove: true
