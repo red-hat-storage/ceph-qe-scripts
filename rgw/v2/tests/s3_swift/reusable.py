@@ -18,6 +18,7 @@ import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
 from v2.lib.exceptions import DefaultDatalogBackingError, MFAVersionError, TestExecError
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
+from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import (
     AddUserInfo,
     BasicIOInfoStructure,
@@ -1876,4 +1877,38 @@ def test_bucket_stats_across_sites(bucket_name_to_create):
         else:
             raise TestExecError(
                 "Data is inconsistent for {bucket_name_to_create} across sites"
+            )
+
+
+def test_object_download_at_replicated_site(
+    bucket_name, s3_object_name, each_user, config
+):
+    """
+    testobject download at the remote site
+    """
+    is_multisite = utils.is_cluster_multisite()
+    if is_multisite:
+        log.info(f"Test multipart and encrypted object download for {s3_object_name}")
+        is_primary = utils.is_cluster_primary()
+        if is_primary:
+            zone_name = "secondary"
+        else:
+            zone_name = "primary"
+        log.info(f"remote zone is {zone_name}")
+
+        # Download objects from remote site using boto3 rgw client
+        remote_ip = utils.get_rgw_ip_zone(zone_name)
+        remote_site_ssh_conn = utils.connect_remote(remote_ip)
+        remote_site_auth = Auth(
+            each_user, remote_site_ssh_conn, ssl=config.ssl, haproxy=config.haproxy
+        )
+        remote_s3_client = remote_site_auth.do_auth_using_client()
+
+        log.info(
+            f"Download object {s3_object_name} via boto3 at remote site {zone_name}"
+        )
+        response = remote_s3_client.get_object(Bucket=bucket_name, Key=s3_object_name)
+        if response is False:
+            raise TestExecError(
+                "md5sum signature mismatch, detected corruption on download"
             )

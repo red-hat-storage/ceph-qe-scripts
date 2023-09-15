@@ -1,0 +1,14 @@
+# polarion test case id: CEPH-83575711
+# bug-2149450
+config:
+     user_count: 1
+     haproxy: true
+     bucket_count: 2
+     objects_count: 50
+     objects_size_range:
+          min: 5
+          max: 15
+     test_ops:
+          create_bucket: true
+          create_object: true
+          server_side_copy: true
