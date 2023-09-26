@@ -260,7 +260,7 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
     if "LifecycleExpiration" in event_type:
         events = [
             "ObjectLifecycle:Expiration:Current",
-            "ObjectLifecycle:Expiration:NonCurrent",
+            "ObjectLifecycle:Expiration:Noncurrent",
             "ObjectLifecycle:Expiration:DeleteMarker",
             "ObjectLifecycle:Expiration:AbortMultipartUpload",
         ]
