@@ -9,6 +9,7 @@ usage : test_list_all_multipart_uploads.py -c <input_yaml>
     configs/test_listbucketversion_with_bucketpolicy_for_tenant_user.yaml
     configs/test_bucketlocation_using_bucketpolicy_with_tenantuser.yaml
     configs/test_bucket_put_get_lifecycle_configuration_with_tenant_users.yaml
+    configs/get_object_and_its_versions_tenat_user.yaml
 
 Operation:
 - Create users in the same tenant, user1 and user2 (if required user3)
@@ -91,13 +92,13 @@ def test_exec(config, ssh_con):
     location = None
     if config.test_ops.get("list_bucket_multipart_uploads", False):
         srv_time_pre_op = get_svc_time(ssh_con)
-        config.test_ops["sub_user_count"] = 2
+        config.test_ops["users_count"] = 2
         action_list = ["ListBucketMultiPartUploads"]
 
     # create user
     tenant1 = "tenant_" + random.choice(string.ascii_letters)
     tenant1_user_info = s3lib.create_tenant_users(
-        tenant_name=tenant1, no_of_users_to_create=config.test_ops["sub_user_count"]
+        tenant_name=tenant1, no_of_users_to_create=config.test_ops["users_count"]
     )
 
     if not config.test_ops.get("list_bucket_multipart_uploads", False):
@@ -110,9 +111,29 @@ def test_exec(config, ssh_con):
             action_list = ["GetBucketLocation"]
         elif config.test_ops.get("lifecycle_configuration", False):
             action_list = ["PutLifecycleConfiguration", "GetLifecycleConfiguration"]
+        elif config.test_ops.get("get_obj_and_its_versions", False):
+            action_list = ["GetObject", "GetObjectVersion"]
         additional_aws_principle = [
             f"arn:aws:iam::{tenant1}:user/{tenant1_user3_info['user_id']}"
         ]
+        if config.test_ops.get("new_tenant_user", False):
+            # create user
+            tenant2 = "tenant_" + random.choice(string.ascii_letters)
+            tenant2_user_info = s3lib.create_tenant_users(
+                tenant_name=tenant2,
+                no_of_users_to_create=config.test_ops["users_count"],
+            )
+            tenant2_user1_auth = Auth(tenant2_user_info[0], ssh_con, ssl=config.ssl)
+            rgw_tenant2_user1_c = tenant2_user1_auth.do_auth_using_client()
+            tenant2_user2_auth = Auth(tenant2_user_info[1], ssh_con, ssl=config.ssl)
+            rgw_tenant2_user2_c = tenant2_user2_auth.do_auth_using_client()
+            tenant2_user3_auth = Auth(tenant2_user_info[2], ssh_con, ssl=config.ssl)
+            rgw_tenant2_user3_c = tenant2_user3_auth.do_auth_using_client()
+            additional_aws_principle += [
+                f"arn:aws:iam::{tenant2}:user/{tenant2_user_info[0]['user_id']}",
+                f"arn:aws:iam::{tenant2}:user/{tenant2_user_info[1]['user_id']}",
+                f"arn:aws:iam::{tenant2}:user/{tenant2_user_info[2]['user_id']}",
+            ]
 
     tenant1_user1_info = tenant1_user_info[0]
     tenant1_user2_info = tenant1_user_info[1]
@@ -143,7 +164,7 @@ def test_exec(config, ssh_con):
                 tenants_list=[tenant1],
                 userids_list=[tenant1_user2_info["user_id"]],
                 actions_list=action_list,
-                resources=[bucket_name],
+                resources=[bucket_name, f"{bucket_name}/*"],
             )
 
             bucket_policy_generated["Statement"][0]["Principal"][
@@ -255,6 +276,98 @@ def test_exec(config, ssh_con):
                         f"Failed to perform object version listing: {err}"
                     )
 
+            if config.test_ops.get("get_obj_and_its_versions", False):
+                log.info(f"s3 versioned objects to create: {config.objects_count}")
+                for oc, size in list(config.mapped_sizes.items()):
+                    config.obj_size = size
+                    s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
+                    log.info(f"s3 object name: {s3_object_name}")
+                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                    log.info(f"s3 object path: {s3_object_path}")
+                    log.info("upload versioned objects")
+                    reusable.upload_version_object(
+                        config,
+                        tenant1_user1_info,
+                        rgw_tenant1_user1,
+                        s3_object_name,
+                        config.obj_size,
+                        bucket,
+                        TEST_DATA_PATH,
+                    )
+                    # get the object
+                    try:
+                        log.info(
+                            "with bucket owner perform get object and its versions"
+                        )
+                        resp = rgw_tenant1_user1_c.get_object(
+                            Bucket=bucket.name, Key=s3_object_name
+                        )
+                        rgw_tenant1_user1_c.get_object(
+                            Bucket=bucket.name,
+                            Key=s3_object_name,
+                            VersionId=resp["VersionId"],
+                        )
+                        log.info(
+                            "with non bucket owner of same tenant, perform get object and its versions"
+                        )
+                        rgw_tenant1_user2_c.get_object(
+                            Bucket=bucket.name, Key=s3_object_name
+                        )
+                        rgw_tenant1_user3_c.get_object(
+                            Bucket=bucket.name, Key=s3_object_name
+                        )
+                        rgw_tenant1_user2_c.get_object(
+                            Bucket=bucket.name,
+                            Key=s3_object_name,
+                            VersionId=resp["VersionId"],
+                        )
+                        rgw_tenant1_user3_c.get_object(
+                            Bucket=bucket.name,
+                            Key=s3_object_name,
+                            VersionId=resp["VersionId"],
+                        )
+                        log.info(
+                            "with non bucket owner of different tenant, perform get object and its versions"
+                        )
+                        bucket_name_verify_policy = f"{tenant1}:{bucket.name}"
+                        rgw_tenant2_user1_c.meta.events.unregister(
+                            "before-parameter-build.s3", validate_bucket_name
+                        )
+                        rgw_tenant2_user2_c.meta.events.unregister(
+                            "before-parameter-build.s3", validate_bucket_name
+                        )
+                        rgw_tenant2_user3_c.meta.events.unregister(
+                            "before-parameter-build.s3", validate_bucket_name
+                        )
+                        rgw_tenant2_user1_c.get_object(
+                            Bucket=bucket_name_verify_policy, Key=s3_object_name
+                        )
+                        rgw_tenant2_user2_c.get_object(
+                            Bucket=bucket_name_verify_policy, Key=s3_object_name
+                        )
+                        rgw_tenant2_user3_c.get_object(
+                            Bucket=bucket_name_verify_policy, Key=s3_object_name
+                        )
+                        rgw_tenant2_user1_c.get_object(
+                            Bucket=bucket_name_verify_policy,
+                            Key=s3_object_name,
+                            VersionId=resp["VersionId"],
+                        )
+                        rgw_tenant2_user2_c.get_object(
+                            Bucket=bucket_name_verify_policy,
+                            Key=s3_object_name,
+                            VersionId=resp["VersionId"],
+                        )
+                        rgw_tenant2_user3_c.get_object(
+                            Bucket=bucket_name_verify_policy,
+                            Key=s3_object_name,
+                            VersionId=resp["VersionId"],
+                        )
+                    except ClientError as err:
+                        raise AssertionError(
+                            f"Failed to perform get object with: {err}"
+                        )
+
             if config.test_ops.get("get_bucket_location", False):
                 log.info("Perform get bucket location: from users of same tenant")
                 try:
@@ -303,7 +416,12 @@ def test_exec(config, ssh_con):
                         f"Failed to perform lifecycle configuration operation: {err}"
                     )
 
-    for i in tenant1_user_info:
+    tenant_info = (
+        (tenant1_user_info + tenant2_user_info)
+        if config.test_ops.get("new_tenant_user", False)
+        else tenant1_user_info
+    )
+    for i in tenant_info:
         reusable.remove_user(i, tenant=i["tenant"])
 
     # check sync status if a multisite cluster

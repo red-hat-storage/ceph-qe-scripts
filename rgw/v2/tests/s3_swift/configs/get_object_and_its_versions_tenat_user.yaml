@@ -1,0 +1,14 @@
+# test case id: CEPH-11516
+config:
+    objects_count: 100
+    bucket_count: 2
+    version_count: 2
+    objects_size_range:
+        min: 5
+        max: 15
+    test_ops:
+        enable_version: true
+        create_bucket: true
+        users_count: 3
+        new_tenant_user: true
+        get_obj_and_its_versions: true

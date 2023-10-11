@@ -9,7 +9,7 @@ config:
     test_ops:
       create_bucket: true
       create_object: true
-      sub_user_count: 3
+      users_count: 3
       lifecycle_configuration: true
     lifecycle_conf:
       - ID: LC_Rule_1
