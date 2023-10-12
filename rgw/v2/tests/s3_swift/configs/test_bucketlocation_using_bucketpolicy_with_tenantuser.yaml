@@ -8,5 +8,5 @@ config:
       max: 15
     test_ops:
       create_bucket: true
-      sub_user_count: 3
+      users_count: 3
       get_bucket_location: true

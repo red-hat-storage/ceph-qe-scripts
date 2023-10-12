@@ -8,7 +8,7 @@ config:
       min: 5
       max: 15
     test_ops:
-      sub_user_count: 3
+      users_count: 3
       create_bucket: true
       create_object: true
       enable_version: true
