@@ -180,6 +180,7 @@ class Keycloak:
             if out is False:
                 raise Exception("jq installation failed")
             self.access_token = self.get_initial_web_access_token()
+            log.info(self.access_token)
             self.update_realm_token_lifespan()
             self.access_token = self.get_initial_web_access_token()
             set_audience_scope_name = "set_audience_scope"
@@ -204,7 +205,7 @@ class Keycloak:
 
     def install_keycloak(self):
         out = utils.exec_shell_cmd(
-            "sudo podman run -d --name keycloak -p 8180:8180 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:22.0.0-0 start-dev --http-port 8180"
+            "sudo podman run -d --name keycloak -p 8180:8180 -e KEYCLOAK_ADMIN=admin -e KEYCLOAK_ADMIN_PASSWORD=admin quay.io/keycloak/keycloak:22.0.0 start-dev --http-port 8180"
         )
         if out is False:
             raise Exception("keycloak deployment failed")
@@ -226,6 +227,7 @@ class Keycloak:
         )
         if out is False:
             raise Exception("failed to get access token")
+        log.info(out)
         return out.strip()
 
     def introspect_token(self, access_token):

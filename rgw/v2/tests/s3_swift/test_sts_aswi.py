@@ -35,6 +35,7 @@ import logging
 import random
 import time
 import traceback
+from datetime import datetime
 
 import boto3
 import v2.lib.resource_op as s3lib
@@ -86,6 +87,13 @@ def test_exec(config, ssh_con):
     ceph_config_set.set_to_ceph_conf(
         "global", ConfigOpts.rgw_s3_auth_use_sts, "True", ssh_con
     )
+
+    if config.test_ops.get("test_copy_in_progress_sts_creds_expire"):
+        ceph_config_set.set_to_ceph_conf(
+            "global", ConfigOpts.debug_rgw, str(config.debug_rgw), ssh_con
+        )
+        ceph_config_set.set_to_ceph_conf("global", "log_to_file", "true", ssh_con)
+
     srv_restarted = rgw_service.restart(ssh_con)
     time.sleep(30)
     if srv_restarted is False:
@@ -174,10 +182,12 @@ def test_exec(config, ssh_con):
     web_token = keycloak.get_web_access_token()
     log.info(f"web token: {web_token}")
     keycloak.introspect_token(web_token)
+    sts_creds_created_time = time.time()
+    sts_creds_validity_seconds = config.test_ops.get("sts_creds_validity_seconds", 3600)
     assume_role_response = sts_client.assume_role_with_web_identity(
         RoleArn=create_role_response["Role"]["Arn"],
         RoleSessionName=user1["user_id"],
-        DurationSeconds=3600,
+        DurationSeconds=sts_creds_validity_seconds,
         WebIdentityToken=web_token,
     )
     log.info(f"assume role with web identity response: {assume_role_response}")
@@ -261,6 +271,39 @@ def test_exec(config, ssh_con):
                             config,
                             assumed_role_user_info,
                         )
+
+    # refer bz: https://bugzilla.redhat.com/show_bug.cgi?id=2214981
+    if config.test_ops.get("test_copy_in_progress_sts_creds_expire"):
+        sleep_time_for_copy = sts_creds_created_time + sts_creds_validity_seconds - 15
+        log.info(
+            f"sleeping till {datetime.fromtimestamp(sleep_time_for_copy)} for testing sts creds expire while copy object is in progress"
+        )
+        while time.time() < sleep_time_for_copy:
+            time.sleep(5)
+        copy_object_name = f"copy_of_{s3_object_name}"
+        log.info(f"copying object {s3_object_name} to {copy_object_name}")
+        copy_source = {"Bucket": bucket.name, "Key": s3_object_name}
+        status_copy_object = s3lib.resource_op(
+            {
+                "obj": bucket,
+                "resource": "copy",
+                "args": [copy_source, copy_object_name],
+            }
+        )
+        if status_copy_object is False:
+            log.info(
+                "Failed to copy object as expected because sts creds expired in the middle"
+            )
+        if status_copy_object is None:
+            raise TestExecError(
+                "copy object is successful even after sts creds expired, expected to fail"
+            )
+
+        search_string = "402 Notify failed on object"
+        if utils.search_for_string_in_rgw_logs(search_string, ssh_con):
+            raise TestExecError(f"'{search_string}' found in rgw log")
+        else:
+            log.info(f"'{search_string}' not found in rgw log")
 
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
