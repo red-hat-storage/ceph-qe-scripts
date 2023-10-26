@@ -1714,7 +1714,7 @@ def pipe_operation(
     pipe_id = group_id + "pipe"
     if zone_names is not None:
         zone_name = zone_names.split(",")
-        zn = f" --source-zones={zone_name[0]} --dest-zones={zone_name[1]}"
+        zn = f" --source-zones='{zone_name[0]}','{zone_name[1]}' --dest-zones='{zone_name[0]}','{zone_name[1]}'"
     else:
         zn = " --source-zones='*' --dest-zones='*'"
     if bucket_name is not None:
