@@ -1,0 +1,9 @@
+# script: user_create.py
+# Polarian: CEPH-83575880
+config:
+    user_count: 1
+    user_type: non-tenanted
+    test_ops:
+        create_bucket: false
+        swift_user: false
+        user_modify_with_placementid: true

@@ -55,7 +55,7 @@ def exec_long_running_shell_cmd(cmd):
         return False
 
 
-def exec_shell_cmd(cmd, debug_info=False):
+def exec_shell_cmd(cmd, debug_info=False, return_err=False):
     try:
         log.info("executing cmd: %s" % cmd)
         pr = subprocess.Popen(
@@ -78,6 +78,8 @@ def exec_shell_cmd(cmd, debug_info=False):
                 else:
                     return out
         else:
+            if return_err == True:
+                return err
             raise Exception("error: %s \nreturncode: %s" % (err, pr.returncode))
     except Exception as e:
         log.error("cmd execution failed")

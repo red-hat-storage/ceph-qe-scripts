@@ -81,6 +81,13 @@ def test_exec(config, ssh_con):
                         test_info.success_status(
                             f"Tenanted Swift user modification completed for {user_name}:swift"
                         )
+        for user in all_users_info:
+            if config.test_ops.get("user_modify_with_placementid", False):
+                cmd = f'radosgw-admin user modify --uid={user["user_id"]} --placement-id "test"'
+                out = utils.exec_shell_cmd(cmd, return_err=True)
+                log.info(f"user modify with placement id out put is {out}")
+                if "*** Caught signal (Aborted) **" in out:
+                    raise AssertionError("user modify with placementid caused crash!!")
 
         test_info.success_status("test passed")
         sys.exit(0)
