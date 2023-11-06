@@ -1861,8 +1861,8 @@ def test_bucket_stats_across_sites(bucket_name_to_create):
         log.info(
             f"collect bucket stats for {bucket_name_to_create} at remote site {zone_name}"
         )
-        log.info("Wait for the sync lease period of 120 seconds")
-        time.sleep(120)
+        log.info("Wait for the sync lease period of 1200 seconds")
+        time.sleep(1200)
         stdin, stdout, stderr = remote_site_ssh_con.exec_command(cmd_bucket_stats)
         cmd_output = stdout.read().decode()
         stats_remote = json.loads(cmd_output)
