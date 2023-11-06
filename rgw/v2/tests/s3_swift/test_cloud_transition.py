@@ -120,8 +120,8 @@ def test_exec(config, ssh_con):
         }
     )
     log.info("put bucket life cycle:\n%s" % put_bucket_life_cycle)
-    log.info("waiting for 60s to complete transition...")
-    time.sleep(60)
+    log.info("waiting for 180sec to complete transition...")
+    time.sleep(180)
 
     log.info("Verifying objects are transitioned")
     object_list = reusable.get_object_list(
