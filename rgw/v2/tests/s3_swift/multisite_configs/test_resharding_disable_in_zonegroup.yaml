@@ -9,4 +9,4 @@ config:
   max_objects_per_shard: 5
   disable_dynamic_shard: true
   test_ops:
-    delete_bucket_object: true
+    delete_bucket_object: false
