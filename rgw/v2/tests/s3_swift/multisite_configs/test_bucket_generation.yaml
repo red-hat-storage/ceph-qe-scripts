@@ -7,4 +7,4 @@ config:
     max: 20
   test_ops:
     verify_bucket_gen: true
-    delete_bucket_object: true
+    delete_bucket_object: false

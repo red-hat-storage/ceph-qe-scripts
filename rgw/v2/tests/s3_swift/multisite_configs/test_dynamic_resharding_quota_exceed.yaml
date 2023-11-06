@@ -10,4 +10,4 @@ config:
   rgw_reshard_thread_interval: 60
   test_ops:
     exceed_quota_access_bucket_sec: true
-    delete_bucket_object: true
+    delete_bucket_object: false
