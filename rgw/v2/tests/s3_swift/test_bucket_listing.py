@@ -9,7 +9,8 @@ Usage: test_bucket_listing.py -c <input_yaml>
 	test_bucket_listing_flat_ordered_benchmark.yaml
 	test_bucket_listing_pseudo_ordered_benchmark.yaml
 	test_bucket_listing_psuedo_only_ordered.yaml
-	test_bucket_listing_pseudo_ordered.yaml		
+	test_bucket_listing_pseudo_ordered.yaml	
+    test_bucket_listing_pseudo_ordered_dir_only.yaml	
 Operation:
     Create user 
 	create objects as per the object structure mentioned in the yaml
@@ -231,10 +232,14 @@ def test_exec(config, ssh_con):
                         max_aio = max_aio_output.rstrip("\n")
 
                     # bucket stats to get the num_objects of the bucket
+                    time.sleep(30)
                     bucket_stats = utils.exec_shell_cmd(
                         "radosgw-admin bucket stats --bucket  %s"
                         % bucket_name_to_create
                     )
+                    if not bucket_stats:
+                        raise TestExecError("Bucket stats command execution failed")
+
                     bucket_stats_json = json.loads(bucket_stats)
                     bkt_num_objects = bucket_stats_json["usage"]["rgw.main"][
                         "num_objects"

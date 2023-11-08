@@ -40,10 +40,8 @@ def create_bucket(bucket_name, end_point, ssl=None):
     )
     try:
         create_response = utils.exec_shell_cmd(command)
-        if create_response:
-            raise Exception(
-                f"Create bucket failed for {bucket_name} with {create_response}"
-            )
+        if not create_response:
+            raise Exception(f"Create bucket failed for {bucket_name}")
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
 
@@ -68,8 +66,10 @@ def list_object_versions(bucket_name, end_point, ssl=None):
         params=[f"--bucket {bucket_name} --endpoint-url {end_point}", ssl_param]
     )
     try:
-        create_response = utils.exec_shell_cmd(command)
-        return create_response
+        list_response = utils.exec_shell_cmd(command)
+        if not list_response:
+            raise Exception(f"List object versions on bucket failed for {bucket_name}")
+        return list_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
 
@@ -99,6 +99,9 @@ def put_object(bucket_name, object_name, end_point, ssl=None):
     )
     try:
         create_response = utils.exec_shell_cmd(command)
+        log.info(create_response)
+        if not create_response:
+            raise Exception(f"Create object failed for {bucket_name}")
         return create_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
@@ -138,8 +141,10 @@ def delete_object(bucket_name, object_name, end_point, ssl=None, versionid=None)
             ]
         )
     try:
-        create_response = utils.exec_shell_cmd(command)
-        return create_response
+        delete_response = utils.exec_shell_cmd(command)
+        if not delete_response:
+            raise Exception(f"delete object failed for {bucket_name}")
+        return delete_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
 
@@ -166,10 +171,8 @@ def put_get_bucket_versioning(bucket_name, end_point, status="Enabled", ssl=None
     )
     try:
         put_response = utils.exec_shell_cmd(put_cmd)
-        if put_response:
-            raise Exception(
-                f"Version Enabling failed for {bucket_name} with {put_response}"
-            )
+        if not put_response:
+            raise Exception(f"Version Enabling failed for {bucket_name}")
         get_method = AWS(operation="get-bucket-versioning")
         get_cmd = get_method.command(
             params=[f"--bucket {bucket_name} --endpoint-url {end_point}", ssl_param]
