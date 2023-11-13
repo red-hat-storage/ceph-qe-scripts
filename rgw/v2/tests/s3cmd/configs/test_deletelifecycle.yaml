@@ -1,0 +1,14 @@
+#Polarian:CEPH-83575469
+#BZ: 2183223
+#Script: test_s3cmd.py
+
+config:
+  deletelc: true
+  objects_size_range:
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: single-obj
+      Status: Enabled
+      Expiration:
+        Days: 1
