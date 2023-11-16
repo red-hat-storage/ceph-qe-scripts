@@ -1700,23 +1700,147 @@ def group_operation(group_id, group_op, group_status="enabled", bucket_name=None
     utils.exec_shell_cmd(cmd)
 
 
-def flow_operation(group_id, flow_op, flow_type="symmetrical"):
+def get_sync_policy(bucket_name=None):
+    if bucket_name is not None:
+        bkt = f" --bucket={bucket_name}"
+    else:
+        bkt = ""
+    sync_policy_resp = json.loads(
+        utils.exec_shell_cmd(f"radosgw-admin sync policy get" + bkt)
+    )
+    return sync_policy_resp
+
+
+def verify_bucket_sync_policy_on_other_site(rgw_ssh_con, bucket):
+    log.info(f"Verify bucket sync policy exist on other site for bucket {bucket.name}")
+    _, stdout, stderr = rgw_ssh_con.exec_command(
+        f"radosgw-admin sync policy get --bucket {bucket.name}"
+    )
+    sync_policy_error = stderr.read().decode()
+    sync_policy_error_list = sync_policy_error.split("\n")
+    if sync_policy_error_list[0] != "":
+        raise TestExecError(
+            f"Get sync policy on bucket {bucket.name} another site failled :{sync_policy_error_list}"
+        )
+    cmd_output = json.loads(stdout.read().decode())
+    log.info(f"sync policy get from other site: {cmd_output} for bucket {bucket.name}")
+    if len(cmd_output["groups"]) == 0:
+        log.info(
+            f"bucket sync policy for {bucket.name} not synced to another site, sleep 60s and retry"
+        )
+        for retry_count in range(20):
+            time.sleep(60)
+            _, re_stdout, _ = rgw_ssh_con.exec_command(
+                f"radosgw-admin sync policy get --bucket {bucket.name}"
+            )
+            re_cmd_output = json.loads(re_stdout.read().decode())
+            log.info(
+                f"sync policy get from other site after 60s: {re_cmd_output} for bucket {bucket.name}"
+            )
+            if len(re_cmd_output["groups"]) == 0:
+                log.info(
+                    f"bucket sync policy for {bucket.name} not synced to another site, so retry"
+                )
+            else:
+                log.info(f"bucket sync policy synced to another site for {bucket.name}")
+                break
+
+        if (retry_count > 20) and (len(re_cmd_output["groups"]) == 0):
+            raise TestExecError(
+                f"bucket sync policy for {bucket.name} not synced to another site even after 20m"
+            )
+
+
+def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config):
+    log.info(f"Verify object sync on other site for bucket {bucket.name}")
+    bucket_stats = json.loads(
+        utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket.name}")
+    )
+    bkt_objects = bucket_stats["usage"]["rgw.main"]["num_objects"]
+    if bkt_objects != config.objects_count:
+        raise TestExecError(
+            f"Did not find {config.objects_count} in bucket {bucket.name}, but found {bkt_objects}"
+        )
+    _, stdout, _ = rgw_ssh_con.exec_command(
+        f"radosgw-admin bucket stats --bucket {bucket.name}"
+    )
+    cmd_output = json.loads(stdout.read().decode())
+    if "rgw.main" not in cmd_output["usage"].keys():
+        for retry_count in range(20):
+            time.sleep(60)
+            _, re_stdout, _ = rgw_ssh_con.exec_command(
+                f"radosgw-admin bucket stats --bucket {bucket.name}"
+            )
+            re_cmd_output = json.loads(re_stdout.read().decode())
+            log.info(
+                f"check bucket stats on other site after 60s: {re_cmd_output} for bucket {bucket.name}"
+            )
+            if "rgw.main" not in re_cmd_output["usage"].keys():
+                log.info(f"bucket stats not synced: for bucket {bucket.name}, so retry")
+            else:
+                log.info(f"bucket stats synced for bucket {bucket.name}")
+                cmd_output = re_cmd_output
+                break
+
+        if (retry_count > 20) and ("rgw.main" not in re_cmd_output["usage"].keys()):
+            raise TestExecError(
+                f"object not synced on bucket {bucket.name} in another site even after 20m"
+            )
+
+    site_bkt_objects = cmd_output["usage"]["rgw.main"]["num_objects"]
+    if bkt_objects != site_bkt_objects:
+        raise TestExecError(
+            f"object count missmatch found in another site for bucket {bucket.name} : {site_bkt_objects} expected {bkt_objects}"
+        )
+
+
+def flow_operation(
+    group_id,
+    flow_op,
+    flow_type="symmetrical",
+    bucket_name=None,
+    source_zone=None,
+    dest_zone=None,
+):
     flow_id = group_id + "flow"
+    bkt = ""
+    if bucket_name is not None:
+        bkt = f" --bucket={bucket_name}"
     zone_names, _ = get_multisite_info()
-    cmd = f"radosgw-admin sync group flow {flow_op} --group-id={group_id} --flow-id={flow_id} --flow-type={flow_type} --zones={zone_names}"
+    cmd = f"radosgw-admin sync group flow {flow_op} --group-id={group_id} --flow-id={flow_id} --flow-type={flow_type}"
+    if flow_type == "directional":
+        cmd += f" --source-zone={source_zone} --dest-zone={dest_zone}" + bkt
+    else:
+        cmd += f" --zones={zone_names}" + bkt
     utils.exec_shell_cmd(cmd)
     return zone_names
 
 
 def pipe_operation(
-    group_id, pipe_op, zone_names=None, bucket_name=None, policy_detail=None
+    group_id,
+    pipe_op,
+    zone_names=None,
+    bucket_name=None,
+    policy_detail=None,
+    source_zones=None,
+    dest_zones=None,
 ):
     pipe_id = group_id + "pipe"
     if zone_names is not None:
         zone_name = zone_names.split(",")
         zn = f" --source-zones='{zone_name[0]}','{zone_name[1]}' --dest-zones='{zone_name[0]}','{zone_name[1]}'"
+    if source_zones is not None:
+        zn = f" --source-zones={source_zones}"
+        if dest_zones is not None:
+            zn += f" --dest-zones={dest_zones}"
+        else:
+            zn += " --dest-zones='*'"
     else:
-        zn = " --source-zones='*' --dest-zones='*'"
+        zn = " --source-zones='*'"
+        if dest_zones is not None:
+            zn += f" --dest-zones={dest_zones}"
+        else:
+            zn += " --dest-zones='*'"
     if bucket_name is not None:
         bkt = f" --bucket={bucket_name}"
     else:

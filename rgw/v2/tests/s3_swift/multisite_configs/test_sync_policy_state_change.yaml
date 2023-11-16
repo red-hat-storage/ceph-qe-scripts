@@ -2,6 +2,10 @@
 config:
   user_count: 1
   bucket_count: 2
+  objects_count: 0
+  objects_size_range:
+    min: 5K
+    max: 2M
   multisite_global_sync_policy: true
   multisite_sync_policy: false
   test_ops:

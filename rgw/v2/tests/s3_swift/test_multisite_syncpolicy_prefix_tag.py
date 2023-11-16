@@ -3,7 +3,7 @@ Usage: test_syncpolicy_prefix_tag.py -c <input_yaml>
 
 <input_yaml>
     Note: Following yaml can be used
-    configs/test_syncpolicy_prefix_tag.yaml
+    test_multisite_syncpolicy_prefix_tag.yaml
 
 Operation:
 a. On a MS setup, create sync policy with configuration to sync objects having a prefix or tag or both.
@@ -53,24 +53,63 @@ def test_exec(config, ssh_con):
     reusable.flow_operation(group_id, "create")
     reusable.pipe_operation(group_id, "create")
 
+    period_details = json.loads(utils.exec_shell_cmd("radosgw-admin period get"))
+    zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
+    for zone in period_details["period_map"]["zonegroups"][0]["zones"]:
+        if zone["name"] not in zone_list["zones"]:
+            rgw_nodes = zone["endpoints"][0].split(":")
+            node_rgw = rgw_nodes[1].split("//")[-1]
+            log.info(f"Another site is: {zone['name']} and ip {node_rgw}")
+            break
+    rgw_ssh_con = utils.connect_remote(node_rgw)
+
+    prefix = "foo"
+    tag = "colour=red"
+
     for user in user_info:
         auth = Auth(user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
 
+        buckets = []
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(user["user_id"], rand_no=bc)
             bucket = reusable.create_bucket(bucket_name, rgw_conn, user)
             log.info(f"Bucket {bucket_name} created")
-            prefix = "foo"
-            tag = "colour=red"
+            _, stdout, _ = rgw_ssh_con.exec_command("radosgw-admin bucket list")
+            cmd_output = json.loads(stdout.read().decode())
+            log.info(f"bucket list response on another site is: {cmd_output}")
+            if bucket.name not in cmd_output:
+                log.info(
+                    f"bucket {bucket.name} did not sync another site, sleep 60s and retry"
+                )
+                for retry_count in range(20):
+                    time.sleep(60)
+                    _, re_stdout, _ = rgw_ssh_con.exec_command(
+                        "radosgw-admin bucket list"
+                    )
+                    re_cmd_output = json.loads(re_stdout.read().decode())
+                    if bucket.name not in re_cmd_output:
+                        log.info(
+                            f"bucket {bucket.name} not synced to other site after 60s: {re_cmd_output}, retry"
+                        )
+                    else:
+                        log.info(f"bucket {bucket.name} found on other site")
+                        break
+
+                if (retry_count > 20) and (len(re_cmd_output["groups"]) == 0):
+                    raise TestExecError(
+                        f"bucket {bucket.name} did not sync to other site even after 20m"
+                    )
+            buckets.append(bucket)
+
+        group_info = reusable.get_sync_policy()
+        if group_info["groups"][0]["status"] != "allowed":
+            reusable.group_operation(group_id, "modify", "allowed")
+
+        for bkt in buckets:
             # Create bucket sync policy
-            group_id1 = "group-" + bucket_name
-            reusable.group_operation(
-                group_id1,
-                "create",
-                "enabled",
-                bucket_name,
-            )
+            group_id1 = "group-" + bkt.name
+            reusable.group_operation(group_id1, "create", "enabled", bkt.name)
             detail = ""
             if config.test_ops["has_prefix"]:
                 detail = f"{detail} --prefix={prefix}"
@@ -80,17 +119,17 @@ def test_exec(config, ssh_con):
             pipe_id = reusable.pipe_operation(
                 group_id1,
                 "create",
-                bucket_name=bucket_name,
+                bucket_name=bkt.name,
                 policy_detail=detail,
             )
-            time.sleep(30)
+            reusable.verify_bucket_sync_policy_on_other_site(rgw_ssh_con, bkt)
 
-            log.info(f"Creating objects on bucket: {bucket_name}")
+            log.info(f"Creating objects on bucket: {bkt.name}")
             log.info("s3 objects to create: %s" % config.objects_count)
 
             for oc, size in list(config.mapped_sizes.items()):
                 config.obj_size = size
-                s3_object_name = utils.gen_s3_object_name(bucket_name, oc)
+                s3_object_name = utils.gen_s3_object_name(bkt.name, oc)
                 if config.test_ops["has_prefix"]:
                     # adding prefix
                     s3_object_name = prefix + s3_object_name
@@ -102,7 +141,7 @@ def test_exec(config, ssh_con):
                     log.info("upload type: tagged")
                     reusable.upload_object_with_tagging(
                         s3_object_name,
-                        bucket,
+                        bkt,
                         TEST_DATA_PATH,
                         config,
                         user,
@@ -111,17 +150,22 @@ def test_exec(config, ssh_con):
                 else:
                     log.info("upload type: normal")
                     reusable.upload_object(
-                        s3_object_name, bucket, TEST_DATA_PATH, config, user
+                        s3_object_name, bkt, TEST_DATA_PATH, config, user
                     )
 
+            reusable.verify_object_sync_on_other_site(rgw_ssh_con, bkt, config)
+
     # check for any crashes during the execution
+    group_id = reusable.group_operation(group_id, "remove")
+    utils.exec_shell_cmd(f"radosgw-admin period update --commit")
+
     crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
 
 
 if __name__ == "__main__":
-    test_info = AddTestInfo("test bucket creation through awscli")
+    test_info = AddTestInfo("test granular sync policy with prefix and tag")
 
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
@@ -131,9 +175,11 @@ if __name__ == "__main__":
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
-        parser = argparse.ArgumentParser(description="RGW S3 bucket creation using AWS")
+        parser = argparse.ArgumentParser(
+            description="RGW granular sync policy with prefix and tag"
+        )
         parser.add_argument(
-            "-c", dest="config", help="RGW S3 bucket creation using AWS"
+            "-c", dest="config", help="RGW granular sync policy with prefix and tag"
         )
         parser.add_argument(
             "-log_level",

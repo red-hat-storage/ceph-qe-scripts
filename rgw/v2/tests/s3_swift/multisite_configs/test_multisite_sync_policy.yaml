@@ -3,6 +3,10 @@
 config:
   user_count: 1
   bucket_count: 2
+  objects_count: 0
+  objects_size_range:
+    min: 5K
+    max: 2M
   multisite_global_sync_policy: true
   multisite_sync_policy: true
   test_ops:
@@ -14,5 +18,5 @@ config:
     pipe_create: true
     pipe_remove: true
     group_status: enabled  # Enable , Allowed, Forbidden
-    bucket_group_status: enabled
+    bucket_group_status: allowed
     flow_type: symmetrical # symmetrical , directional
