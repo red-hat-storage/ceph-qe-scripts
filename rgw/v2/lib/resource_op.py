@@ -285,6 +285,7 @@ class Config(object):
         self.container_count = self.doc["config"].get("container_count")
         self.version_count = self.doc["config"].get("version_count")
         self.version_enable = self.doc["config"].get("version_enable", False)
+        self.deletelc = self.doc["config"].get("deletelc", False)
         self.disable_dynamic_shard = self.doc["config"].get(
             "disable_dynamic_shard", False
         )

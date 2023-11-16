@@ -160,6 +160,40 @@ def test_exec(config, ssh_con):
         if int(del_marker_count_after) != 1:
             raise AssertionError(f"Found multiple delete marker!!")
 
+    # verifying delete lifecycle via s3cmd
+    elif config.deletelc:
+        log.info(f"delete LC rule from a bucket via s3cmd")
+        log.info(
+            f"verification of TC: Deleting lifecycle rule via s3cmd should not throw any error"
+        )
+        user_info = resource_op.create_users(no_of_users_to_create=1)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl)
+        rgw_conn = auth.do_auth()
+        rgw_conn2 = auth.do_auth_using_client()
+        bucket_name = utils.gen_bucket_name_from_userid(
+            user_info[0]["user_id"], rand_no=1
+        )
+        bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info[0])
+
+        life_cycle_rule = {"Rules": config.lifecycle_conf}
+        reusable.put_bucket_lifecycle(
+            bucket,
+            rgw_conn,
+            rgw_conn2,
+            life_cycle_rule,
+        )
+        cmd = f"/home/cephuser/venv/bin/s3cmd dellifecycle s3://{bucket_name}"
+        rc = utils.exec_shell_cmd(cmd)
+        log.info(rc)
+        exit_status = os.system("echo $?")
+        if exit_status:
+            raise AssertionError(
+                f"Deleting LC config via s3cmd for a bucket {bucket_name} Failed"
+            )
+        else:
+            log.info(f"Deleting life cycle rule via s3cmd is successful!")
+
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
         tenant = "tenant"
