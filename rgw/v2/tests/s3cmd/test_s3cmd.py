@@ -60,13 +60,18 @@ def test_exec(config, ssh_con):
     rgw_service = RGWService()
 
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    if config.haproxy:
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+        port = 5000
+        ip_and_port = f"{ip}:{port}"
 
     # CEPH-83575477 - Verify s3cmd get: Bug 2174863 - [cee/sd][RGW] 's3cmd get' fails with EOF error for few objects
     if config.test_ops.get("s3cmd_get_objects", False):
         log.info(f"Verify 's3cmd get' or download of objects")
         user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
         s3_auth.do_auth(user_info[0], ip_and_port)
-        auth = Auth(user_info[0], ssh_con, ssl=config.ssl)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(
@@ -209,21 +214,31 @@ def test_exec(config, ssh_con):
         # Create a bucket
         s3cmd_reusable.create_bucket(bucket_name)
         log.info(f"Bucket {bucket_name} created")
+        object_count = config.objects_count
 
-        # Upload file to bucket
-        uploaded_file_info = s3cmd_reusable.upload_file(
-            bucket_name, test_data_path=TEST_DATA_PATH
-        )
-        uploaded_file = uploaded_file_info["name"]
-        log.info(f"Uploaded file {uploaded_file} to bucket {bucket_name}")
+        if config.full_sync_test:
+            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+            utils.exec_shell_cmd(f"fallocate -l 4K obj4K")
+            for obj in range(object_count):
+                cmd = f"{s3cmd_path} put obj4K s3://{bucket_name}/object-{obj}"
+                utils.exec_shell_cmd(cmd)
+            s3cmd_reusable.test_full_sync_at_archive(bucket_name, config)
 
-        # Delete file from bucket
-        s3cmd_reusable.delete_file(bucket_name, uploaded_file)
-        log.info(f"Deleted file {uploaded_file} from bucket {bucket_name}")
+        else:
+            # Upload file to bucket
+            uploaded_file_info = s3cmd_reusable.upload_file(
+                bucket_name, test_data_path=TEST_DATA_PATH
+            )
+            uploaded_file = uploaded_file_info["name"]
+            log.info(f"Uploaded file {uploaded_file} to bucket {bucket_name}")
 
-        # Delete bucket
-        s3cmd_reusable.delete_bucket(bucket_name)
-        log.info(f"Bucket {bucket_name} deleted")
+            # Delete file from bucket
+            s3cmd_reusable.delete_file(bucket_name, uploaded_file)
+            log.info(f"Deleted file {uploaded_file} from bucket {bucket_name}")
+
+            # Delete bucket
+            s3cmd_reusable.delete_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} deleted")
 
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
@@ -232,7 +247,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("rgw test using s3cmd")
 
     try:
