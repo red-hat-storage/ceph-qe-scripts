@@ -10,6 +10,7 @@ usage : test_list_all_multipart_uploads.py -c <input_yaml>
     configs/test_bucketlocation_using_bucketpolicy_with_tenantuser.yaml
     configs/test_bucket_put_get_lifecycle_configuration_with_tenant_users.yaml
     configs/get_object_and_its_versions_tenat_user.yaml
+    configs/test_put_get_bucket_notification_with_tenant_same_and_different_user.yaml
 
 Operation:
 - Create users in the same tenant, user1 and user2 (if required user3)
@@ -34,6 +35,7 @@ import logging
 import random
 import string
 import traceback
+import uuid
 
 import v2.lib.resource_op as s3lib
 import v2.lib.s3.bucket_policy as s3_bucket_policy
@@ -45,6 +47,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import bucket_notification as notification
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser
@@ -113,6 +116,8 @@ def test_exec(config, ssh_con):
             action_list = ["PutLifecycleConfiguration", "GetLifecycleConfiguration"]
         elif config.test_ops.get("get_obj_and_its_versions", False):
             action_list = ["GetObject", "GetObjectVersion"]
+        elif config.test_ops.get("put_get_bucket_notification", False):
+            action_list = ["GetBucketNotification", "PutBucketNotification"]
         additional_aws_principle = [
             f"arn:aws:iam::{tenant1}:user/{tenant1_user3_info['user_id']}"
         ]
@@ -159,6 +164,53 @@ def test_exec(config, ssh_con):
                 reusable.enable_versioning(
                     bucket, rgw_tenant1_user1, tenant1_user1_info, write_bucket_io_info
                 )
+
+            # create topic with endpoint
+            if config.test_ops.get("create_topic", False):
+                # authenticate sns client.
+                rgw_sns_conn = tenant1_user1_auth.do_auth_sns_client()
+                security_type = config.test_ops.get("security_type", "PLAINTEXT")
+                ceph_version_id, ceph_version_name = utils.get_ceph_version()
+                mechanism = config.test_ops.get("mechanism", None)
+                endpoint = config.test_ops.get("endpoint")
+                ack_type = config.test_ops.get("ack_type")
+                topic_id = str(uuid.uuid4().hex[:16])
+                topic_name = "cephci-kafka-" + ack_type + "-ack-type-" + topic_id
+                log.info(
+                    f"creating a topic with {endpoint} endpoint with ack type {ack_type}"
+                )
+                topic = notification.create_topic(
+                    rgw_sns_conn,
+                    endpoint,
+                    ack_type,
+                    topic_name,
+                    False,
+                    security_type,
+                    mechanism,
+                )
+
+                # get topic attributes
+                if config.test_ops.get("get_topic_info", False):
+                    log.info("get topic attributes")
+                    get_topic_info = notification.get_topic(
+                        rgw_sns_conn, topic, ceph_version_name
+                    )
+
+                    log.info("get kafka topic using rgw cli")
+                    extra_topic_args = {}
+                    if config.user_type == "tenanted":
+                        extra_topic_args = {
+                            "tenant": tenant1_user1_info["tenant"],
+                            "uid": tenant1_user1_info["user_id"],
+                        }
+
+                    get_rgw_topic = notification.rgw_topic_ops(
+                        op="get", args={"topic": topic_name, **extra_topic_args}
+                    )
+                    if get_rgw_topic is False:
+                        raise TestExecError(
+                            "radosgw-admin topic get failed for kafka topic"
+                        )
 
             bucket_policy_generated = s3_bucket_policy.gen_bucket_policy(
                 tenants_list=[tenant1],
@@ -415,6 +467,134 @@ def test_exec(config, ssh_con):
                     raise AssertionError(
                         f"Failed to perform lifecycle configuration operation: {err}"
                     )
+
+            if config.test_ops.get("put_get_bucket_notification", False):
+                event_types = config.test_ops.get("event_type")
+                if type(event_types) == str:
+                    event_types = [event_types]
+                notification_name = "notification-" + "-".join(event_types)
+                bkt_notif_topic_name = f"{notification_name}_{topic_name}"
+                notification.put_bucket_notification(
+                    rgw_tenant1_user1_c,
+                    bucket_name,
+                    notification_name,
+                    topic,
+                    ["s3:ObjectCreated:*", "s3:ObjectRemoved:*"],
+                    config,
+                )
+
+                # get bucket notification
+                try:
+                    log.info(
+                        f"with non bucket owner of same tenant, perform get notification on bucket: {bucket_name}"
+                    )
+                    notification.get_bucket_notification(
+                        rgw_tenant1_user1_c, bucket_name
+                    )
+                    notification.get_bucket_notification(
+                        rgw_tenant1_user2_c, bucket_name
+                    )
+                    notification.get_bucket_notification(
+                        rgw_tenant1_user3_c, bucket_name
+                    )
+                    log.info(
+                        f"with non bucket owner of different tenant, perform get notification on bucket: {bucket_name}"
+                    )
+                    bucket_name_verify_policy = f"{tenant1}:{bucket_name}"
+                    rgw_tenant2_user1_c.meta.events.unregister(
+                        "before-parameter-build.s3", validate_bucket_name
+                    )
+                    rgw_tenant2_user2_c.meta.events.unregister(
+                        "before-parameter-build.s3", validate_bucket_name
+                    )
+                    rgw_tenant2_user3_c.meta.events.unregister(
+                        "before-parameter-build.s3", validate_bucket_name
+                    )
+                    notification.get_bucket_notification(
+                        rgw_tenant2_user1_c, bucket_name_verify_policy
+                    )
+                    notification.get_bucket_notification(
+                        rgw_tenant2_user2_c, bucket_name_verify_policy
+                    )
+                    notification.get_bucket_notification(
+                        rgw_tenant2_user3_c, bucket_name_verify_policy
+                    )
+
+                except ClientError as err:
+                    raise AssertionError(
+                        f"Failed to perform get notification on same and different tenat users with: {err}"
+                    )
+
+                if config.test_ops.get("Filter", False) is False:
+                    config.test_ops["Filter"] = notification.Filter
+                # create objects
+                if config.test_ops.get("create_object", False):
+                    # uploading data
+                    log.info("s3 objects to create: %s" % config.objects_count)
+                    for oc, size in list(config.mapped_sizes.items()):
+                        config.obj_size = size
+                        s3_object_name = utils.gen_s3_object_name(bucket_name, oc)
+                        obj_name_temp = s3_object_name
+                        if config.test_ops.get("Filter"):
+                            s3_object_name = notification.get_affixed_obj_name(
+                                config, obj_name_temp
+                            )
+                        log.info("s3 object name: %s" % s3_object_name)
+                        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                        log.info("s3 object path: %s" % s3_object_path)
+                        log.info("upload type: normal")
+                        reusable.upload_object(
+                            s3_object_name,
+                            bucket,
+                            TEST_DATA_PATH,
+                            config,
+                            tenant1_user1_info,
+                        )
+
+                # copy objects
+                if config.test_ops.get("copy_object", False):
+                    log.info("copy object")
+                    obj_name = notification.get_affixed_obj_name(
+                        config, "copy_of_object" + obj_name_temp
+                    )
+                    status = rgw_tenant1_user1_c.copy_object(
+                        Bucket=bucket_name,
+                        Key=obj_name,
+                        CopySource={
+                            "Bucket": bucket_name,
+                            "Key": s3_object_name,
+                        },
+                    )
+                    if status is None:
+                        raise TestExecError("copy object failed")
+
+                # start kafka broker and consumer
+                event_record_path = "/tmp/event_record"
+                start_consumer = notification.start_kafka_broker_consumer(
+                    topic_name, event_record_path
+                )
+                if start_consumer is False:
+                    raise TestExecError("Kafka consumer not running")
+
+                # verify all the attributes of the event record. if event not received abort testcase
+                log.info("verify event record attributes")
+                bucket_name_for_verification = (
+                    tenant1_user1_info["tenant"] + "/" + bucket_name
+                )
+                for event in event_types:
+                    verify = notification.verify_event_record(
+                        event,
+                        bucket_name_for_verification,
+                        event_record_path,
+                        ceph_version_name,
+                    )
+                    if verify is False:
+                        raise EventRecordDataError(
+                            "Event record is empty! notification is not seen"
+                        )
+
+                # delete topic logs on kafka broker
+                notification.del_topic_from_kafka_broker(topic_name)
 
     tenant_info = (
         (tenant1_user_info + tenant2_user_info)

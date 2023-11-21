@@ -1,0 +1,25 @@
+# Ploarion ID : CEPH-11204 - BucketNotification with users in same tenant and diff tenant
+# script: test_bucket_policy_with_tenant_user.py
+# BZ : https://bugzilla.redhat.com/show_bug.cgi?id=2180415
+config:
+    user_count: 2
+    bucket_count: 2
+    objects_count: 100
+    user_type: tenanted
+    objects_size_range:
+        min: 5
+        max: 15
+    test_ops:
+        create_bucket: true
+        create_object: true
+        enable_version: false
+        create_topic: true
+        get_topic_info: true
+        endpoint: kafka
+        ack_type: broker
+        new_tenant_user: true
+        users_count: 3
+        put_get_bucket_notification: true
+        event_type: Copy
+        upload_type: normal
+        copy_object: true
