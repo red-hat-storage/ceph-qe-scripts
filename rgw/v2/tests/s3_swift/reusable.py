@@ -2038,3 +2038,32 @@ def test_object_download_at_replicated_site(
             raise TestExecError(
                 "md5sum signature mismatch, detected corruption on download"
             )
+
+
+def validate_incomplete_multipart(bucket_name, rgw_conn):
+    """
+    Validating incomplete multipart objects in a bucket
+    returns True if incomplete multipart found otherwise returns False
+
+    Parameters:
+    bucket_name(str): Name of the bucket
+
+    Returns:
+        True: If incomplete multipart found
+        False: If incomplete multipart not found
+    """
+    incomplete_multipart = False
+    bkt_stat_output = json.loads(
+        utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket_name}")
+    )
+    if bkt_stat_output["usage"]["rgw.multimeta"]["num_objects"] != 0:
+        log.info(f"Incomplete multipart found!")
+        incomplete_multipart = True
+
+    multipart_objects = rgw_conn.list_multipart_uploads(Bucket=bucket_name)
+    log.info(f"multipart objects {multipart_objects}")
+    if "Uploads" in multipart_objects.keys():
+        log.info(f"Incomplete multipart found!")
+        incomplete_multipart = True
+
+    return incomplete_multipart

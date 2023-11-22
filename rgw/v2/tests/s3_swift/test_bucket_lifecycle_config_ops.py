@@ -79,6 +79,7 @@ def test_exec(config, ssh_con):
             log.info("RGW service restarted")
 
     # create user
+    abort_multipart = (config.abort_multipart, False)
     all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
         # authenticate
@@ -140,14 +141,38 @@ def test_exec(config, ssh_con):
                                     % str(vc),
                                 )
                         else:
-                            log.info("s3 objects to create: %s" % config.objects_count)
-                            reusable.upload_object(
-                                s3_object_name,
-                                bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                each_user,
-                            )
+                            if config.test_ops.get("upload_type") == "multipart":
+                                log.info("upload type: multipart")
+                                reusable.upload_mutipart_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                    abort_multipart=abort_multipart,
+                                )
+                            else:
+                                log.info(
+                                    "s3 objects to create: %s" % config.objects_count
+                                )
+                                reusable.upload_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                )
+
+                if config.abort_multipart:
+                    log.info(f"verifying abort multipart")
+                    incomplete_multipart = reusable.validate_incomplete_multipart(
+                        bucket.name, rgw_conn2
+                    )
+                    if not incomplete_multipart:
+                        raise AssertionError(
+                            f"Incomplete multipart upload not found in bucket {bucket.name}"
+                        )
+
                 bucket_life_cycle = s3lib.resource_op(
                     {
                         "obj": rgw_conn,
@@ -159,111 +184,150 @@ def test_exec(config, ssh_con):
                     life_cycle = basic_lifecycle_config(
                         prefix="key", id="rul1", date=config.test_ops.get("lc_exp_date")
                     )
+                elif config.abort_multipart:
+                    life_cycle = {"Rules": config.lifecycle_conf}
+                    reusable.put_bucket_lifecycle(
+                        bucket,
+                        rgw_conn,
+                        rgw_conn2,
+                        life_cycle,
+                    )
+                    days = life_cycle["Rules"][0]["AbortIncompleteMultipartUpload"][
+                        "DaysAfterInitiation"
+                    ]
+                    time.sleep(days * config.rgw_lc_debug_interval)
+                    lc_data = json.loads(utils.exec_shell_cmd("radosgw-admin lc list"))
+                    for data in lc_data:
+                        if bucket.name in data["bucket"]:
+                            if data["status"] not in ["PROCESSING", "COMPLETE"]:
+                                raise AssertionError("LC is not initiated")
+
+                            if "COMPLETE" in data["status"]:
+                                log.info("Waiting for lc processing to complete")
+                                time.sleep(60)
+
+                    incomplete_multipart = reusable.validate_incomplete_multipart(
+                        bucket.name, rgw_conn2
+                    )
+                    if incomplete_multipart:
+                        raise AssertionError(
+                            f"Incomplete multipart object is not deleted!"
+                        )
+                    lc_data = json.loads(utils.exec_shell_cmd("radosgw-admin lc list"))
+                    log.info(f"lc data is {lc_data}")
+
                 else:
                     life_cycle = basic_lifecycle_config(
                         prefix="key", id="rul1", days=20
                     )
-                put_bucket_life_cycle = s3lib.resource_op(
-                    {
-                        "obj": bucket_life_cycle,
-                        "resource": "put",
-                        "kwargs": dict(LifecycleConfiguration=life_cycle),
-                    }
-                )
-                log.info("put bucket life cycle:\n%s" % put_bucket_life_cycle)
-                if put_bucket_life_cycle is False:
-                    raise TestExecError(
-                        "Resource execution failed: bucket creation failed"
+
+                if not config.abort_multipart:
+                    put_bucket_life_cycle = s3lib.resource_op(
+                        {
+                            "obj": bucket_life_cycle,
+                            "resource": "put",
+                            "kwargs": dict(LifecycleConfiguration=life_cycle),
+                        }
                     )
-                if put_bucket_life_cycle is not None:
-                    response = HttpResponseParser(put_bucket_life_cycle)
-                    if response.status_code == 200:
-                        log.info("bucket life cycle added")
+                    log.info("put bucket life cycle:\n%s" % put_bucket_life_cycle)
+                    if put_bucket_life_cycle is False:
+                        raise TestExecError(
+                            "Resource execution failed: bucket creation failed"
+                        )
+                    if put_bucket_life_cycle is not None:
+                        response = HttpResponseParser(put_bucket_life_cycle)
+                        if response.status_code == 200:
+                            log.info("bucket life cycle added")
+                        else:
+                            raise TestExecError("bucket lifecycle addition failed")
                     else:
                         raise TestExecError("bucket lifecycle addition failed")
-                else:
-                    raise TestExecError("bucket lifecycle addition failed")
-                log.info("trying to retrieve bucket lifecycle config")
-                get_bucket_life_cycle_config = s3lib.resource_op(
-                    {
-                        "obj": rgw_conn2,
-                        "resource": "get_bucket_lifecycle_configuration",
-                        "kwargs": dict(Bucket=bucket.name),
-                    }
-                )
-                if get_bucket_life_cycle_config is False:
-                    raise TestExecError("bucket lifecycle config retrieval failed")
-                if get_bucket_life_cycle_config is not None:
-                    response = HttpResponseParser(get_bucket_life_cycle_config)
-                    if response.status_code == 200:
-                        log.info("bucket life cycle retrieved")
-                    else:
+                    log.info("trying to retrieve bucket lifecycle config")
+                    get_bucket_life_cycle_config = s3lib.resource_op(
+                        {
+                            "obj": rgw_conn2,
+                            "resource": "get_bucket_lifecycle_configuration",
+                            "kwargs": dict(Bucket=bucket.name),
+                        }
+                    )
+                    if get_bucket_life_cycle_config is False:
                         raise TestExecError("bucket lifecycle config retrieval failed")
-                else:
-                    raise TestExecError("bucket life cycle retrieved")
-                if config.test_ops["create_object"] is True:
-                    for oc in range(config.objects_count):
-                        s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
-                        if config.test_ops["version_count"] > 0:
-                            if (
-                                config.test_ops.get("delete_versioned_object", None)
-                                is True
-                            ):
-                                log.info(
-                                    "list all the versions of the object and delete the "
-                                    "current version of the object"
-                                )
-                                log.info(
-                                    "all versions for the object: %s\n" % s3_object_name
-                                )
-                                versions = bucket.object_versions.filter(
-                                    Prefix=s3_object_name
-                                )
-                                t1 = []
-                                for version in versions:
+                    if get_bucket_life_cycle_config is not None:
+                        response = HttpResponseParser(get_bucket_life_cycle_config)
+                        if response.status_code == 200:
+                            log.info("bucket life cycle retrieved")
+                        else:
+                            raise TestExecError(
+                                "bucket lifecycle config retrieval failed"
+                            )
+                    else:
+                        raise TestExecError("bucket life cycle retrieved")
+                    if config.test_ops["create_object"] is True:
+                        for oc in range(config.objects_count):
+                            s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
+                            if config.test_ops["version_count"] > 0:
+                                if (
+                                    config.test_ops.get("delete_versioned_object", None)
+                                    is True
+                                ):
                                     log.info(
-                                        "key_name: %s --> version_id: %s"
-                                        % (version.object_key, version.version_id)
+                                        "list all the versions of the object and delete the "
+                                        "current version of the object"
                                     )
-                                    t1.append(version.version_id)
-                                s3_object = s3lib.resource_op(
-                                    {
-                                        "obj": rgw_conn,
-                                        "resource": "Object",
-                                        "args": [bucket.name, s3_object_name],
-                                    }
-                                )
-                                # log.info('object version to delete: %s -> %s' % (versions[0].object_key,
-                                #                                                 versions[0].version_id))
-                                delete_response = s3_object.delete()
-                                log.info("delete response: %s" % delete_response)
-                                if delete_response["DeleteMarker"] is True:
-                                    log.info("object delete marker is set to true")
-                                else:
-                                    raise TestExecError(
-                                        "'object delete marker is set to false"
-                                    )
-                                log.info(
-                                    "available versions for the object after delete marker is set"
-                                )
-                                t2 = []
-                                versions_after_delete_marker_is_set = (
-                                    bucket.object_versions.filter(Prefix=s3_object_name)
-                                )
-                                for version in versions_after_delete_marker_is_set:
                                     log.info(
-                                        "key_name: %s --> version_id: %s"
-                                        % (version.object_key, version.version_id)
+                                        "all versions for the object: %s\n"
+                                        % s3_object_name
                                     )
-                                    t2.append(version.version_id)
-                                t2.pop()
-                                if t1 == t2:
-                                    log.info("versions remained intact")
-                                else:
-                                    raise TestExecError(
-                                        "versions are not intact after delete marker is set"
+                                    versions = bucket.object_versions.filter(
+                                        Prefix=s3_object_name
                                     )
-                # modify bucket lifecycle configuration, modify expiration days here for the test case.
+                                    t1 = []
+                                    for version in versions:
+                                        log.info(
+                                            "key_name: %s --> version_id: %s"
+                                            % (version.object_key, version.version_id)
+                                        )
+                                        t1.append(version.version_id)
+                                    s3_object = s3lib.resource_op(
+                                        {
+                                            "obj": rgw_conn,
+                                            "resource": "Object",
+                                            "args": [bucket.name, s3_object_name],
+                                        }
+                                    )
+                                    # log.info('object version to delete: %s -> %s' % (versions[0].object_key,
+                                    #                                                 versions[0].version_id))
+                                    delete_response = s3_object.delete()
+                                    log.info("delete response: %s" % delete_response)
+                                    if delete_response["DeleteMarker"] is True:
+                                        log.info("object delete marker is set to true")
+                                    else:
+                                        raise TestExecError(
+                                            "'object delete marker is set to false"
+                                        )
+                                    log.info(
+                                        "available versions for the object after delete marker is set"
+                                    )
+                                    t2 = []
+                                    versions_after_delete_marker_is_set = (
+                                        bucket.object_versions.filter(
+                                            Prefix=s3_object_name
+                                        )
+                                    )
+                                    for version in versions_after_delete_marker_is_set:
+                                        log.info(
+                                            "key_name: %s --> version_id: %s"
+                                            % (version.object_key, version.version_id)
+                                        )
+                                        t2.append(version.version_id)
+                                    t2.pop()
+                                    if t1 == t2:
+                                        log.info("versions remained intact")
+                                    else:
+                                        raise TestExecError(
+                                            "versions are not intact after delete marker is set"
+                                        )
+                    # modify bucket lifecycle configuration, modify expiration days here for the test case.
                 if config.test_ops.get("modify_lifecycle", False) is True:
                     log.info("modifying lifecycle configuration")
                     life_cycle_modified = basic_lifecycle_config(
