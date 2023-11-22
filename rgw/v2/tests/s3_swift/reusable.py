@@ -1711,6 +1711,30 @@ def get_sync_policy(bucket_name=None):
     return sync_policy_resp
 
 
+def verify_bucket_sync_on_other_site(rgw_ssh_con, bucket):
+    log.info(f"verify Bucket {bucket.name} exist on another site")
+    _, stdout, _ = rgw_ssh_con.exec_command("radosgw-admin bucket list")
+    cmd_output = json.loads(stdout.read().decode())
+    log.info(f"bucket list response on another site is: {cmd_output}")
+    if bucket.name not in cmd_output:
+        log.info(f"bucket {bucket.name} did not sync another site, sleep 60s and retry")
+        for retry_count in range(20):
+            time.sleep(60)
+            _, re_stdout, _ = rgw_ssh_con.exec_command("radosgw-admin bucket list")
+            re_cmd_output = json.loads(re_stdout.read().decode())
+            if bucket.name not in re_cmd_output:
+                log.info(
+                    f"bucket {bucket.name} not synced to other site after 60s: {re_cmd_output}, retry {retry_count}"
+                )
+            else:
+                log.info(f"bucket {bucket.name} found on other site")
+                break
+        if (retry_count > 20) and (len(re_cmd_output["groups"]) == 0):
+            raise TestExecError(
+                f"bucket {bucket.name} did not sync to other site even after 20m"
+            )
+
+
 def verify_bucket_sync_policy_on_other_site(rgw_ssh_con, bucket):
     log.info(f"Verify bucket sync policy exist on other site for bucket {bucket.name}")
     _, stdout, stderr = rgw_ssh_con.exec_command(
@@ -1739,7 +1763,7 @@ def verify_bucket_sync_policy_on_other_site(rgw_ssh_con, bucket):
             )
             if len(re_cmd_output["groups"]) == 0:
                 log.info(
-                    f"bucket sync policy for {bucket.name} not synced to another site, so retry"
+                    f"bucket sync policy for {bucket.name} not synced to another site, so retry {retry_count}"
                 )
             else:
                 log.info(f"bucket sync policy synced to another site for {bucket.name}")
@@ -1776,16 +1800,18 @@ def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config):
                 f"check bucket stats on other site after 60s: {re_cmd_output} for bucket {bucket.name}"
             )
             if "rgw.main" not in re_cmd_output["usage"].keys():
-                log.info(f"bucket stats not synced: for bucket {bucket.name}, so retry")
+                log.info(
+                    f"bucket stats not synced: for bucket {bucket.name}, so retry {retry_count}"
+                )
             else:
                 log.info(f"bucket stats synced for bucket {bucket.name}")
-                cmd_output = re_cmd_output
                 break
 
         if (retry_count > 20) and ("rgw.main" not in re_cmd_output["usage"].keys()):
             raise TestExecError(
                 f"object not synced on bucket {bucket.name} in another site even after 20m"
             )
+        cmd_output = re_cmd_output
 
     site_bkt_objects = cmd_output["usage"]["rgw.main"]["num_objects"]
     if bkt_objects != site_bkt_objects:

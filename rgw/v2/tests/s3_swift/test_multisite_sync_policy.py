@@ -8,6 +8,7 @@ Usage: test_multisite_sync_policy.py -c <input_yaml>
     test_sync_policy_state_change.yaml
     test_multisite_mirror_sync_policy.yaml
     test_multisite_bucket_mirror_sync_policy.yaml
+    test_multisite_sync_policy_extended.yaml
 
 Operation:
 	Creates and delete sync policy group
@@ -56,8 +57,19 @@ def test_exec(config, ssh_con):
             rgw_conn = auth.do_auth(**{"signature_version": "s3v4"})
         else:
             rgw_conn = auth.do_auth()
+
+        period_details = json.loads(utils.exec_shell_cmd("radosgw-admin period get"))
+        zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
+        for zone in period_details["period_map"]["zonegroups"][0]["zones"]:
+            if zone["name"] not in zone_list["zones"]:
+                rgw_nodes = zone["endpoints"][0].split(":")
+                node_rgw = rgw_nodes[1].split("//")[-1]
+                log.info(f"Another site is: {zone['name']} and ip {node_rgw}")
+                break
+        rgw_ssh_con = utils.connect_remote(node_rgw)
+
         # create buckets
-        if config.test_ops["create_bucket"] is True:
+        if config.test_ops.get("create_bucket", False):
             log.info(f"no of buckets to create: {config.bucket_count}")
             buckets = []
             for bc in range(config.bucket_count):
@@ -68,7 +80,18 @@ def test_exec(config, ssh_con):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
                 )
+                reusable.verify_bucket_sync_on_other_site(rgw_ssh_con, bucket)
                 buckets.append(bucket)
+
+            if config.test_ops.get("new_bucket_and_group_state_change", False):
+                new_bucket_name = (
+                    f"new-{utils.gen_bucket_name_from_userid(each_user['user_id'])}"
+                )
+                log.info(f"creating new bucket with name: {new_bucket_name}")
+                new_bucket = reusable.create_bucket(
+                    new_bucket_name, rgw_conn, each_user
+                )
+                reusable.verify_bucket_sync_on_other_site(rgw_ssh_con, new_bucket)
 
     if config.multisite_global_sync_policy:
         ceph_version_id, _ = utils.get_ceph_version()
@@ -97,7 +120,7 @@ def test_exec(config, ssh_con):
                         reusable.group_operation(group_id2, "create", group_status)
                         pipe2 = reusable.pipe_operation(group_id2, "create", zone_names)
 
-    if config.test_ops["create_bucket"] is True:
+    if config.test_ops.get("create_bucket", False):
         for each_user in all_users_info:
             # authenticate
             auth = Auth(each_user, ssh_con, ssl=config.ssl)
@@ -139,18 +162,6 @@ def test_exec(config, ssh_con):
                                         zone_names,
                                         bucket_name=bkt.name,
                                     )
-
-            period_details = json.loads(
-                utils.exec_shell_cmd("radosgw-admin period get")
-            )
-            zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
-            for zone in period_details["period_map"]["zonegroups"][0]["zones"]:
-                if zone["name"] not in zone_list["zones"]:
-                    rgw_nodes = zone["endpoints"][0].split(":")
-                    node_rgw = rgw_nodes[1].split("//")[-1]
-                    log.info(f"Another site is: {zone['name']} and ip {node_rgw}")
-                    break
-            rgw_ssh_con = utils.connect_remote(node_rgw)
 
             for bkt in buckets:
                 ceph_version_id, _ = utils.get_ceph_version()
@@ -259,6 +270,44 @@ def test_exec(config, ssh_con):
                                 reusable.verify_object_sync_on_other_site(
                                     rgw_ssh_con, bkt, config
                                 )
+
+            if config.test_ops.get("new_bucket_and_group_state_change", False):
+                reusable.group_operation(group_id, "modify", "enabled")
+                newgroup_id = f"new-group-{new_bucket_name}"
+                reusable.group_operation(
+                    newgroup_id,
+                    "create",
+                    "allowed",
+                    new_bucket_name,
+                )
+                zone_names = None
+                pipe_id = reusable.pipe_operation(
+                    newgroup_id,
+                    "create",
+                    zone_names,
+                    bucket_name=new_bucket_name,
+                )
+                reusable.verify_bucket_sync_policy_on_other_site(
+                    rgw_ssh_con, new_bucket
+                )
+                log.info(f"s3 objects to create: {config.objects_count}")
+                for oc, size in list(config.mapped_sizes.items()):
+                    config.obj_size = size
+                    s3_object_name = utils.gen_s3_object_name(new_bucket_name, oc)
+                    log.info(f"s3 object name: {s3_object_name}")
+                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                    log.info(f"s3 object path: {s3_object_path}")
+                    reusable.upload_object(
+                        s3_object_name,
+                        new_bucket,
+                        TEST_DATA_PATH,
+                        config,
+                        each_user,
+                    )
+
+                reusable.verify_object_sync_on_other_site(
+                    rgw_ssh_con, new_bucket, config
+                )
 
     if config.test_ops["pipe_remove"]:
         pipe_id = reusable.pipe_operation(group_id, "remove", zone_names)
