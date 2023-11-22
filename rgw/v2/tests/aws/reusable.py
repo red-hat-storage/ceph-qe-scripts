@@ -40,7 +40,8 @@ def create_bucket(bucket_name, end_point, ssl=None):
     )
     try:
         create_response = utils.exec_shell_cmd(command)
-        if not create_response:
+        log.info(f"bucket creation response is {create_response}")
+        if create_response:
             raise Exception(f"Create bucket failed for {bucket_name}")
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
@@ -171,7 +172,8 @@ def put_get_bucket_versioning(bucket_name, end_point, status="Enabled", ssl=None
     )
     try:
         put_response = utils.exec_shell_cmd(put_cmd)
-        if not put_response:
+        log.info(f"response of put versioning:{put_response}")
+        if put_response:
             raise Exception(f"Version Enabling failed for {bucket_name}")
         get_method = AWS(operation="get-bucket-versioning")
         get_cmd = get_method.command(
