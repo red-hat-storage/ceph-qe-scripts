@@ -13,6 +13,7 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_rule_expiration_manual_reshard_verify_attr.yaml
  test_lc_rule_conflict_btw_exp_transition.yaml, test_lc_rule_conflict_exp_days.yaml,
  test_lc_rule_conflict_transition_actions.yaml
+ test_lc_multiple_rule_with_diff_config_for_same_ruleid.yaml
 
 Operation:
 
@@ -284,19 +285,48 @@ def test_exec(config, ssh_con):
                 if not config.parallel_lc:
                     life_cycle_rule = {"Rules": config.lifecycle_conf}
                     if not config.invalid_date and config.rgw_enable_lc_threads:
-                        reusable.put_get_bucket_lifecycle_test(
-                            bucket,
-                            rgw_conn,
-                            rgw_conn2,
-                            life_cycle_rule,
-                            config,
-                            upload_start_time,
-                            upload_end_time,
-                        )
-                        if config.test_ops.get("lc_same_rule_id_diff_rules"):
-                            continue
-                        time.sleep(30)
-                        lc_ops.validate_and_rule(bucket, config)
+                        if config.test_ops.get("lc_config_with_diff_rules", False):
+                            bucket_life_cycle = s3lib.resource_op(
+                                {
+                                    "obj": rgw_conn,
+                                    "resource": "BucketLifecycleConfiguration",
+                                    "args": [bucket.name],
+                                }
+                            )
+                            put_bucket_life_cycle = s3lib.resource_op(
+                                {
+                                    "obj": bucket_life_cycle,
+                                    "resource": "put",
+                                    "kwargs": dict(
+                                        LifecycleConfiguration=life_cycle_rule
+                                    ),
+                                }
+                            )
+                            if put_bucket_life_cycle:
+                                lc_list = utils.exec_shell_cmd("radosgw-admin lc list")
+                                log.info(f"lc list Details: {lc_list}")
+                                raise TestExecError(
+                                    "Put bucket lifecycle Succeeded, expected failure due to LC with same rule id having different configuration"
+                                )
+                            log.info(
+                                f"put bucket lifecycle for bucket {bucket.name} failed as expected"
+                            )
+
+                        else:
+                            reusable.put_get_bucket_lifecycle_test(
+                                bucket,
+                                rgw_conn,
+                                rgw_conn2,
+                                life_cycle_rule,
+                                config,
+                                upload_start_time,
+                                upload_end_time,
+                            )
+                            if config.test_ops.get("lc_same_rule_id_diff_rules"):
+                                continue
+                            time.sleep(30)
+                            lc_ops.validate_and_rule(bucket, config)
+
                     elif not config.invalid_date and not config.rgw_enable_lc_threads:
                         bucket_before_lc = json.loads(
                             utils.exec_shell_cmd(

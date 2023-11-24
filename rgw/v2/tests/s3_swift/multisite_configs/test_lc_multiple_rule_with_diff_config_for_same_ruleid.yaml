@@ -1,0 +1,27 @@
+# script: test_bucket_lifecycle_object_expiration_transition.py
+# polarion ID: CEPH-11183
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    enable_versioning: false
+    create_object: true
+    create_bucket: true
+    lc_config_with_diff_rules: true
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: key1
+      Status: Enabled
+      Expiration:
+        Days: 1
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: key2
+      Status: Enabled
+      Expiration:
+        Date: "2023-02-19"

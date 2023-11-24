@@ -633,7 +633,12 @@ def put_get_bucket_lifecycle_test(
             raise TestExecError("bucket lifecycle config retrieval failed")
     else:
         raise TestExecError("bucket life cycle retrieved")
-    objs_total = (config.test_ops["version_count"]) * (config.objects_count)
+    version_count = (
+        config.test_ops["version_count"]
+        if config.test_ops.get("version_count", False)
+        else 1
+    )
+    objs_total = (version_count) * (config.objects_count)
     if not upload_start_time:
         upload_start_time = time.time()
     if not upload_end_time:
