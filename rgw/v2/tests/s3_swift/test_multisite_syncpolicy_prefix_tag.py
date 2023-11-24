@@ -75,31 +75,7 @@ def test_exec(config, ssh_con):
             bucket_name = utils.gen_bucket_name_from_userid(user["user_id"], rand_no=bc)
             bucket = reusable.create_bucket(bucket_name, rgw_conn, user)
             log.info(f"Bucket {bucket_name} created")
-            _, stdout, _ = rgw_ssh_con.exec_command("radosgw-admin bucket list")
-            cmd_output = json.loads(stdout.read().decode())
-            log.info(f"bucket list response on another site is: {cmd_output}")
-            if bucket.name not in cmd_output:
-                log.info(
-                    f"bucket {bucket.name} did not sync another site, sleep 60s and retry"
-                )
-                for retry_count in range(20):
-                    time.sleep(60)
-                    _, re_stdout, _ = rgw_ssh_con.exec_command(
-                        "radosgw-admin bucket list"
-                    )
-                    re_cmd_output = json.loads(re_stdout.read().decode())
-                    if bucket.name not in re_cmd_output:
-                        log.info(
-                            f"bucket {bucket.name} not synced to other site after 60s: {re_cmd_output}, retry"
-                        )
-                    else:
-                        log.info(f"bucket {bucket.name} found on other site")
-                        break
-
-                if (retry_count > 20) and (len(re_cmd_output["groups"]) == 0):
-                    raise TestExecError(
-                        f"bucket {bucket.name} did not sync to other site even after 20m"
-                    )
+            reusable.verify_bucket_sync_on_other_site(rgw_ssh_con, bucket)
             buckets.append(bucket)
 
         group_info = reusable.get_sync_policy()
