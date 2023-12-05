@@ -1,0 +1,15 @@
+# test case id: CEPH-83575473
+config:
+  haproxy: true
+  user_count: 1
+  bucket_count: 1
+  local_zone: primary
+  objects_count: 100
+  objects_size_range:
+    min: 15
+    max: 20
+  version_count: 2
+  test_ops:
+    enable_version: true
+    verify_bucket_gen: true
+    create_object: true
