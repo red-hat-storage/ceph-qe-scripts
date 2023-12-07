@@ -2,11 +2,14 @@
 Reusable methods for S3CMD
 """
 
+import datetime
+import json
 import logging
 import os
 import socket
 import subprocess
 import sys
+import time
 
 import boto
 import boto.s3.connection
@@ -284,3 +287,62 @@ def rate_limit_write(bucket, max_write_ops, ssl=None):
     )
     stdout, stderr = run_subprocess(cmd)
     assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
+
+
+def remote_zone_bucket_stats(bucket_name, config):
+    """
+    get bucket stats at the remote zone
+    """
+    zone_name = config.remote_zone
+    bucket_name = f"tenant/{bucket_name}"
+    log.info(f"remote zone is {zone_name}")
+    remote_ip = utils.get_rgw_ip_zone(zone_name)
+    remote_site_ssh_con = utils.connect_remote(remote_ip)
+    log.info(f"collect bucket stats for {bucket_name} at remote site {zone_name}")
+    log.info("Wait for the sync lease period + 10 minutes")
+    time.sleep(1800)
+    cmd_bucket_stats = f"radosgw-admin bucket stats --bucket {bucket_name}"
+    stdin, stdout, stderr = remote_site_ssh_con.exec_command(cmd_bucket_stats)
+    cmd_output = stdout.read().decode()
+    stats_remote = json.loads(cmd_output)
+    log.info(
+        f"bucket stats at remote site {zone_name} for {bucket_name} is {stats_remote}"
+    )
+    log.info("Verify num_objects and size is consistent across local and remote site")
+    remote_num_objects = stats_remote["usage"]["rgw.main"]["num_objects"]
+    remote_size = stats_remote["usage"]["rgw.main"]["size"]
+    return remote_size, remote_num_objects
+
+
+def local_zone_bucket_stats(bucket_name, config):
+    """
+    get bucket stats at the local zone
+    """
+    zone_name = config.local_zone
+    bucket_name = f"tenant/{bucket_name}"
+    cmd_bucket_stats = f"radosgw-admin bucket stats --bucket {bucket_name}"
+    log.info(f"collect bucket stats for {bucket_name} at local site {zone_name}")
+    local_bucket_stats = json.loads(utils.exec_shell_cmd(cmd_bucket_stats))
+    local_num_objects = local_bucket_stats["usage"]["rgw.main"]["num_objects"]
+    local_size = local_bucket_stats["usage"]["rgw.main"]["size"]
+    return local_size, local_num_objects
+
+
+def test_full_sync_at_archive(bucket_name, config):
+    """
+    test_full_sync_at_archive zone for a bucket
+    """
+    local_zone_name = config.local_zone
+    remote_zone_name = config.remote_zone
+    log.info(f"local zone is {local_zone_name} and remote zone is {remote_zone_name}")
+    remote_ip = utils.get_rgw_ip_zone(remote_zone_name)
+    remote_site_ssh_con = utils.connect_remote(remote_ip)
+    log.info(f"Restart the gateways at the {remote_zone_name} site")
+    remote_site_ssh_con.exec_command("ceph orch restart rgw.shared.arc")
+    log.info("Verify num_objects and size is consistent across local and remote site")
+    remote_size, remote_num_objects = remote_zone_bucket_stats(bucket_name, config)
+    local_size, local_num_objects = local_zone_bucket_stats(bucket_name, config)
+    if remote_size == local_size and remote_num_objects == local_num_objects:
+        log.info(f"Data is consistent for bucket {bucket_name}")
+    else:
+        raise TestExecError(f"Data is inconsistent for {bucket_name} across sites")

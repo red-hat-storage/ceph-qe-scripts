@@ -414,6 +414,9 @@ class Config(object):
         self.put_empty_bucket_notification = self.test_ops.get(
             "put_empty_bucket_notification", False
         )
+        self.full_sync_test = self.doc["config"].get("full_sync_test", False)
+        self.remote_zone = self.doc["config"].get("remote_zone")
+        self.local_zone = self.doc["config"].get("local_zone")
         self.bucket_max_read_ops = self.doc["config"].get("bucket_max_read_ops")
         self.bucket_max_read_bytes = self.doc["config"].get("bucket_max_read_bytes")
         self.bucket_max_write_ops = self.doc["config"].get("bucket_max_write_ops")
