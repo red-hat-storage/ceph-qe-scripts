@@ -1913,6 +1913,27 @@ def object_lock_put(client, bucket, lock_configuration):
     )
 
 
+def change_lock_retention(
+    client, bucket, key, retention, versionID, BypassGovernanceRetention=True
+):
+    # boto3 put object lock retention on a object
+    client.put_object_retention(
+        Bucket=bucket,
+        Key=key,
+        Retention=retention,
+        VersionId=versionID,
+    )
+
+
+def get_lock_configuration(client, bucket, key):
+    # rturn the object lock configuration dict
+    lock_config = client.get_object_retention(
+        Bucket=bucket,
+        Key=key,
+    )
+    return lock_config
+
+
 def resharding_enable_disable_in_zonegroup(enable=True):
     log.info("method for enabling or disabling resharding feature in zonegroup!")
     zonegroup_get_cmd = "radosgw-admin zonegroup get"

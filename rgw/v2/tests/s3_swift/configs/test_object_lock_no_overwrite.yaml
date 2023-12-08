@@ -1,0 +1,9 @@
+# upload type: non multipart
+# Related BZ: https://bugzilla.redhat.com/show_bug.cgi?id=1890843
+# CEPH-83574059 - Negative - Verify the objects cannot be overwritten.
+# script: test_object_lock_no_overwrite.py - Test object lock configuration for bucket
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    create_bucket: true
