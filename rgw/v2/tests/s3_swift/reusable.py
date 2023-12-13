@@ -1140,6 +1140,18 @@ def check_for_crash():
         return ceph_crash
 
 
+def time_taken_to_execute_command(cmd):
+    """
+    Time taken to list via radosgw-admin command.
+    :param cmd: cmd
+    """
+    output = json.loads(utils.exec_shell_cmd(cmd))
+    for op in output:
+        op.update({"exists": str(op["exists"])})
+        op["meta"].update({"appendable": str(op["meta"]["appendable"])})
+    return str(output)
+
+
 def time_to_list_via_radosgw(bucket_name, listing):
     """
     Time taken to list via radosgw-admin command.
@@ -1151,7 +1163,9 @@ def time_to_list_via_radosgw(bucket_name, listing):
         cmd = "radosgw-admin bucket list --max-entries=100000 --bucket=%s " % (
             bucket_name
         )
-        time_taken = timeit.timeit(utils.exec_shell_cmd(cmd), globals=globals())
+        time_taken = timeit.timeit(
+            stmt=time_taken_to_execute_command(cmd), globals=globals()
+        )
         return time_taken
 
     if listing == "unordered":
@@ -1162,7 +1176,9 @@ def time_to_list_via_radosgw(bucket_name, listing):
             "radosgw-admin bucket list --max-entries=100000 --bucket=%s --allow-unordered"
             % (bucket_name)
         )
-        time_taken = timeit.timeit(utils.exec_shell_cmd(cmd), globals=globals())
+        time_taken = timeit.timeit(
+            stmt=time_taken_to_execute_command(cmd), globals=globals()
+        )
         return time_taken
 
 
