@@ -1,0 +1,25 @@
+# Polarian TC : CEPH-83575868
+# script: test_multisite_bucket_granular_sync_policy.py
+# bug 2132554
+config:
+    user_count: 1
+    bucket_count: 1
+    objects_count: 100
+    objects_size_range:
+        min: 5K
+        max: 2M
+    test_ops:
+        zonegroup_group: true
+        zonegroup_status: allowed
+        zonegroup_flow: true
+        zonegroup_flow_type: symmetrical
+        zonegroup_pipe: true
+        bucket_group: true
+        bucket_status: allowed
+        bucket_flow: true
+        bucket_flow_type: symmetrical
+        bucket_pipe: true
+        create_object: true
+        create_bucket: true
+        bucket_sync: true
+        zonegroup_group_remove: true

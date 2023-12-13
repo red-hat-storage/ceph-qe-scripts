@@ -1815,9 +1815,20 @@ def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config):
 
     site_bkt_objects = cmd_output["usage"]["rgw.main"]["num_objects"]
     if bkt_objects != site_bkt_objects:
-        raise TestExecError(
-            f"object count missmatch found in another site for bucket {bucket.name} : {site_bkt_objects} expected {bkt_objects}"
+        log.info(
+            f"object count mismatch found for bucket {bucket.name} : {site_bkt_objects} expected {bkt_objects}"
         )
+        log.info("Check after 60s")
+        time.sleep(60)
+        _, output, _ = rgw_ssh_con.exec_command(
+            f"radosgw-admin bucket stats --bucket {bucket.name}"
+        )
+        command_output = json.loads(output.read().decode())
+        bucket_objects = command_output["usage"]["rgw.main"]["num_objects"]
+        if bkt_objects != bucket_objects:
+            raise TestExecError(
+                f"object count mismatch found in another site for bucket {bucket.name} : {bucket_objects} expected {bkt_objects}"
+            )
 
 
 def flow_operation(
