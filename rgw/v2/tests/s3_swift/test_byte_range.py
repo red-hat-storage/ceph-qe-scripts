@@ -25,6 +25,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
 log = logging.getLogger()
@@ -93,6 +94,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RGW S3 Automation")
     parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
     parser.add_argument(
+        "-log_level",
+        dest="log_level",
+        help="Set Log Level [DEBUG, INFO, WARNING, ERROR, CRITICAL]",
+        default="info",
+    )
+    parser.add_argument(
         "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
     )
     args = parser.parse_args()
@@ -101,6 +108,8 @@ if __name__ == "__main__":
     ssh_con = None
     if rgw_node != "127.0.0.1":
         ssh_con = utils.connect_remote(rgw_node)
+    log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
+    configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
     config = Config(yaml_file)
     config.read(ssh_con)
     if config.mapped_sizes is None:
