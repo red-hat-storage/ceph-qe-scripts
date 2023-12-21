@@ -95,7 +95,7 @@ def test_exec(config, ssh_con):
 
     log.info("Restarting for global rate limit to take effect")
     restart_service = rgw_service.restart(ssh_con)
-    sleep(5)
+    sleep(60)
     if restart_service is False:
         raise TestExecError("RGW service restart failed")
     limget = utils.exec_shell_cmd(
@@ -138,7 +138,7 @@ def test_exec(config, ssh_con):
 
     log.info("Restarting for global rate limit to take effect")
     restart_service = rgw_service.restart(ssh_con)
-    sleep(5)
+    sleep(60)
     if restart_service is False:
         raise TestExecError("RGW service restart failed")
 
@@ -166,7 +166,7 @@ def test_exec(config, ssh_con):
         f"radosgw-admin global ratelimit disable --ratelimit-scope=user"
     )
     restart_service = rgw_service.restart(ssh_con)
-    sleep(5)
+    sleep(60)
     if restart_service is False:
         raise TestExecError("RGW service restart failed")
 
