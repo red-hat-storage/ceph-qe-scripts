@@ -14,6 +14,7 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     test_delete_container_from_user_of_diff_tenant.yaml
     test_upload_large_obj_with_same_obj_name.yaml
     test_swift_enable_version_with_different_user.yaml
+    test_s3_and_swift_versioning.yaml
 
 Operation:
     Create swift user
@@ -53,12 +54,15 @@ from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.s3.auth import Auth as s3_auth
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
+from v2.lib.s3cmd import auth as s3cmd_auth
 from v2.lib.swift.auth import Auth
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import RGWService
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
 
@@ -150,6 +154,12 @@ def test_exec(config, ssh_con):
         users_info = []
         user_info = swiftlib.create_users(1)[-1]
         users_info.append(user_info)
+        if config.test_ops.get("enable_version_by_s3", False):
+            write_bucket_io_info = BucketIoInfo()
+            auth_s3 = s3_auth(user_info, ssh_con, ssl=config.ssl)
+            s3_rgw_conn = auth_s3.do_auth()
+            ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+            s3cmd_auth.do_auth(user_info, ip_and_port)
         subuser_info = swiftlib.create_non_tenant_sub_users(1, user_info)
         auth = Auth(subuser_info[-1], ssh_con, config.ssl)
         rgw = auth.do_auth()
@@ -574,6 +584,83 @@ def test_exec(config, ssh_con):
 
                 log.info(f"Delete container {container_name} with container owner")
                 rgw.delete_container(container_name)
+
+        if config.test_ops.get("enable_version_by_s3", False):
+            log.info("making changes to ceph.conf")
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_swift_versioning_enabled, "True", ssh_con
+            )
+            log.info("trying to restart services")
+            srv_restarted = rgw_service.restart(ssh_con)
+            time.sleep(30)
+            if srv_restarted is False:
+                raise TestExecError("RGW service restart failed")
+            else:
+                log.info("RGW service restarted")
+
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info["user_id"], rand_no=cc
+            )
+            log.info(f"creating bucket {bucket_name} with s3 user")
+            bucket = reusable.create_bucket(bucket_name, s3_rgw_conn, user_info)
+            log.info("enable bucket version using s3 user")
+            reusable.enable_versioning(
+                bucket, s3_rgw_conn, user_info, write_bucket_io_info
+            )
+            utils.exec_shell_cmd(f"fallocate -l 4k obj4k")
+            s3cmd = "/home/cephuser/venv/bin/s3cmd"
+            range_val = f"1..{config.objects_count}"
+            cmd = (
+                "for i in {"
+                + range_val
+                + "}; do "
+                + f"{s3cmd} put obj4k s3://{bucket_name}/object-$i; done"
+            )
+            rc = utils.exec_shell_cmd(cmd)
+            if rc is False:
+                raise AssertionError(
+                    f"Failed to upload current object to bucket {bucket_name}"
+                )
+
+            response = utils.exec_shell_cmd(cmd)
+            if response is False:
+                raise AssertionError(
+                    f"Failed to upload non-current object to bucket {bucket_name}"
+                )
+
+            resp = utils.exec_shell_cmd(f"{s3cmd} ls s3://{bucket_name} | wc -l")
+            if int(resp) != config.objects_count:
+                raise TestExecError(
+                    f"enable versioning on bucket {bucket_name} success but object count miss match"
+                )
+            resp = json.loads(
+                utils.exec_shell_cmd(
+                    f"radosgw-admin bucket stats --bucket {bucket_name}"
+                )
+            )
+            if resp["usage"]["rgw.main"]["num_objects"] != config.objects_count * 2:
+                raise TestExecError(
+                    f"enable versioning on bucket {bucket_name} success but object count miss match"
+                )
+            container_name = f"{bucket_name}-swift"
+            reusable.create_container_using_swift(container_name, rgw, subuser_info[-1])
+
+            log.info(f"enable versioning on bucket {bucket_name} with swift user")
+            container = swiftlib.resource_op(
+                {
+                    "obj": rgw,
+                    "resource": "put_container",
+                    "args": [
+                        bucket_name,
+                        {"X-Versions-Location": container_name},
+                    ],
+                }
+            )
+            log.info(f"container {container}")
+            if container is False:
+                raise TestExecError(
+                    f"enable versioning on bucket {bucket_name} with swift user failed"
+                )
 
         else:
             container_name = utils.gen_bucket_name_from_userid(
