@@ -2031,7 +2031,7 @@ def create_container_using_swift(container_name, rgw, user_info):
         )
 
 
-def test_bucket_stats_across_sites(bucket_name_to_create):
+def test_bucket_stats_across_sites(bucket_name_to_create, config):
     """
     test bucket stats across all the sites is consistent for a bucket
     """
@@ -2045,6 +2045,8 @@ def test_bucket_stats_across_sites(bucket_name_to_create):
             zone_name = "secondary"
         else:
             zone_name = "primary"
+        if config.remote_zone == "archive":
+            zone_name = config.remote_zone
         cmd_bucket_stats = (
             f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
         )
@@ -2095,7 +2097,6 @@ def test_object_download_at_replicated_site(
         else:
             zone_name = "primary"
         log.info(f"remote zone is {zone_name}")
-
         # Download objects from remote site using boto3 rgw client
         remote_ip = utils.get_rgw_ip_zone(zone_name)
         remote_site_ssh_conn = utils.connect_remote(remote_ip)

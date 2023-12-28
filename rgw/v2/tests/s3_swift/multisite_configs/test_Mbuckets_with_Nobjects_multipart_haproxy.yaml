@@ -1,6 +1,8 @@
 # upload type: non multipart
 # script: test_Mbuckets_with_Nobjects.py
 config:
+  remote_zone: archive
+  test_sync_consistency_bucket_stats: true
   haproxy: true
   user_count: 1
   bucket_count: 2
