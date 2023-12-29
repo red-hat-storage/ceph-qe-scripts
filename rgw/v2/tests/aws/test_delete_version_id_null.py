@@ -88,6 +88,8 @@ def test_exec(config, ssh_con):
         aws_reusable.put_object(bucket_name, object_name, local_endpoint)
         time.sleep(30)
 
+        # waiting for sync to be caught up with other site
+        s3_reusable.check_sync_status()
         # Verifying object with version id null is created on both local and remote sites
         aws_reusable.verify_object_with_version_id_null(
             bucket_name, object_name, local_endpoint
