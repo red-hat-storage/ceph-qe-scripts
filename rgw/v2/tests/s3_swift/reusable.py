@@ -1845,6 +1845,8 @@ def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config):
             raise TestExecError(
                 f"object count mismatch found in another site for bucket {bucket.name} : {bucket_objects} expected {bkt_objects}"
             )
+        cmd_output = command_output
+    log.info(f"object synced on anothe site for bucket {bucket.name} : {cmd_output}")
 
 
 def flow_operation(

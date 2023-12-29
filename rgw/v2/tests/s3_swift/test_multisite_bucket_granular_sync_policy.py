@@ -4,6 +4,7 @@ Usage: test_multisite_bucket_granular_sync_policy.py
 <input_yaml>
 	Note: Any one of these yamls can be used
     multisite_configs/test_multisite_granular_bucket_sync_policy.yaml
+    multisite_configs/test_multisite_granular_bucketsync_allowed_forbidden.yaml
 
 Operation:
 	Creates delete sync policy group bucket , zonegroupl level
@@ -223,8 +224,12 @@ def test_exec(config, ssh_con):
                                 raise TestExecError(
                                     f"object should not sync to another site for bucket {bucket.name}, but synced"
                                 )
+                            log.info(
+                                f"object did not sync to another site for bucket {bucket.name} as expected"
+                            )
 
                             if config.test_ops.get("bucket_sync", False):
+                                bucket_group = "bgroup-" + bkt.name
                                 reusable.group_operation(
                                     bucket_group,
                                     "modify",
