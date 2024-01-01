@@ -485,8 +485,9 @@ def test_exec(config, ssh_con):
                     if config.test_sync_consistency_bucket_stats:
                         log.info("Wait for sync lease period of 120 seconds")
                         time.sleep(150)
-                        reusable.test_bucket_stats_across_sites(bucket_name_to_create)
-
+                        reusable.test_bucket_stats_across_sites(
+                            bucket_name_to_create, config
+                        )
                     if config.bucket_sync_crash:
                         is_primary = utils.is_cluster_primary()
                         if is_primary is False:
