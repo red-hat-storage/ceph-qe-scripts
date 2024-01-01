@@ -4,6 +4,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import json
 import logging
+import time
 
 import v2.utils.utils as utils
 
@@ -26,6 +27,13 @@ def validate_prefix_rule(bucket, config):
     )
     objs_diff = objs_total - objs_ncurr
     op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
+    if config.conflict_transition_actions:
+        log.info(
+            "Transition to latest storage class in lc config taken place"
+            + " when there is a conflict between transition rules having same days and same prefix"
+            + " but different storage class"
+        )
+        time.sleep(60)
     op2 = utils.exec_shell_cmd("radosgw-admin bucket list --bucket=%s" % bucket.name)
     json_doc = json.loads(op)
     json_doc2 = json.loads(op2)
@@ -64,12 +72,6 @@ def validate_prefix_rule(bucket, config):
             )
         else:
             raise AssertionError("lc validation for object transition failed")
-        if config.test_ops.get("conflict_transition_actions"):
-            log.info(
-                "Transition to latest storage class in lc config taken place"
-                + " when there is a conflict between transition rules having same days and same prefix"
-                + " but different storage class"
-            )
     else:
         log.info("Start the validation of LC expiration.")
 
