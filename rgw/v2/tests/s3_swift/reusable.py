@@ -66,6 +66,28 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
     return bucket
 
 
+def create_bucket_readonly(bucket_name, rgw, user_info):
+    log.info("creating bucket with name: %s" % bucket_name)
+    bucket = s3lib.resource_op(
+        {"obj": rgw, "resource": "Bucket", "args": [bucket_name]}
+    )
+    kw_args = None
+    created = s3lib.resource_op(
+        {
+            "obj": bucket,
+            "resource": "create",
+            "args": None,
+            "kwargs": kw_args,
+            "extra_info": {"access_key": user_info["access_key"]},
+        }
+    )
+    log.info(f"bucket creation data: {created}")
+    if created is not False:
+        raise TestExecError("Resource execution failed: bucket creation worked")
+    else:
+        log.info("Bucket creation failed as expected")
+
+
 def set_get_object_acl(
     s3_object_name,
     bucket_name,
