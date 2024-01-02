@@ -1,0 +1,12 @@
+# test case id: CEPH-10649
+# script: test_swift_basic_ops.py
+config:
+    user_type: non-tenanted
+    container_count: 3
+    objects_count: 100
+    version_count: 4
+    objects_size_range:
+        min: 5
+        max: 15
+    test_ops:
+        enable_version_by_s3: True
