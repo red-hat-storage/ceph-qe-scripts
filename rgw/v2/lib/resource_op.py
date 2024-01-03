@@ -333,6 +333,9 @@ class Config(object):
             "rgw_crypt_sse_s3_vault_prefix", "/v1/transit"
         )
         self.dynamic_resharding = self.doc["config"].get("dynamic_resharding", False)
+        self.conflict_transition_actions = self.doc["config"].get(
+            "conflict_transition_actions", False
+        )
         self.manual_resharding = self.doc["config"].get("manual_resharding", False)
         self.reshard_cancel_cmd = self.doc["config"].get("reshard_cancel_cmd", False)
         self.sync_disable_and_enable = self.doc["config"].get(
