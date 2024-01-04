@@ -1,0 +1,13 @@
+#script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_swift_basic_ops.py
+#Polarian-id: CEPH-9220
+config:
+    user_type: non-tenanted
+    container_count: 1
+    version_count: 1
+    objects_count: 1
+    objects_size_range:
+        min: 5
+        max: 15
+    test_ops:
+        access: read
+        check_user_permission: true

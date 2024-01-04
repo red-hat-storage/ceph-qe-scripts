@@ -15,6 +15,10 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     test_upload_large_obj_with_same_obj_name.yaml
     test_swift_enable_version_with_different_user.yaml
     test_s3_and_swift_versioning.yaml
+    test_swift_user_access_read.yaml
+    test_swift_user_access_write.yaml
+    test_swift_user_access_readwrite.yaml
+    test_swift_object_expire_op.yaml
 
 Operation:
     Create swift user
@@ -28,6 +32,7 @@ Operation:
     Delete container
     Copy versioned object
     Multipart upload
+    Functionality with swift user with read, write, readwrite access
 """
 
 import glob
@@ -661,7 +666,130 @@ def test_exec(config, ssh_con):
                 raise TestExecError(
                     f"enable versioning on bucket {bucket_name} with swift user failed"
                 )
+        if config.test_ops.get("check_user_permission", False):
+            log.info("making changes to ceph.conf")
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_swift_versioning_enabled, "True", ssh_con
+            )
+            log.info("trying to restart services ")
+            srv_restarted = rgw_service.restart(ssh_con)
+            time.sleep(30)
+            if srv_restarted is False:
+                raise TestExecError("RGW service restart failed")
+            else:
+                log.info("RGW service restarted")
+            container_name_old = utils.gen_bucket_name_from_userid(
+                user_info["user_id"], rand_no="1" + "old"
+            )
+            log.info(container_name_old)
+            container = swiftlib.resource_op(
+                {
+                    "obj": rgw,
+                    "resource": "put_container",
+                    "kwargs": dict(container=container_name_old),
+                }
+            )
 
+            container_name = utils.gen_bucket_name_from_userid(
+                user_info["user_id"], rand_no="1" + "new"
+            )
+            log.info(f"container_name is {container_name}")
+            container = swiftlib.resource_op(
+                {
+                    "obj": rgw,
+                    "resource": "put_container",
+                    "args": [
+                        container_name,
+                        {"X-Versions-Location": container_name_old},
+                    ],
+                }
+            )
+            if container is False:
+                raise TestExecError(
+                    "Resource execution failed: container creation failed"
+                )
+            ls = []
+            swift_object_name = ""
+            for version_count in range(config.version_count):
+                for oc, size in list(config.mapped_sizes.items()):
+                    swift_object_name = fill_container(
+                        rgw, container_name, user_name, oc, 1, size
+                    )
+                    log.info(f"swift_object_name: {swift_object_name}")
+                log.info(f"performing get container")
+                ls = rgw.get_container(container_name)
+                ls = list(ls)
+                log.info(f"Get container data is {ls}")
+
+            log.info("Validating container behavior with user permission")
+            cmd = (
+                f"radosgw-admin subuser modify --uid {user_info['user_id']} --subuser={subuser_info[-1]['user_id']}"
+                f" --access={config.test_ops.get('access')}"
+            )
+            utils.exec_shell_cmd(cmd)
+
+            # Sub user with read permission
+            if config.test_ops.get("access", "full") == "read":
+                log.info("Validating user permission read")
+                for oc, size in list(config.mapped_sizes.items()):
+                    try:
+                        swift_object_name = fill_container(
+                            rgw, container_name, user_name, oc, 2, size
+                        )
+                        raise AssertionError(
+                            "Should not allow to write content since permission is read"
+                        )
+                    except Exception as e:
+                        logging.info("PUT Error as expected since permission is read")
+
+                try:
+                    ls = rgw.get_container(container_name)
+                    log.info(f"Get container succeeded with read permission :{ls}")
+                except Exception as e:
+                    logging.info("Should not fail since permission is read")
+                    raise AssertionError("Should not fail since permission is read")
+
+            # Sub user with write permission
+            if config.test_ops.get("access", "full") == "write":
+                log.info("Validating user permission write")
+                for oc, size in list(config.mapped_sizes.items()):
+                    try:
+                        swift_object_name = fill_container(
+                            rgw, container_name, user_name, oc, 3, size
+                        )
+                        log.info(f"PUT operation succeeded with write permission ")
+                    except Exception as e:
+                        raise AssertionError(
+                            "Should not fail to write content since permission is write"
+                        )
+                try:
+                    ls = rgw.get_container(container_name)
+                    raise AssertionError(
+                        "GET operation Should fail since permission is write"
+                    )
+                except Exception as e:
+                    logging.info("GET Error as expected since permission is write")
+
+            # Sub user with readwrite permission
+            if config.test_ops.get("access", "full") == "readwrite":
+                log.info("Validating user permission readwrite")
+                for oc, size in list(config.mapped_sizes.items()):
+                    try:
+                        swift_object_name = fill_container(
+                            rgw, container_name, user_name, oc, 4, size
+                        )
+                        log.info("PUT operation succeeded with readwrite permission")
+                    except Exception as e:
+                        raise AssertionError(
+                            "Should not fail to write content since permission is readwrite"
+                        )
+                try:
+                    ls = rgw.get_container(container_name)
+                    log.info("GET operation succeeded with readwrite permission")
+                except Exception as e:
+                    raise AssertionError(
+                        "Should not fail to write content since permission is readwrite"
+                    )
         else:
             container_name = utils.gen_bucket_name_from_userid(
                 user_info["user_id"], rand_no=cc
