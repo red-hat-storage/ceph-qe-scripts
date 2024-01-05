@@ -5,6 +5,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../")))
 import json
 import logging
 import time
+from datetime import datetime, timedelta
 
 import v2.utils.utils as utils
 
@@ -33,7 +34,37 @@ def validate_prefix_rule(bucket, config):
             + " when there is a conflict between transition rules having same days and same prefix"
             + " but different storage class"
         )
-        time.sleep(60)
+        lc_list = json.loads(utils.exec_shell_cmd("radosgw-admin lc list"))
+        log.info(f"lc list is {lc_list}")
+        lc_last_processed_time = ""
+        for data in lc_list:
+            if bucket.name in data["bucket"]:
+                lc_last_processed_time = data["started"]
+                log.info(
+                    f"last lc processed time for bucket {bucket.name} is {lc_last_processed_time}"
+                )
+                break
+        else:
+            raise AssertionError(
+                f"entry for {bucket.name} doesnot exist in lc list while trying to get last lc process time"
+            )
+
+        # wait for the point of time which is in the middle of two lc process,
+        # so that lc process completes and bucket list will be settled with target storage class
+        rgw_lc_debug_interval = config.rgw_lc_debug_interval
+        log.info(f"rgw_lc_debug_interval: {rgw_lc_debug_interval}")
+        datetime_lc_process = datetime.strptime(
+            lc_last_processed_time, "%a, %d %b %Y %H:%M:%S %Z"
+        )
+        timediff_sec = rgw_lc_debug_interval + rgw_lc_debug_interval / 2
+        datetime_lc_process = datetime_lc_process + timedelta(seconds=timediff_sec)
+        log.info(
+            f"sleeping till {datetime_lc_process} so that lc process completes and bucket list is settled"
+        )
+        while datetime.utcnow() < datetime_lc_process:
+            log.info(f"current time: {datetime.utcnow().isoformat()}")
+            time.sleep(5)
+
     op2 = utils.exec_shell_cmd("radosgw-admin bucket list --bucket=%s" % bucket.name)
     json_doc = json.loads(op)
     json_doc2 = json.loads(op2)

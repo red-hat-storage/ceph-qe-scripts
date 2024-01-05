@@ -312,7 +312,7 @@ def test_exec(config, ssh_con):
                         )
                         log.info(f"lc lists is {lc_list_before}")
                         for data in lc_list_before:
-                            if data["bucket"] == bucket.name:
+                            if bucket.name in data["bucket"]:
                                 if data["status"] != "UNINITIAL":
                                     raise TestExecError(
                                         f"Since rgw_enable_lc_threads set to false for bucket {bucket.name}, lc status should be 'UNINITIAL'"

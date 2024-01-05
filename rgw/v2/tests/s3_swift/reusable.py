@@ -639,7 +639,9 @@ def put_get_bucket_lifecycle_test(
     if not upload_end_time:
         upload_end_time = time.time()
     time_diff = math.ceil(upload_end_time - upload_start_time)
-    time_limit = upload_start_time + (config.rgw_lc_debug_interval * 20)
+    time_limit = upload_start_time + (
+        config.rgw_lc_debug_interval * config.test_ops.get("actual_lc_days", 20)
+    )
     for rule in config.lifecycle_conf:
         if rule.get("Expiration", {}).get("Date", False):
             # todo: need to get the interval value from yaml file
