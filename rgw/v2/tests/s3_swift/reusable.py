@@ -1600,27 +1600,44 @@ def test_log_trimming(bucket, config):
         log.info(f"{config.log_trimming} log is not empty")
     else:
         raise TestExecError(f"{config.log_trimming} log is empty")
-    log.info("Sleep for log_trim_interval of 20mins")
-    time.sleep(1260)
-    output2 = json.loads(utils.exec_shell_cmd(cmd))
-    if len(output2) == 0:
-        log.info(f"{config.log_trimming} log is empty after the interval")
-    else:
-        raise TestExecError(
-            f"{config.log_trimming} log is not empty after the interval"
-        )
-    if config.test_bilog_trim_on_non_existent_bucket:
-        utils.exec_shell_cmd(
-            f"radosgw-admin bucket rm --purge-objects --bucket {bucket.name}"
-        )
-        cmd = "radosgw-admin bilog trim --bucket {bucket.name} | egrep -i 'error|ret=-'"
-        _, err = subprocess.getstatusoutput(cmd)
-        if not err:
-            raise TestExecError(
-                f"Test failure, bilog trim should fail for a non-existent bucket with no such file or directory"
-            )
+    if config.remote_zone == "archive":
+        zone_name = config.remote_zone
+        log.info(f"test no bilogs are generated in {zone_name}, bug-2169298")
+        remote_ip = utils.get_rgw_ip_zone(zone_name)
+        remote_site_ssh_con = utils.connect_remote(remote_ip)
+        log.info(f"perform bilog list on the {zone_name} bucket")
+        stdin, stdout, stderr = remote_site_ssh_con.exec_command(cmd)
+        cmd_output = stdout.read().decode()
+        bilog_list = json.loads(cmd_output)
+        log.info(f"The bilog_list for archive zone is : {bilog_list}")
+        if not bilog_list:
+            log.info(f"{config.log_trimming} is empty, test pass.")
         else:
-            log.info(f"Bilog trim for a non-existent bucket fails with {err}")
+            raise TestExecError(
+                f"{config.log_trimming} log is not empty, test failure."
+            )
+    else:
+        log.info("Sleep for log_trim_interval of 20mins")
+        time.sleep(1260)
+        output2 = json.loads(utils.exec_shell_cmd(cmd))
+        if len(output2) == 0:
+            log.info(f"{config.log_trimming} log is empty after the interval")
+        else:
+            raise TestExecError(
+                f"{config.log_trimming} log is not empty after the interval"
+            )
+        if config.test_bilog_trim_on_non_existent_bucket:
+            utils.exec_shell_cmd(
+                f"radosgw-admin bucket rm --purge-objects --bucket {bucket.name}"
+            )
+            cmd = "radosgw-admin bilog trim --bucket {bucket.name} | egrep -i 'error|ret=-'"
+            _, err = subprocess.getstatusoutput(cmd)
+            if not err:
+                raise TestExecError(
+                    f"Test failure, bilog trim should fail for a non-existent bucket with no such file or directory"
+                )
+            else:
+                log.info(f"Bilog trim for a non-existent bucket fails with {err}")
 
 
 def set_dynamic_reshard_ceph_conf(config, ssh_con):
