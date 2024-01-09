@@ -590,7 +590,7 @@ def test_exec(config, ssh_con):
                 log.info(f"Delete container {container_name} with container owner")
                 rgw.delete_container(container_name)
 
-        if config.test_ops.get("enable_version_by_s3", False):
+        elif config.test_ops.get("enable_version_by_s3", False):
             log.info("making changes to ceph.conf")
             ceph_conf.set_to_ceph_conf(
                 "global", ConfigOpts.rgw_swift_versioning_enabled, "True", ssh_con
@@ -666,7 +666,8 @@ def test_exec(config, ssh_con):
                 raise TestExecError(
                     f"enable versioning on bucket {bucket_name} with swift user failed"
                 )
-        if config.test_ops.get("check_user_permission", False):
+
+        elif config.test_ops.get("check_user_permission", False):
             log.info("making changes to ceph.conf")
             ceph_conf.set_to_ceph_conf(
                 "global", ConfigOpts.rgw_swift_versioning_enabled, "True", ssh_con
@@ -790,6 +791,7 @@ def test_exec(config, ssh_con):
                     raise AssertionError(
                         "Should not fail to write content since permission is readwrite"
                     )
+
         else:
             container_name = utils.gen_bucket_name_from_userid(
                 user_info["user_id"], rand_no=cc
