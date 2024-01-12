@@ -12,6 +12,44 @@ import v2.utils.utils as utils
 log = logging.getLogger()
 
 
+def sleep_till_lc_not_processing(config, bucket):
+    """
+    this is achieved by sleeping till point of time which is in the middle of two lc process
+    so that lc process completes and bucket list will be settled with target storage class
+    """
+    log.info(
+        f"sleeping till time point where lc not processing on the bucket: {bucket.name}"
+    )
+    lc_list = json.loads(utils.exec_shell_cmd("radosgw-admin lc list"))
+    log.info(f"lc list is {lc_list}")
+    lc_last_processed_time = ""
+    for data in lc_list:
+        if bucket.name in data["bucket"]:
+            lc_last_processed_time = data["started"]
+            log.info(
+                f"last lc processed time for bucket {bucket.name} is {lc_last_processed_time}"
+            )
+            break
+    else:
+        raise AssertionError(
+            f"entry for {bucket.name} doesnot exist in lc list while trying to get last lc process time"
+        )
+    rgw_lc_debug_interval = config.rgw_lc_debug_interval
+    log.info(f"rgw_lc_debug_interval: {rgw_lc_debug_interval}")
+    datetime_lc_process = datetime.strptime(
+        lc_last_processed_time, "%a, %d %b %Y %H:%M:%S %Z"
+    )
+    timediff_sec = rgw_lc_debug_interval + rgw_lc_debug_interval / 2
+    datetime_lc_process = datetime_lc_process + timedelta(seconds=timediff_sec)
+    log.info(
+        f"sleeping till {datetime_lc_process} so that lc process completes and bucket list is settled"
+    )
+    while datetime.utcnow() < datetime_lc_process:
+        log.info(f"current time: {datetime.utcnow().isoformat()}")
+        time.sleep(5)
+    log.info(f"lc not processing now on the bucket: {bucket.name}")
+
+
 def validate_prefix_rule(bucket, config):
     """
     This function is to validate the prefix rule for versioned objects
@@ -34,41 +72,18 @@ def validate_prefix_rule(bucket, config):
             + " when there is a conflict between transition rules having same days and same prefix"
             + " but different storage class"
         )
-        lc_list = json.loads(utils.exec_shell_cmd("radosgw-admin lc list"))
-        log.info(f"lc list is {lc_list}")
-        lc_last_processed_time = ""
-        for data in lc_list:
-            if bucket.name in data["bucket"]:
-                lc_last_processed_time = data["started"]
-                log.info(
-                    f"last lc processed time for bucket {bucket.name} is {lc_last_processed_time}"
-                )
-                break
-        else:
-            raise AssertionError(
-                f"entry for {bucket.name} doesnot exist in lc list while trying to get last lc process time"
-            )
 
-        # wait for the point of time which is in the middle of two lc process,
-        # so that lc process completes and bucket list will be settled with target storage class
-        rgw_lc_debug_interval = config.rgw_lc_debug_interval
-        log.info(f"rgw_lc_debug_interval: {rgw_lc_debug_interval}")
-        datetime_lc_process = datetime.strptime(
-            lc_last_processed_time, "%a, %d %b %Y %H:%M:%S %Z"
-        )
-        timediff_sec = rgw_lc_debug_interval + rgw_lc_debug_interval / 2
-        datetime_lc_process = datetime_lc_process + timedelta(seconds=timediff_sec)
-        log.info(
-            f"sleeping till {datetime_lc_process} so that lc process completes and bucket list is settled"
-        )
-        while datetime.utcnow() < datetime_lc_process:
-            log.info(f"current time: {datetime.utcnow().isoformat()}")
-            time.sleep(5)
+    if config.conflict_transition_actions or config.test_ops.get("reverse_transition"):
+        sleep_till_lc_not_processing(config, bucket)
 
     op2 = utils.exec_shell_cmd("radosgw-admin bucket list --bucket=%s" % bucket.name)
     json_doc = json.loads(op)
     json_doc2 = json.loads(op2)
     objects = json_doc["usage"]["rgw.main"]["num_objects"]
+    if config.test_ops.get("expected_storage_class"):
+        expected_storage_class = config.test_ops.get("expected_storage_class")
+    else:
+        expected_storage_class = config.second_storage_class
     if config.test_lc_transition:
         log.info("Start the validation of LC transition")
         curr = 0
@@ -77,10 +92,7 @@ def validate_prefix_rule(bucket, config):
         ec_pool_curr_ncurr = 0
         for i in range(0, objs_total):
             storage_class = json_doc2[i]["meta"]["storage_class"]
-            if (
-                config.two_pool_transition
-                and storage_class == config.second_storage_class
-            ):
+            if config.two_pool_transition and storage_class == expected_storage_class:
                 two_pool_curr_ncurr += 1
             elif config.ec_pool_transition and storage_class == config.ec_storage_class:
                 ec_pool_curr_ncurr += 1
@@ -102,6 +114,9 @@ def validate_prefix_rule(bucket, config):
                 "Bucket LC Transition to EC pool of current and noncurrent object version validated."
             )
         else:
+            log.error(f"current: {curr} and noncurrent: {ncurr}")
+            log.error(f"two_pool_curr_ncurr: {two_pool_curr_ncurr}")
+            log.error(f"ec_pool_curr_ncurr: {ec_pool_curr_ncurr}")
             raise AssertionError("lc validation for object transition failed")
     else:
         log.info("Start the validation of LC expiration.")
