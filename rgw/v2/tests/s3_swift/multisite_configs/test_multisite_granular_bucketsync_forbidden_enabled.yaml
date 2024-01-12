@@ -1,5 +1,6 @@
-# Polarian TC : CEPH-83575137
+# Polarian TC : CEPH-83575139
 # script: test_multisite_bucket_granular_sync_policy.py
+# sync will not happen both side as zonegroup level status is forbidden
 config:
     user_count: 1
     bucket_count: 1
@@ -9,7 +10,7 @@ config:
         max: 2M
     test_ops:
         zonegroup_group: true
-        zonegroup_status: enabled
+        zonegroup_status: forbidden
         zonegroup_flow: true
         zonegroup_flow_type: directional
         zonegroup_source_zone: primary
@@ -19,13 +20,12 @@ config:
         zonegroup_pipe: true
         bucket_group: true
         bucket_status: enabled
-        bucket_flow: false
+        bucket_flow: true
+        bucket_flow_type: symmetrical
         bucket_pipe: true
-        bucket_source_zones: primary
-        bucket_dest_zones: secondary
         create_object: true
         create_bucket: true
-        should_sync: true
+        should_sync: false
         write_io_verify_another_site: true
         write_io_verify_should_sync: false
         zonegroup_group_remove: true
