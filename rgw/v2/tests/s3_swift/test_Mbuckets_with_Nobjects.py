@@ -720,12 +720,26 @@ def test_exec(config, ssh_con):
                                     f"rados -p default.rgw.buckets.index rmomapkey {i} {meta_file}"
                                 )
                         cmd = f"radosgw-admin bucket check --bucket={bucket.name}"
+                        ceph_version_id, _ = utils.get_ceph_version()
+                        ceph_version_id = ceph_version_id.split("-")
+                        ceph_version_id = ceph_version_id[0].split(".")
                         bkt_check_before = utils.exec_shell_cmd(cmd)
                         bkt_check_before = json.loads(bkt_check_before)
-                        if len(bkt_check_before) < 1:
-                            raise AssertionError(
-                                f"Orphaned object not found in bucket {bucket.name}"
-                            )
+                        if (
+                            float(ceph_version_id[0]) == 17
+                            and float(ceph_version_id[1]) >= 2
+                            and float(ceph_version_id[2]) >= 6
+                        ):
+                            log.info("Entering quincy")
+                            if len(bkt_check_before["invalid_multipart_entries"]) < 1:
+                                raise AssertionError(
+                                    f"Orphaned object not found in bucket {bucket.name}"
+                                )
+                        else:
+                            if len(bkt_check_before) < 1:
+                                raise AssertionError(
+                                    f"Orphaned object not found in bucket {bucket.name}"
+                                )
                         log.info(f"o/p of bucket check before fix: {bkt_check_before}")
                         utils.exec_shell_cmd(
                             f"radosgw-admin bucket check --fix --bucket={bucket.name}"
@@ -733,10 +747,21 @@ def test_exec(config, ssh_con):
                         bkt_check_after = utils.exec_shell_cmd(cmd)
                         bkt_check_after = json.loads(bkt_check_after)
                         log.info(f"o/p of bucket check after fix: {bkt_check_after}")
-                        if len(bkt_check_after) != 0:
-                            raise AssertionError(
-                                f"bucket check fix did not removed orphan objects on a bucket {bucket.name}"
-                            )
+                        if (
+                            float(ceph_version_id[0]) == 17
+                            and float(ceph_version_id[1]) >= 2
+                            and float(ceph_version_id[2]) >= 6
+                        ):
+                            log.info("Entering quincy")
+                            if len(bkt_check_after["invalid_multipart_entries"]) != 0:
+                                raise AssertionError(
+                                    f"bucket check fix did not removed orphan objects on a bucket {bucket.name}"
+                                )
+                        else:
+                            if len(bkt_check_after) != 0:
+                                raise AssertionError(
+                                    f"bucket check fix did not removed orphan objects on a bucket {bucket.name}"
+                                )
 
                 if config.test_ops.get("delete_bucket") is True:
                     reusable.delete_bucket(bucket)
