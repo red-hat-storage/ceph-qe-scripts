@@ -230,7 +230,11 @@ def test_exec(config, ssh_con):
                         if config.dynamic_resharding
                         else "brownfield-manual-bkt"
                     )
-
+                if config.test_ops.get("upload_type") == "read_only_upload":
+                    reusable.create_bucket_readonly(
+                        bucket_name_to_create, rgw_conn, each_user
+                    )
+                    return
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
