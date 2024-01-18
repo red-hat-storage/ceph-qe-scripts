@@ -51,7 +51,6 @@ TEST_DATA_PATH = None
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
@@ -138,6 +137,7 @@ def test_exec(config, ssh_con):
                     # uploading data
                     log.info("s3 objects to create: %s" % config.objects_count)
                     for oc, size in list(config.mapped_sizes.items()):
+                        log.info(f"print {oc}")
                         config.obj_size = size
                         s3_object_name = utils.gen_s3_object_name(
                             bucket_name_to_create, oc
@@ -197,6 +197,20 @@ def test_exec(config, ssh_con):
                         sse_s3.get_object_encryption(
                             s3_client, bucket_name_to_create, s3_object_name
                         )
+                        if (
+                            oc == 0
+                            and config.test_ops["download_object_at_remote_site"]
+                            is True
+                        ):
+                            log.info(f"the object count is {oc}")
+                            log.info(
+                                "Wait for sync lease to catch up on the remote site."
+                            )
+                            time.sleep(1200)
+                        if config.test_ops["download_object_at_remote_site"] is True:
+                            reusable.test_object_download_at_replicated_site(
+                                bucket_name_to_create, s3_object_name, each_user, config
+                            )
                         if config.test_ops["delete_bucket_object"]:
                             reusable.delete_objects(bucket)
                         elif config.test_ops["delete_bucket_object_version"]:
@@ -217,7 +231,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test server-side-encryption with s3 and kms")
     test_info.started_info()
 

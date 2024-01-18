@@ -1,0 +1,20 @@
+#polarian CEPH-11357, bug-2162337
+#script- test_sse_s3_kms_with_vault.py
+config:
+ user_count: 1
+ encryption_keys: s3
+ bucket_count: 1
+ objects_count: 30
+ local_file_delete: true
+ objects_size_range:
+  min: 6M
+  max: 15M
+ test_ops:
+  create_bucket: true
+  create_object: true
+  enable_version: true
+  sse_s3_per_bucket: true
+  upload_type: multipart
+  delete_bucket_object: true
+  delete_bucket_object_version: false
+  download_object_at_remote_site: true

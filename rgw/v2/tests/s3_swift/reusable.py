@@ -2143,6 +2143,11 @@ def test_object_download_at_replicated_site(
         else:
             zone_name = "primary"
         log.info(f"remote zone is {zone_name}")
+        if config.remote_zone == "archive":
+            zone_name = "archive"
+        log.info(
+            f"Download object {s3_object_name} via boto3 at remote site {zone_name}"
+        )
         # Download objects from remote site using boto3 rgw client
         remote_ip = utils.get_rgw_ip_zone(zone_name)
         remote_site_ssh_conn = utils.connect_remote(remote_ip)
@@ -2150,15 +2155,27 @@ def test_object_download_at_replicated_site(
             each_user, remote_site_ssh_conn, ssl=config.ssl, haproxy=config.haproxy
         )
         remote_s3_client = remote_site_auth.do_auth_using_client()
-
-        log.info(
-            f"Download object {s3_object_name} via boto3 at remote site {zone_name}"
+        if zone_name == "archive":
+            log.info(f"It is a {zone_name} zone, hence objects are always versioned.")
+        time.sleep(20)
+        response_versions = remote_s3_client.list_object_versions(
+            Bucket=bucket_name, Prefix=s3_object_name
         )
-        response = remote_s3_client.get_object(Bucket=bucket_name, Key=s3_object_name)
-        if response is False:
-            raise TestExecError(
-                "md5sum signature mismatch, detected corruption on download"
+        log.info(f"print the response {response_versions}")
+        response_versions = response_versions["Versions"]
+        log.info(f"print the response {response_versions}")
+        for response_ver_id in response_versions:
+            version_id = response_ver_id["VersionId"]
+            log.info(
+                f"Download object for key {s3_object_name} and version_id {version_id}"
             )
+            response = remote_s3_client.get_object(
+                Bucket=bucket_name, Key=s3_object_name, VersionId=version_id
+            )
+            if response is False:
+                raise TestExecError(
+                    "md5sum signature mismatch, detected corruption on download"
+                )
 
 
 def validate_incomplete_multipart(bucket_name, rgw_conn):
