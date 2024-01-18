@@ -1,0 +1,59 @@
+#test_bucket_lifecycle_object_expiration_transition.py
+#polarion-id: CEPH-83573373
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  parallel_lc: False
+  test_lc_transition: True
+  pool_name: data.cold
+  storage_class: cold
+  ec_pool_transition: False
+  multiple_transitions: True
+  two_pool_transition: True
+  second_pool_name: data.glacier
+  second_storage_class: glacier
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    create_object: true
+    enable_versioning: true
+    version_count: 3
+    delete_marker: false
+    actual_lc_days: 4
+    rule2_lc_days: 6
+    rule3_lc_days: 6
+    reverse_transition: True
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: key1
+      Status: Enabled
+      Transitions:
+        - Days: 4
+          StorageClass: cold
+      NoncurrentVersionTransitions:
+        - NoncurrentDays: 4
+          StorageClass: cold
+    - ID: LC_Rule_2
+      Filter:
+        Prefix: key1
+      Status: Enabled
+      Transitions:
+        - Days: 10
+          StorageClass: glacier
+      NoncurrentVersionTransitions:
+        - NoncurrentDays: 10
+          StorageClass: glacier
+    - ID: LC_Rule_3
+      Filter:
+        Prefix: key1
+      Status: Enabled
+      Transitions:
+        - Days: 16
+          StorageClass: cold
+      NoncurrentVersionTransitions:
+        - NoncurrentDays: 16
+          StorageClass: cold

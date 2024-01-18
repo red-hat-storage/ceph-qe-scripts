@@ -16,10 +16,10 @@ config:
           Prefix: key1
       Status: Enabled
       Expiration:
-        Days: 20
+        Days: 40
     - ID: rule2
       Filter:
           Prefix: key1
       Status: Enabled
       Expiration:
-        Days: 40
+        Days: 20

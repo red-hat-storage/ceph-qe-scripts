@@ -13,6 +13,7 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_rule_expiration_manual_reshard_verify_attr.yaml
  test_lc_rule_conflict_btw_exp_transition.yaml, test_lc_rule_conflict_exp_days.yaml,
  test_lc_rule_conflict_transition_actions.yaml
+ test_lc_rule_reverse_transition.yaml
 
 Operation:
 
@@ -35,6 +36,7 @@ import json
 import logging
 import time
 import traceback
+from datetime import datetime
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -226,8 +228,60 @@ def test_exec(config, ssh_con):
                         upload_start_time,
                         upload_end_time,
                     )
-                    time.sleep(30)
-                    lc_ops.validate_prefix_rule(bucket, config)
+                    if config.test_ops.get("reverse_transition", False):
+                        log.info(f"verifying lc reverse transition")
+                        rule1_lc_seconds = (
+                            config.rgw_lc_debug_interval
+                            * config.test_ops.get("actual_lc_days")
+                        )
+                        rule1_lc_timestamp = upload_end_time + 60 + rule1_lc_seconds
+                        expected_storage_class = config.storage_class
+                        config.test_ops[
+                            "expected_storage_class"
+                        ] = expected_storage_class
+                        lc_ops.validate_prefix_rule(bucket, config)
+
+                        rule2_lc_seconds = (
+                            config.rgw_lc_debug_interval
+                            * config.test_ops.get("rule2_lc_days")
+                        )
+                        rule2_lc_timestamp = rule1_lc_timestamp + rule2_lc_seconds
+                        log.info(
+                            f"sleeping till {datetime.fromtimestamp(rule2_lc_timestamp)} before verifying lc transition rule2"
+                        )
+                        while time.time() < rule2_lc_timestamp:
+                            log.info(
+                                f"current time: {datetime.fromtimestamp(time.time())}"
+                            )
+                            time.sleep(5)
+                        expected_storage_class = config.second_storage_class
+                        config.test_ops[
+                            "expected_storage_class"
+                        ] = expected_storage_class
+                        lc_ops.validate_prefix_rule(bucket, config)
+
+                        rule3_lc_seconds = (
+                            config.rgw_lc_debug_interval
+                            * config.test_ops.get("rule3_lc_days")
+                        )
+                        rule3_lc_timestamp = rule2_lc_timestamp + rule3_lc_seconds
+                        log.info(
+                            f"sleeping till {datetime.fromtimestamp(rule3_lc_timestamp)} before verifying lc transition rule3"
+                        )
+                        while time.time() < rule3_lc_timestamp:
+                            log.info(
+                                f"current time: {datetime.fromtimestamp(time.time())}"
+                            )
+                            time.sleep(5)
+                        expected_storage_class = config.storage_class
+                        config.test_ops[
+                            "expected_storage_class"
+                        ] = expected_storage_class
+                        lc_ops.validate_prefix_rule(bucket, config)
+                    else:
+                        log.info("sleeping for 30 seconds")
+                        time.sleep(30)
+                        lc_ops.validate_prefix_rule(bucket, config)
 
                     if config.test_ops["delete_marker"] is True:
                         life_cycle_rule_new = {"Rules": config.delete_marker_ops}
