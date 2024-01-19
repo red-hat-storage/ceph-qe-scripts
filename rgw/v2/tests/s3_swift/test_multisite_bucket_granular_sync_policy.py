@@ -5,6 +5,11 @@ Usage: test_multisite_bucket_granular_sync_policy.py
 	Note: Any one of these yamls can be used
     multisite_configs/test_multisite_granular_bucket_sync_policy.yaml
     multisite_configs/test_multisite_granular_bucketsync_allowed_forbidden.yaml
+    multisite_configs/test_multisite_granular_bucketsync_enable_enable.yaml
+    multisite_configs/test_multisite_granular_bucketsync_enabled_forbidden.yaml
+    multisite_configs/test_multisite_granular_bucketsync_forbidden_enabled.yaml
+    multisite_configs/test_multisite_granular_bucketsync_forbidden_forbidden.yaml
+    multisite_configs/test_multisite_granular_bucketsync_forbidden_allowed.yaml
 
 Operation:
 	Creates delete sync policy group bucket , zonegroupl level
@@ -59,6 +64,9 @@ def test_exec(config, ssh_con):
                 log.info(f"Another site is: {zone['name']} and ip {node_rgw}")
                 break
         rgw_ssh_con = utils.connect_remote(node_rgw)
+        if config.test_ops.get("write_io_verify_another_site", False):
+            other_site_auth = Auth(each_user, rgw_ssh_con, ssl=config.ssl)
+            other_site_rgw_conn = other_site_auth.do_auth()
 
         # create buckets
         if config.test_ops.get("create_bucket", False):
@@ -212,7 +220,7 @@ def test_exec(config, ssh_con):
                         else:
                             time.sleep(1200)
                             _, stdout, _ = rgw_ssh_con.exec_command(
-                                f"radosgw-admin bucket stats --bucket {bucket.name}"
+                                f"radosgw-admin bucket stats --bucket {bkt.name}"
                             )
                             cmd_output = json.loads(stdout.read().decode())
 
@@ -222,10 +230,10 @@ def test_exec(config, ssh_con):
                                 == config.objects_count
                             ):
                                 raise TestExecError(
-                                    f"object should not sync to another site for bucket {bucket.name}, but synced"
+                                    f"object should not sync to another site for bucket {bkt.name}, but synced"
                                 )
                             log.info(
-                                f"object did not sync to another site for bucket {bucket.name} as expected"
+                                f"object did not sync to another site for bucket {bkt.name} as expected"
                             )
 
                             if config.test_ops.get("bucket_sync", False):
@@ -261,7 +269,7 @@ def test_exec(config, ssh_con):
                                 new_obj_count = config.objects_count * 2
                                 time.sleep(1200)
                                 _, re_stdout, _ = rgw_ssh_con.exec_command(
-                                    f"radosgw-admin bucket stats --bucket {bucket.name}"
+                                    f"radosgw-admin bucket stats --bucket {bkt.name}"
                                 )
                                 re_cmd_output = json.loads(re_stdout.read().decode())
                                 if (
@@ -270,8 +278,91 @@ def test_exec(config, ssh_con):
                                     != new_obj_count
                                 ):
                                     log.error(
-                                        f"object should be sync to another site for bucket {bucket.name}, but not synced"
+                                        f"object should be sync to another site for bucket {bkt.name}, but not synced"
                                     )
+
+                        if config.test_ops.get("write_io_verify_another_site", False):
+                            _, stdout, _ = rgw_ssh_con.exec_command(
+                                f"radosgw-admin bucket stats --bucket {bkt.name}"
+                            )
+                            cmd_output = json.loads(stdout.read().decode())
+                            num_objects = (
+                                cmd_output["usage"]["rgw.main"]["num_objects"]
+                                if "rgw.main" in cmd_output["usage"].keys()
+                                else 0
+                            )
+
+                            other_site_bucket = s3lib.resource_op(
+                                {
+                                    "obj": other_site_rgw_conn,
+                                    "resource": "Bucket",
+                                    "args": [bkt.name],
+                                }
+                            )
+                            for oc, size in list(config.mapped_sizes.items()):
+                                config.obj_size = size
+                                s3_object_name = "new-" + utils.gen_s3_object_name(
+                                    bkt.name, oc
+                                )
+                                log.info(f"s3 object name: {s3_object_name}")
+                                s3_object_path = os.path.join(
+                                    TEST_DATA_PATH, s3_object_name
+                                )
+                                log.info(f"s3 object path: {s3_object_path}")
+                                log.info("upload type: normal")
+                                reusable.upload_object(
+                                    s3_object_name,
+                                    other_site_bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                )
+
+                            _, stats_stdout, _ = rgw_ssh_con.exec_command(
+                                f"radosgw-admin bucket stats --bucket {bkt.name}"
+                            )
+                            re_cmd_output = json.loads(stats_stdout.read().decode())
+                            log.info(f"re_cmd_output : {re_cmd_output}")
+                            new_object_count = num_objects + config.objects_count
+                            if (
+                                re_cmd_output["usage"]["rgw.main"]["num_objects"]
+                                != new_object_count
+                            ):
+                                raise TestExecError(
+                                    f"Failed to upload new objects to bucket {bkt.name}"
+                                )
+
+                            log.info(
+                                f"Verify object sync on other site for bucket {bkt.name}"
+                            )
+                            time.sleep(1200)
+                            bucket_stats = json.loads(
+                                utils.exec_shell_cmd(
+                                    f"radosgw-admin bucket stats --bucket {bkt.name}"
+                                )
+                            )
+                            bkt_objects = bucket_stats["usage"]["rgw.main"][
+                                "num_objects"
+                            ]
+
+                            if config.test_ops.get(
+                                "write_io_verify_should_sync", False
+                            ):
+                                if bkt_objects != config.objects_count * 2:
+                                    raise TestExecError(
+                                        f"Object did not sync in bucket {bkt.name}, but found {bkt_objects}"
+                                    )
+                                log.info(
+                                    f"Object synced for bucket {bkt.name}, on another site as expected"
+                                )
+                            else:
+                                if bkt_objects != config.objects_count:
+                                    raise TestExecError(
+                                        f"Object should not sync in bucket {bkt.name}, but found {bkt_objects}"
+                                    )
+                                log.info(
+                                    f"Object did not sync for bucket {bkt.name}, on another site as expected"
+                                )
 
     if config.test_ops.get("zonegroup_group_remove", False):
         group_id = reusable.group_operation(group_id, "remove", group_status)
@@ -281,6 +372,9 @@ def test_exec(config, ssh_con):
     crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
+
+    for i in all_users_info:
+        reusable.remove_user(i)
 
     # check for any health errors or large omaps
     out = utils.get_ceph_status()
