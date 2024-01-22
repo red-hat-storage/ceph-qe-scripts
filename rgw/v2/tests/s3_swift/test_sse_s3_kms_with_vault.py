@@ -221,6 +221,12 @@ def test_exec(config, ssh_con):
                                 rgw_conn,
                                 each_user,
                             )
+                    if config.test_sync_consistency_bucket_stats:
+                        ##Verify the bugs 2236643 and 2247742
+                        log.info("Test consistency in size(via bucket stats).")
+                        reusable.test_bucket_stats_across_sites(
+                            bucket_name_to_create, config
+                        )
     # check sync status if a multisite cluster
     reusable.check_sync_status()
 

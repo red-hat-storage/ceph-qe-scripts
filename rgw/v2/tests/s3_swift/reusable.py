@@ -2107,8 +2107,11 @@ def test_bucket_stats_across_sites(bucket_name_to_create, config):
         log.info(
             f"collect bucket stats for {bucket_name_to_create} at remote site {zone_name}"
         )
-        log.info("Wait for the sync lease period of 1200 seconds")
-        time.sleep(1200)
+        if config.test_ops["download_object_at_remote_site"] is True:
+            log.info("We have already waited for the sync lease period")
+        else:
+            log.info("We have to wait for sync lease period")
+            time.sleep(1200)
         stdin, stdout, stderr = remote_site_ssh_con.exec_command(cmd_bucket_stats)
         cmd_output = stdout.read().decode()
         stats_remote = json.loads(cmd_output)
@@ -2124,7 +2127,7 @@ def test_bucket_stats_across_sites(bucket_name_to_create, config):
             log.info(f"Data is consistent for bucket {bucket_name_to_create}")
         else:
             raise TestExecError(
-                "Data is inconsistent for {bucket_name_to_create} across sites"
+                f"Data is inconsistent for {bucket_name_to_create} across sites"
             )
 
 
