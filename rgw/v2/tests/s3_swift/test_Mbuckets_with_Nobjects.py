@@ -733,8 +733,12 @@ def test_exec(config, ssh_con):
                             float(ceph_version_id[0]) == 17
                             and float(ceph_version_id[1]) >= 2
                             and float(ceph_version_id[2]) >= 6
+                        ) or (
+                            float(ceph_version_id[0]) == 18
+                            and float(ceph_version_id[1]) >= 2
+                            and float(ceph_version_id[2]) >= 1
                         ):
-                            log.info("Entering quincy")
+                            log.info("validating orphaned object as per new format")
                             if len(bkt_check_before["invalid_multipart_entries"]) < 1:
                                 raise AssertionError(
                                     f"Orphaned object not found in bucket {bucket.name}"
@@ -755,8 +759,12 @@ def test_exec(config, ssh_con):
                             float(ceph_version_id[0]) == 17
                             and float(ceph_version_id[1]) >= 2
                             and float(ceph_version_id[2]) >= 6
+                        ) or (
+                            float(ceph_version_id[0]) == 18
+                            and float(ceph_version_id[1]) >= 2
+                            and float(ceph_version_id[2]) >= 1
                         ):
-                            log.info("Entering quincy")
+                            log.info("validating bucket check as per new format")
                             if len(bkt_check_after["invalid_multipart_entries"]) != 0:
                                 raise AssertionError(
                                     f"bucket check fix did not removed orphan objects on a bucket {bucket.name}"
