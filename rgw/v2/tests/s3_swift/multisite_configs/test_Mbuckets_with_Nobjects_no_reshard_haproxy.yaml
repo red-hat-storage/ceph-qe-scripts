@@ -14,6 +14,7 @@ config:
     create_bucket: true
     create_object: true
     download_object: false
+    download_object_at_remote_site: false
     delete_bucket_object: false
     sharding:
       enable: false
