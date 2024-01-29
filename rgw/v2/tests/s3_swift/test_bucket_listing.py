@@ -28,6 +28,7 @@ import logging
 import time
 import traceback
 
+import botocore
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -48,7 +49,6 @@ encryption_key = hashlib.md5(password).hexdigest()
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
@@ -77,6 +77,7 @@ def test_exec(config, ssh_con):
             rgw_conn = auth.do_auth(**{"signature_version": "s3v4"})
         else:
             rgw_conn = auth.do_auth()
+            rgw_client = auth.do_auth_using_client()
         objects_created_list = []
         bucket_created = []
 
@@ -327,7 +328,34 @@ def test_exec(config, ssh_con):
                 else:
                     reusable.delete_objects(bkt)
                 time.sleep(120)
-                reusable.delete_bucket(bkt)
+                try:
+                    reusable.delete_bucket(bkt)
+                except TestExecError as e:
+                    log.error(
+                        f"sleeping for 10 seconds before checking if bucket still exists after deletion failure"
+                    )
+                    time.sleep(10)
+                    try:
+                        response = rgw_client.head_bucket(Bucket=bkt.name)
+                        log.error(response)
+                        raise Exception(
+                            f"head_bucket not failed, bucket {bkt.name} not deleted"
+                        )
+                    except botocore.exceptions.ClientError as e:
+                        log.info(f"head bucket response: {e.response}")
+                        log.info("head bucket failed as expected as bucket is deleted")
+                    if utils.exec_shell_cmd(
+                        f"radosgw-admin bucket stats --bucket {bkt.name}"
+                    ):
+                        raise Exception(
+                            f"bucket stats not failed on deleted bucket {bkt.name}"
+                        )
+                    if utils.exec_shell_cmd(
+                        f"radosgw-admin bucket list --bucket {bkt.name}"
+                    ):
+                        raise Exception(
+                            f"bucket list not failed on deleted bucket {bkt.name}"
+                        )
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
@@ -341,7 +369,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("Listing objects of a bucket via radosgw-admin and boto")
     test_info.started_info()
 
