@@ -14,6 +14,8 @@ from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import RGWBaseException
 from v2.lib.resource_op import Config
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.sync_status import sync_status
+from v2.tests.s3_swift import reusable
 from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -88,6 +90,17 @@ def test_exec(config, ssh_con):
                 log.info(f"user modify with placement id out put is {out}")
                 if "*** Caught signal (Aborted) **" in out:
                     raise AssertionError("user modify with placementid caused crash!!")
+
+        is_multisite = utils.is_cluster_multisite()
+        if is_multisite:
+            log.info("Cluster is multisite")
+            remote_site_ssh_con = reusable.get_remote_conn_in_multisite()
+
+            log.info("Check sync status in local site")
+            sync_status()
+
+            log.info("Check sync status in remote site")
+            sync_status(ssh_con=remote_site_ssh_con)
 
         test_info.success_status("test passed")
         sys.exit(0)
