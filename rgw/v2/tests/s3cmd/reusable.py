@@ -230,17 +230,28 @@ def rate_limit_set_enable(
     max_write_ops,
     max_write_bytes,
     global_scope=None,
+    uid=None,
 ):
     """Set and enable rate limits for the scope mentioned"""
-    limset = utils.exec_shell_cmd(
-        f"radosgw-admin {global_scope} ratelimit set --ratelimit-scope={scope}"
-        + f" --max-read-ops={max_read_ops} --max-read-bytes={max_read_bytes}"
-        + f" --max-write-bytes={max_write_bytes} --max-write-ops={max_write_ops}"
-    )
-    log.info(f"Rate limits set on {scope}")
-    limenable = utils.exec_shell_cmd(
-        f"radosgw-admin {global_scope} ratelimit enable --ratelimit-scope={scope}"
-    )
+    if uid is None:
+        limset = utils.exec_shell_cmd(
+            f"radosgw-admin {global_scope} ratelimit set --ratelimit-scope={scope}"
+            + f" --max-read-ops={max_read_ops} --max-read-bytes={max_read_bytes}"
+            + f" --max-write-bytes={max_write_bytes} --max-write-ops={max_write_ops}"
+        )
+        limenable = utils.exec_shell_cmd(
+            f"radosgw-admin {global_scope} ratelimit enable --ratelimit-scope={scope}"
+        )
+    else:
+        limset = utils.exec_shell_cmd(
+            f"radosgw-admin ratelimit set --ratelimit-scope={scope} --uid {uid}"
+            + f" --max-read-ops={max_read_ops} --max-read-bytes={max_read_bytes}"
+            + f" --max-write-bytes={max_write_bytes} --max-write-ops={max_write_ops}"
+        )
+        limenable = utils.exec_shell_cmd(
+            f"radosgw-admin ratelimit enable --ratelimit-scope={scope} --uid {uid}"
+        )
+    log.info(f"Rate limits set and enabled on {scope}")
 
 
 def rate_limit_read(bucket, max_read_ops, ssl=None, file=None):
