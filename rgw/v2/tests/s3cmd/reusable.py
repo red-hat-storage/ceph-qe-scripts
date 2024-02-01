@@ -10,6 +10,7 @@ import socket
 import subprocess
 import sys
 import time
+import xml.etree.ElementTree as xml
 
 import boto
 import boto.s3.connection
@@ -18,7 +19,12 @@ log = logging.getLogger()
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../../")))
 
-from v2.lib.exceptions import S3CommandExecError
+from v2.lib.exceptions import (
+    DefaultDatalogBackingError,
+    MFAVersionError,
+    S3CommandExecError,
+    TestExecError,
+)
 from v2.lib.manage_data import io_generator
 from v2.lib.s3cmd.resource_op import S3CMD
 from v2.utils import utils
@@ -294,13 +300,20 @@ def remote_zone_bucket_stats(bucket_name, config):
     get bucket stats at the remote zone
     """
     zone_name = config.remote_zone
-    bucket_name = f"tenant/{bucket_name}"
+    if config.full_sync_test:
+        bucket_name = f"tenant/{bucket_name}"
+    else:
+        bucket_name = f"{bucket_name}"
     log.info(f"remote zone is {zone_name}")
     remote_ip = utils.get_rgw_ip_zone(zone_name)
     remote_site_ssh_con = utils.connect_remote(remote_ip)
     log.info(f"collect bucket stats for {bucket_name} at remote site {zone_name}")
-    log.info("Wait for the sync lease period + 10 minutes")
-    time.sleep(1800)
+    if config.full_sync_test:
+        log.info("Wait for the sync lease period + 10 minutes")
+        time.sleep(1800)
+    else:
+        log.info(f"Wait for sometime for the objects to sync.")
+        time.sleep(300)
     cmd_bucket_stats = f"radosgw-admin bucket stats --bucket {bucket_name}"
     stdin, stdout, stderr = remote_site_ssh_con.exec_command(cmd_bucket_stats)
     cmd_output = stdout.read().decode()
@@ -346,3 +359,149 @@ def test_full_sync_at_archive(bucket_name, config):
         log.info(f"Data is consistent for bucket {bucket_name}")
     else:
         raise TestExecError(f"Data is inconsistent for {bucket_name} across sites")
+
+
+def Generate_LC_xml(fileName, config):
+    """
+    Generate an LC xml file
+    """
+    lifecycle_configuration = xml.Element("LifecycleConfiguration")
+    lc_rule = xml.Element("Rule")
+    lifecycle_configuration.append(lc_rule)
+    rule_id = xml.SubElement(lc_rule, "ID")
+    rule_id.text = "Test LC expiration at archive zone"
+    rule_status = xml.SubElement(lc_rule, "Status")
+    rule_status.text = "Enabled"
+    rule_filter = xml.SubElement(lc_rule, "Filter")
+    if config.test_ops.get("test_lc_objects_size"):
+        filter_and = xml.SubElement(rule_filter, "And")
+        and_prefix = xml.SubElement(filter_and, "Prefix")
+        and_ObjectSizeGreaterThan = xml.SubElement(filter_and, "ObjectSizeGreaterThan")
+        and_ObjectSizeLessThan = xml.SubElement(filter_and, "ObjectSizeLessThan")
+        and_ObjectSizeLessThan.text = "64000"
+        and_ObjectSizeGreaterThan.text = "500"
+        and_prefix.text = "tax"
+    else:
+        filter_prefix = xml.SubElement(rule_filter, "Prefix")
+        filter_prefix.text = "tax"
+    if config.test_ops.get("test_lc_archive_zone"):
+        filter_archive_zone = xml.SubElement(rule_filter, "ArchiveZone")
+    if config.test_ops.get("test_current_expiration"):
+        rule_Expiration = xml.SubElement(lc_rule, "Expiration")
+        Days = xml.SubElement(rule_Expiration, "Days")
+        Days.text = str(config.test_ops.get("days"))
+    if config.test_ops.get("test_noncurrent_expiration"):
+        rule_NoncurrentVersionExpiration = xml.SubElement(
+            lc_rule, "NoncurrentVersionExpiration"
+        )
+        Noncurrentdays = xml.SubElement(
+            rule_NoncurrentVersionExpiration, "NoncurrentDays"
+        )
+        Noncurrentdays.text = str(config.test_ops.get("days"))
+        if config.test_ops.get("test_newer_noncurrent_expiration"):
+            NewerNoncurrentVersions = xml.SubElement(
+                rule_NoncurrentVersionExpiration, "NewerNoncurrentVersions"
+            )
+            NewerNoncurrentVersions.text = str(config.test_ops.get("newernoncurrent"))
+    if config.test_ops.get("test_lc_transition"):
+        rule_transition = xml.SubElement(lc_rule, "Transition")
+        Days = xml.SubElement(rule_transition, "Days")
+        Days.text = config.test_ops.get["days"]
+        if config.test_ops.get("test_noncurrent_transition"):
+            rule_NoncurrentVersionTransition = xml.SubElement(
+                lc_rule, "NoncurrentVersionTransition"
+            )
+            Noncurrentdays = xml.SubElement(
+                rule_NoncurrentVersionTransition, "NoncurrentDays"
+            )
+            Noncurrentdays.text = config.test_ops.get["days"]
+
+    tree = xml.ElementTree(lifecycle_configuration)
+    tree.write(fileName)
+
+
+def lc_validation_at_archive_zone(bucket_name, config):
+    log.info("Lifecycle validation will start, verify the objects")
+    objects_count = config.objects_count
+    objs_total = (config.version_count) * (config.objects_count)
+    objs_ncurr = objs_total - (config.objects_count)
+    log.info(f"total noncurrent objects are {objs_ncurr}")
+    objs_diff = objs_total - objs_ncurr
+    if config.test_ops.get("test_lc_expiration"):
+        validation_time = int(config.test_ops["days"] * 30)
+        log.info(f"wait for the lc validation time {validation_time}")
+        time.sleep(validation_time)
+        remote_size, remote_num_objects = remote_zone_bucket_stats(bucket_name, config)
+        if config.test_ops.get("test_current_expiration"):
+            if not remote_num_objects == objs_total:
+                raise TestExecError(
+                    "Test failed for LC current version expiration at archive zone."
+                )
+            log.info("current_expiration is validated at the archive zone")
+        if config.test_ops.get("test_noncurrent_expiration"):
+            if config.test_ops.get("test_newer_noncurrent_expiration"):
+                newer_noncurrent_objects = int(
+                    (config.test_ops["newernoncurrent"]) * (config.objects_count)
+                    + config.objects_count
+                )
+                log.info(
+                    f" the newer noncurrent objects remaining will be {newer_noncurrent_objects}"
+                )
+                if not remote_num_objects == newer_noncurrent_objects:
+                    raise TestExecError(
+                        "Test failed for LC newer-noncurrent version expiration at archive zone."
+                    )
+            elif config.test_ops.get("test_lc_objects_size"):
+                log.info("Assuming the rule is applied for noncurrentversionexpiration")
+                if not remote_num_objects == objs_diff:
+                    raise TestExecError(
+                        "Test failed for LC expiration based on object size."
+                    )
+            else:
+                if not remote_num_objects == objs_diff:
+                    raise TestExecError(
+                        "Test failed for LC noncurrent version expiration at archive zone."
+                    )
+                log.info("non_current_expiration is validated at the archive zone")
+
+
+def upload_objects_via_s3cmd(bucket_name, config):
+    s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+    if config.objects_count >= 20:
+        obj_count_4Kb = config.objects_count - 2
+        obj_count_64Kb = config.objects_count - obj_count_4Kb
+        utils.exec_shell_cmd(f"fallocate -l 4k obj4k")
+        utils.exec_shell_cmd(f"fallocate -l 64k obj64k")
+        if config.version_enable:
+            version_count = config.version_count
+            for versions in range(config.version_count):
+                for sobj in range(obj_count_4Kb):
+                    log.info(
+                        f"upload 4Kb objects on versioned bucket {bucket_name} for {versions} version"
+                    )
+                    cmd = f"{s3cmd_path} put obj4k s3://{bucket_name}/tax-4k-obj-{sobj}"
+                    utils.exec_shell_cmd(cmd)
+                for sobj in range(obj_count_64Kb):
+                    log.info(
+                        f"upload 64Kb objects on versioned bucket {bucket_name} for {versions} version"
+                    )
+                    cmd = (
+                        f"{s3cmd_path} put obj4k s3://{bucket_name}/tax-64k-obj-{sobj}"
+                    )
+                    utils.exec_shell_cmd(cmd)
+        else:
+            for sobj in range(obj_count_4Kb):
+                log.info(f"Upload 4Kb objects to the {bucket_name}")
+                cmd = f"{s3cmd_path} put obj4k s3://{bucket_name}/tax-4k-obj-{sobj}"
+                utils.exec_shell_cmd(cmd)
+            for sobj in range(obj_count_64Kb):
+                log.info(f"Upload 64Kb objects to the {bucket_name}")
+                cmd = f"{s3cmd_path} put obj4k s3://{bucket_name}/tax-64k-obj-{sobj}"
+                utils.exec_shell_cmd(cmd)
+    if config.test_ops.get("large_multipart_upload"):
+        obj_count = config.objects_count
+        log.info(f"uploading some large objects to bucket {bucket_name}")
+        utils.exec_shell_cmd(f"fallocate -l 20m obj20m")
+        for mobj in range(obj_count):
+            cmd = f"{s3cmd_path} put obj20m s3://{bucket_name}/multipart-object-{mobj}"
+            utils.exec_shell_cmd(cmd)

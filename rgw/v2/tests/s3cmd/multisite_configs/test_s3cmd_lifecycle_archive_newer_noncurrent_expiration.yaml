@@ -1,0 +1,22 @@
+# test case id: CEPH-83575917
+config:
+  user_count: 1
+  bucket_count: 1
+  remote_zone: archive
+  local_zone: primary
+  container_count: 1
+  objects_count: 20
+  version_enable: true
+  version_count: 5
+  test_ops:
+    test_lc_expiration: true
+    test_lc_archive_zone: true
+    days: 3
+    test_current_expiration: false
+    test_noncurrent_expiration: true
+    test_newer_noncurrent_expiration: true
+    newernoncurrent: 2
+    test_lc_objects_size: false
+    test_lc_transition: false
+    test_noncurrent_transition: false
+    large_multipart_upload: false
