@@ -2107,7 +2107,7 @@ def test_bucket_stats_across_sites(bucket_name_to_create, config):
         log.info(
             f"collect bucket stats for {bucket_name_to_create} at remote site {zone_name}"
         )
-        if config.test_ops["download_object_at_remote_site"] is True:
+        if config.test_ops.get("download_object_at_remote_site", False):
             log.info("We have already waited for the sync lease period")
         else:
             log.info("We have to wait for sync lease period")
