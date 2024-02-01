@@ -11,6 +11,7 @@ usage : test_list_all_multipart_uploads.py -c <input_yaml>
     configs/test_bucket_put_get_lifecycle_configuration_with_tenant_users.yaml
     configs/get_object_and_its_versions_tenat_user.yaml
     configs/test_put_get_bucket_notification_with_tenant_same_and_different_user.yaml
+    configs/test_put_bucket_website_with_tenant_same_and_different_user.yaml
 
 Operation:
 - Create users in the same tenant, user1 and user2 (if required user3)
@@ -34,6 +35,7 @@ import json
 import logging
 import random
 import string
+import time
 import traceback
 import uuid
 
@@ -44,13 +46,14 @@ from botocore.exceptions import ClientError
 from botocore.handlers import validate_bucket_name
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import bucket_notification as notification
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import HttpResponseParser
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
 
@@ -90,6 +93,22 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
+    if config.rgw_enable_static_website:
+        ceph_conf = CephConfOp(ssh_con)
+        rgw_service = RGWService()
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_enable_static_website,
+            str(config.rgw_enable_static_website),
+            ssh_con,
+        )
+        log.info("trying to restart services")
+        srv_restarted = rgw_service.restart(ssh_con)
+        time.sleep(30)
+        if srv_restarted is False:
+            raise TestExecError("RGW service restart failed")
+        else:
+            log.info("RGW service restarted")
 
     additional_aws_principle = []
     location = None
@@ -118,6 +137,8 @@ def test_exec(config, ssh_con):
             action_list = ["GetObject", "GetObjectVersion"]
         elif config.test_ops.get("put_get_bucket_notification", False):
             action_list = ["GetBucketNotification", "PutBucketNotification"]
+        if config.test_ops.get("put_bucket_website", False):
+            action_list = ["PutBucketWebsite"]
         additional_aws_principle = [
             f"arn:aws:iam::{tenant1}:user/{tenant1_user3_info['user_id']}"
         ]
@@ -252,6 +273,38 @@ def test_exec(config, ssh_con):
                     raise TestExecError("bucket policy creation failed")
             else:
                 raise TestExecError("bucket policy creation failed")
+
+            if config.test_ops.get("put_bucket_website", False):
+                reusable.put_bucket_website(rgw_tenant1_user1_c, bucket.name)
+
+                log.info(
+                    "perform put bucket website with non bucket owner of same tenant"
+                )
+                reusable.put_bucket_website(rgw_tenant1_user2_c, bucket.name)
+                reusable.put_bucket_website(rgw_tenant1_user3_c, bucket.name)
+
+                log.info(
+                    "perform put bucket website with non bucket owner of different tenant"
+                )
+                bucket_name_verify_policy = f"{tenant1}:{bucket.name}"
+                rgw_tenant2_user1_c.meta.events.unregister(
+                    "before-parameter-build.s3", validate_bucket_name
+                )
+                rgw_tenant2_user2_c.meta.events.unregister(
+                    "before-parameter-build.s3", validate_bucket_name
+                )
+                rgw_tenant2_user3_c.meta.events.unregister(
+                    "before-parameter-build.s3", validate_bucket_name
+                )
+                reusable.put_bucket_website(
+                    rgw_tenant2_user1_c, bucket_name_verify_policy
+                )
+                reusable.put_bucket_website(
+                    rgw_tenant2_user2_c, bucket_name_verify_policy
+                )
+                reusable.put_bucket_website(
+                    rgw_tenant2_user3_c, bucket_name_verify_policy
+                )
 
             if config.test_ops.get("list_bucket_multipart_uploads", False):
                 bucket2_name = tenant1_user1_info["user_id"] + "bkt-multipart-0"

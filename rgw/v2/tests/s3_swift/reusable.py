@@ -2205,3 +2205,30 @@ def validate_incomplete_multipart(bucket_name, rgw_conn):
         incomplete_multipart = True
 
     return incomplete_multipart
+
+
+def put_bucket_website(rgw_conn, bucket_name):
+    """
+    Perform put bucket wesite on given bucket
+
+    Parameters:
+    param rgw_conn: rgw connection
+    param bucket_name(str): Name of the bucket
+    """
+    log.info(f"perform put website on bucket: {bucket_name}\n")
+    website_conf = {
+        "ErrorDocument": {"Key": "error.html"},
+        "IndexDocument": {"Suffix": "index.html"},
+    }
+    put_bucket_wesite = rgw_conn.put_bucket_website(
+        Bucket=bucket_name, WebsiteConfiguration=website_conf
+    )
+    log.info(f"put_bucket_wesite {put_bucket_wesite}")
+    if put_bucket_wesite is False:
+        raise TestExecError(f"Set bucket website failed with {put_bucket_wesite}")
+    if put_bucket_wesite is not None:
+        response = HttpResponseParser(put_bucket_wesite)
+        if response.status_code != 200:
+            raise TestExecError(f"put bucket website failed for {bucket_name}")
+    else:
+        raise TestExecError(f"put bucket website operation failed for {bucket_name}")
