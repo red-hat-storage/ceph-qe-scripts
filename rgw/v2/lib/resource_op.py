@@ -431,6 +431,14 @@ class Config(object):
         self.user_max_read_bytes = self.doc["config"].get("user_max_read_bytes")
         self.user_max_write_ops = self.doc["config"].get("user_max_write_ops")
         self.user_max_write_bytes = self.doc["config"].get("user_max_write_bytes")
+        self.user_conflict_read_bytes = self.doc["config"].get(
+            "user_conflict_read_bytes"
+        )
+        self.user_conflict_read_ops = self.doc["config"].get("user_conflict_read_ops")
+        self.user_conflict_write_bytes = self.doc["config"].get(
+            "user_conflict_write_bytes"
+        )
+        self.user_conflict_write_ops = self.doc["config"].get("user_conflict_write_ops")
         self.permutation_count = self.doc["config"].get("permutation_count")
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class

@@ -10,12 +10,15 @@ Usage: test_ratelimit_global.py -c <input_yaml>
 Polarion Tests:
 CEPH-83574915
 CEPH-83574916
+CEPH-83574919
 
 Operation:
     Create an user
     Create a bucket with user credentials
     Enable the limits max-read-ops, max-read-bytes, max-write-ops, max-write-bytes on a global zone scope
     Verify the rate limits using s3cmd
+    Enable conflicting rate limits on the user scope
+    Verify that the user limits take precedence
 """
 
 import argparse
@@ -161,6 +164,40 @@ def test_exec(config, ssh_con):
     s3cmd_reusable.rate_limit_read(bucket_name2, max_read_bytes_kb, ssl)
 
     s3cmd_reusable.rate_limit_write(bucket_name2, max_write_bytes_kb, ssl)
+
+    # set conflicting limits on the user with user scope
+    conflict_read_bytes = config.user_conflict_read_bytes
+    conflict_read_ops = config.user_conflict_read_ops
+    conflict_write_bytes = config.user_conflict_write_bytes
+    conflict_write_ops = config.user_conflict_write_ops
+
+    conflict_read_bytes_kb = math.ceil(float(conflict_read_bytes) / 1024)
+    conflict_write_bytes_kb = math.ceil(float(conflict_write_bytes) / 1024)
+
+    s3cmd_reusable.rate_limit_set_enable(
+        "user",
+        conflict_read_ops,
+        conflict_read_bytes,
+        conflict_write_ops,
+        conflict_write_bytes,
+        "",
+        user_name,
+    )
+    log.info(
+        "Conflicting rate limits set on user at global and user scope, user scope should prevail"
+    )
+    sleep(61)
+    s3cmd_reusable.rate_limit_read(bucket_name2, conflict_read_ops, ssl)
+
+    s3cmd_reusable.rate_limit_write(bucket_name2, conflict_write_ops, ssl)
+
+    s3cmd_reusable.rate_limit_read(bucket_name2, conflict_read_bytes_kb, ssl)
+
+    s3cmd_reusable.rate_limit_write(bucket_name2, conflict_write_bytes_kb, ssl)
+
+    utils.exec_shell_cmd(
+        f"radosgw-admin ratelimit disable --ratelimit-scope=user --uid {user_name}"
+    )
 
     utils.exec_shell_cmd(
         f"radosgw-admin global ratelimit disable --ratelimit-scope=user"
