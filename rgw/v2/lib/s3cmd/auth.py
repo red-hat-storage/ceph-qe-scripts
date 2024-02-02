@@ -47,8 +47,13 @@ def update_s3cfg_file(user_info, ip_and_port):
         user_info(dict): User Information
         ip_and_port(str): RGW ip and port in <ip>:<port> forma
     """
+    port = str(ip_and_port).split(":")[1]
+    log.info(f"Port  is {port}")
     parser = RawConfigParser()
     parser.read(root_path + "/" + "s3cfg")
+    if str(port) == "443":
+        log.info("SSl Configuration")
+        parser.set("default", "use_https", "True")
     parser.set("default", "access_key", user_info["access_key"])
     parser.set("default", "secret_key", user_info["secret_key"])
     parser.set("default", "host_base", ip_and_port)
