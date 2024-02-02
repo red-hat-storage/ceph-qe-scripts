@@ -50,6 +50,7 @@ class ConfigOpts(object):
     rgw_crypt_sse_s3_vault_auth = "rgw_crypt_sse_s3_vault_auth"
     rgw_crypt_sse_s3_vault_prefix = "rgw_crypt_sse_s3_vault_prefix"
     rgw_crypt_sse_s3_vault_secret_engine = "rgw_crypt_sse_s3_vault_secret_engine"
+    rgw_enable_static_website = "rgw_enable_static_website"
 
 
 class CephConfFileOP(FileOps, ConfigParse):

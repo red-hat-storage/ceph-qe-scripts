@@ -365,6 +365,9 @@ class Config(object):
         self.bucket_check_fix = self.doc["config"].get("bucket_check_fix", False)
         self.rgw_ops_log = self.doc["config"].get("rgw_ops_log", False)
         self.user_reset = self.doc["config"].get("user_reset", False)
+        self.rgw_enable_static_website = self.doc["config"].get(
+            "rgw_enable_static_website", False
+        )
         self.multisite_global_sync_policy = self.doc["config"].get(
             "multisite_global_sync_policy", False
         )
