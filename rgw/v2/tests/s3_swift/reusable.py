@@ -1063,13 +1063,16 @@ def delete_bucket(bucket):
         bucket_deleted_response, dict
     ):
         response = HttpResponseParser(bucket_deleted_response)
+        log.info(bucket_deleted_response)
         if response.status_code == 204:
             log.info("bucket deleted ")
             write_bucket_info = BucketIoInfo()
             log.info("adding io info of delete bucket")
             write_bucket_info.set_bucket_deleted(bucket.name)
         else:
-            raise TestExecError("bucket deletion failed")
+            raise TestExecError(
+                f"bucket deletion failed with status code {response.status_code}"
+            )
     else:
         raise TestExecError("bucket deletion failed")
 
@@ -1190,10 +1193,10 @@ def time_to_list_via_radosgw(bucket_name, listing):
         cmd = "radosgw-admin bucket list --max-entries=100000 --bucket=%s " % (
             bucket_name
         )
-        time_taken = timeit.timeit(
-            stmt=time_taken_to_execute_command(cmd), globals=globals()
-        )
-        return time_taken
+        listing_start_time = time.time()
+        utils.exec_shell_cmd(cmd)
+        listing_end_time = time.time()
+        return listing_end_time - listing_start_time
 
     if listing == "unordered":
         log.info(
@@ -1203,10 +1206,10 @@ def time_to_list_via_radosgw(bucket_name, listing):
             "radosgw-admin bucket list --max-entries=100000 --bucket=%s --allow-unordered"
             % (bucket_name)
         )
-        time_taken = timeit.timeit(
-            stmt=time_taken_to_execute_command(cmd), globals=globals()
-        )
-        return time_taken
+        listing_start_time = time.time()
+        utils.exec_shell_cmd(cmd)
+        listing_end_time = time.time()
+        return listing_end_time - listing_start_time
 
 
 def time_to_list_via_boto(bucket_name, rgw):
