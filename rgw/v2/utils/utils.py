@@ -854,3 +854,28 @@ def get_localhost_ip_address():
     out = exec_shell_cmd("ip -o -f inet addr show | awk '/scope global/ {print $4}'")
     ip_addr = out.strip().split("/")[0]
     return ip_addr
+
+
+def search_for_string_in_rgw_logs(search_string, ssh_con):
+    """
+    This function will search for the specified string in debug_rgw 20 enabled logs
+    """
+    rgw_log_path = "sudo bash -c 'ls -t /var/log/ceph/*/ceph-client.rgw* | head -1'"
+    log.info(f"executing command: {rgw_log_path}")
+    stdin, stdout, stderr = ssh_con.exec_command(rgw_log_path)
+    cmd_output = str(stdout.read().decode())
+    log.info(f"command output: {cmd_output}")
+    if cmd_output == "":
+        log.error(f"stderr: {stderr.read()}")
+        raise Exception("no rgw log file found")
+    rgw_log_file = cmd_output.strip("\n")
+
+    cat_command = f"sudo bash -c 'cat {rgw_log_file} | grep -C 300 \"{search_string}\"'"
+    log.info(f"executing command: {cat_command}")
+    stdin, stdout, stderr = ssh_con.exec_command(cat_command)
+    cmd_output = str(stdout.read().decode())
+    log.info(f"command output: {cmd_output}")
+
+    if search_string in cmd_output:
+        return True
+    return False

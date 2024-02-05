@@ -1,0 +1,34 @@
+# polarion test case id: CEPH-83581390
+# test scripts : test_sts_aswi.py
+config:
+     bucket_count: 1
+     objects_count: 1
+     objects_size_range:
+          min: 2000M
+          max: 2500M
+     debug_rgw: 20
+     test_ops:
+          create_bucket: true
+          create_object: true
+          sts_creds_validity_seconds: 900
+          test_copy_in_progress_sts_creds_expire: true
+     sts:
+          policy_document:
+                "Version": "2012-10-17"
+                "Statement": [
+                    {
+                         "Effect": "Allow",
+                         "Principal": {
+                           "Federated": ["arn:aws:iam:::oidc-provider/ip_addr:8180/realms/master"]
+                         },
+                         "Action": ["sts:AssumeRoleWithWebIdentity"],
+                    }
+                ]
+          role_policy:
+               "Version": "2012-10-17"
+               "Statement":
+                    {
+                         "Effect": "Allow",
+                         "Action": "s3:*",
+                         "Resource": "arn:aws:s3:::*",
+                    }
