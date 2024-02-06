@@ -12,6 +12,7 @@ usage : test_list_all_multipart_uploads.py -c <input_yaml>
     configs/get_object_and_its_versions_tenat_user.yaml
     configs/test_put_get_bucket_notification_with_tenant_same_and_different_user.yaml
     configs/test_put_bucket_website_with_tenant_same_and_different_user.yaml
+    configs/test_get_bucket_website_with_tenant_same_and_different_user.yaml
 
 Operation:
 - Create users in the same tenant, user1 and user2 (if required user3)
@@ -139,6 +140,8 @@ def test_exec(config, ssh_con):
             action_list = ["GetBucketNotification", "PutBucketNotification"]
         if config.test_ops.get("put_bucket_website", False):
             action_list = ["PutBucketWebsite"]
+        if config.test_ops.get("get_bucket_website", False):
+            action_list = ["GetBucketWebsite"]
         additional_aws_principle = [
             f"arn:aws:iam::{tenant1}:user/{tenant1_user3_info['user_id']}"
         ]
@@ -303,6 +306,40 @@ def test_exec(config, ssh_con):
                     rgw_tenant2_user2_c, bucket_name_verify_policy
                 )
                 reusable.put_bucket_website(
+                    rgw_tenant2_user3_c, bucket_name_verify_policy
+                )
+
+            if config.test_ops.get("get_bucket_website", False):
+                reusable.put_bucket_website(rgw_tenant1_user1_c, bucket.name)
+                log.info("perform get bucket website with bucket owner")
+                reusable.get_bucket_website(rgw_tenant1_user1_c, bucket.name)
+
+                log.info(
+                    "perform get bucket website with non bucket owner of same tenant"
+                )
+                reusable.get_bucket_website(rgw_tenant1_user2_c, bucket.name)
+                reusable.get_bucket_website(rgw_tenant1_user3_c, bucket.name)
+
+                log.info(
+                    "perform get bucket website with non bucket owner of different tenant"
+                )
+                bucket_name_verify_policy = f"{tenant1}:{bucket.name}"
+                rgw_tenant2_user1_c.meta.events.unregister(
+                    "before-parameter-build.s3", validate_bucket_name
+                )
+                rgw_tenant2_user2_c.meta.events.unregister(
+                    "before-parameter-build.s3", validate_bucket_name
+                )
+                rgw_tenant2_user3_c.meta.events.unregister(
+                    "before-parameter-build.s3", validate_bucket_name
+                )
+                reusable.get_bucket_website(
+                    rgw_tenant2_user1_c, bucket_name_verify_policy
+                )
+                reusable.get_bucket_website(
+                    rgw_tenant2_user2_c, bucket_name_verify_policy
+                )
+                reusable.get_bucket_website(
                     rgw_tenant2_user3_c, bucket_name_verify_policy
                 )
 

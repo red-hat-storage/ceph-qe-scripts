@@ -2215,7 +2215,7 @@ def validate_incomplete_multipart(bucket_name, rgw_conn):
 
 def put_bucket_website(rgw_conn, bucket_name):
     """
-    Perform put bucket wesite on given bucket
+    Perform put bucket website on given bucket
 
     Parameters:
     param rgw_conn: rgw connection
@@ -2226,15 +2226,35 @@ def put_bucket_website(rgw_conn, bucket_name):
         "ErrorDocument": {"Key": "error.html"},
         "IndexDocument": {"Suffix": "index.html"},
     }
-    put_bucket_wesite = rgw_conn.put_bucket_website(
+    put_bucket_website = rgw_conn.put_bucket_website(
         Bucket=bucket_name, WebsiteConfiguration=website_conf
     )
-    log.info(f"put_bucket_wesite {put_bucket_wesite}")
-    if put_bucket_wesite is False:
-        raise TestExecError(f"Set bucket website failed with {put_bucket_wesite}")
-    if put_bucket_wesite is not None:
-        response = HttpResponseParser(put_bucket_wesite)
+    log.info(f"put_bucket_website response {put_bucket_website}")
+    if put_bucket_website is False:
+        raise TestExecError(f"Set bucket website failed with {put_bucket_website}")
+    if put_bucket_website is not None:
+        response = HttpResponseParser(put_bucket_website)
         if response.status_code != 200:
             raise TestExecError(f"put bucket website failed for {bucket_name}")
     else:
         raise TestExecError(f"put bucket website operation failed for {bucket_name}")
+
+
+def get_bucket_website(rgw_conn, bucket_name):
+    """
+    Perform get bucket website on given bucket
+
+    Parameters:
+    param rgw_conn: rgw connection
+    param bucket_name(str): Name of the bucket
+    """
+    get_bucket_website = rgw_conn.get_bucket_website(Bucket=bucket_name)
+    log.info(f"get_bucket_website response {get_bucket_website}")
+    if get_bucket_website is False:
+        raise TestExecError(f"Get bucket website failed with {get_bucket_website}")
+    if get_bucket_website is not None:
+        response = HttpResponseParser(get_bucket_website)
+        if response.status_code != 200:
+            raise TestExecError(f"get bucket website failed for {bucket_name}")
+    else:
+        raise TestExecError(f"get bucket website operation failed for {bucket_name}")
