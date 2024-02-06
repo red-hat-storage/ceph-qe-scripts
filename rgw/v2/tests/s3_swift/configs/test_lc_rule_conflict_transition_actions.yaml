@@ -14,7 +14,6 @@ config:
   second_pool_name: data.glacier
   second_storage_class: glacier
   conflict_transition_actions: True
-  rgw_lc_debug_interval: 80
   objects_size_range:
     min: 5
     max: 15
