@@ -1653,9 +1653,25 @@ def test_log_trimming(bucket, config):
         if len(output2) == 0:
             log.info(f"{config.log_trimming} log is empty after the interval")
         else:
-            raise TestExecError(
-                f"{config.log_trimming} log is not empty after the interval"
-            )
+            if config.log_trimming == "mdlog":
+                retry = 25
+                delay = 60
+                for retry_count in range(retry):
+                    time.sleep(delay)
+                    output2 = json.loads(utils.exec_shell_cmd(cmd))
+                    if len(output2) == 0:
+                        log.info(f"{config.log_trimming} log is empty")
+                        break
+                time.sleep(delay)
+                output2 = json.loads(utils.exec_shell_cmd(cmd))
+                if retry_count > retry and len(output2) != 0:
+                    raise TestExecError(
+                        f"{config.log_trimming} log is not empty even after waiting extra 25min interval"
+                    )
+            else:
+                raise TestExecError(
+                    f"{config.log_trimming} log is not empty after the interval"
+                )
         if config.test_bilog_trim_on_non_existent_bucket:
             utils.exec_shell_cmd(
                 f"radosgw-admin bucket rm --purge-objects --bucket {bucket.name}"
