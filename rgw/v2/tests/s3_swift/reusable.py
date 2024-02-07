@@ -63,7 +63,36 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
             raise TestExecError("bucket creation failed")
     else:
         raise TestExecError("bucket creation failed")
+
+    is_multisite = utils.is_cluster_multisite()
+    if is_multisite:
+        log.info("Cluster is multisite")
+        remote_site_ssh_con = get_remote_conn_in_multisite()
+
+        log.info("Check sync status in local site")
+        sync_status()
+
+        log.info("Check sync status in remote site")
+        sync_status(ssh_con=remote_site_ssh_con)
     return bucket
+
+
+def get_remote_conn_in_multisite():
+    """
+    Method to fetch remote ip incase of multisite setup
+    :return: ssh connection
+    """
+    primary = utils.is_cluster_primary()
+    if primary:
+        remote_zone_name = "secondary"
+    else:
+        remote_zone_name = "primary"
+
+    remote_rgw_ip = utils.get_rgw_ip_zone(remote_zone_name)
+    log.info(f"remote_ip : {remote_rgw_ip}")
+    remote_site_ssh_con = utils.connect_remote(remote_rgw_ip)
+    log.info(f"remote_site_ssh_con : {remote_site_ssh_con}")
+    return remote_site_ssh_con
 
 
 def create_bucket_readonly(bucket_name, rgw, user_info):

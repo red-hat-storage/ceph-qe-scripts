@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 
@@ -11,14 +12,20 @@ from v2.lib.exceptions import SyncFailedError
 log = logging.getLogger(__name__)
 
 
-def sync_status(retry=25, delay=60):
+def sync_status(retry=25, delay=60, ssh_con=None):
     """
     verify multisite sync status
     """
     log.info("check sync status")
     cmd = "sudo radosgw-admin sync status"
-    check_sync_status = utils.exec_shell_cmd(cmd)
-
+    if ssh_con:
+        log.info("Enter ssh-conn")
+        stdin, stdout, stderr = ssh_con.exec_command(cmd)
+        check_sync_status = stdout.read().decode()
+    else:
+        log.info("Enter non-ssh-conn")
+        check_sync_status = utils.exec_shell_cmd(cmd)
+    log.info(f"sync status op is: {check_sync_status}")
     # check for 'failed' or 'ERROR' in sync status.
     if "failed" in check_sync_status or "ERROR" in check_sync_status:
         log.info("checking for any sync error")
@@ -29,15 +36,19 @@ def sync_status(retry=25, delay=60):
         log.info("No errors or failures in sync status")
 
     log.info(
-        f"check if sync is in progress, if sync is in progress retry {retry} times with {delay}secs of sleep between each retry"
+        f"check if sync is in progress, if sync is in progress retry {retry} times with {delay} secs of sleep between each retry"
     )
     if "behind" in check_sync_status or "recovering" in check_sync_status:
         log.info("sync is in progress")
         log.info(f"sleep of {delay} secs for sync to complete")
         for retry_count in range(retry):
             time.sleep(delay)
-            cmd = "sudo radosgw-admin sync status"
-            check_sync_status = utils.exec_shell_cmd(cmd)
+            if ssh_con:
+                stdin, stdout, stderr = ssh_con.exec_command(cmd)
+                check_sync_status = stdout.read().decode()
+            else:
+                check_sync_status = utils.exec_shell_cmd(cmd)
+            log.info(f"sync status op is: {check_sync_status}")
             if "behind" in check_sync_status or "recovering" in check_sync_status:
                 log.info(f"sync is still in progress. sleep for {delay}secs and retry")
             else:
