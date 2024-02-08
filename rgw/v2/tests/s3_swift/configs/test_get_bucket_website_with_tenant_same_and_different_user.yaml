@@ -1,0 +1,16 @@
+# Ploarion ID : CEPH-11150 - s3:GetBucketWebsite with users in same tenant
+# script: test_bucket_policy_with_tenant_user.py
+config:
+    bucket_count: 2
+    objects_count: 100
+    rgw_enable_static_website: true
+    version_enable: true
+    objects_size_range:
+        min: 5
+        max: 15
+    test_ops:
+        create_bucket: true
+        create_object: true
+        new_tenant_user: true
+        users_count: 3
+        get_bucket_website: true
