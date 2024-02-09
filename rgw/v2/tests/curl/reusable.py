@@ -3,6 +3,7 @@ Reusable methods for curl
 """
 
 
+import json
 import logging
 import os
 import sys
@@ -234,3 +235,205 @@ def delete_bucket(curl_auth, bucket_name):
         raise TestExecError("bucket deletion failed")
     log.info(f"Bucket {bucket_name} deleted")
     return True
+
+
+def set_user_quota(curl_auth, user_id, quota_type, quota_json):
+    """
+    set user/bucket quota to a user
+    example for put user quota: curl -X PUT "http://10.0.103.136:80/admin/user?quota=true&quota-type=user&uid=hmaheswa3"
+    example for put bucket quota: curl -X PUT "http://10.0.103.136:80/admin/user?quota=true&quota-type=bucket&uid=hmaheswa3"
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        user_id(str): uid of the rgw user
+        quota_type(str): user or bucket
+        quota_json(dict): JSON representation of the quota settings
+                            {
+                                "enabled": true,
+                                "max_size": 1099511627776,
+                                "max_size_kb": 0,
+                                "max_objects": 100
+                            }
+    """
+    log.info(f"setting {quota_type} quota")
+    headers = {
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    }
+    command = curl_auth.command(
+        http_method="PUT",
+        headers=headers,
+        url_suffix=f"admin/user?quota=true&quota-type={quota_type}&uid={user_id}",
+        raw_data_list=[json.dumps(quota_json)],
+    )
+    cmd_output = utils.exec_shell_cmd(command)
+    log.info(f"set user quota status: {cmd_output}")
+    if cmd_output is False:
+        raise TestExecError(f"failed to set user quota for quota-type {quota_type}")
+    log.info(f"successfully set user quota for quota-type {quota_type}")
+    return True
+
+
+def set_individual_bucket_quota(curl_auth, user_id, bucket_name, quota_json):
+    """
+    set bucket quota to a specific bucket
+    ex: curl -X PUT "http://10.0.103.136:80/admin/bucket?bucket=bkt3&quota=true&uid=hmaheswa3"
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        user_id(str): uid of the rgw user
+        bucket_name(str): name of the bucket
+        quota_json(dict): JSON representation of the quota settings
+                            {
+                                "enabled": true,
+                                "max_size": 1099511627776,
+                                "max_size_kb": 0,
+                                "max_objects": 100
+                            }
+    """
+    log.info(f"setting bucket quota to a particular bucket {bucket_name}")
+    headers = {
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    }
+    command = curl_auth.command(
+        http_method="PUT",
+        headers=headers,
+        url_suffix=f"admin/bucket?bucket={bucket_name}&quota=true&uid={user_id}",
+        raw_data_list=[json.dumps(quota_json)],
+    )
+    cmd_output = utils.exec_shell_cmd(command)
+    log.info(f"bucket quota set status: {cmd_output}")
+    if cmd_output is False:
+        raise TestExecError(
+            f"failed to set bucket quota for bucket {bucket_name} failed"
+        )
+    log.info(f"successfully set bucket quota for bucket {bucket_name}")
+    return True
+
+
+def verify_user_quota_details(user_id, quota_type, quota_json):
+    """
+    Verify quota settings present in user info with the expected quota settings
+    Args:
+        user_id(str): uid of the rgw user
+        quota_type(str): user or bucket
+        quota_json(dict): JSON representation of the quota settings
+                            {
+                                "enabled": true,
+                                "max_size": 1099511627776,
+                                "max_size_kb": 0,
+                                "max_objects": 100
+                            }
+    """
+    user_info_op = utils.exec_shell_cmd(f"radosgw-admin user info --uid={user_id}")
+    user_info_json = json.loads(user_info_op)
+    user_info_quota_json = user_info_json[f"{quota_type}_quota"]
+    log.info(f"Verifying quota details in user info with below values:\n{quota_json}")
+    if quota_json == user_info_quota_json:
+        log.info("quota settings verified successfully")
+    else:
+        log.error(f"Expected quota details: {quota_json}")
+        log.error(f"Actual quota details: {user_info_quota_json}")
+        raise TestExecError("Incorrect quota details found in user info")
+
+
+def verify_individual_bucket_quota_details(curl_auth, bucket_name, quota_json):
+    """
+    Verify quota settings present in bucket stats with the expected quota settings
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        bucket_name(str): name of the bucket
+        quota_json(dict): JSON representation of the quota settings
+                            {
+                                "enabled": true,
+                                "max_size": 1099511627776,
+                                "max_size_kb": 0,
+                                "max_objects": 100
+                            }
+    """
+    log.info("Verifying bucket quota settings in bucket stats")
+    bucket_stats_op = utils.exec_shell_cmd(
+        f"radosgw-admin bucket stats --bucket={bucket_name}"
+    )
+    bucket_stats_json = json.loads(bucket_stats_op)
+    bucket_stats_quota_json = bucket_stats_json[f"bucket_quota"]
+    if quota_json == bucket_stats_quota_json:
+        log.info("bucket quota settings verified successfully")
+    else:
+        log.error(f"Expected quota settings: {quota_json}")
+        log.error(f"Actual quota settings: {bucket_stats_quota_json}")
+        raise TestExecError("Incorrect quota settings found in bucket stats")
+    return True
+
+
+def verify_quota_head_bucket(curl_auth, bucket_name, head_bucket_json):
+    """
+    Verify quota settings present in head bucket with the expected quota settings
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        bucket_name(str): name of the bucket
+        head_bucket_json(dict): JSON representation of the quota settings
+                            {
+                                X-RGW-Quota-User-Size: -1
+                                X-RGW-Quota-User-Objects: -1
+                                X-RGW-Quota-Max-Buckets: 1000
+                                X-RGW-Quota-Bucket-Size: 1024000
+                                X-RGW-Quota-Bucket-Objects: 100
+                            }
+    """
+    log.info(
+        f"Verifying quota settings in head bucket with below values:\n{head_bucket_json}"
+    )
+    head_bucket_op = head_bucket(curl_auth, bucket_name)
+    for key, val in head_bucket_json.items():
+        if f"{key}: {val}" not in head_bucket_op:
+            raise TestExecError(f"incorrect value found. Expected f'{key}: {val}'")
+    log.info("Quota settings in head bucket verified successfully")
+    return True
+
+
+def head_bucket(curl_auth, bucket_name):
+    """
+    perform head operation on the bucket
+    ex: curl -I "http://10.0.103.136:80/bkt1"
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        bucket_name(str): name of the bucket
+    """
+    log.info(f"performing head bucket on {bucket_name}")
+    headers = {
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    }
+    command = curl_auth.command(
+        headers=headers, url_suffix=f"{bucket_name}", head_request=True
+    )
+    cmd_output = utils.exec_shell_cmd(command)
+    log.info(f"head bucket result: {cmd_output}")
+    if cmd_output is False:
+        raise TestExecError(
+            f"failed to perform head bucket operation on the bucket {bucket_name}"
+        )
+    return cmd_output
+
+
+def get_user_quota(curl_auth, user_id, quota_type):
+    """
+    set user/bucket quota to a user
+    example for put user quota: curl -X GET "http://10.0.103.136:80/admin/user?quota=true&quota-type=user&uid=hmaheswa3"
+    example for put bucket quota: curl -X GET "http://10.0.103.136:80/admin/user?quota=true&quota-type=bucket&uid=hmaheswa3"
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        user_id(str): uid of the rgw user
+        quota_type(str): user or bucket
+    """
+    log.info(f"get {quota_type} quota")
+    headers = {
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    }
+    command = curl_auth.command(
+        http_method="GET",
+        headers=headers,
+        url_suffix=f"admin/user?quota=true&quota-type={quota_type}&uid={user_id}",
+    )
+    cmd_output = utils.exec_shell_cmd(command)
+    log.info(f"user quota: {cmd_output}")
+    if cmd_output is False:
+        raise TestExecError(f"failed to get user quota for quota-type {quota_type}")
+    return cmd_output

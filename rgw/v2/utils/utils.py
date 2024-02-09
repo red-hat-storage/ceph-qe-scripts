@@ -80,7 +80,9 @@ def exec_shell_cmd(cmd, debug_info=False, return_err=False):
         else:
             if return_err == True:
                 return err
-            raise Exception("error: %s \nreturncode: %s" % (err, pr.returncode))
+            raise Exception(
+                f"stderr: {err} \nreturncode: {pr.returncode} \nstdout:{out}"
+            )
     except Exception as e:
         log.error("cmd execution failed")
         log.error(e)

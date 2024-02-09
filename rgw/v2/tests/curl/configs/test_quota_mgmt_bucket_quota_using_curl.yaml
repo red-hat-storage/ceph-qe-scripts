@@ -1,0 +1,23 @@
+# script: test_quota_using_curl.py
+# polarion: CEPH-83581391
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 100
+  objects_size_range:
+    min: 10
+    max: 10
+  test_ops:
+    create_bucket: true
+    create_object: true
+    user_remove: true
+    set_bucket_quota: true
+    test_quota_max_objects: true
+    test_quota_max_size: true
+    each_obj_size: 10240
+    bucket_quota:
+      "enabled": true
+      "check_on_raw": true
+      "max_size_kb": 1000
+      "max_size": 1024000
+      "max_objects": 100
