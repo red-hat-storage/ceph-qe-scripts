@@ -818,7 +818,11 @@ def get_multisite_info():
         zone_names = zone_names + zone_name
         if i != len(period_list.get("period_map")["zonegroups"][0]["zones"]) - 1:
             zone_names = zone_names + ","
-    realm_name = period_list.get("realm_name")
+    op = utils.exec_shell_cmd("radosgw-admin sync status")
+    lines = list(op.split("\n"))
+    for line in lines:
+        if "realm" in line:
+            realm_name = line[line.find("(") + 1 : line.find(")")]
     return zone_names, realm_name
 
 
@@ -1986,7 +1990,9 @@ def pipe_operation(
         cmd = cmd + policy_detail
 
     utils.exec_shell_cmd(cmd)
-    update_commit()
+    if bucket_name is None:
+        update_commit()
+
     return pipe_id
 
 
