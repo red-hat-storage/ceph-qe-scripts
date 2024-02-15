@@ -14,6 +14,7 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_rule_conflict_btw_exp_transition.yaml, test_lc_rule_conflict_exp_days.yaml,
  test_lc_rule_conflict_transition_actions.yaml
  test_lc_rule_reverse_transition.yaml
+ test_lc_with_custom_worktime.yaml
 
 Operation:
 
@@ -80,12 +81,12 @@ def test_exec(config, ssh_con):
             str(config.rgw_enable_lc_threads),
             ssh_con,
         )
-        ceph_conf.set_to_ceph_conf(
-            "global",
-            ConfigOpts.rgw_lifecycle_work_time,
-            str(config.rgw_lifecycle_work_time),
-            ssh_con,
-        )
+    ceph_conf.set_to_ceph_conf(
+        "global",
+        ConfigOpts.rgw_lifecycle_work_time,
+        str(config.rgw_lifecycle_work_time),
+        ssh_con,
+    )
     _, version_name = utils.get_ceph_version()
     if "nautilus" in version_name:
         ceph_conf.set_to_ceph_conf(
