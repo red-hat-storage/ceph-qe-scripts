@@ -1,4 +1,0 @@
-# script: test_aws.py
-config:
-  user_count: 2
-  bucket_count: 2

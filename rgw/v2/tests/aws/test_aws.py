@@ -3,7 +3,7 @@ Usage: test_aws.py -c <input_yaml>
 
 <input_yaml>
     Note: Following yaml can be used
-    configs/test_aws.yaml
+    configs/test_aws_versioned_bucket_creation.yaml
 
 Operation:
 
@@ -44,7 +44,13 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
-    user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
+    if config.test_ops.get("user_name", False):
+        user_info = resource_op.create_users(
+            no_of_users_to_create=config.user_count,
+            user_names=config.test_ops["user_name"],
+        )
+    else:
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
 
     for user in user_info:
         user_name = user["user_id"]
@@ -53,7 +59,10 @@ def test_exec(config, ssh_con):
         aws_auth.do_auth_aws(user)
 
         for bc in range(config.bucket_count):
-            bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
+            if config.test_ops.get("bucket_name", False):
+                bucket_name = config.test_ops["bucket_name"]
+            else:
+                bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
             aws_reusable.create_bucket(bucket_name, endpoint)
             log.info(f"Bucket {bucket_name} created")
 
@@ -61,7 +70,8 @@ def test_exec(config, ssh_con):
                 log.info(f"bucket versioning test on bucket: {bucket_name}")
                 aws_reusable.put_get_bucket_versioning(bucket_name, endpoint)
 
-        s3_reusable.remove_user(user)
+        if config.user_remove is True:
+            s3_reusable.remove_user(user)
 
     # check for any crashes during the execution
     crash_info = s3_reusable.check_for_crash()
