@@ -21,10 +21,15 @@ def sync_status(retry=25, delay=60, ssh_con=None):
     if ssh_con:
         log.info("Enter ssh-conn")
         stdin, stdout, stderr = ssh_con.exec_command(cmd)
+        cmd_error = stderr.read().decode()
+        if len(cmd_error) != 0:
+            log.error(f"error: {cmd_error}")
         check_sync_status = stdout.read().decode()
     else:
         log.info("Enter non-ssh-conn")
         check_sync_status = utils.exec_shell_cmd(cmd)
+    if not check_sync_status:
+        raise AssertionError("Sync status output is empty")
     log.info(f"sync status op is: {check_sync_status}")
     # check for 'failed' or 'ERROR' in sync status.
     if "failed" in check_sync_status or "ERROR" in check_sync_status:
