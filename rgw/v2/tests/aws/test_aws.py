@@ -60,7 +60,8 @@ def test_exec(config, ssh_con):
 
         for bc in range(config.bucket_count):
             if config.test_ops.get("bucket_name", False):
-                bucket_name = config.test_ops["bucket_name"]
+                bkt_suffix = bc + 1
+                bucket_name = config.test_ops["bucket_name"] + f"{bkt_suffix}"
             else:
                 bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
             aws_reusable.create_bucket(bucket_name, endpoint)
