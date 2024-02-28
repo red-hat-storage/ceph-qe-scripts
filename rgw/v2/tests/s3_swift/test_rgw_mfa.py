@@ -10,7 +10,7 @@ import traceback
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
-from v2.lib.exceptions import RGWBaseException, TestExecError
+from v2.lib.exceptions import MFAVersionError, RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
@@ -18,7 +18,7 @@ from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoIn
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import RGWService
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
@@ -146,6 +146,15 @@ def test_exec(config, ssh_con):
                     token, status = reusable.enable_mfa_versioning(
                         bucket, rgw_conn, SEED, serial, each_user, write_bucket_io_info
                     )
+                    if status:
+                        response = HttpResponseParser(status)
+                        if response.status_code == 200:
+                            log.info("MFA and version enabled")
+                        else:
+                            raise MFAVersionError(
+                                "bucket mfa and versioning enable failed"
+                            )
+
                     if status is False:
                         log.info("trying again! AccessDenied could be a timing issue!")
                         new_token = reusable.generate_totp(SEED)

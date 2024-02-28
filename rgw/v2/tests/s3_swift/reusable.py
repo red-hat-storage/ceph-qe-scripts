@@ -614,15 +614,8 @@ def enable_mfa_versioning(
             ),
         }
     )
-
-    if mfa_version_put is False:
-        return token, mfa_version_put
-
-    response = HttpResponseParser(mfa_version_put)
-    if response.status_code == 200:
-        log.info("MFA and version enabled")
-    else:
-        raise MFAVersionError("bucket mfa and versioning enable failed")
+    log.info(f"mfa_version_put: {mfa_version_put}")
+    return token, mfa_version_put
 
 
 def put_get_bucket_lifecycle_test(
