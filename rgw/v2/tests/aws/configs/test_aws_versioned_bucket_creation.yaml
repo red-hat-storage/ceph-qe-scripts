@@ -6,5 +6,5 @@ config:
   user_remove: false
   test_ops:
     user_name: cosbench01
-    bucket_name: cosbench01-bkt
+    bucket_name: cosbench01-bkt-
     enable_version: true
