@@ -1,0 +1,29 @@
+# Polarian TC : CEPH-83575141
+# script: test_multisite_bucket_granular_sync_policy.py
+config:
+    user_count: 1
+    bucket_count: 1
+    objects_count: 100
+    objects_size_range:
+        min: 5K
+        max: 2M
+    test_ops:
+        zonegroup_group: true
+        zonegroup_status: allowed
+        zonegroup_flow: true
+        zonegroup_flow_type: symmetrical
+        zonegroup_pipe: true
+        bucket_group: true
+        bucket_status: enabled
+        bucket_flow: false
+        bucket_pipe: true
+        bucket_pipe_count: 2
+        create_object: true
+        create_bucket: true
+        create_new_bucket: true
+        new_bucket_count: 2
+        sync_to_diff_bucket: true
+        bucket_policy_details: --dest-bucket <dest_bucket_name>
+        write_io_verify_another_site: true
+        write_io_verify_should_sync: false
+        zonegroup_group_remove: true

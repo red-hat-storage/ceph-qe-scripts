@@ -1880,16 +1880,31 @@ def verify_bucket_sync_policy_on_other_site(rgw_ssh_con, bucket):
             )
 
 
-def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config):
-    log.info(f"Verify object sync on other site for bucket {bucket.name}")
+def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config, bucket_object=None):
+    log.info(f"Verify object sync on same site for bucket {bucket.name}")
     bucket_stats = json.loads(
         utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket.name}")
     )
-    bkt_objects = bucket_stats["usage"]["rgw.main"]["num_objects"]
-    if bkt_objects != config.objects_count:
-        raise TestExecError(
-            f"Did not find {config.objects_count} in bucket {bucket.name}, but found {bkt_objects}"
-        )
+
+    if bucket_object is None:
+        bkt_objects = bucket_stats["usage"]["rgw.main"]["num_objects"]
+        if bkt_objects != config.objects_count:
+            raise TestExecError(
+                f"Did not find {config.objects_count} in bucket {bkt.name}, but found {bkt_objects}"
+            )
+    else:
+        if (
+            "rgw.main" in bucket_stats["usage"].keys()
+            and bucket_stats["usage"]["rgw.main"]["num_objects"] == bucket_object
+        ):
+            raise TestExecError(f"object synced to bucket {bucket.name}")
+        else:
+            log.info(
+                f"object did not sync to bucket {bucket.name} on same site as expected"
+            )
+        bkt_objects = bucket_object
+
+    log.info(f"Verify object sync on other site for bucket {bucket.name}")
     _, stdout, _ = rgw_ssh_con.exec_command(
         f"radosgw-admin bucket stats --bucket {bucket.name}"
     )
@@ -1935,7 +1950,7 @@ def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config):
                 f"object count mismatch found in another site for bucket {bucket.name} : {bucket_objects} expected {bkt_objects}"
             )
         cmd_output = command_output
-    log.info(f"object synced on anothe site for bucket {bucket.name} : {cmd_output}")
+    log.info(f"object synced on another site for bucket {bucket.name} : {cmd_output}")
 
 
 def flow_operation(
@@ -1968,8 +1983,9 @@ def pipe_operation(
     policy_detail=None,
     source_zones=None,
     dest_zones=None,
+    pipe_id=None,
 ):
-    pipe_id = group_id + "pipe"
+    pipe_id = pipe_id if pipe_id is not None else group_id + "pipe"
     if zone_names is not None:
         zone_name = zone_names.split(",")
         zn = f" --source-zones='{zone_name[0]}','{zone_name[1]}' --dest-zones='{zone_name[0]}','{zone_name[1]}'"
