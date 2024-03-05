@@ -8,6 +8,7 @@ import time
 from datetime import datetime, timedelta
 
 import v2.utils.utils as utils
+from v2.tests.s3_swift import reusable
 
 log = logging.getLogger()
 
@@ -85,39 +86,121 @@ def validate_prefix_rule(bucket, config):
     else:
         expected_storage_class = config.second_storage_class
     if config.test_lc_transition:
-        log.info("Start the validation of LC transition")
-        curr = 0
-        ncurr = 0
-        two_pool_curr_ncurr = 0
-        ec_pool_curr_ncurr = 0
-        for i in range(0, objs_total):
-            storage_class = json_doc2[i]["meta"]["storage_class"]
-            if config.two_pool_transition and storage_class == expected_storage_class:
-                two_pool_curr_ncurr += 1
-            elif config.ec_pool_transition and storage_class == config.ec_storage_class:
-                ec_pool_curr_ncurr += 1
-            else:
-                if storage_class == config.storage_class:
-                    curr += 1
+        if config.test_ops.get("test_cloud_transition", False):
+            log.info("Start the LC cloud transition verification")
+            objs_total = (config.test_ops["version_count"]) * (config.objects_count)
+            log.info(f"total objects are {objs_total} objects.")
+            bucket_stats_op = utils.exec_shell_cmd(
+                f"radosgw-admin bucket stats --bucket={bucket.name}"
+            )
+            json_doc = json.loads(bucket_stats_op)
+            bucket_list_op = utils.exec_shell_cmd(
+                f"radosgw-admin bucket list --bucket={bucket.name}"
+            )
+            json_doc_list = json.loads(bucket_list_op)
+            objects_remaining = json_doc["usage"]["rgw.main"]["num_objects"]
+            count = 0
+            if config.test_ops.get("test_retain_head", False):
+                log.info("Verifying the cloud transition with retain_head_true")
+                if config.test_ops.get("test_cloud_transition_at_remote", False):
+                    zone_name = config.remote_zone
+                    log.info(
+                        "Verifying the cloud transition at remote site with retain_head_true"
+                    )
+                    remote_site_ssh_con = reusable.get_remote_conn_in_multisite()
+                    log.info(
+                        f"collect bucket stats for {bucket.name} at remote site {zone_name}"
+                    )
+                    cmd_bucket_stats = (
+                        f"radosgw-admin bucket stats --bucket {bucket.name}"
+                    )
+                    stdin, stdout, stderr = remote_site_ssh_con.exec_command(
+                        cmd_bucket_stats
+                    )
+                    cmd_output = stdout.read().decode()
+                    stats_remote = json.loads(cmd_output)
+                    log.info(f"The bucket stats at the remote site is {stats_remote}")
+                    remote_cloud_tiered_objects = stats_remote["usage"][
+                        "rgw.cloudtiered"
+                    ]["num_objects"]
+                    if remote_cloud_tiered_objects == objs_total:
+                        log.info(
+                            f"LC cloud transition passed at remote site,{zone_name}"
+                        )
+                    else:
+                        raise AssertionError(
+                            f"LC transition failed for {bucket.name} at remote site,{zone_name}"
+                        )
                 else:
-                    ncurr += 1
-        if curr == config.objects_count and ncurr == objs_ncurr:
-            log.info(
-                "Lifecycle transition of current and noncurrent object version validated"
-            )
-        elif two_pool_curr_ncurr == objs_total:
-            log.info(
-                "Two pool Lifecycle transition of current and noncurrent object version validated."
-            )
-        elif ec_pool_curr_ncurr == objs_total:
-            log.info(
-                "Bucket LC Transition to EC pool of current and noncurrent object version validated."
-            )
+                    objects_cloud_tiered = json_doc["usage"]["rgw.cloudtiered"][
+                        "num_objects"
+                    ]
+
+                    log.info(
+                        f" objects cloud tiered are {objects_cloud_tiered} and delete-marker count {count}"
+                    )
+                    if objects_cloud_tiered == objs_total:
+                        log.info(
+                            f"lifecycle transition to cloud validated for current and noncurrent objects with retain_head_object_true for bucket {bucket.name}"
+                        )
+                    else:
+                        raise AssertionError(
+                            "Lifecycle cloud transition validation failed retain_head_object_true for bucket {bucket.name}"
+                        )
+            else:
+                log.info("Verifying the cloud transition with retain_head_object_false")
+                for i in range(0, config.objects_count):
+                    if json_doc_list[i]["tag"] == "delete-marker":
+                        count += 1
+                if objects_remaining == 0 and count == config.objects_count:
+                    log.info(
+                        f"lifecycle transition to cloud validated for current and noncurrent objects with retain_head_object_false for bucket {bucket.name}"
+                    )
+                else:
+                    raise AssertionError(
+                        f"Lifecycle cloud transition validation failed with retain_head_object_false for bucket {bucket.name}"
+                    )
         else:
-            log.error(f"current: {curr} and noncurrent: {ncurr}")
-            log.error(f"two_pool_curr_ncurr: {two_pool_curr_ncurr}")
-            log.error(f"ec_pool_curr_ncurr: {ec_pool_curr_ncurr}")
-            raise AssertionError("lc validation for object transition failed")
+
+            log.info("Start the validation of LC pool transition")
+            curr = 0
+            ncurr = 0
+            two_pool_curr_ncurr = 0
+            ec_pool_curr_ncurr = 0
+            for i in range(0, objs_total):
+                storage_class = json_doc2[i]["meta"]["storage_class"]
+                if (
+                    config.two_pool_transition
+                    and storage_class == expected_storage_class
+                ):
+                    two_pool_curr_ncurr += 1
+                elif (
+                    config.ec_pool_transition
+                    and storage_class == config.ec_storage_class
+                ):
+                    ec_pool_curr_ncurr += 1
+                else:
+                    if storage_class == config.storage_class:
+                        curr += 1
+                    else:
+                        ncurr += 1
+            if curr == config.objects_count and ncurr == objs_ncurr:
+                log.info(
+                    "Lifecycle transition of current and noncurrent object version validated"
+                )
+            elif two_pool_curr_ncurr == objs_total:
+                log.info(
+                    "Two pool Lifecycle transition of current and noncurrent object version validated."
+                )
+            elif ec_pool_curr_ncurr == objs_total:
+                log.info(
+                    "Bucket LC Transition to EC pool of current and noncurrent object version validated."
+                )
+            else:
+                log.error(f"current: {curr} and noncurrent: {ncurr}")
+                log.error(f"two_pool_curr_ncurr: {two_pool_curr_ncurr}")
+                log.error(f"ec_pool_curr_ncurr: {ec_pool_curr_ncurr}")
+                raise AssertionError("lc validation for object transition failed")
     else:
         log.info("Start the validation of LC expiration.")
 
