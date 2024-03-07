@@ -1,0 +1,6 @@
+# script: test_aws_non_ascii.py
+# polarion-ID: CEPH-83572765
+config:
+  user_count: 1
+  bucket_count: 1
+  user_remove: true
