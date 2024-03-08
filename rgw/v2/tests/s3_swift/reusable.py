@@ -1583,42 +1583,73 @@ def prepare_for_bucket_lc_transition(config):
             zone = "secondary"
     else:
         zone = zonegroup = "default"
-    if config.ec_pool_transition:
-        utils.exec_shell_cmd(
-            f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {ec_storage_class}"
-        )
-        utils.exec_shell_cmd(
-            f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {ec_storage_class} --data-pool {ec_pool_name}"
-        )
-        utils.exec_shell_cmd(
-            "ceph osd erasure-code-profile set rgwec01 k=4 m=2 crush-failure-domain=osd crush-device-class=hdd"
-        )
-        utils.exec_shell_cmd(
-            f"ceph osd pool create {ec_pool_name} 32 32 erasure rgwec01"
-        )
-        utils.exec_shell_cmd(f"ceph osd pool application enable {ec_pool_name} rgw")
+    if config.test_ops.get("test_pool_transition", True):
+        if config.ec_pool_transition:
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {ec_storage_class}"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {ec_storage_class} --data-pool {ec_pool_name}"
+            )
+            utils.exec_shell_cmd(
+                "ceph osd erasure-code-profile set rgwec01 k=4 m=2 crush-failure-domain=osd crush-device-class=hdd"
+            )
+            utils.exec_shell_cmd(
+                f"ceph osd pool create {ec_pool_name} 32 32 erasure rgwec01"
+            )
+            utils.exec_shell_cmd(f"ceph osd pool application enable {ec_pool_name} rgw")
+        else:
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {storage_class}"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {storage_class} --data-pool {pool_name}"
+            )
+            utils.exec_shell_cmd(f"ceph osd pool create {pool_name}")
+            utils.exec_shell_cmd(f"ceph osd pool application enable {pool_name} rgw")
+            if config.multiple_transitions:
+                second_pool_name = config.second_pool_name
+                second_storage_class = config.second_storage_class
+                utils.exec_shell_cmd(f"ceph osd pool create {second_pool_name}")
+                utils.exec_shell_cmd(
+                    f"ceph osd pool application enable {second_pool_name} rgw"
+                )
+                utils.exec_shell_cmd(
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {second_storage_class}"
+                )
+                utils.exec_shell_cmd(
+                    f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {second_storage_class} --data-pool {second_pool_name}"
+                )
     else:
-        utils.exec_shell_cmd(
-            f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {storage_class}"
-        )
-        utils.exec_shell_cmd(
-            f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {storage_class} --data-pool {pool_name}"
-        )
-        utils.exec_shell_cmd(f"ceph osd pool create {pool_name}")
-        utils.exec_shell_cmd(f"ceph osd pool application enable {pool_name} rgw")
-        if config.multiple_transitions:
-            second_pool_name = config.second_pool_name
-            second_storage_class = config.second_storage_class
-            utils.exec_shell_cmd(f"ceph osd pool create {second_pool_name}")
+        if config.test_ops.get("test_ibm_cloud_transition", False):
+            target_path = "13-ibm-bucket-1"
             utils.exec_shell_cmd(
-                f"ceph osd pool application enable {second_pool_name} rgw"
+                f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3"
             )
+            if config.test_ops.get("test_retain_head", False):
+                utils.exec_shell_cmd(
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint=http://s3.au-syd.cloud-object-storage.appdomain.cloud,access_key=2ee29c1e110d4f4bae3e98d54eb42123,secret=0198297e5fede60c94c49fbc77574bd294fad1ce5232e02c,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=au-syd"
+                )
+            else:
+                utils.exec_shell_cmd(
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint=http://s3.au-syd.cloud-object-storage.appdomain.cloud,access_key=2ee29c1e110d4f4bae3e98d54eb42123,secret=0198297e5fede60c94c49fbc77574bd294fad1ce5232e02c,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
+                )
+
+        else:
+            target_path = "aws-bucket-01"
             utils.exec_shell_cmd(
-                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {second_storage_class}"
+                f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class=CLOUDAWS --tier-type=cloud-s3"
             )
-            utils.exec_shell_cmd(
-                f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {second_storage_class} --data-pool {second_pool_name}"
-            )
+            if config.test_ops.get("test_retain_head", False):
+                utils.exec_shell_cmd(
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint=http://s3region.amazonaws.com,access_key=awsaccesskey,secret=awssecretkey,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=aws-region"
+                )
+            else:
+                utils.exec_shell_cmd(
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint=http://s3.aws-region.amazonaws.com,access_key=awsaccesskey,secret=awssecretkey,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=us-east-1"
+                )
+    if is_multisite:
+        utils.exec_shell_cmd("radosgw-admin period update --commit")
 
 
 def bucket_reshard_manual(bucket, config):
