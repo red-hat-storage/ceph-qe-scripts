@@ -4,6 +4,7 @@ Usage: test_aws.py -c <input_yaml>
 <input_yaml>
     Note: Following yaml can be used
     configs/test_aws_versioned_bucket_creation.yaml
+    configs/test_complete_multipart_upload_etag_not_empty.yaml
 
 Operation:
 
@@ -70,6 +71,31 @@ def test_exec(config, ssh_con):
             if config.test_ops.get("enable_version", False):
                 log.info(f"bucket versioning test on bucket: {bucket_name}")
                 aws_reusable.put_get_bucket_versioning(bucket_name, endpoint)
+        if config.test_ops.get("verify_etag_for_complete_multipart_upload", False):
+            log.info(
+                f"Verifying ETag element for complete multipart upload is not empty string"
+            )
+            for oc, size in list(config.mapped_sizes.items()):
+                config.obj_size = size
+                key_name = utils.gen_s3_object_name(bucket_name, oc)
+                complete_multipart_upload_resp = aws_reusable.upload_multipart_aws(
+                    bucket_name,
+                    key_name,
+                    TEST_DATA_PATH,
+                    endpoint,
+                    config,
+                )
+                if not complete_multipart_upload_resp["ETag"]:
+                    raise AssertionError(
+                        "Etag not generated during complete multipart upload operation"
+                    )
+        if config.test_ops.get("verify_non_ascii_character_upload", False):
+            log.info(f"Object name and body containing non ascii character upload")
+            object_name = "ˍ´--øÆ.txt"
+            utils.exec_shell_cmd(f"fallocate -l 1K {object_name}")
+            aws_reusable.put_object(bucket_name, object_name, endpoint)
+            log.info("Object upload successful")
+            aws_reusable.get_object(bucket_name, object_name, endpoint)
 
         if config.user_remove is True:
             s3_reusable.remove_user(user)
@@ -115,6 +141,8 @@ if __name__ == "__main__":
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = resource_op.Config(yaml_file)
         config.read()
+        if config.mapped_sizes is None:
+            config.mapped_sizes = utils.make_mapped_sizes(config)
         test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)

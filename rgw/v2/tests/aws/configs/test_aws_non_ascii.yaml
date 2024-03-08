@@ -1,6 +1,12 @@
-# script: test_aws_non_ascii.py
+# script: test_aws.py
 # polarion-ID: CEPH-83572765
 config:
   user_count: 1
   bucket_count: 1
+  objects_count: 1
   user_remove: true
+  objects_size_range:
+    min: 1M
+    max: 3M
+  test_ops:
+    verify_non_ascii_character_upload: true
