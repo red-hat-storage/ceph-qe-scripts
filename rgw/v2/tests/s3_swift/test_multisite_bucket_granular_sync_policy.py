@@ -10,6 +10,7 @@ Usage: test_multisite_bucket_granular_sync_policy.py
     multisite_configs/test_multisite_granular_bucketsync_forbidden_enabled.yaml
     multisite_configs/test_multisite_granular_bucketsync_forbidden_forbidden.yaml
     multisite_configs/test_multisite_granular_bucketsync_forbidden_allowed.yaml
+    multisite_configs/test_multisite_granular_bucketsync_sync_to_diff_bucket.yaml
 
 Operation:
 	Creates delete sync policy group bucket , zonegroupl level
@@ -72,6 +73,7 @@ def test_exec(config, ssh_con):
         if config.test_ops.get("create_bucket", False):
             log.info(f"no of buckets to create: {config.bucket_count}")
             buckets = []
+            new_buckets = []
             for bc in range(config.bucket_count):
                 bucket_name_to_create = utils.gen_bucket_name_from_userid(
                     each_user["user_id"], rand_no=bc
@@ -80,6 +82,17 @@ def test_exec(config, ssh_con):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
                 )
+
+                if config.test_ops.get("create_new_bucket", False):
+                    bucket_count = config.test_ops.get("new_bucket_count", 1)
+                    for i in range(bucket_count):
+                        new_bucket_name = f"{bucket_name_to_create}-new-{i}"
+                        log.info(f"creating new bucket with name: {new_bucket_name}")
+                        new_bucket = reusable.create_bucket(
+                            new_bucket_name, rgw_conn, each_user
+                        )
+                        new_buckets.append(new_bucket)
+
                 reusable.verify_bucket_sync_on_other_site(rgw_ssh_con, bucket)
                 buckets.append(bucket)
 
@@ -133,54 +146,99 @@ def test_exec(config, ssh_con):
                 for bkt in buckets:
                     if config.test_ops.get("bucket_group", False):
                         bucket_group_status = config.test_ops["bucket_status"]
-                        bucket_group = "bgroup-" + bkt.name
-                        reusable.group_operation(
-                            bucket_group,
-                            "create",
-                            bucket_group_status,
-                            bkt.name,
-                        )
-                        if config.test_ops.get("bucket_flow", False):
-                            bucket_flow_type = config.test_ops["bucket_flow_type"]
-                            bucket_source_flow = config.test_ops.get(
-                                "bucket_source_zone", None
-                            )
-                            bucket_dest_flow = config.test_ops.get(
-                                "bucket_dest_zone", None
-                            )
-                            reusable.flow_operation(
+                        bucket_count = config.test_ops.get("bucket_count", 1)
+                        if config.test_ops.get("sync_from_diff_bucket", False):
+                            bucket_count = config.test_ops.get("new_bucket_count", 1)
+                            old_bucket = bkt.name
+                        for i in range(bucket_count):
+                            if config.test_ops.get("sync_from_diff_bucket", False):
+                                new_bucket = f"{bucket_name_to_create}-new-{i}"
+                                for new_bkt in new_buckets:
+                                    if new_bkt.name == new_bucket:
+                                        bkt = new_bkt
+
+                            bucket_group = "bgroup-" + bkt.name
+                            reusable.group_operation(
                                 bucket_group,
                                 "create",
-                                bucket_flow_type,
+                                bucket_group_status,
                                 bkt.name,
-                                bucket_source_flow,
-                                bucket_dest_flow,
                             )
-                        if config.test_ops.get("bucket_pipe", False):
-                            bucket_details = config.test_ops.get(
-                                "bucket_policy_details", None
-                            )
-                            bucket_source_pipe = config.test_ops.get(
-                                "bucket_source_zones", None
-                            )
-                            bucket_dest_pipe = config.test_ops.get(
-                                "bucket_dest_zones", None
-                            )
-                            pipe_id = reusable.pipe_operation(
-                                bucket_group,
-                                "create",
-                                bucket_name=bkt.name,
-                                policy_detail=bucket_details,
-                                source_zones=bucket_source_pipe,
-                                dest_zones=bucket_dest_pipe,
-                            )
+                            if config.test_ops.get("bucket_flow", False):
+                                bucket_flow_type = config.test_ops["bucket_flow_type"]
+                                bucket_source_flow = config.test_ops.get(
+                                    "bucket_source_zone", None
+                                )
+                                bucket_dest_flow = config.test_ops.get(
+                                    "bucket_dest_zone", None
+                                )
+                                reusable.flow_operation(
+                                    bucket_group,
+                                    "create",
+                                    bucket_flow_type,
+                                    bkt.name,
+                                    bucket_source_flow,
+                                    bucket_dest_flow,
+                                )
+                            if config.test_ops.get("bucket_pipe", False):
+                                bucket_pipe_count = config.test_ops.get(
+                                    "bucket_pipe_count", 1
+                                )
+                                for pipec in range(bucket_pipe_count):
+                                    bucket_details = config.test_ops.get(
+                                        "bucket_policy_details", None
+                                    )
+                                    pipe_id = None
+                                    if config.test_ops.get(
+                                        "sync_to_diff_bucket", False
+                                    ):
+                                        bucket_details = " " + bucket_details.replace(
+                                            "<dest_bucket_name>",
+                                            f"{bkt.name}-new-{pipec}",
+                                        )
+                                        pipe_id = f"{bucket_group}pipe{pipec}"
+
+                                    if config.test_ops.get(
+                                        "sync_from_diff_bucket", False
+                                    ):
+                                        bucket_details = " " + bucket_details.replace(
+                                            "<source_bucket_name>", old_bucket
+                                        )
+
+                                    bucket_source_pipe = config.test_ops.get(
+                                        "bucket_source_zones", None
+                                    )
+                                    bucket_dest_pipe = config.test_ops.get(
+                                        "bucket_dest_zones", None
+                                    )
+                                    pipe_id = reusable.pipe_operation(
+                                        bucket_group,
+                                        "create",
+                                        bucket_name=bkt.name,
+                                        policy_detail=bucket_details,
+                                        source_zones=bucket_source_pipe,
+                                        dest_zones=bucket_dest_pipe,
+                                        pipe_id=pipe_id,
+                                    )
 
                 for bkt in buckets:
                     if config.test_ops.get("bucket_group", False):
                         if config.test_ops.get("bucket_pipe", False):
-                            reusable.verify_bucket_sync_policy_on_other_site(
-                                rgw_ssh_con, bkt
-                            )
+                            if config.test_ops.get("sync_from_diff_bucket", False):
+                                bucket_count = config.test_ops.get(
+                                    "new_bucket_count", 1
+                                )
+                                for i in range(bucket_count):
+                                    new_bucket = f"{bucket_name_to_create}-new-{i}"
+                                    for new_bkt in new_buckets:
+                                        if new_bkt.name == new_bucket:
+                                            reusable.verify_bucket_sync_policy_on_other_site(
+                                                rgw_ssh_con, new_bkt
+                                            )
+                            else:
+                                reusable.verify_bucket_sync_policy_on_other_site(
+                                    rgw_ssh_con, bkt
+                                )
 
                     if config.test_ops.get("create_object", False):
                         # uploading data
@@ -236,6 +294,42 @@ def test_exec(config, ssh_con):
                                 f"object did not sync to another site for bucket {bkt.name} as expected"
                             )
 
+                            if config.test_ops.get(
+                                "sync_to_diff_bucket", False
+                            ) or config.test_ops.get("sync_from_diff_bucket", False):
+                                log.info(
+                                    f"Verify object sync on same site for bucket {bkt.name}"
+                                )
+                                bucket_stats = json.loads(
+                                    utils.exec_shell_cmd(
+                                        f"radosgw-admin bucket stats --bucket {bkt.name}"
+                                    )
+                                )
+                                bkt_objects = bucket_stats["usage"]["rgw.main"][
+                                    "num_objects"
+                                ]
+                                if bkt_objects != config.objects_count:
+                                    raise TestExecError(
+                                        f"Did not find {config.objects_count} in bucket {bkt.name}, but found {bkt_objects}"
+                                    )
+
+                                log.info(
+                                    f"object did sync on same site for bucket {bkt.name} as expected"
+                                )
+                                bucket_count = config.test_ops.get(
+                                    "new_bucket_count", 1
+                                )
+                                for i in range(bucket_count):
+                                    new_bucket = f"{bucket_name_to_create}-new-{i}"
+                                    for new_bkt in new_buckets:
+                                        if new_bkt.name == new_bucket:
+                                            reusable.verify_object_sync_on_other_site(
+                                                rgw_ssh_con,
+                                                new_bkt,
+                                                config,
+                                                bucket_object=bkt_objects,
+                                            )
+
                             if config.test_ops.get("bucket_sync", False):
                                 bucket_group = "bgroup-" + bkt.name
                                 reusable.group_operation(
@@ -282,6 +376,20 @@ def test_exec(config, ssh_con):
                                     )
 
                         if config.test_ops.get("write_io_verify_another_site", False):
+                            if config.test_ops.get(
+                                "sync_to_diff_bucket", False
+                            ) or config.test_ops.get("sync_from_diff_bucket", False):
+                                cmd_output = json.loads(
+                                    utils.exec_shell_cmd(
+                                        f"radosgw-admin bucket stats --bucket {bkt.name}"
+                                    )
+                                )
+                                sync_num_obj = (
+                                    cmd_output["usage"]["rgw.main"]["num_objects"]
+                                    if "rgw.main" in cmd_output["usage"].keys()
+                                    else 0
+                                )
+
                             _, stdout, _ = rgw_ssh_con.exec_command(
                                 f"radosgw-admin bucket stats --bucket {bkt.name}"
                             )
@@ -355,6 +463,60 @@ def test_exec(config, ssh_con):
                                 log.info(
                                     f"Object synced for bucket {bkt.name}, on another site as expected"
                                 )
+
+                            elif config.test_ops.get(
+                                "sync_to_diff_bucket", False
+                            ) or config.test_ops.get("sync_from_diff_bucket", False):
+                                if bkt_objects != sync_num_obj:
+                                    raise TestExecError(
+                                        f"Object should not sync in bucket {bkt.name}, but found {bkt_objects}"
+                                    )
+
+                                bucket_count = config.test_ops.get(
+                                    "new_bucket_count", 1
+                                )
+                                for i in range(bucket_count):
+                                    new_bkt = f"{bucket_name_to_create}-new-{i}"
+                                    _, stats_stdout, _ = rgw_ssh_con.exec_command(
+                                        f"radosgw-admin bucket stats --bucket {new_bkt}"
+                                    )
+                                    re_cmd_output = json.loads(
+                                        stats_stdout.read().decode()
+                                    )
+                                    log.info(
+                                        f"re_cmd_output for {new_bkt} : {re_cmd_output}"
+                                    )
+                                    if (
+                                        re_cmd_output["usage"]["rgw.main"][
+                                            "num_objects"
+                                        ]
+                                        != config.objects_count
+                                    ):
+                                        raise TestExecError(
+                                            f"IO performed for {bkt.name} should not sync to {new_bkt} in same site as of IO"
+                                        )
+                                    log.info(
+                                        f"IO did not sync to {new_bkt} as expected in same site as of IO"
+                                    )
+                                    log.info(
+                                        f"verify IO sync on {new_bkt} in another site"
+                                    )
+                                    new_bucket_stats = json.loads(
+                                        utils.exec_shell_cmd(
+                                            f"radosgw-admin bucket stats --bucket {new_bkt}"
+                                        )
+                                    )
+                                    new_bkt_objects = new_bucket_stats["usage"][
+                                        "rgw.main"
+                                    ]["num_objects"]
+                                    if new_bkt_objects != config.objects_count:
+                                        raise TestExecError(
+                                            f"Object did not sync in bucket {new_bkt}, but found {new_bkt_objects}"
+                                        )
+                                    log.info(
+                                        f"Object synced for bucket {new_bkt}, on another site as expected"
+                                    )
+
                             else:
                                 if bkt_objects != config.objects_count:
                                     raise TestExecError(
