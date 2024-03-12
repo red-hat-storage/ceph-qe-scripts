@@ -1,0 +1,6 @@
+# script: test_ldap_auth.py
+# polarion-ID: CEPH-9793
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
