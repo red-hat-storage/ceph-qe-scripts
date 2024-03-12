@@ -481,3 +481,34 @@ def upload_multipart_aws(
             )
         )
         return complete_multipart_upload_resp
+
+
+def get_object(bucket_name, object_name, end_point, ssl=None):
+    """
+    Does a get object from the bucket
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        object_name(str): Name of the object/file
+        end_point(str): endpoint
+        ssl:
+    Return:
+        Response of get object operation
+    """
+    get_method = AWS(operation="get-object")
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = " "
+    command = get_method.command(
+        params=[
+            f"--bucket {bucket_name} --key {object_name} out_object --endpoint-url {end_point}",
+            ssl_param,
+        ]
+    )
+    try:
+        get_response = utils.exec_shell_cmd(command)
+        if "ETag" not in get_response:
+            raise Exception(f"get object failed for {bucket_name}")
+        return get_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))

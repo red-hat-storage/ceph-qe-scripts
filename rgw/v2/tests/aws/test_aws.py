@@ -89,6 +89,13 @@ def test_exec(config, ssh_con):
                     raise AssertionError(
                         "Etag not generated during complete multipart upload operation"
                     )
+        if config.test_ops.get("verify_non_ascii_character_upload", False):
+            log.info(f"Object name and body containing non ascii character upload")
+            object_name = "ˍ´--øÆ.txt"
+            utils.exec_shell_cmd(f"fallocate -l 1K {object_name}")
+            aws_reusable.put_object(bucket_name, object_name, endpoint)
+            log.info("Object upload successful")
+            aws_reusable.get_object(bucket_name, object_name, endpoint)
 
         if config.user_remove is True:
             s3_reusable.remove_user(user)
