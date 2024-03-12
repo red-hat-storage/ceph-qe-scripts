@@ -270,16 +270,25 @@ def test_exec(config, ssh_con):
                 )
                 num_obj_current = utils.exec_shell_cmd(current_count)
                 num_obj_current = json.loads(num_obj_current)
+                ceph_version_id, _ = utils.get_ceph_version()
+                ceph_version_id = ceph_version_id.split("-")
+                ceph_version_id = ceph_version_id[0].split(".")
+                num_objects_cur = (
+                    num_obj_current
+                    if float(ceph_version_id[0]) >= 19
+                    else num_obj_current[0]
+                )
                 num_obj_current = (
-                    num_obj_current[0].get("usage").get("rgw.main").get("num_objects")
+                    num_objects_cur.get("usage").get("rgw.main").get("num_objects")
                 )
-                old_count = "radosgw-admin bucket stats --uid={uid} --tenant={tenant} --bucket='{bucket}' ".format(
-                    uid=user_name, tenant=tenant, bucket=container_name_old
-                )
+                old_count = f"radosgw-admin bucket stats --uid={user_name} --tenant={tenant} --bucket='{container_name_old}'"
                 num_obj_old = utils.exec_shell_cmd(old_count)
                 num_obj_old = json.loads(num_obj_old)
+                num_objects_old = (
+                    num_obj_old if float(ceph_version_id[0]) >= 19 else num_obj_old[0]
+                )
                 num_obj_old = (
-                    num_obj_old[0].get("usage").get("rgw.main").get("num_objects")
+                    num_objects_old.get("usage").get("rgw.main").get("num_objects")
                 )
                 version_count_from_config = (
                     config.objects_count * config.version_count
