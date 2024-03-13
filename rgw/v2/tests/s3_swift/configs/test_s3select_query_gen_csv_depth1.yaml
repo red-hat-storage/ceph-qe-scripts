@@ -1,0 +1,10 @@
+# script: test_s3select.py
+config:
+  user_count: 1
+  bucket_count: 1
+  user_remove: false
+  test_ops:
+    create_bucket: true
+    create_csv_object: true
+    query_generation: true
+    depth: 1
