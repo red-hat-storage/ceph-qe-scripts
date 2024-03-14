@@ -11,6 +11,7 @@ Usage: test_multisite_bucket_granular_sync_policy.py
     multisite_configs/test_multisite_granular_bucketsync_forbidden_forbidden.yaml
     multisite_configs/test_multisite_granular_bucketsync_forbidden_allowed.yaml
     multisite_configs/test_multisite_granular_bucketsync_sync_to_diff_bucket.yaml
+    multisite_configs/test_multisite_granular_bucketsync_sync_from_diff_bucket.yaml
 
 Operation:
 	Creates delete sync policy group bucket , zonegroupl level
