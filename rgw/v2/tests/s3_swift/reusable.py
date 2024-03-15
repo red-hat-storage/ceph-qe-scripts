@@ -13,6 +13,7 @@ import math
 import time
 import timeit
 
+import configobj
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -1622,19 +1623,24 @@ def prepare_for_bucket_lc_transition(config):
                 )
     else:
         if config.test_ops.get("test_ibm_cloud_transition", False):
-            target_path = "13-ibm-bucket-1"
+            wget_cmd = "curl -o ibm_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/ibm_cloud_file"
+            utils.exec_shell_cmd(cmd=f"{wget_cmd}")
+            ibm_config = configobj.ConfigObj("ibm_cloud.env")
+            target_path = ibm_config["TARGET"]
+            access = ibm_config["ACCESS"]
+            secret = ibm_config["SECRET"]
+            endpoint = ibm_config["ENDPOINT"]
             utils.exec_shell_cmd(
                 f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3"
             )
             if config.test_ops.get("test_retain_head", False):
                 utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint=http://s3.au-syd.cloud-object-storage.appdomain.cloud,access_key=2ee29c1e110d4f4bae3e98d54eb42123,secret=0198297e5fede60c94c49fbc77574bd294fad1ce5232e02c,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=au-syd"
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=au-syd"
                 )
             else:
                 utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint=http://s3.au-syd.cloud-object-storage.appdomain.cloud,access_key=2ee29c1e110d4f4bae3e98d54eb42123,secret=0198297e5fede60c94c49fbc77574bd294fad1ce5232e02c,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
                 )
-
         else:
             target_path = "aws-bucket-01"
             utils.exec_shell_cmd(
