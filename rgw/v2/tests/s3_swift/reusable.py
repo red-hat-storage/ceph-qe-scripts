@@ -511,9 +511,32 @@ def upload_mutipart_object(
     before aborting multipart(to avoid some corner case)"""
     if abort_part_no <= 1:
         abort_part_no = abort_part_no + 1
+
+    fail_upload_part_no = random.randint(1, len(parts_list) - 1)
     log.info(f"abort part no is: {abort_part_no}")
     for each_part in parts_list:
         log.info("trying to upload part: %s" % each_part)
+        if (
+            config.test_ops.get("fail_part_upload")
+            and part_number == fail_upload_part_no
+        ):
+            # fail upload parts two times with incorrect content length
+            part = mpu.Part(part_number)
+            part_upload_response = s3lib.resource_op(
+                {
+                    "obj": part,
+                    "resource": "upload",
+                    "kwargs": dict(Body=open(each_part, mode="rb"), ContentLength=10),
+                }
+            )
+            part = mpu.Part(part_number)
+            part_upload_response = s3lib.resource_op(
+                {
+                    "obj": part,
+                    "resource": "upload",
+                    "kwargs": dict(Body=open(each_part, mode="rb"), ContentLength=11),
+                }
+            )
         part = mpu.Part(part_number)
         # part_upload_response = part.upload(Body=open(each_part))
         part_upload_response = s3lib.resource_op(
