@@ -698,9 +698,6 @@ def test_multipart_upload_failed_parts(
                 part_number += 1
             log.info("curr part_number: %s" % part_number)
 
-        if config.local_file_delete is True:
-            log.info("deleting local file part")
-            utils.exec_shell_cmd(f"rm -rf {mp_dir}")
         if len(parts_list) == part_number:
             log.info("all parts upload completed")
             response = rgw_client.complete_multipart_upload(
@@ -721,6 +718,10 @@ def test_multipart_upload_failed_parts(
 
         log.info(f"deleting object: {s3_object_name}")
         rgw_client.delete_object(Bucket=bucket_name, Key=s3_object_name)
+
+    if config.local_file_delete is True:
+        log.info("deleting local file part")
+        utils.exec_shell_cmd(f"rm -rf {mp_dir}")
 
 
 def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
