@@ -12,6 +12,7 @@ import logging
 import math
 import time
 import timeit
+from threading import Thread
 
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
@@ -511,32 +512,9 @@ def upload_mutipart_object(
     before aborting multipart(to avoid some corner case)"""
     if abort_part_no <= 1:
         abort_part_no = abort_part_no + 1
-
-    fail_upload_part_no = random.randint(1, len(parts_list) - 1)
     log.info(f"abort part no is: {abort_part_no}")
     for each_part in parts_list:
         log.info("trying to upload part: %s" % each_part)
-        if (
-            config.test_ops.get("fail_part_upload")
-            and part_number == fail_upload_part_no
-        ):
-            # fail upload parts two times with incorrect content length
-            part = mpu.Part(part_number)
-            part_upload_response = s3lib.resource_op(
-                {
-                    "obj": part,
-                    "resource": "upload",
-                    "kwargs": dict(Body=open(each_part, mode="rb"), ContentLength=10),
-                }
-            )
-            part = mpu.Part(part_number)
-            part_upload_response = s3lib.resource_op(
-                {
-                    "obj": part,
-                    "resource": "upload",
-                    "kwargs": dict(Body=open(each_part, mode="rb"), ContentLength=11),
-                }
-            )
         part = mpu.Part(part_number)
         # part_upload_response = part.upload(Body=open(each_part))
         part_upload_response = s3lib.resource_op(
@@ -570,6 +548,176 @@ def upload_mutipart_object(
     if len(parts_list) == part_number:
         log.info("all parts upload completed")
         mpu.complete(MultipartUpload=parts_info)
+        log.info("multipart upload complete for key: %s" % s3_object_name)
+
+
+def upload_part(
+    rgw_client,
+    s3_object_name,
+    bucket_name,
+    mpu,
+    part_number,
+    s3_object_part_path,
+    content_length,
+    parts_info,
+):
+    try:
+        part_upload_response = rgw_client.upload_part(
+            Bucket=bucket_name,
+            Key=s3_object_name,
+            PartNumber=part_number,
+            UploadId=mpu["UploadId"],
+            Body=open(s3_object_part_path, mode="rb"),
+            ContentLength=content_length,
+        )
+        log.info(f"part uploaded response {part_upload_response}")
+    except Exception as e:
+        log.info(e)
+        return
+    part_info = {"PartNumber": part_number, "ETag": part_upload_response["ETag"]}
+    parts_info["Parts"].append(part_info)
+
+
+def upload_mutipart_object_with_failed_part_upload(
+    rgw_client,
+    s3_object_name,
+    bucket_name,
+    TEST_DATA_PATH,
+    config,
+    append_data=False,
+    append_msg=None,
+    abort_multipart=False,
+):
+    log.info("s3 object name: %s" % s3_object_name)
+    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    log.info("s3 object path: %s" % s3_object_path)
+    s3_object_size = config.obj_size
+    split_size = config.split_size if hasattr(config, "split_size") else 5
+    log.info("split size: %s" % split_size)
+    if append_data is True:
+        data_info = manage_data.io_generator(
+            s3_object_path,
+            s3_object_size,
+            op="append",
+            **{"message": "\n%s" % append_msg},
+        )
+    else:
+        data_info = manage_data.io_generator(s3_object_path, s3_object_size)
+    if data_info is False:
+        TestExecError("data creation failed")
+    mp_dir = os.path.join(TEST_DATA_PATH, s3_object_name + ".mp.parts")
+    log.info("mp part dir: %s" % mp_dir)
+    log.info("making multipart object part dir")
+    mkdir = utils.exec_shell_cmd("sudo mkdir %s" % mp_dir)
+    if mkdir is False:
+        raise TestExecError("mkdir failed creating mp_dir_name")
+    utils.split_file(s3_object_path, split_size, mp_dir + "/")
+    parts_list = sorted(glob.glob(mp_dir + "/" + "*"))
+    log.info("parts_list: %s" % parts_list)
+    log.info("uploading s3 object: %s" % s3_object_path)
+    log.info("initiating multipart upload")
+    mpu = rgw_client.create_multipart_upload(Bucket=bucket_name, Key=s3_object_name)
+
+    part_number = 1
+    parts_info = {"Parts": []}
+    log.info("no of parts: %s" % len(parts_list))
+    abort_part_no = random.randint(1, len(parts_list) - 1)
+    """if randomly selected abort-part-no is less than 1 then we will increment it by 1 to make sure atleast one part is uploaded
+    before aborting multipart(to avoid some corner case)"""
+    if abort_part_no <= 1:
+        abort_part_no = abort_part_no + 1
+    log.info(f"abort part no is: {abort_part_no}")
+
+    fail_upload_part_no = random.randint(1, len(parts_list) - 1)
+    log.info(f"failed upload part no is: {fail_upload_part_no}")
+    for each_part in parts_list:
+        log.info("trying to upload part: %s" % each_part)
+        if config.test_ops.get("fail_part_upload") and part_number == 2:
+            t1 = Thread(
+                target=upload_part,
+                args=(
+                    rgw_client,
+                    s3_object_name,
+                    bucket_name,
+                    mpu,
+                    part_number,
+                    each_part,
+                    10,
+                    parts_info,
+                ),
+            )
+            t2 = Thread(
+                target=upload_part,
+                args=(
+                    rgw_client,
+                    s3_object_name,
+                    bucket_name,
+                    mpu,
+                    part_number,
+                    each_part,
+                    11,
+                    parts_info,
+                ),
+            )
+            t3 = Thread(
+                target=upload_part,
+                args=(
+                    rgw_client,
+                    s3_object_name,
+                    bucket_name,
+                    mpu,
+                    part_number,
+                    each_part,
+                    os.stat(each_part).st_size,
+                    parts_info,
+                ),
+            )
+
+            t1.start()
+            t2.start()
+            t3.start()
+
+            t1.join()
+            t2.join()
+            t3.join()
+
+            part_number += 1
+        else:
+            part_upload_response = rgw_client.upload_part(
+                Bucket=bucket_name,
+                Key=s3_object_name,
+                PartNumber=part_number,
+                UploadId=mpu["UploadId"],
+                Body=open(each_part, mode="rb"),
+            )
+            log.info(f"part uploaded response {part_upload_response}")
+            part_info = {
+                "PartNumber": part_number,
+                "ETag": part_upload_response["ETag"],
+            }
+            parts_info["Parts"].append(part_info)
+            if each_part != parts_list[-1]:
+                # increase the part number only if the current part is not the last part
+                part_number += 1
+            log.info("curr part_number: %s" % part_number)
+
+            if abort_multipart and part_number == abort_part_no:
+                log.info(f"aborting multi part {part_number}")
+                return
+
+    if config.local_file_delete is True:
+        log.info("deleting local file part")
+        utils.exec_shell_cmd(f"rm -rf {mp_dir}")
+    # log.info('parts_info so far: %s'% parts_info)
+    if len(parts_list) == part_number:
+        log.info("all parts upload completed")
+        response = rgw_client.complete_multipart_upload(
+            Bucket=bucket_name,
+            Key=s3_object_name,
+            UploadId=mpu["UploadId"],
+            MultipartUpload=parts_info,
+        )
+        log.info(f"complete multipart upload: {response}")
         log.info("multipart upload complete for key: %s" % s3_object_name)
 
 
