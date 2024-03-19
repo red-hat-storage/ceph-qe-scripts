@@ -578,7 +578,7 @@ def upload_part(
     parts_info["Parts"].append(part_info)
 
 
-def upload_mutipart_object_with_failed_part_upload(
+def test_multipart_upload_failed_parts(
     rgw_client,
     s3_object_name,
     bucket_name,
@@ -586,7 +586,6 @@ def upload_mutipart_object_with_failed_part_upload(
     config,
     append_data=False,
     append_msg=None,
-    abort_multipart=False,
 ):
     log.info("s3 object name: %s" % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
@@ -615,109 +614,113 @@ def upload_mutipart_object_with_failed_part_upload(
     parts_list = sorted(glob.glob(mp_dir + "/" + "*"))
     log.info("parts_list: %s" % parts_list)
     log.info("uploading s3 object: %s" % s3_object_path)
-    log.info("initiating multipart upload")
-    mpu = rgw_client.create_multipart_upload(Bucket=bucket_name, Key=s3_object_name)
 
-    part_number = 1
-    parts_info = {"Parts": []}
-    log.info("no of parts: %s" % len(parts_list))
-    abort_part_no = random.randint(1, len(parts_list) - 1)
-    """if randomly selected abort-part-no is less than 1 then we will increment it by 1 to make sure atleast one part is uploaded
-    before aborting multipart(to avoid some corner case)"""
-    if abort_part_no <= 1:
-        abort_part_no = abort_part_no + 1
-    log.info(f"abort part no is: {abort_part_no}")
+    iteration_count = config.test_ops.get("iteration_count")
+    for i in range(1, iteration_count + 1):
+        log.info(
+            f"--------------------------- iteration {i} ---------------------------"
+        )
 
-    fail_upload_part_no = random.randint(1, len(parts_list) - 1)
-    log.info(f"failed upload part no is: {fail_upload_part_no}")
-    for each_part in parts_list:
-        log.info("trying to upload part: %s" % each_part)
-        if config.test_ops.get("fail_part_upload") and part_number == 2:
-            t1 = Thread(
-                target=upload_part,
-                args=(
-                    rgw_client,
-                    s3_object_name,
-                    bucket_name,
-                    mpu,
-                    part_number,
-                    each_part,
-                    10,
-                    parts_info,
-                ),
-            )
-            t2 = Thread(
-                target=upload_part,
-                args=(
-                    rgw_client,
-                    s3_object_name,
-                    bucket_name,
-                    mpu,
-                    part_number,
-                    each_part,
-                    11,
-                    parts_info,
-                ),
-            )
-            t3 = Thread(
-                target=upload_part,
-                args=(
-                    rgw_client,
-                    s3_object_name,
-                    bucket_name,
-                    mpu,
-                    part_number,
-                    each_part,
-                    os.stat(each_part).st_size,
-                    parts_info,
-                ),
-            )
+        log.info("initiating multipart upload")
+        mpu = rgw_client.create_multipart_upload(Bucket=bucket_name, Key=s3_object_name)
 
-            t1.start()
-            t2.start()
-            t3.start()
+        part_number = 1
+        parts_info = {"Parts": []}
+        log.info("no of parts: %s" % len(parts_list))
 
-            t1.join()
-            t2.join()
-            t3.join()
+        for each_part in parts_list:
+            log.info("trying to upload part: %s" % each_part)
+            if config.test_ops.get("fail_part_upload") and part_number == 2:
+                t1 = Thread(
+                    target=upload_part,
+                    args=(
+                        rgw_client,
+                        s3_object_name,
+                        bucket_name,
+                        mpu,
+                        part_number,
+                        each_part,
+                        10,
+                        parts_info,
+                    ),
+                )
+                t2 = Thread(
+                    target=upload_part,
+                    args=(
+                        rgw_client,
+                        s3_object_name,
+                        bucket_name,
+                        mpu,
+                        part_number,
+                        each_part,
+                        11,
+                        parts_info,
+                    ),
+                )
+                t3 = Thread(
+                    target=upload_part,
+                    args=(
+                        rgw_client,
+                        s3_object_name,
+                        bucket_name,
+                        mpu,
+                        part_number,
+                        each_part,
+                        os.stat(each_part).st_size,
+                        parts_info,
+                    ),
+                )
 
-        else:
-            part_upload_response = rgw_client.upload_part(
+                t1.start()
+                t3.start()
+                t2.start()
+
+                t1.join()
+                t2.join()
+                t3.join()
+
+            else:
+                part_upload_response = rgw_client.upload_part(
+                    Bucket=bucket_name,
+                    Key=s3_object_name,
+                    PartNumber=part_number,
+                    UploadId=mpu["UploadId"],
+                    Body=open(each_part, mode="rb"),
+                )
+                log.info(f"part uploaded response {part_upload_response}")
+                part_info = {
+                    "PartNumber": part_number,
+                    "ETag": part_upload_response["ETag"],
+                }
+                parts_info["Parts"].append(part_info)
+            if each_part != parts_list[-1]:
+                # increase the part number only if the current part is not the last part
+                part_number += 1
+            log.info("curr part_number: %s" % part_number)
+
+        if config.local_file_delete is True:
+            log.info("deleting local file part")
+            utils.exec_shell_cmd(f"rm -rf {mp_dir}")
+        if len(parts_list) == part_number:
+            log.info("all parts upload completed")
+            response = rgw_client.complete_multipart_upload(
                 Bucket=bucket_name,
                 Key=s3_object_name,
-                PartNumber=part_number,
                 UploadId=mpu["UploadId"],
-                Body=open(each_part, mode="rb"),
+                MultipartUpload=parts_info,
             )
-            log.info(f"part uploaded response {part_upload_response}")
-            part_info = {
-                "PartNumber": part_number,
-                "ETag": part_upload_response["ETag"],
-            }
-            parts_info["Parts"].append(part_info)
-        if each_part != parts_list[-1]:
-            # increase the part number only if the current part is not the last part
-            part_number += 1
-        log.info("curr part_number: %s" % part_number)
+            log.info(f"complete multipart upload: {response}")
+            log.info("multipart upload complete for key: %s" % s3_object_name)
 
-        if abort_multipart and part_number == abort_part_no:
-            log.info(f"aborting multi part {part_number}")
-            return
+        log.info(f"downlading object: {s3_object_name}")
+        s3_object_download_path = f"/tmp/{s3_object_name}"
+        rgw_client.download_file(bucket_name, s3_object_name, s3_object_download_path)
 
-    if config.local_file_delete is True:
-        log.info("deleting local file part")
-        utils.exec_shell_cmd(f"rm -rf {mp_dir}")
-    # log.info('parts_info so far: %s'% parts_info)
-    if len(parts_list) == part_number:
-        log.info("all parts upload completed")
-        response = rgw_client.complete_multipart_upload(
-            Bucket=bucket_name,
-            Key=s3_object_name,
-            UploadId=mpu["UploadId"],
-            MultipartUpload=parts_info,
-        )
-        log.info(f"complete multipart upload: {response}")
-        log.info("multipart upload complete for key: %s" % s3_object_name)
+        log.info(f"deleting local downloaded file: {s3_object_download_path}")
+        os.remove(s3_object_download_path)
+
+        log.info(f"deleting object: {s3_object_name}")
+        rgw_client.delete_object(Bucket=bucket_name, Key=s3_object_name)
 
 
 def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):

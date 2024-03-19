@@ -307,13 +307,12 @@ def test_exec(config, ssh_con):
                             abort_multipart = config.abort_multipart
                             log.info(f"value of abort_multipart {abort_multipart}")
                             if config.test_ops.get("fail_part_upload", False):
-                                reusable.upload_mutipart_object_with_failed_part_upload(
+                                reusable.test_multipart_upload_failed_parts(
                                     rgw_conn2,
                                     s3_object_name,
                                     bucket.name,
                                     TEST_DATA_PATH,
                                     config,
-                                    abort_multipart=abort_multipart,
                                 )
                             else:
                                 reusable.upload_mutipart_object(
