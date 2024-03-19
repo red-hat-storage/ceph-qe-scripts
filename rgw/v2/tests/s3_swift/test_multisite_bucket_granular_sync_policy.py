@@ -12,6 +12,8 @@ Usage: test_multisite_bucket_granular_sync_policy.py
     multisite_configs/test_multisite_granular_bucketsync_forbidden_allowed.yaml
     multisite_configs/test_multisite_granular_bucketsync_sync_to_diff_bucket.yaml
     multisite_configs/test_multisite_granular_bucketsync_sync_from_diff_bucket.yaml
+    multisite_configs/test_multisite_granular_bucketsync_archive_symmetrical.yaml
+    multisite_configs/test_multisite_granular_bucketsync_archive_directional.yaml
 
 Operation:
 	Creates delete sync policy group bucket , zonegroupl level
@@ -63,8 +65,19 @@ def test_exec(config, ssh_con):
             if zone["name"] not in zone_list["zones"]:
                 rgw_nodes = zone["endpoints"][0].split(":")
                 node_rgw = rgw_nodes[1].split("//")[-1]
-                log.info(f"Another site is: {zone['name']} and ip {node_rgw}")
-                break
+                if config.test_ops.get("archive_zone", False):
+                    if zone["name"] == "archive":
+                        break
+                else:
+                    break
+
+        log.info(f"Another site is: {zone['name']} and ip {node_rgw}")
+        if config.test_ops.get("archive_zone", False):
+            if zone["name"] != "archive":
+                raise TestExecError(
+                    f"archive zone not found {period_details['period_map']['zonegroups'][0]['zones']}"
+                )
+
         rgw_ssh_con = utils.connect_remote(node_rgw)
         if config.test_ops.get("write_io_verify_another_site", False):
             other_site_auth = Auth(each_user, rgw_ssh_con, ssl=config.ssl)
@@ -345,7 +358,7 @@ def test_exec(config, ssh_con):
                                 )
                                 for oc, size in list(config.mapped_sizes.items()):
                                     config.obj_size = size
-                                    s3_object_name = "new-" + utils.gen_s3_object_name(
+                                    s3_object_name = "sync-" + utils.gen_s3_object_name(
                                         bkt.name, oc
                                     )
                                     log.info(f"s3 object name: {s3_object_name}")
