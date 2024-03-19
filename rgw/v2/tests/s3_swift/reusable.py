@@ -681,7 +681,6 @@ def upload_mutipart_object_with_failed_part_upload(
             t2.join()
             t3.join()
 
-            part_number += 1
         else:
             part_upload_response = rgw_client.upload_part(
                 Bucket=bucket_name,
@@ -696,14 +695,14 @@ def upload_mutipart_object_with_failed_part_upload(
                 "ETag": part_upload_response["ETag"],
             }
             parts_info["Parts"].append(part_info)
-            if each_part != parts_list[-1]:
-                # increase the part number only if the current part is not the last part
-                part_number += 1
-            log.info("curr part_number: %s" % part_number)
+        if each_part != parts_list[-1]:
+            # increase the part number only if the current part is not the last part
+            part_number += 1
+        log.info("curr part_number: %s" % part_number)
 
-            if abort_multipart and part_number == abort_part_no:
-                log.info(f"aborting multi part {part_number}")
-                return
+        if abort_multipart and part_number == abort_part_no:
+            log.info(f"aborting multi part {part_number}")
+            return
 
     if config.local_file_delete is True:
         log.info("deleting local file part")
