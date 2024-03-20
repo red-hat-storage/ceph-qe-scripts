@@ -1,0 +1,25 @@
+# upload type: non multipart
+# script: test_Mbuckets_with_Nobjects.py
+# CEPH-83573389
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 2
+  split_size: 100
+  objects_size_range:
+    min: 300M
+    max: 500M
+  local_file_delete: true
+  test_ops:
+    colocate_archive: true
+    create_bucket: true
+    create_object: true
+    upload_type: multipart
+    download_object: true
+    delete_bucket_object: false
+    sharding:
+      enable: false
+      max_shards: 0
+    compression:
+      enable: false
+      type: zlib
