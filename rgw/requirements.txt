@@ -2,6 +2,7 @@
 boto
 boto3
 ConfigParser
+configobj
 jinja2
 names
 python-swiftclient
