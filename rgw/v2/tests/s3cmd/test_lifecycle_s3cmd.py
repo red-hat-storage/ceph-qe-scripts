@@ -18,6 +18,7 @@ Operation:
     Apply LC rule to the bucket(from the primary site.)
     Test the LC rule at the archive site.
 """
+
 import argparse
 import logging
 import os
