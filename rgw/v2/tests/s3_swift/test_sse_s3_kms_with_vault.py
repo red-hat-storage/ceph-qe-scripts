@@ -68,54 +68,54 @@ def test_exec(config, ssh_con):
         # authenticate with s3 client
         s3_client = auth.do_auth_using_client()
 
-        # get ceph version
-        ceph_version_id, ceph_version_name = utils.get_ceph_version()
-        is_multisite = utils.is_cluster_multisite()
-        if config.encryption_keys == "s3" and not is_multisite:
-            log.info("sse-s3 configuration will be added now.")
-            ceph_conf.set_to_ceph_conf(
-                "global",
-                ConfigOpts.rgw_crypt_require_ssl,
-                str(config.rgw_crypt_require_ssl),
-                ssh_con,
-            )
-            ceph_conf.set_to_ceph_conf(
-                "global",
-                ConfigOpts.rgw_crypt_sse_s3_backend,
-                str(config.rgw_crypt_sse_s3_backend),
-                ssh_con,
-            )
-            ceph_conf.set_to_ceph_conf(
-                "global",
-                ConfigOpts.rgw_crypt_sse_s3_vault_auth,
-                str(config.rgw_crypt_sse_s3_vault_auth),
-                ssh_con,
-            )
-            ceph_conf.set_to_ceph_conf(
-                "global",
-                ConfigOpts.rgw_crypt_sse_s3_vault_prefix,
-                str(config.rgw_crypt_sse_s3_vault_prefix),
-                ssh_con,
-            )
-            ceph_conf.set_to_ceph_conf(
-                "global",
-                ConfigOpts.rgw_crypt_sse_s3_vault_secret_engine,
-                str(config.rgw_crypt_sse_s3_vault_secret_engine),
-                ssh_con,
-            )
-            ceph_conf.set_to_ceph_conf(
-                "global",
-                ConfigOpts.rgw_crypt_sse_s3_vault_addr,
-                str(config.rgw_crypt_sse_s3_vault_addr),
-                ssh_con,
-            )
-            log.info("trying to restart services")
-            srv_restarted = rgw_service.restart(ssh_con)
-            time.sleep(30)
-            if srv_restarted is False:
-                raise TestExecError("RGW service restart failed")
-            else:
-                log.info("RGW service restarted")
+        # # get ceph version
+        # ceph_version_id, ceph_version_name = utils.get_ceph_version()
+        # is_multisite = utils.is_cluster_multisite()
+        # if config.encryption_keys == "s3" and not is_multisite:
+        #     log.info("sse-s3 configuration will be added now.")
+        #     ceph_conf.set_to_ceph_conf(
+        #         "global",
+        #         ConfigOpts.rgw_crypt_require_ssl,
+        #         str(config.rgw_crypt_require_ssl),
+        #         ssh_con,
+        #     )
+        #     ceph_conf.set_to_ceph_conf(
+        #         "global",
+        #         ConfigOpts.rgw_crypt_sse_s3_backend,
+        #         str(config.rgw_crypt_sse_s3_backend),
+        #         ssh_con,
+        #     )
+        #     ceph_conf.set_to_ceph_conf(
+        #         "global",
+        #         ConfigOpts.rgw_crypt_sse_s3_vault_auth,
+        #         str(config.rgw_crypt_sse_s3_vault_auth),
+        #         ssh_con,
+        #     )
+        #     ceph_conf.set_to_ceph_conf(
+        #         "global",
+        #         ConfigOpts.rgw_crypt_sse_s3_vault_prefix,
+        #         str(config.rgw_crypt_sse_s3_vault_prefix),
+        #         ssh_con,
+        #     )
+        #     ceph_conf.set_to_ceph_conf(
+        #         "global",
+        #         ConfigOpts.rgw_crypt_sse_s3_vault_secret_engine,
+        #         str(config.rgw_crypt_sse_s3_vault_secret_engine),
+        #         ssh_con,
+        #     )
+        #     ceph_conf.set_to_ceph_conf(
+        #         "global",
+        #         ConfigOpts.rgw_crypt_sse_s3_vault_addr,
+        #         str(config.rgw_crypt_sse_s3_vault_addr),
+        #         ssh_con,
+        #     )
+        #     log.info("trying to restart services")
+        #     srv_restarted = rgw_service.restart(ssh_con)
+        #     time.sleep(30)
+        #     if srv_restarted is False:
+        #         raise TestExecError("RGW service restart failed")
+        #     else:
+        #         log.info("RGW service restarted")
         objects_created_list = []
         if config.test_ops["create_bucket"] is True:
             log.info("no of buckets to create: %s" % config.bucket_count)

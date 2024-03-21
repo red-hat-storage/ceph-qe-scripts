@@ -32,7 +32,8 @@ def put_bucket_encryption(s3_client, bucketname, encryption_method):
                 {
                     "ApplyServerSideEncryptionByDefault": {
                         "SSEAlgorithm": "aws:kms",
-                        "KMSMasterKeyID": "testKey01",
+                        # "KMSMasterKeyID": "testKey01",
+                        "KMSMasterKeyID": "gkl00f1f7088000000000",
                     }
                 }
             ]
@@ -116,7 +117,8 @@ def put_object_encryption(
             Key=s3_object_name,
             Body=s3_object_path,
             ServerSideEncryption="aws:kms",
-            SSEKMSKeyId="testKey01",
+            # SSEKMSKeyId="testKey01",
+            SSEKMSKeyId="gkl00f1f7088000000000",
         )
 
     if not put_obj_encryption:
