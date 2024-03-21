@@ -2355,3 +2355,24 @@ def get_bucket_website(rgw_conn, bucket_name):
             raise TestExecError(f"get bucket website failed for {bucket_name}")
     else:
         raise TestExecError(f"get bucket website operation failed for {bucket_name}")
+
+
+def test_bucket_stats_colocated_archive_zone(bucket_name_to_create, each_user, config):
+    """
+    verify the bucket stats on primary and archive zone on the same cluster
+    """
+    log.info("Perform bucket stats on the primary zone")
+    cmd1 = f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
+    cmd2 = " --rgw-zone archive"
+    pri_bkt_stat_output = json.loads(utils.exec_shell_cmd(cmd1))
+    arc_bkt_stat_output = json.loads(utils.exec_shell_cmd(cmd1 + cmd2))
+    pri_bucket_versioning = pri_bkt_stat_output["versioning"]
+    arc_bucket_versioning = arc_bkt_stat_output["versioning"]
+    if arc_bucket_versioning == "off":
+        raise TestExecError(
+            f" bucket versioning is not enabled for archive zone when colocated with active zone for {bucket_name}"
+        )
+    else:
+        log.info(
+            "Bucket versioning is enabled in archive zone when  colocated with primary zone"
+        )

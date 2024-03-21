@@ -419,6 +419,15 @@ def test_exec(config, ssh_con):
                                 )
                             else:
                                 raise TestExecError("md5 mismatch")
+
+                        if config.test_ops.get("colocate_archive", False):
+                            log.info(
+                                "Test bucket stats for 'versioning' and num_objects for a colocated archive zone."
+                            )
+                            reusable.test_bucket_stats_colocated_archive_zone(
+                                bucket_name_to_create, each_user, config
+                            )
+
                         if config.local_file_delete is True:
                             log.info("deleting local file created after the upload")
                             utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
