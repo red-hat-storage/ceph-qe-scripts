@@ -1871,7 +1871,7 @@ def verify_bucket_sync_on_other_site(rgw_ssh_con, bucket):
             else:
                 log.info(f"bucket {bucket.name} found on other site")
                 break
-        if (retry_count > 20) and (len(re_cmd_output["groups"]) == 0):
+        if (retry_count > 20) and (bucket.name not in re_cmd_output):
             raise TestExecError(
                 f"bucket {bucket.name} did not sync to other site even after 20m"
             )
