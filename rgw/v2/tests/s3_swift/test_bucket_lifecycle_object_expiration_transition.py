@@ -15,6 +15,8 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_rule_conflict_transition_actions.yaml
  test_lc_rule_reverse_transition.yaml
  test_lc_with_custom_worktime.yaml
+ test_lc_process_without_applying_rule.yaml
+ test_lc_transition_with_lc_process.yaml
 
 Operation:
 
@@ -219,92 +221,130 @@ def test_exec(config, ssh_con):
                     reusable.verify_attrs_after_resharding(bucket)
 
                 if not config.parallel_lc:
-                    life_cycle_rule = {"Rules": config.lifecycle_conf}
-                    reusable.put_get_bucket_lifecycle_test(
-                        bucket,
-                        rgw_conn,
-                        rgw_conn2,
-                        life_cycle_rule,
-                        config,
-                        upload_start_time,
-                        upload_end_time,
-                    )
-                    if config.test_ops.get("reverse_transition", False):
-                        log.info(f"verifying lc reverse transition")
-                        rule1_lc_seconds = (
-                            config.rgw_lc_debug_interval
-                            * config.test_ops.get("actual_lc_days")
-                        )
-                        rule1_lc_timestamp = upload_end_time + 60 + rule1_lc_seconds
-                        expected_storage_class = config.storage_class
-                        config.test_ops[
-                            "expected_storage_class"
-                        ] = expected_storage_class
-                        lc_ops.validate_prefix_rule(bucket, config)
-
-                        rule2_lc_seconds = (
-                            config.rgw_lc_debug_interval
-                            * config.test_ops.get("rule2_lc_days")
-                        )
-                        rule2_lc_timestamp = rule1_lc_timestamp + rule2_lc_seconds
+                    if config.test_ops.get(
+                        "transition_with_lc_process_without_rule", False
+                    ):
                         log.info(
-                            f"sleeping till {datetime.fromtimestamp(rule2_lc_timestamp)} before verifying lc transition rule2"
+                            f"perform LC transition with lc process command without applying any rule"
                         )
-                        while time.time() < rule2_lc_timestamp:
-                            log.info(
-                                f"current time: {datetime.fromtimestamp(time.time())}"
-                            )
-                            time.sleep(5)
-                        expected_storage_class = config.second_storage_class
-                        config.test_ops[
-                            "expected_storage_class"
-                        ] = expected_storage_class
-                        lc_ops.validate_prefix_rule(bucket, config)
+                        cmd = f"radosgw-admin lc process --bucket {bucket_name}"
+                        err = utils.exec_shell_cmd(
+                            cmd, debug_info=True, return_err=True
+                        )
+                        log.info(f"ERROR: {err}")
+                        if "Segmentation fault" in err:
+                            raise TestExecError("Segmentation fault occured")
 
-                        rule3_lc_seconds = (
-                            config.rgw_lc_debug_interval
-                            * config.test_ops.get("rule3_lc_days")
+                    elif config.test_ops.get("transition_with_lc_process", False):
+                        log.info(f"perform LC transition with lc process command")
+                        life_cycle_rule = {"Rules": config.lifecycle_conf}
+                        reusable.put_bucket_lifecycle(
+                            bucket,
+                            rgw_conn,
+                            rgw_conn2,
+                            life_cycle_rule,
                         )
-                        rule3_lc_timestamp = rule2_lc_timestamp + rule3_lc_seconds
-                        log.info(
-                            f"sleeping till {datetime.fromtimestamp(rule3_lc_timestamp)} before verifying lc transition rule3"
-                        )
-                        while time.time() < rule3_lc_timestamp:
-                            log.info(
-                                f"current time: {datetime.fromtimestamp(time.time())}"
-                            )
-                            time.sleep(5)
-                        expected_storage_class = config.storage_class
-                        config.test_ops[
-                            "expected_storage_class"
-                        ] = expected_storage_class
-                        lc_ops.validate_prefix_rule(bucket, config)
-                    else:
+                        cmd = f"radosgw-admin lc process --bucket {bucket_name}"
+                        out = utils.exec_shell_cmd(cmd)
+                        cmd = f"radosgw-admin lc list"
+                        lc_list = json.loads(utils.exec_shell_cmd(cmd))
+                        for data in lc_list:
+                            if data["bucket"] == bucket_name:
+                                if data["status"] == "UNINITIAL":
+                                    raise TestExecError(
+                                        f"Even if rgw_enable_lc_threads set to false manual lc process for bucket"
+                                        f"{bucket_name} should work"
+                                    )
                         log.info("sleeping for 30 seconds")
                         time.sleep(30)
                         lc_ops.validate_prefix_rule(bucket, config)
-
-                    if config.test_ops["delete_marker"] is True:
-                        life_cycle_rule_new = {"Rules": config.delete_marker_ops}
+                    else:
+                        life_cycle_rule = {"Rules": config.lifecycle_conf}
                         reusable.put_get_bucket_lifecycle_test(
                             bucket,
                             rgw_conn,
                             rgw_conn2,
-                            life_cycle_rule_new,
+                            life_cycle_rule,
                             config,
+                            upload_start_time,
+                            upload_end_time,
                         )
-                    if config.multiple_delete_marker_check:
-                        log.info(
-                            f"verification of TC: Not more than 1 delete marker is created for objects deleted many times using LC"
-                        )
-                        time.sleep(60)
-                        cmd = f"radosgw-admin bucket list --bucket {bucket.name}| grep delete-marker | wc -l"
-                        out = utils.exec_shell_cmd(cmd)
-                        del_marker_count = out.split("\n")[0]
-                        if int(del_marker_count) != int(config.objects_count):
-                            raise AssertionError(
-                                f"more than one delete marker created for the objects in the bucket {bucket.name}"
+                        if config.test_ops.get("reverse_transition", False):
+                            log.info(f"verifying lc reverse transition")
+                            rule1_lc_seconds = (
+                                config.rgw_lc_debug_interval
+                                * config.test_ops.get("actual_lc_days")
                             )
+                            rule1_lc_timestamp = upload_end_time + 60 + rule1_lc_seconds
+                            expected_storage_class = config.storage_class
+                            config.test_ops[
+                                "expected_storage_class"
+                            ] = expected_storage_class
+                            lc_ops.validate_prefix_rule(bucket, config)
+
+                            rule2_lc_seconds = (
+                                config.rgw_lc_debug_interval
+                                * config.test_ops.get("rule2_lc_days")
+                            )
+                            rule2_lc_timestamp = rule1_lc_timestamp + rule2_lc_seconds
+                            log.info(
+                                f"sleeping till {datetime.fromtimestamp(rule2_lc_timestamp)} before verifying lc transition rule2"
+                            )
+                            while time.time() < rule2_lc_timestamp:
+                                log.info(
+                                    f"current time: {datetime.fromtimestamp(time.time())}"
+                                )
+                                time.sleep(5)
+                            expected_storage_class = config.second_storage_class
+                            config.test_ops[
+                                "expected_storage_class"
+                            ] = expected_storage_class
+                            lc_ops.validate_prefix_rule(bucket, config)
+
+                            rule3_lc_seconds = (
+                                config.rgw_lc_debug_interval
+                                * config.test_ops.get("rule3_lc_days")
+                            )
+                            rule3_lc_timestamp = rule2_lc_timestamp + rule3_lc_seconds
+                            log.info(
+                                f"sleeping till {datetime.fromtimestamp(rule3_lc_timestamp)} before verifying lc transition rule3"
+                            )
+                            while time.time() < rule3_lc_timestamp:
+                                log.info(
+                                    f"current time: {datetime.fromtimestamp(time.time())}"
+                                )
+                                time.sleep(5)
+                            expected_storage_class = config.storage_class
+                            config.test_ops[
+                                "expected_storage_class"
+                            ] = expected_storage_class
+                            lc_ops.validate_prefix_rule(bucket, config)
+                        else:
+                            log.info("sleeping for 30 seconds")
+                            time.sleep(30)
+                            lc_ops.validate_prefix_rule(bucket, config)
+
+                        if config.test_ops["delete_marker"] is True:
+                            life_cycle_rule_new = {"Rules": config.delete_marker_ops}
+                            reusable.put_get_bucket_lifecycle_test(
+                                bucket,
+                                rgw_conn,
+                                rgw_conn2,
+                                life_cycle_rule_new,
+                                config,
+                            )
+                        if config.multiple_delete_marker_check:
+                            log.info(
+                                f"verification of TC: Not more than 1 delete marker is created for objects deleted many times using LC"
+                            )
+                            time.sleep(60)
+                            cmd = f"radosgw-admin bucket list --bucket {bucket.name}| grep delete-marker | wc -l"
+                            out = utils.exec_shell_cmd(cmd)
+                            del_marker_count = out.split("\n")[0]
+                            if int(del_marker_count) != int(config.objects_count):
+                                raise AssertionError(
+                                    f"more than one delete marker created for the objects in the bucket {bucket.name}"
+                                )
                 else:
                     buckets.append(bucket)
 
