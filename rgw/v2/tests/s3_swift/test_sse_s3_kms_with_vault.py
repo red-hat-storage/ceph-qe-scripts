@@ -15,7 +15,7 @@ Usage: test_sse_s3_with_vault.py -c <input_yaml>
 Operation:
     Create a user and create a bucket with user credentials
     enable per-bucket or per-object sse-s3 encryption with vault backend
-    test objects uploaded are encrypted with AES256. 
+    test objects uploaded are encrypted with AES256.
 
 """
 
@@ -45,6 +45,7 @@ from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
+from v2.lib.s3 import lifecycle_validation as lc_ops
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
@@ -58,12 +59,53 @@ def test_exec(config, ssh_con):
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
 
+    if config.test_lc_transition:
+        log.info("making changes to ceph.conf")
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_lc_debug_interval,
+            str(config.rgw_lc_debug_interval),
+            ssh_con,
+        )
+        if not config.rgw_enable_lc_threads:
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_enable_lc_threads,
+                str(config.rgw_enable_lc_threads),
+                ssh_con,
+            )
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_lifecycle_work_time,
+            str(config.rgw_lifecycle_work_time),
+            ssh_con,
+        )
+        _, version_name = utils.get_ceph_version()
+        if "nautilus" in version_name:
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_lc_max_worker,
+                str(config.rgw_lc_max_worker),
+                ssh_con,
+            )
+        else:
+            ceph_conf.set_to_ceph_conf(
+                section=None,
+                option=ConfigOpts.rgw_lc_max_worker,
+                value=str(config.rgw_lc_max_worker),
+                ssh_con=ssh_con,
+            )
+
+        log.info("Set the Bucket LC transitions pre-requisites.")
+        reusable.prepare_for_bucket_lc_transition(config)
+
     # create user
-    all_users_info = s3lib.create_users(config.user_count)
+    all_users_info = s3lib.create_users(config.user_count, "hsm")
     for each_user in all_users_info:
         # authenticate
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
+        rgw_conn2 = auth.do_auth_using_client()
 
         # authenticate with s3 client
         s3_client = auth.do_auth_using_client()
@@ -119,9 +161,10 @@ def test_exec(config, ssh_con):
         objects_created_list = []
         if config.test_ops["create_bucket"] is True:
             log.info("no of buckets to create: %s" % config.bucket_count)
+            bucket_count = int(utils.exec_shell_cmd("radosgw-admin bucket list --uid=hsm | grep hsm | wc -l")[0])
             for bc in range(config.bucket_count):
                 bucket_name_to_create = utils.gen_bucket_name_from_userid(
-                    each_user["user_id"], rand_no=bc
+                    each_user["user_id"], rand_no=bc+bucket_count
                 )
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
@@ -132,6 +175,7 @@ def test_exec(config, ssh_con):
                         bucket, rgw_conn, each_user, write_bucket_io_info
                     )
 
+                upload_start_time = time.time()
                 # create objects
                 if config.test_ops["create_object"] is True:
                     # uploading data
@@ -193,6 +237,7 @@ def test_exec(config, ssh_con):
                                 config,
                                 each_user,
                             )
+                        objects_created_list.append(s3_object_name)
                         # test the object uploaded is encrypted with AES256
                         sse_s3.get_object_encryption(
                             s3_client, bucket_name_to_create, s3_object_name
@@ -204,7 +249,7 @@ def test_exec(config, ssh_con):
                             log.info(
                                 "Wait for sync lease to catch up on the remote site."
                             )
-                            time.sleep(1200)
+                            time.sleep(60)
                         if config.test_ops.get("download_object_at_remote_site", False):
                             reusable.test_object_download_at_replicated_site(
                                 bucket_name_to_create, s3_object_name, each_user, config
@@ -225,6 +270,72 @@ def test_exec(config, ssh_con):
                         reusable.test_bucket_stats_across_sites(
                             bucket_name_to_create, config
                         )
+                upload_end_time = time.time()
+                if config.test_lc_transition:
+                    life_cycle_rule = {"Rules": config.lifecycle_conf}
+                    reusable.put_get_bucket_lifecycle_test(
+                        bucket,
+                        rgw_conn,
+                        rgw_conn2,
+                        life_cycle_rule,
+                        config,
+                        upload_start_time,
+                        upload_end_time,
+                    )
+                    log.info("sleeping for 30 seconds")
+                    time.sleep(30)
+                    lc_ops.validate_prefix_rule(bucket, config)
+                if config.test_ops.get("download_object_after_transition", False):
+                    for s3_object_name in objects_created_list:
+                        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                        log.info("trying to download object: %s" % s3_object_name)
+                        s3_object_download_name = s3_object_name + "." + "download"
+                        s3_object_download_path = os.path.join(
+                            TEST_DATA_PATH, s3_object_download_name
+                        )
+                        log.info(
+                            "s3_object_download_path: %s" % s3_object_download_path
+                        )
+                        log.info(
+                            "downloading to filename: %s" % s3_object_download_name
+                        )
+                        object_downloaded_status = s3lib.resource_op(
+                            {
+                                "obj": bucket,
+                                "resource": "download_file",
+                                "args": [
+                                    s3_object_name,
+                                    s3_object_download_path,
+                                ],
+                            }
+                        )
+                        if object_downloaded_status is False:
+                            raise TestExecError(
+                                "Resource execution failed: object download failed"
+                            )
+                        if object_downloaded_status is None:
+                            log.info("object downloaded")
+                        s3_object_downloaded_md5 = utils.get_md5(
+                            s3_object_download_path
+                        )
+                        s3_object_uploaded_md5 = utils.get_md5(s3_object_path)
+                        log.info(
+                            "s3_object_downloaded_md5: %s"
+                            % s3_object_downloaded_md5
+                        )
+                        log.info(
+                            "s3_object_uploaded_md5: %s" % s3_object_uploaded_md5
+                        )
+                        if str(s3_object_uploaded_md5) == str(
+                                s3_object_downloaded_md5
+                        ):
+                            log.info("md5 match")
+                            utils.exec_shell_cmd(
+                                "rm -rf %s" % s3_object_download_path
+                            )
+                        else:
+                            raise TestExecError("md5 mismatch")
+
     # check sync status if a multisite cluster
     reusable.check_sync_status()
 
