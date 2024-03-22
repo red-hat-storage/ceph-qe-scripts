@@ -1,0 +1,8 @@
+# Polarian TC : CEPH-11478
+# script: test_s3cmd.py
+config:
+  bucket_count: 10000
+  objects_count: 15
+  max_objects_per_shard: 1
+  test_ops:
+    disable_and_enable_dynamic_reshard: true
