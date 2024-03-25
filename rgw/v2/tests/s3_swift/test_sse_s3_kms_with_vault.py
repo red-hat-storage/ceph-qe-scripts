@@ -197,6 +197,10 @@ def test_exec(config, ssh_con):
                             config,
                             each_user,
                         )
+
+                        if config.test_lc_transition:
+                            utils.exec_shell_cmd(f"rm -rf {s3_object_path}*")
+
                         # Choose encryption type, per-object or per-bucket:
                         log.info("Choose encryption type, per-object or per-bucket")
                         # Choose the encryption_method sse-s3 or sse-kms
