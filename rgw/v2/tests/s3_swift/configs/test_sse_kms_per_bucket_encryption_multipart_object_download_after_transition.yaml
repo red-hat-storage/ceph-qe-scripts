@@ -2,7 +2,7 @@ config:
   user_count: 1
   encryption_keys: kms
   bucket_count: 2
-  objects_count: 25
+  objects_count: 5
   test_lc_transition: True
   pool_name: data.cold
   storage_class: cold
@@ -15,6 +15,7 @@ config:
     create_bucket: true
     create_object: true
     enable_version: false
+    version_count: 1
     sse_s3_per_bucket: true
     upload_type: multipart
     delete_bucket_object: false
