@@ -4,9 +4,25 @@ test_dynamic_bucket_resharding - Test resharding operations on bucket
 Usage: test_dynamic_bucket_resharding.py -c <input_yaml>
 
 <input_yaml>
-    Note: any one of these yamls can be used
-    test_manual_resharding.yaml
-    test_dynamic_resharding.yaml
+    Note: any one of these yamls can be used 
+    conf exist in both configs/ and multisite_configs/ :
+        test_manual_resharding.yaml
+        test_dynamic_resharding.yaml
+        test_dynamic_resharding_without_bucket_delete.yaml
+        test_manual_resharding_without_bucket_delete.yaml
+        test_dynamic_resharding_with_version_without_bucket_delete.yaml
+
+    multisite_configs/test_bucket_generation.yaml
+    multisite_configs/test_resharding_disable_in_zonegroup.yaml
+    multisite_configs/test_dynamic_resharding_quota_exceed.yaml
+
+    configs/test_bucket_index_shards.yaml
+    configs/test_dbr_with_custom_objs_per_shard_and_max_dynamic_shard.yaml
+    configs/test_dbr_with_custom_objs_per_shard_max_dynamic_shard_and_reshard_thread_interval.yaml
+    configs/test_manual_resharding_with_version.yaml
+    configs/test_dynamic_resharding_with_version.yaml
+    configs/test_disable_and_enable_dynamic_resharding.yaml
+    configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
 
 Operation:
     Create user

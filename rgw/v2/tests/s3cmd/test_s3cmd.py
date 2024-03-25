@@ -7,6 +7,8 @@ Usage: test_s3cmd.py -c <input_yaml>
     Note: Following yaml can be used
     test_s3cmd.yaml
     test_multiple_delete_marker_check.yaml
+    configs/test_disable_and_enable_dynamic_resharding_with_10k_bucket.yaml
+    configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
 
 Operation:
     Create an user
@@ -19,10 +21,13 @@ Operation:
 
 
 import argparse
+import datetime
+import json
 import logging
 import os
 import socket
 import sys
+import time
 import traceback
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -31,7 +36,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib import resource_op
 from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import RGWBaseException, TestExecError
-from v2.lib.rgw_config_opts import CephConfOp
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.lib.s3cmd import auth as s3_auth
@@ -198,6 +203,140 @@ def test_exec(config, ssh_con):
             )
         else:
             log.info(f"Deleting life cycle rule via s3cmd is successful!")
+
+    elif config.test_ops.get("disable_and_enable_dynamic_reshard", False):
+        log.info("making changes to ceph.conf")
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_max_objs_per_shard,
+            str(config.max_objects_per_shard),
+            ssh_con,
+        )
+
+        ceph_conf.set_to_ceph_conf(
+            "global", ConfigOpts.rgw_dynamic_resharding, "False", ssh_con
+        )
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_max_dynamic_shards,
+            str(config.max_rgw_dynamic_shards),
+            ssh_con,
+        )
+
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_reshard_thread_interval,
+            str(config.rgw_reshard_thread_interval),
+            ssh_con,
+        )
+
+        log.info("trying to restart rgw services")
+        srv_restarted = rgw_service.restart(ssh_con)
+        time.sleep(30)
+        if srv_restarted is False:
+            raise TestExecError("RGW service restart failed")
+        else:
+            log.info("RGW service restarted sucessfully")
+
+        log.info(
+            f"Create buckets {config.bucket_count} and upload objects {config.objects_count}"
+        )
+        user_info = resource_op.create_users(no_of_users_to_create=1)
+        if config.bucket_count > 1000:
+            cmd = f"radosgw-admin user modify --uid={user_info[0]['user_id']} --max-buckets {config.bucket_count}"
+            utils.exec_shell_cmd(cmd)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        rgw_conn = auth.do_auth()
+        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+        buckets = []
+
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info[0]["user_id"], rand_no=bc
+            )
+            if bc == 0:
+                bucket_prefix = bucket_name[:-2]
+            s3cmd_reusable.create_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} created")
+            buckets.append(bucket_name)
+            log.info(
+                f"uploading {config.objects_count} objects to bucket {bucket_name}"
+            )
+            utils.exec_shell_cmd(f"fallocate -l 1k obj1k")
+
+            for obj in range(config.objects_count):
+                cmd = f"{s3cmd_path} put obj1k s3://{bucket_name}/object-{obj}"
+                utils.exec_shell_cmd(cmd)
+
+        for bkt in buckets:
+            log.info("Expecting num shards of buckets to be a default value")
+            json_doc = json.loads(
+                utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bkt}")
+            )
+            num_objects = json_doc["usage"]["rgw.main"]["num_objects"]
+            if json_doc["num_shards"] != 11:
+                raise AssertionError(
+                    f"disabling dynamic Re-sharding FAILED!, found {json_doc['num_shards']} shards expected 11"
+                )
+
+        log.info(
+            "Verify resharding list should not list the buckets as dynamic reshard is disabled"
+        )
+        reshard_list_op = json.loads(utils.exec_shell_cmd("radosgw-admin reshard list"))
+        if reshard_list_op:
+            reshard_list = []
+            for reshard in reshard_list_op:
+                if reshard["bucket_name"].startswith(bucket_prefix):
+                    reshard_list.append(reshard["bucket_name"])
+            if len(reshard_list) != 0:
+                raise TestExecError(
+                    f"Expected reshard list to be empty as dynamic reshard is deisabled {reshard_list}"
+                )
+
+        log.info("Set rgw_dynamic_resharding to True")
+        ceph_conf.set_to_ceph_conf(
+            "global", ConfigOpts.rgw_dynamic_resharding, "True", ssh_con
+        )
+
+        log.info("trying to restart rgw services")
+        srv_restarted = rgw_service.restart(ssh_con)
+        time.sleep(30)
+        if srv_restarted is False:
+            raise TestExecError("RGW service restart failed")
+        else:
+            log.info("RGW service restarted sucessfully")
+
+        time_now = datetime.datetime.now()
+        log.info(f"Upload few more objects to the buckets at {time_now}")
+        for bkt in buckets:
+            num_obj = config.max_objects_per_shard * 2
+            log.info(f"objects to create: {num_obj}")
+            for oc in range(num_obj):
+                cmd = f"{s3cmd_path} put obj1k s3://{bkt}/new-object-{oc}"
+                utils.exec_shell_cmd(cmd)
+
+        time.sleep(config.rgw_reshard_thread_interval)
+        for bkt in buckets:
+            log.info(
+                "Expecting num shards to be a greater than 11 as rgw_dynamic_resharding enabled"
+            )
+            json_doc = json.loads(
+                utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bkt}")
+            )
+            num_objects = json_doc["usage"]["rgw.main"]["num_objects"]
+            if json_doc["num_shards"] == 11:
+                raise AssertionError(
+                    f"Enabling dynamic Re-sharding FAILED !, found {json_doc['num_shards']} shards expected > 11"
+                )
+
+        time_curr = datetime.datetime.now()
+        log.info(
+            f"sucessfully completed dynamic resharding it took {time_now} to {time_curr}"
+        )
+
+        log.info("remove user created")
+        reusable.remove_user(user_info[0])
 
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
