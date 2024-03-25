@@ -187,11 +187,23 @@ def upload_object(
         TestExecError("data creation failed")
     log.info("uploading s3 object: %s" % s3_object_path)
     upload_info = dict({"access_key": user_info["access_key"]}, **data_info)
+    args = [s3_object_name]
+
+    if config.encryption_keys == "s3":
+        log.info("SSE S3 AES256 encryption method applied")
+        extra_args = {"ServerSideEncryption": "AES256"}
+        args.append(extra_args)
+    elif config.encryption_keys == "kms":
+        log.info("SSE KMS encryption method applied with vault backend")
+        extra_args = {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId":"testKey01"}
+        args.append(extra_args)
+    else:
+        log.info("no encryption method applied")
     s3_obj = s3lib.resource_op(
         {
             "obj": bucket,
             "resource": "Object",
-            "args": [s3_object_name],
+            "args": args,
         }
     )
     object_uploaded_status = s3lib.resource_op(

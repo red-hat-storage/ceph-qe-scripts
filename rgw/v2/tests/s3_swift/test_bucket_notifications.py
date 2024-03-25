@@ -55,6 +55,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import bucket_notification as notification
+from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -237,6 +238,23 @@ def test_exec(config, ssh_con):
                 # stop kafka server
                 if config.test_ops.get("verify_persistence_with_kafka_stop", False):
                     notification.start_stop_kafka_server("stop")
+
+                # Choose the encryption_method sse-s3 or sse-kms
+                encryption_method = config.encryption_keys
+                if config.test_ops["sse_s3_per_bucket"] is True:
+                    log.info(
+                        f"Encryption type is per-bucket, enable it on bucket : {bucket_name_to_create}"
+                    )
+                    sse_s3.put_bucket_encryption(
+                        rgw_s3_client, bucket_name_to_create, encryption_method
+                    )
+                    # get bucket encryption
+                    log.info(
+                        f"get bucket encryption for bucket : {bucket_name_to_create}"
+                    )
+                    sse_s3.get_bucket_encryption(
+                        rgw_s3_client, bucket_name_to_create
+                    )
 
                 # create objects
                 if config.test_ops.get("create_object", False):
