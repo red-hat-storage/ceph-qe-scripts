@@ -17,6 +17,7 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_with_custom_worktime.yaml
  test_lc_process_without_applying_rule.yaml
  test_lc_transition_with_lc_process.yaml
+ test_sse_kms_per_bucket_multipart_object_download_after_transition.yaml
 
 Operation:
 
@@ -50,6 +51,7 @@ from v2.lib.s3 import lifecycle_validation as lc_ops
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -164,6 +166,17 @@ def test_exec(config, ssh_con):
             if config.test_ops.get("send_bucket_notifications", False) is True:
                 events = ["s3:ObjectLifecycle:Expiration:*"]
                 notification.apply(bucket_name, events)
+
+            # Choose the encryption_method sse-s3 or sse-kms
+            encryption_method = config.encryption_keys
+            if config.test_ops.get("sse_s3_per_bucket") is True:
+                log.info(
+                    f"Encryption type is per-bucket, enable it on bucket : {bucket_name}"
+                )
+                sse_s3.put_bucket_encryption(rgw_conn2, bucket_name, encryption_method)
+                # get bucket encryption
+                log.info(f"get bucket encryption for bucket : {bucket_name}")
+                sse_s3.get_bucket_encryption(rgw_conn2, bucket_name)
 
             if config.test_ops["enable_versioning"] is True:
                 reusable.enable_versioning(
@@ -357,14 +370,24 @@ def test_exec(config, ssh_con):
                         prefix.insert(0, key)
                         s3_object_name = key + "." + bucket.name + "." + str(oc)
                         obj_list.append(s3_object_name)
-                        reusable.upload_object_with_tagging(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            each_user,
-                            obj_tag,
-                        )
+                        if config.test_ops.get("upload_type") == "multipart":
+                            log.info("upload type: multipart")
+                            reusable.upload_mutipart_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                            )
+                        else:
+                            reusable.upload_object_with_tagging(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                                obj_tag,
+                            )
                 upload_end_time = time.time()
 
                 if config.enable_resharding and config.sharding_type == "dynamic":
@@ -460,6 +483,20 @@ def test_exec(config, ssh_con):
                             raise TestExecError(
                                 "Put bucket lifecycle Succeeded, expected failure due to invalid date in LC rule"
                             )
+
+                    if config.test_ops.get("download_object_after_transition", False):
+                        for s3_object_name in obj_list:
+                            s3_object_path = os.path.join(
+                                TEST_DATA_PATH, s3_object_name
+                            )
+                            reusable.download_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                s3_object_path,
+                                config,
+                            )
+
                 else:
                     log.info("Inside parallel lc")
                     buckets.append(bucket)

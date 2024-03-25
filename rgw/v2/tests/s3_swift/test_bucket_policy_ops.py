@@ -5,7 +5,7 @@ usage : test_bucket_policy_ops.py -c configs/<input-yaml>
 where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml and test_bucket_policy_replace.yaml,
   test_bucket_policy_multiple_conflicting_statements.yaml, test_bucket_policy_multiple_statements.yaml,
   test_bucket_policy_condition.yaml, test_bucket_policy_condition_explicit_deny.yaml,
-  test_bucket_policy_invalid_*.yaml
+  test_bucket_policy_invalid_*.yaml, test_sse_kms_per_bucket_with_bucket_policy.yaml
 
 Operation:
 - create bucket in tenant1 for user1
@@ -37,6 +37,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser
@@ -56,7 +57,6 @@ TEST_DATA_PATH = None
 
 
 def get_svc_time(ssh_con=None):
-
     cmd = "pidof radosgw"
     if ssh_con:
         _, pid, _ = ssh_con.exec_command(cmd)
@@ -82,7 +82,6 @@ def get_svc_time(ssh_con=None):
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -115,6 +114,16 @@ def test_exec(config, ssh_con):
         rgw_tenant1_user1,
         tenant1_user1_info,
     )
+    # Choose the encryption_method sse-s3 or sse-kms
+    encryption_method = config.encryption_keys
+    if config.test_ops.get("sse_s3_per_bucket") is True:
+        log.info(f"Encryption type is per-bucket, enable it on bucket : {bucket_name1}")
+        sse_s3.put_bucket_encryption(
+            rgw_tenant1_user1_c, bucket_name1, encryption_method
+        )
+        # get bucket encryption
+        log.info(f"get bucket encryption for bucket : {bucket_name1}")
+        sse_s3.get_bucket_encryption(rgw_tenant1_user1_c, bucket_name1)
     bucket_name2 = utils.gen_bucket_name_from_userid(
         tenant1_user1_info["user_id"], rand_no=2
     )
@@ -352,7 +361,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test bucket policy")
     test_info.started_info()
 
