@@ -161,7 +161,7 @@ def test_exec(config, ssh_con):
         objects_created_list = []
         if config.test_ops["create_bucket"] is True:
             log.info("no of buckets to create: %s" % config.bucket_count)
-            bucket_count = int(utils.exec_shell_cmd("radosgw-admin bucket list --uid=hsm | grep hsm | wc -l")[0])
+            bucket_count = int(utils.exec_shell_cmd("radosgw-admin bucket list --uid=hsm | grep hsm | wc -l"))
             for bc in range(config.bucket_count):
                 bucket_name_to_create = utils.gen_bucket_name_from_userid(
                     each_user["user_id"], rand_no=bc+bucket_count
@@ -189,17 +189,16 @@ def test_exec(config, ssh_con):
                         log.info("s3 object name: %s" % s3_object_name)
                         s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                         log.info("s3 object path: %s" % s3_object_path)
-                        # write a few objects and then enabled encryption on the bucket
-                        reusable.get_object_upload_type(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            each_user,
-                        )
 
-                        if config.test_lc_transition:
-                            utils.exec_shell_cmd(f"rm -rf {s3_object_path}*")
+                        if config.test_lc_transition is False:
+                            # write a few objects and then enabled encryption on the bucket
+                            reusable.get_object_upload_type(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                            )
 
                         # Choose encryption type, per-object or per-bucket:
                         log.info("Choose encryption type, per-object or per-bucket")

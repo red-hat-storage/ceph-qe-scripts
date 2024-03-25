@@ -20,6 +20,7 @@ config:
     upload_type: multipart
     delete_bucket_object: false
     delete_bucket_object_version: false
+    download_object_after_transition: true
     actual_lc_days: 6
   lifecycle_conf:
     - ID: LC_Rule_1
