@@ -343,7 +343,10 @@ def local_zone_bucket_stats(bucket_name, config):
     get bucket stats at the local zone
     """
     zone_name = config.local_zone
-    bucket_name = f"tenant/{bucket_name}"
+    if config.full_sync_test:
+        bucket_name = f"tenant/{bucket_name}"
+    else:
+        bucket_name = f"{bucket_name}"
     cmd_bucket_stats = f"radosgw-admin bucket stats --bucket {bucket_name}"
     log.info(f"collect bucket stats for {bucket_name} at local site {zone_name}")
     local_bucket_stats = json.loads(utils.exec_shell_cmd(cmd_bucket_stats))
@@ -439,12 +442,15 @@ def lc_validation_at_archive_zone(bucket_name, config):
     log.info(f"total noncurrent objects are {objs_ncurr}")
     objs_diff = objs_total - objs_ncurr
     if config.test_ops.get("test_lc_expiration"):
-        validation_time = int(config.test_ops["days"] * 30)
+        validation_time = int(config.test_ops["days"] * 40)
         log.info(f"wait for the lc validation time {validation_time}")
         time.sleep(validation_time)
-        remote_size, remote_num_objects = remote_zone_bucket_stats(bucket_name, config)
+        if config.test_ops.get("test_lc_local_zone", False):
+            object_size, objects_number = local_zone_bucket_stats(bucket_name, config)
+        else:
+            object_size, objects_number = remote_zone_bucket_stats(bucket_name, config)
         if config.test_ops.get("test_current_expiration"):
-            if not remote_num_objects == objs_total:
+            if not objects_number == objs_total:
                 raise TestExecError(
                     "Test failed for LC current version expiration at archive zone."
                 )
@@ -458,18 +464,18 @@ def lc_validation_at_archive_zone(bucket_name, config):
                 log.info(
                     f" the newer noncurrent objects remaining will be {newer_noncurrent_objects}"
                 )
-                if not remote_num_objects == newer_noncurrent_objects:
+                if not objects_number == newer_noncurrent_objects:
                     raise TestExecError(
                         "Test failed for LC newer-noncurrent version expiration at archive zone."
                     )
             elif config.test_ops.get("test_lc_objects_size"):
                 log.info("Assuming the rule is applied for noncurrentversionexpiration")
-                if not remote_num_objects == objs_diff:
+                if not objects_number == objs_diff:
                     raise TestExecError(
                         "Test failed for LC expiration based on object size."
                     )
             else:
-                if not remote_num_objects == objs_diff:
+                if not objects_number == objs_diff:
                     raise TestExecError(
                         "Test failed for LC noncurrent version expiration at archive zone."
                     )
