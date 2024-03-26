@@ -42,6 +42,7 @@ import json
 import logging
 import time
 import traceback
+import asyncio
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -306,14 +307,26 @@ def test_exec(config, ssh_con):
                             log.info("upload type: multipart")
                             abort_multipart = config.abort_multipart
                             log.info(f"value of abort_multipart {abort_multipart}")
-                            reusable.upload_mutipart_object(
-                                s3_object_name,
-                                bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                each_user,
-                                abort_multipart=abort_multipart,
-                            )
+                            if config.test_ops.get("fail_part_upload", False):
+                                # time.sleep(30)
+                                asyncio.run(
+                                    reusable.test_multipart_upload_failed_parts(
+                                        rgw_conn2,
+                                        s3_object_name,
+                                        bucket.name,
+                                        TEST_DATA_PATH,
+                                        config,
+                                    )
+                                )
+                            else:
+                                reusable.upload_mutipart_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                    abort_multipart=abort_multipart,
+                                )
                             if abort_multipart:
                                 log.info(f"verifying abort multipart")
                                 bkt_stat_output = json.loads(
