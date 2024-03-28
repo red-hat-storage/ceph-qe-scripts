@@ -4,6 +4,7 @@ test_sts_using_boto.py - Test STS using boto
 Usage: test_sts_using_boto.py -c <input_yaml>
 <input_yaml>
     test_sts_using_boto.yaml
+    multisite_configs/test_sts_multisite.yaml
 
 Operation:
     s1: Create 2 Users.
@@ -116,6 +117,15 @@ def test_exec(config, ssh_con):
 
         log.info("put_policy_response")
         log.info(put_policy_response)
+
+        log.info(
+            "Test if the cluster is multisite, to perform sts operations via multisite"
+        )
+        is_multisite = utils.is_cluster_multisite()
+        if is_multisite:
+            # Test assume-role at multisite,CEPH-83575592.
+            log.info("Cluster is multisite")
+            ssh_con = reusable.get_remote_conn_in_multisite()
 
         auth = Auth(user2, ssh_con, ssl=config.ssl)
         sts_client = auth.do_auth_sts_client()
