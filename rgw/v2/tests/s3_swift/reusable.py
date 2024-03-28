@@ -194,11 +194,22 @@ def upload_object(
             "args": [s3_object_name],
         }
     )
+
+    args = [s3_object_path]
+    if config.test_ops.get("sse_s3_per_object") is True:
+        if config.encryption_keys == "s3":
+            log.info("SSE S3 AES256 encryption method applied")
+            extra_args = {"ServerSideEncryption": "AES256"}
+            args.append(extra_args)
+        elif config.encryption_keys == "kms":
+            log.info("SSE KMS encryption method applied with vault backend")
+            extra_args = {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": "testKey01"}
+            args.append(extra_args)
     object_uploaded_status = s3lib.resource_op(
         {
             "obj": s3_obj,
             "resource": "upload_file",
-            "args": [s3_object_path],
+            "args": args,
             "extra_info": upload_info,
         }
     )

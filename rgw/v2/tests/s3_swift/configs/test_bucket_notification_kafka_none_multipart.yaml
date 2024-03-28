@@ -15,5 +15,5 @@ config:
   ack_type: none
   put_get_bucket_notification: true
   event_type: Multipart
-  upload_type: mulitpart
+  upload_type: multipart
   delete_bucket_object: false
