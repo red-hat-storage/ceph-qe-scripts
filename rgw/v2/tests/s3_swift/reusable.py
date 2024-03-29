@@ -28,6 +28,7 @@ from v2.lib.s3.write_io_info import (
     KeyIoInfo,
 )
 from v2.lib.sync_status import sync_status
+from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
 from v2.utils.utils import HttpResponseParser, RGWService
 
 rgw_service = RGWService()
@@ -194,11 +195,22 @@ def upload_object(
             "args": [s3_object_name],
         }
     )
+
+    args = [s3_object_path]
+    if config.test_ops.get("sse_s3_per_object") is True:
+        if config.encryption_keys == "s3":
+            log.info("SSE S3 AES256 encryption method applied")
+            extra_args = {"ServerSideEncryption": "AES256"}
+            args.append(extra_args)
+        elif config.encryption_keys == "kms":
+            log.info("SSE KMS encryption method applied with vault backend")
+            extra_args = {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": "testKey01"}
+            args.append(extra_args)
     object_uploaded_status = s3lib.resource_op(
         {
             "obj": s3_obj,
             "resource": "upload_file",
-            "args": [s3_object_path],
+            "args": args,
             "extra_info": upload_info,
         }
     )
@@ -2376,3 +2388,14 @@ def test_bucket_stats_colocated_archive_zone(bucket_name_to_create, each_user, c
         log.info(
             "Bucket versioning is enabled in archive zone when  colocated with primary zone"
         )
+
+
+def put_get_bucket_encryption(rgw_s3_client, bucket_name, config):
+    log.info(f"Encryption type is per-bucket, enable it on bucket : {bucket_name}")
+    # Choose the encryption_method sse-s3 or sse-kms
+    encryption_method = config.encryption_keys
+    log.info(f"Encryption method is : {encryption_method}")
+    sse_s3.put_bucket_encryption(rgw_s3_client, bucket_name, encryption_method)
+    # get bucket encryption
+    log.info(f"get bucket encryption for bucket : {bucket_name}")
+    sse_s3.get_bucket_encryption(rgw_s3_client, bucket_name)

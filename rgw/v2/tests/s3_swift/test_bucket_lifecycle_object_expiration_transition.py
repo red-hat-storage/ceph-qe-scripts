@@ -17,6 +17,7 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_with_custom_worktime.yaml
  test_lc_process_without_applying_rule.yaml
  test_lc_transition_with_lc_process.yaml
+ test_sse_kms_per_bucket_multipart_object_download_after_transition.yaml
 
 Operation:
 
@@ -164,6 +165,9 @@ def test_exec(config, ssh_con):
             if config.test_ops.get("send_bucket_notifications", False) is True:
                 events = ["s3:ObjectLifecycle:Expiration:*"]
                 notification.apply(bucket_name, events)
+
+            if config.test_ops.get("sse_s3_per_bucket") is True:
+                reusable.put_get_bucket_encryption(rgw_conn2, bucket_name, config)
 
             if config.test_ops["enable_versioning"] is True:
                 reusable.enable_versioning(
@@ -357,14 +361,24 @@ def test_exec(config, ssh_con):
                         prefix.insert(0, key)
                         s3_object_name = key + "." + bucket.name + "." + str(oc)
                         obj_list.append(s3_object_name)
-                        reusable.upload_object_with_tagging(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            each_user,
-                            obj_tag,
-                        )
+                        if config.test_ops.get("upload_type") == "multipart":
+                            log.info("upload type: multipart")
+                            reusable.upload_mutipart_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                            )
+                        else:
+                            reusable.upload_object_with_tagging(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                                obj_tag,
+                            )
                 upload_end_time = time.time()
 
                 if config.enable_resharding and config.sharding_type == "dynamic":
@@ -460,6 +474,20 @@ def test_exec(config, ssh_con):
                             raise TestExecError(
                                 "Put bucket lifecycle Succeeded, expected failure due to invalid date in LC rule"
                             )
+
+                    if config.test_ops.get("download_object_after_transition", False):
+                        for s3_object_name in obj_list:
+                            s3_object_path = os.path.join(
+                                TEST_DATA_PATH, s3_object_name
+                            )
+                            reusable.download_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                s3_object_path,
+                                config,
+                            )
+
                 else:
                     log.info("Inside parallel lc")
                     buckets.append(bucket)

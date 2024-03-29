@@ -23,6 +23,7 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_bucket_notification_with_tenant_user.yaml
     test_bucket_notification_kafka_broker_persistent_dynamic_reshard.yaml
     test_bucket_notification_kafka_broker_persistent_manual_reshard.yaml
+    test_sse_s3_per_bucket_with_notifications_dynamic_reshard.yaml
 Operation:
     create user (tenant/non-tenant)
     Create topic and get topic
@@ -237,6 +238,11 @@ def test_exec(config, ssh_con):
                 # stop kafka server
                 if config.test_ops.get("verify_persistence_with_kafka_stop", False):
                     notification.start_stop_kafka_server("stop")
+
+                if config.test_ops.get("sse_s3_per_bucket") is True:
+                    reusable.put_get_bucket_encryption(
+                        rgw_s3_client, bucket_name_to_create, config
+                    )
 
                 # create objects
                 if config.test_ops.get("create_object", False):
