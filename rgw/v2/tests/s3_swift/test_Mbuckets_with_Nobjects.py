@@ -13,10 +13,11 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
 	test_Mbuckets_with_Nobjects_multipart.yaml
 	test_Mbuckets_with_Nobjects_sharding.yaml
 	test_gc_list.yaml
-        test_multisite_manual_resharding_greenfield.yaml
-        test_multisite_dynamic_resharding_greenfield.yaml
+	test_multisite_manual_resharding_greenfield.yaml
+	test_multisite_dynamic_resharding_greenfield.yaml
 	test_gc_list_multipart.yaml
-        test_Mbuckets_with_Nobjects_etag.yaml
+	test_Mbuckets_with_Nobjects_etag.yaml
+	test_changing_data_log_num_shards_cause_no_crash.yaml
 
 Operation:
 	Creates M bucket and N objects
@@ -86,6 +87,23 @@ def test_exec(config, ssh_con):
         ceph_conf.set_to_ceph_conf(
             "global", ConfigOpts.rgw_crypt_require_ssl, "false", ssh_con
         )
+        srv_restarted = rgw_service.restart(ssh_con)
+        time.sleep(30)
+        if srv_restarted is False:
+            raise TestExecError("RGW service restart failed")
+        else:
+            log.info("RGW service restarted")
+    if config.test_ops.get("change_data_log_num_shards", False) is True:
+        data_log_num_shards = config.test_ops.get("data_log_num_shards")
+        log.info(f"changing value of rgw_data_log_num_shards to {data_log_num_shards}")
+        log.info("making changes to ceph.conf")
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_data_log_num_shards,
+            int(data_log_num_shards),
+            ssh_con,
+        )
+        log.info("trying to restart services ")
         srv_restarted = rgw_service.restart(ssh_con)
         time.sleep(30)
         if srv_restarted is False:
