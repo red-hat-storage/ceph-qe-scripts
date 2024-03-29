@@ -9,6 +9,8 @@ Usage: test_s3cmd.py -c <input_yaml>
     test_multiple_delete_marker_check.yaml
     configs/test_disable_and_enable_dynamic_resharding_with_10k_bucket.yaml
     configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
+    configs/test_large_object_download_with_s3cmd.yaml
+    configs/test_large_object_upload_with_s3cmd.yaml
 
 Operation:
     Create an user
@@ -65,6 +67,7 @@ def test_exec(config, ssh_con):
     rgw_service = RGWService()
 
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
     if config.haproxy:
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)
@@ -84,7 +87,6 @@ def test_exec(config, ssh_con):
             )
             s3cmd_reusable.create_bucket(bucket_name)
             log.info(f"Bucket {bucket_name} created")
-            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
             object_count = config.objects_count // 2
 
             log.info(f"uploading some large objects to bucket {bucket_name}")
@@ -193,7 +195,7 @@ def test_exec(config, ssh_con):
             rgw_conn2,
             life_cycle_rule,
         )
-        cmd = f"/home/cephuser/venv/bin/s3cmd dellifecycle s3://{bucket_name}"
+        cmd = f"{s3cmd_path} dellifecycle s3://{bucket_name}"
         rc = utils.exec_shell_cmd(cmd)
         log.info(rc)
         exit_status = os.system("echo $?")
@@ -248,7 +250,6 @@ def test_exec(config, ssh_con):
         s3_auth.do_auth(user_info[0], ip_and_port)
         auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
-        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
         buckets = []
 
         for bc in range(config.bucket_count):
@@ -338,6 +339,62 @@ def test_exec(config, ssh_con):
         log.info("remove user created")
         reusable.remove_user(user_info[0])
 
+    elif config.test_ops.get("user_name", False):
+        log.info("Verify many large objects upload or download")
+        user_name = config.test_ops["user_name"]
+        if config.test_ops.get("object_upload", False):
+            log.info(f"create user {user_name}")
+            cmd = f"radosgw-admin user create --uid={user_name} --display-name={user_name}"
+            out = json.loads(utils.exec_shell_cmd(cmd))
+            if out is False:
+                raise TestExecError(f"RGW User with name {user_name} creation failed")
+
+        if config.test_ops.get("object_download", False):
+            time.sleep(60)
+            log.info(f"get user info{user_name}")
+            out = json.loads(
+                utils.exec_shell_cmd(f"radosgw-admin user info --uid={user_name}")
+            )
+            if out is False:
+                raise TestExecError(f"Get rgw User with name {user_name} failed")
+
+        user_info = {
+            "user_id": out["user_id"],
+            "display_name": out["display_name"],
+            "access_key": out["keys"][0]["access_key"],
+            "secret_key": out["keys"][0]["secret_key"],
+        }
+        s3_auth.do_auth(user_info, ip_and_port)
+        auth = Auth(user_info, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        rgw_conn = auth.do_auth()
+        for bc in range(config.bucket_count):
+            bucket_name = config.test_ops["bucket_prefix"] + str(bc)
+            if config.test_ops.get("object_upload", False):
+                s3cmd_reusable.create_bucket(bucket_name)
+                log.info(f"Bucket {bucket_name} created")
+                log.info(f"uploading some large objects to bucket {bucket_name}")
+                utils.exec_shell_cmd(f"fallocate -l 20m obj20m")
+                for mobj in range(config.objects_count):
+                    cmd = f"{s3cmd_path} put obj20m s3://{bucket_name}/multipart-object-{mobj}"
+                    utils.exec_shell_cmd(cmd)
+
+            if config.test_ops.get("object_download", False):
+                log.info(
+                    f"perfotm s3cmd get for all objects resides in bucket: {bucket_name}"
+                )
+                for mobj in range(config.objects_count):
+                    time.sleep(3)
+                    cmd = f"{s3cmd_path} get s3://{bucket_name}/multipart-object-{mobj} {bucket_name}-multipart-object-{mobj}"
+                    multi_rc = utils.exec_shell_cmd(cmd)
+                    if multi_rc is False:
+                        raise AssertionError(
+                            f"Failed to download object multipart-object-{mobj} from bucket {bucket_name}: {multi_rc}"
+                        )
+
+        if config.test_ops.get("object_download", False):
+            log.info("Remove downloaded objects from cluster")
+            utils.exec_shell_cmd("rm -rf *-object-*")
+
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
         tenant = "tenant"
@@ -356,7 +413,6 @@ def test_exec(config, ssh_con):
         object_count = config.objects_count
 
         if config.full_sync_test:
-            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
             utils.exec_shell_cmd(f"fallocate -l 4K obj4K")
             for obj in range(object_count):
                 cmd = f"{s3cmd_path} put obj4K s3://{bucket_name}/object-{obj}"
