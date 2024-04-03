@@ -5,6 +5,7 @@ Usage: test_sts_using_boto.py -c <input_yaml>
 <input_yaml>
     test_sts_using_boto.yaml
     multisite_configs/test_sts_multisite.yaml
+    test_sse_s3_per_object_with_sts.yaml
 
 Operation:
     s1: Create 2 Users.
@@ -212,7 +213,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("Starting STS test for assume-role operation")
     test_info.started_info()
 

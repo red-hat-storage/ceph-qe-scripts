@@ -5,7 +5,7 @@ usage : test_bucket_policy_ops.py -c configs/<input-yaml>
 where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml and test_bucket_policy_replace.yaml,
   test_bucket_policy_multiple_conflicting_statements.yaml, test_bucket_policy_multiple_statements.yaml,
   test_bucket_policy_condition.yaml, test_bucket_policy_condition_explicit_deny.yaml,
-  test_bucket_policy_invalid_*.yaml
+  test_bucket_policy_invalid_*.yaml, test_sse_kms_per_bucket_with_bucket_policy.yaml
 
 Operation:
 - create bucket in tenant1 for user1
@@ -56,7 +56,6 @@ TEST_DATA_PATH = None
 
 
 def get_svc_time(ssh_con=None):
-
     cmd = "pidof radosgw"
     if ssh_con:
         _, pid, _ = ssh_con.exec_command(cmd)
@@ -82,7 +81,6 @@ def get_svc_time(ssh_con=None):
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
@@ -115,6 +113,10 @@ def test_exec(config, ssh_con):
         rgw_tenant1_user1,
         tenant1_user1_info,
     )
+
+    if config.test_ops.get("sse_s3_per_bucket") is True:
+        reusable.put_get_bucket_encryption(rgw_tenant1_user1_c, bucket_name1, config)
+
     bucket_name2 = utils.gen_bucket_name_from_userid(
         tenant1_user1_info["user_id"], rand_no=2
     )
@@ -352,7 +354,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test bucket policy")
     test_info.started_info()
 
