@@ -3,14 +3,17 @@ Reusable methods for curl
 """
 
 
+import glob
 import json
 import logging
 import os
+import re
 import sys
 import time
 
 import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
+from v2.lib.manage_data import io_generator
 
 log = logging.getLogger()
 
@@ -437,3 +440,213 @@ def get_user_quota(curl_auth, user_id, quota_type):
     if cmd_output is False:
         raise TestExecError(f"failed to get user quota for quota-type {quota_type}")
     return cmd_output
+
+
+def create_multipart_upload(curl_auth, bucket_name, s3_object_name):
+    """
+    Initiate multipart uploads for given object on a given bucket
+    Ex: curl -X POST '{endpoint_url}/{bucket_name}/{object_name}?uploads=true'
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        bucket_name(str): Name of the bucket to be created
+        s3_object_name(str): name of the s3 object
+    Return:
+        Response of create-multipart-upload
+    """
+    log.info(f"create multipart upload for object: {s3_object_name}")
+    headers = {"x-amz-content-sha256": "UNSIGNED-PAYLOAD", "Accept": "application/json"}
+    command = curl_auth.command(
+        http_method="POST",
+        headers=headers,
+        url_suffix=f"{bucket_name}/{s3_object_name}?uploads=true",
+    )
+    create_mpu_output = utils.exec_shell_cmd(command)
+    if create_mpu_output is False:
+        raise TestExecError(
+            f"create multipart upload failed for object {s3_object_name}"
+        )
+    log.info(f"create multipart upload successful for object {s3_object_name}")
+    return create_mpu_output
+
+
+def upload_part(
+    curl_auth,
+    bucket_name,
+    s3_object_name,
+    part_number,
+    upload_id,
+    body,
+    content_length=None,
+):
+    """
+    Upload part to the key in a bucket
+    Ex: /usr/local/bin/aws s3api upload-part --bucket <bucket_name> --key <key_name> --part-number <part_number>
+        --upload-id <upload_id> --body <body> --endpoint <endpoint_url>
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        bucket_name(str): Name of the bucket
+        s3_object_name(str): Name of the object for which part has to be uploaded
+        part_number(int): part number
+        upload_id(str): upload id fetched during initiating multipart upload
+        body(str): part file which needed to be uploaded
+    Return:
+        Response of uplaod_part i.e., Etag
+    """
+    log.info(f"upload part {part_number} for object: {s3_object_name}")
+    headers = {"x-amz-content-sha256": "UNSIGNED-PAYLOAD"}
+    if content_length:
+        headers["Content-Length"] = content_length
+    command = curl_auth.command(
+        http_method="PUT",
+        headers=headers,
+        input_file=body,
+        url_suffix=f"{bucket_name}/{s3_object_name}?partNumber={part_number}&uploadId={upload_id}",
+    )
+    upload_part_output, verbose_output = utils.exec_shell_cmd(command, debug_info=True)
+    if upload_part_output is False:
+        raise TestExecError(f"upload part failed for object {s3_object_name}")
+    log.info(f"upload part successful for object {s3_object_name}")
+
+    etag_line = re.findall('< ETag: ".*"', str(verbose_output))
+    etag = etag_line[0].split(" ")[-1]
+    return etag
+
+
+def complete_multipart_upload(
+    curl_auth, bucket_name, s3_object_name, upload_id, complete_mpu_string
+):
+    """
+    Complete multipart uploads for given object on a given bucket
+    Ex: /usr/local/bin/aws s3api complete-multipart-upload --multipart-upload file://<upload_file>
+        --bucket <bucket_name> --key <key_name> --upload-id <upload_id> --endpoint <endpoint_url>
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        bucket_name(str): Name of the bucket
+        s3_object_name(str): Name of the object for which multipart upload has to be Completed
+        upload_id(str): upload id fetched during initiating multipart upload
+        complete_mpu_string(str): xml structure in the form of string containing parts of part number and etag
+            ex: '<CompleteMultipartUpload>
+                    <Part>
+                        <PartNumber>1</PartNumber>
+                        <ETag>"14d20d18d7f0fed186b420fe6fd31991"</ETag>
+                    </Part>
+                    <Part>
+                        <PartNumber>2</PartNumber>
+                        <ETag>"0f86d7c5a6180cf9584c1d21144d85b0"</ETag>
+                    </Part>
+                </CompleteMultipartUpload>'
+    Return:
+        Response of complete-multipart-upload
+    """
+    log.info(f"complete multipart upload for object: {s3_object_name}")
+    headers = {"x-amz-content-sha256": "UNSIGNED-PAYLOAD", "Accept": "application/json"}
+    command = curl_auth.command(
+        http_method="POST",
+        headers=headers,
+        raw_data_list=[complete_mpu_string],
+        url_suffix=f"{bucket_name}/{s3_object_name}?uploadId={upload_id}",
+    )
+    complete_mpu_output = utils.exec_shell_cmd(command)
+    if complete_mpu_output is False:
+        raise TestExecError(
+            f"complete multipart upload failed for object {s3_object_name}"
+        )
+    log.info(f"complete multipart upload successful for object {s3_object_name}")
+    return complete_mpu_output
+
+
+def upload_multipart_object(
+    curl_auth,
+    bucket_name,
+    s3_object_name,
+    TEST_DATA_PATH,
+    config,
+    append_data=False,
+    append_msg=None,
+):
+    """
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        bucket_name(str): Name of the bucket
+        s3_object_name(str): Name of the object
+        TEST_DATA_PATH(str): Test data path
+        config: configuration used
+        append_data(boolean)
+        append_msg(str)
+    Return:
+        Returns True if success else raises an Exception
+    """
+    log.info("Create multipart upload")
+    create_mp_upload_resp = create_multipart_upload(
+        curl_auth, bucket_name, s3_object_name
+    )
+    upload_id = json.loads(create_mp_upload_resp)["UploadId"]
+
+    log.info(f"object name: {s3_object_name}")
+    object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    log.info(f"object path: {object_path}")
+    object_size = config.obj_size
+    log.info(f"object_size: {object_size}")
+    split_size = config.split_size if hasattr(config, "split_size") else 5
+    log.info(f"split size: {split_size}")
+    if append_data is True:
+        data_info = io_generator(
+            object_path,
+            object_size,
+            op="append",
+            **{"message": "\n%s" % append_msg},
+        )
+    else:
+        data_info = io_generator(object_path, object_size)
+    if data_info is False:
+        TestExecError("data creation failed")
+
+    mp_dir = os.path.join(TEST_DATA_PATH, s3_object_name + ".mp.parts")
+    log.info(f"mp part dir: {mp_dir}")
+    log.info("making multipart object part dir")
+    mkdir = utils.exec_shell_cmd(f"sudo mkdir {mp_dir}")
+    if mkdir is False:
+        raise TestExecError("mkdir failed creating mp_dir_name")
+    utils.split_file(object_path, split_size, mp_dir + "/")
+    parts_list = sorted(glob.glob(mp_dir + "/" + "*"))
+    log.info("parts_list: %s" % parts_list)
+
+    part_number = 1
+    log.info("no of parts: %s" % len(parts_list))
+
+    complete_mpu_string = "<CompleteMultipartUpload>"
+    for each_part in parts_list:
+        log.info(f"upload part {part_number} of object: {s3_object_name}")
+
+        etag = upload_part(
+            curl_auth, bucket_name, s3_object_name, part_number, upload_id, each_part
+        )
+
+        complete_mpu_string = (
+            complete_mpu_string
+            + f"<Part><PartNumber>{part_number}</PartNumber><ETag>{etag}</ETag></Part>"
+        )
+
+        if each_part != parts_list[-1]:
+            # increase the part number only if the current part is not the last part
+            part_number += 1
+        log.info("curr part_number: %s" % part_number)
+
+    complete_mpu_string = complete_mpu_string + "</CompleteMultipartUpload>"
+
+    if config.local_file_delete is True:
+        log.info("deleting local file part")
+        utils.exec_shell_cmd(f"rm -rf {mp_dir}")
+
+    if len(parts_list) == part_number:
+        log.info("all parts upload completed")
+        complete_multipart_upload_resp = json.loads(
+            complete_multipart_upload(
+                curl_auth, bucket_name, s3_object_name, upload_id, complete_mpu_string
+            )
+        )
+        if not complete_multipart_upload_resp["ETag"]:
+            raise AssertionError(
+                "Etag not generated during complete multipart upload operation"
+            )
+        return True

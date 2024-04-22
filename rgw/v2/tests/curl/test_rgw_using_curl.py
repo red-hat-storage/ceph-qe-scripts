@@ -5,6 +5,7 @@ Usage: test_rgw_using_curl.py -c <input_yaml>
     Note: Following yaml can be used
     test_curl_transfer_encoding_chunked.yaml
     test_rgw_using_curl.yaml
+    test_rgw_curl_multipart_upload.yaml
 
 Operation:
 
@@ -69,15 +70,25 @@ def test_exec(config, ssh_con):
                     log.info("s3 object name: %s" % s3_object_name)
                     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                     log.info("s3 object path: %s" % s3_object_path)
-                    log.info("upload type: normal")
-                    curl_reusable.upload_object(
-                        curl_auth,
-                        bucket_name,
-                        s3_object_name,
-                        TEST_DATA_PATH,
-                        config,
-                        Transfer_Encoding=config.test_ops.get("Transfer_Encoding"),
-                    )
+                    if config.test_ops.get("upload_type") == "multipart":
+                        log.info("upload type: multipart")
+                        curl_reusable.upload_multipart_object(
+                            curl_auth,
+                            bucket_name,
+                            s3_object_name,
+                            TEST_DATA_PATH,
+                            config,
+                        )
+                    else:
+                        log.info("upload type: normal")
+                        curl_reusable.upload_object(
+                            curl_auth,
+                            bucket_name,
+                            s3_object_name,
+                            TEST_DATA_PATH,
+                            config,
+                            Transfer_Encoding=config.test_ops.get("Transfer_Encoding"),
+                        )
                     objects_created_list.append(s3_object_name)
                     if config.test_ops["download_object"] is True:
                         curl_reusable.download_object(
