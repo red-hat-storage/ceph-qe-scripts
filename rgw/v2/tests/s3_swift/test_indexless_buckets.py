@@ -99,20 +99,23 @@ def test_exec(config, ssh_con):
                             s3_object_name, bucket, TEST_DATA_PATH, config, each_user
                         )
 
-        # verify the bucket created has index_type = Indexless
-        log.info("verify the default placement is Indexless placement")
-        zonegroup_get = utils.exec_shell_cmd("radosgw-admin zonegroup get")
-        zonegroup_get_json = json.loads(zonegroup_get)
-        default_place = zonegroup_get_json["default_placement"]
-        if default_place == "indexless-placement":
-            log.info("default placement is Indexless placement")
-        else:
-            raise TestExecError("default placement is not Indexless placement")
+                # verify the bucket created has index_type = Indexless
+                log.info("verify the default placement is Indexless placement")
+                zonegroup_get = utils.exec_shell_cmd("radosgw-admin zonegroup get")
+                zonegroup_get_json = json.loads(zonegroup_get)
+                default_place = zonegroup_get_json["default_placement"]
+                if default_place == "indexless-placement":
+                    log.info("default placement is Indexless placement")
+                else:
+                    raise TestExecError("default placement is not Indexless placement")
 
-        # delete bucket and objects
-        if config.test_ops["delete_bucket"] is True:
-            log.info("Deleting buckets and objects")
-            reusable.delete_bucket(bucket)
+                # delete bucket and objects
+                if config.test_ops["delete_bucket"] is True:
+                    log.info("Deleting buckets and objects")
+                    reusable.delete_bucket(bucket)
+
+        if config.user_remove:
+            reusable.remove_user(each_user)
 
     # reverting to default placement group
     log.info("revert changes to zone, zonegroup and default placement target")
