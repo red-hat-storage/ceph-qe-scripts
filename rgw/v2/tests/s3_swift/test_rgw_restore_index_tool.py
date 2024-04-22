@@ -125,8 +125,12 @@ def test_exec(config, ssh_con):
         log.info(
             f"bucket stats after clearing the bucket instance objects: {utils.exec_shell_cmd(bkt_stat_cmd)}"
         )
-        log.info(f"run the rgw-restore-bucket-index tool")
-        restore_index_cmd = f"rgw-restore-bucket-index -b {bucket.name} -y"
+        log.info(
+            f"run the rgw-restore-bucket-index tool at custom location bug-2267715"
+        )
+        restore_index_cmd = (
+            f"rgw-restore-bucket-index -b {bucket.name} -t /home/cephuser -y"
+        )
         utils.exec_shell_cmd(restore_index_cmd)
         time.sleep(60)
         log.info(
