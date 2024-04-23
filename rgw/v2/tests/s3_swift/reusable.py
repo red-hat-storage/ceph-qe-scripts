@@ -1987,8 +1987,8 @@ def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config, bucket_object=
         log.info(
             f"object count mismatch found for bucket {bucket.name} : {site_bkt_objects} expected {bkt_objects}"
         )
-        log.info("Check after 60s")
-        time.sleep(60)
+        log.info("Check after 180s")
+        time.sleep(180)
         _, output, _ = rgw_ssh_con.exec_command(
             f"radosgw-admin bucket stats --bucket {bucket.name}"
         )
