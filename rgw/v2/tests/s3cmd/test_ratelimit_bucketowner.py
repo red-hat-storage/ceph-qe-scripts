@@ -138,6 +138,8 @@ def test_exec(config, ssh_con):
     rc = utils.exec_shell_cmd(
         f"radosgw-admin bucket chown --bucket {bucket_name} --uid {uname2}"
     )
+
+    s3_auth.do_auth(user_info[1], ip_and_port)
     # Test the bucket ratelimit is still valid
     log.info(f"Test the read ops limits")
     s3cmd_reusable.rate_limit_read(bucket_name, max_read_ops, ssl)
