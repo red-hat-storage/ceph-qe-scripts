@@ -202,6 +202,21 @@ def test_exec(config, ssh_con):
     sleep(61)
     s3cmd_reusable.rate_limit_write(bucket_name2, max_write_bytes_kb, ssl)
 
+    if config.test_ops.get("test_debt", False):
+        log.info("Test the rate limit debt feature ")
+        log.info("Write more than double the max write bytes")
+        log.info("Sleep for a minute to reset limits")
+        sleep(61)
+        debt_limit = 2 * int(max_write_bytes_kb)
+        s3cmd_reusable.debt_ratelimit(bucket_name2, debt_limit, ssl)
+
+        # post a write above the set limit , debt is in effect
+        # further writes will fail until 2 minutes
+        s3cmd_reusable.rate_limit_write(bucket_name2, max_write_bytes_kb, ssl)
+        log.info("Sleep for 120 seconds for the debt to conclude")
+        sleep(121)
+        s3cmd_reusable.rate_limit_write(bucket_name2, max_write_bytes_kb, ssl)
+
 
 if __name__ == "__main__":
     test_info = AddTestInfo("test bucket and user rate limits")
