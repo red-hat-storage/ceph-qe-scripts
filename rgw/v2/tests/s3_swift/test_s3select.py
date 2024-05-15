@@ -14,6 +14,9 @@ Operation:
 
 import os
 import sys
+import time
+
+import botocore
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
@@ -64,20 +67,10 @@ def test_exec(config, ssh_con):
                 )
                 rgw_s3_client.create_bucket(Bucket=bucket_name)
 
-                input_serialization = {
-                    "CSV": {
-                        "RecordDelimiter": "\n",
-                        "FieldDelimiter": ",",
-                        "QuoteEscapeCharacter": "\\",
-                        "QuoteCharacter": '"',
-                        "FileHeaderInfo": "NONE",
-                    },
-                    "CompressionType": "NONE",
-                }
                 output_serialization = {"CSV": {}}
 
                 # create objects
-                if config.test_ops.get("create_csv_object", False):
+                if config.test_ops.get("object_type") == "csv":
                     # uploading data
                     csv_matrix, csv_string = s3select.create_csv_object(
                         row_count=30,
@@ -89,18 +82,53 @@ def test_exec(config, ssh_con):
                     with open(s3_object_path, "w") as fp:
                         fp.write(csv_string)
 
-                    rgw_s3_client.put_object(
+                    response = rgw_s3_client.put_object(
                         Bucket=bucket_name, Key=s3_object_name, Body=csv_string
                     )
+                    log.info(f"upload object response: {response}")
+
+                    input_serialization = {
+                        "CSV": {
+                            "RecordDelimiter": "\n",
+                            "FieldDelimiter": ",",
+                            "QuoteEscapeCharacter": "\\",
+                            "QuoteCharacter": '"',
+                            "FileHeaderInfo": "NONE",
+                        },
+                        "CompressionType": "NONE",
+                    }
+
+                if config.test_ops.get("object_type") == "parquet":
+                    # uploading data
+                    s3_object_name = f"Key_{bucket_name}_parquet"
+                    log.info(f"s3 object name: {s3_object_name}")
+                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                    log.info(f"s3 object path: {s3_object_path}")
+                    dataset_dict = s3select.create_parquet_object(
+                        parquet_obj_path=s3_object_path,
+                        row_count=30,
+                        column_count=4,
+                        column_data_types=["int", "float", "string", "timestamp"],
+                    )
+
+                    response = rgw_s3_client.upload_file(
+                        s3_object_path, bucket_name, s3_object_name
+                    )
+                    log.info(f"upload object response: {response}")
+
+                    input_serialization = {
+                        "Parquet": {},
+                        "CompressionType": "NONE",
+                    }
 
                 if config.test_ops.get("query_generation", False):
                     depth = config.test_ops.get("depth", 1)
-                    s3_queries_path = (
-                        f"/home/cephuser/s3select_gen_query_csv_depth{depth}.yaml"
-                    )
+                    s3_queries_path = f"/home/cephuser/s3select_gen_query_{config.test_ops.get('object_type')}_depth{depth}.yaml"
                     queries = query_generation.get_queries(
                         s3_object_name, s3_object_path, depth, s3_queries_path
                     )
+
+                log.info(input_serialization)
 
                 for query in queries["queries"]:
                     try:
@@ -116,7 +144,7 @@ def test_exec(config, ssh_con):
                         log.info(f"Result: {result}\n")
                         query["result"] = result
                         query["status"] = "pass"
-                    except Exception as e:
+                    except botocore.exceptions.ClientError as e:
                         log.error(e)
                         query["exception"] = e
                         query["status"] = "fail"

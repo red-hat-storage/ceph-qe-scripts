@@ -6,6 +6,6 @@ config:
   user_remove: false
   test_ops:
     create_bucket: true
-    create_csv_object: true
+    object_type: csv
     query_generation: true
     depth: 2
