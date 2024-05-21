@@ -180,7 +180,7 @@ def create_local_file(file_size, file_name):
         file_size(int): Size of the file to be created
         file_name(str): Name of the file to be created
     """
-    exec_shell_cmd(f"fallocate -l {file_size} {file_name}")
+    exec_shell_cmd(f"sudo fallocate -l {file_size} {file_name}")
 
 
 def get_file_size(file_name):
@@ -304,6 +304,23 @@ def rate_limit_write(bucket, max_write_ops, ssl=None):
     )
     stdout, stderr = run_subprocess(cmd)
     assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
+
+
+def debt_ratelimit(bucket, debt_limit, ssl=None):
+    """
+    :param bucket: bucket to write
+    :param debt_limit: data to write to test the debt limit
+    """
+    if "/" in bucket:
+        bucket = bucket.split("/")[1]
+    create_local_file(str(debt_limit) + "k", "file2")
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = ""
+    cmd = f"/home/cephuser/venv/bin/s3cmd put file2 s3://{bucket}/file1 {ssl_param}"
+    stdout, stderr = run_subprocess(cmd)
+    assert "503" not in str(stderr), "Rate limit slowdown observed, failing!"
 
 
 def remote_zone_bucket_stats(bucket_name, config):
