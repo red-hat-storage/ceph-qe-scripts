@@ -163,7 +163,10 @@ def test_exec(config, ssh_con):
                 reusable.bucket_reshard_manual(bucket, config)
 
             if config.test_ops.get("send_bucket_notifications", False) is True:
-                events = ["s3:ObjectLifecycle:Expiration:*"]
+                events = [
+                    "s3:ObjectLifecycle:Expiration:*",
+                    "s3:ObjectLifecycle:Transition:*",
+                ]
                 notification.apply(bucket_name, events)
 
             if config.test_ops.get("sse_s3_per_bucket") is True:

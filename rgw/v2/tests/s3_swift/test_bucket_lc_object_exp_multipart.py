@@ -179,7 +179,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("bucket life cycle: test object expiration")
     test_info.started_info()
 
