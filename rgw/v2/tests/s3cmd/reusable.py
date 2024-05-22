@@ -406,6 +406,8 @@ def Generate_LC_xml(fileName, config):
     rule_filter = xml.SubElement(lc_rule, "Filter")
     if config.test_ops.get("test_lc_objects_size"):
         filter_and = xml.SubElement(rule_filter, "And")
+        if config.test_ops.get("test_lc_archive_zone"):
+            and_archive_zone = xml.SubElement(filter_and, "ArchiveZone")
         and_prefix = xml.SubElement(filter_and, "Prefix")
         and_ObjectSizeGreaterThan = xml.SubElement(filter_and, "ObjectSizeGreaterThan")
         and_ObjectSizeLessThan = xml.SubElement(filter_and, "ObjectSizeLessThan")
