@@ -3,6 +3,10 @@ import logging
 import random
 import string
 
+import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+
 log = logging.getLogger()
 
 
@@ -42,6 +46,40 @@ def create_csv_object(
     csv_string = record_delimiter.join(each_row_strings)
     log.info(f"csv data generated: \n{csv_string}\n")
     return csv_matrix, csv_string
+
+
+def create_parquet_object(parquet_obj_path, row_count, column_count, column_data_types):
+    dataset_dict = {}
+    for c_index in range(column_count):
+        each_col = []
+        data_type = column_data_types[c_index]
+        for r_index in range(row_count):
+            if data_type == "int":
+                random_val = random.randint(1, 111111111111)
+            if data_type == "float":
+                random_val = random.uniform(111111111111111.1, 222222222222222.2)
+            if data_type == "string":
+                random_val = "".join(
+                    random.choices(string.ascii_letters + string.digits + " ", k=20)
+                )
+            if data_type == "timestamp":
+                current_date = datetime.datetime.now(datetime.timezone.utc)
+                start_date = current_date + datetime.timedelta(days=1000)
+                end_date = current_date + datetime.timedelta(days=1000)
+                random_date = start_date + (end_date - start_date) * random.random()
+                random_val = str(random_date.isoformat())
+            each_col.append(random_val)
+        dataset_dict[c_index] = each_col
+
+    log.info(f"dataset:\n{dataset_dict}")
+
+    df = pd.DataFrame(dataset_dict)
+    table = pa.Table.from_pandas(df, preserve_index=False)
+    obj = pa.BufferOutputStream()
+    pq.write_table(table, obj, compression="snappy")
+    with open(parquet_obj_path, "wb") as fp:
+        fp.write(obj.getvalue().to_pybytes())
+    return dataset_dict
 
 
 def execute_s3select_query(

@@ -1,4 +1,4 @@
-# requires python3 
+# requires python3
 boto
 boto3
 ConfigParser
@@ -11,12 +11,14 @@ s3cmd
 simplejson
 swiftly
 paramiko
+pandas
+pyarrow
 
 # for v1
 #psutil
 rgwadmin
 
-# for checks 
+# for checks
 black
 isort
 yamllint
