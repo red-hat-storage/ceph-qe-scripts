@@ -2399,3 +2399,44 @@ def put_get_bucket_encryption(rgw_s3_client, bucket_name, config):
     # get bucket encryption
     log.info(f"get bucket encryption for bucket : {bucket_name}")
     sse_s3.get_bucket_encryption(rgw_s3_client, bucket_name)
+
+
+def create_storage_class_in_all_zones(current_zone, rgw_ssh_con, config):
+    """
+    This function is to set the prereqs for object sync with bucket granular sync policy
+    """
+    _, stdout, _ = rgw_ssh_con.exec_command("radosgw-admin bucket list")
+    pool_name = config.pool_name
+    storage_class = config.storage_class
+    zone_names, _ = get_multisite_info()
+    log.info(f"zones available are: {zone_names}")
+    op = utils.exec_shell_cmd("radosgw-admin sync status")
+    lines = list(op.split("\n"))
+    for line in lines:
+        if "zonegroup" in line:
+            zonegroup = line[line.find("(") + 1 : line.find(")")]
+            break
+
+    for zone in zone_names:
+        if zone == current_zone:
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {storage_class}"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {storage_class} --data-pool {pool_name}"
+            )
+            utils.exec_shell_cmd(f"ceph osd pool create {pool_name}")
+            utils.exec_shell_cmd(f"ceph osd pool application enable {pool_name} rgw")
+            utils.exec_shell_cmd("radosgw-admin period update --commit")
+        else:
+            rgw_ssh_con.exec_command(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class {storage_class}"
+            )
+            rgw_ssh_con.exec_command(
+                f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {storage_class} --data-pool {pool_name}"
+            )
+            rgw_ssh_con.exec_command(f"ceph osd pool create {pool_name}")
+            rgw_ssh_con.exec_command(
+                f"ceph osd pool application enable {pool_name} rgw"
+            )
+            rgw_ssh_con.exec_command("radosgw-admin period update --commit")

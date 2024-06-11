@@ -14,6 +14,10 @@ Usage: test_multisite_bucket_granular_sync_policy.py
     multisite_configs/test_multisite_granular_bucketsync_sync_from_diff_bucket.yaml
     multisite_configs/test_multisite_granular_bucketsync_archive_symmetrical.yaml
     multisite_configs/test_multisite_granular_bucketsync_archive_directional.yaml
+    multisite_configs/test_bucket_granularsync_storage_class_symm.yaml
+    multisite_configs/test_bucket_granularsync_storage_class_direc.yaml
+    multisite_configs/test_bucket_granularsync_owner_translation_direc.yaml
+    multisite_configs/test_bucket_granularsync_owner_translation_symm.yaml
 
 Operation:
 	Creates delete sync policy group bucket , zonegroupl level
@@ -110,6 +114,20 @@ def test_exec(config, ssh_con):
                 reusable.verify_bucket_sync_on_other_site(rgw_ssh_con, bucket)
                 buckets.append(bucket)
 
+    if config.test_ops.get("dest_param_storage_class", False):
+        reusable.create_storage_class_in_all_zones(zone["name"], rgw_ssh_con, config)
+
+    if config.test_ops.get("dest_param_owner_translation", False):
+        log.info("creating new user and its owned bucket for sync destination")
+        new_users_info = s3lib.create_users(config.user_count)
+        auth = Auth(new_users_info[0], ssh_con, ssl=config.ssl)
+        new_rgw_conn = auth.do_auth()
+        new_bkt_name = utils.gen_bucket_name_from_userid(new_users_info[0]["user_id"])
+        log.info(
+            f"creating bucket with name: {new_bkt_name} for user {new_users_info[0]['user_id']}"
+        )
+        bkt_new = reusable.create_bucket(new_bkt_name, new_rgw_conn, new_users_info[0])
+
     if utils.is_cluster_multisite():
         if config.test_ops.get("zonegroup_group", False):
             group_status = config.test_ops["zonegroup_status"]
@@ -202,11 +220,14 @@ def test_exec(config, ssh_con):
                                     bucket_details = config.test_ops.get(
                                         "bucket_policy_details", None
                                     )
+                                    if bucket_details is not None:
+                                        bucket_details = " " + bucket_details
+
                                     pipe_id = None
                                     if config.test_ops.get(
                                         "sync_to_diff_bucket", False
                                     ):
-                                        bucket_details = " " + bucket_details.replace(
+                                        bucket_details = bucket_details.replace(
                                             "<dest_bucket_name>",
                                             f"{bkt.name}-new-{pipec}",
                                         )
@@ -215,8 +236,20 @@ def test_exec(config, ssh_con):
                                     if config.test_ops.get(
                                         "sync_from_diff_bucket", False
                                     ):
-                                        bucket_details = " " + bucket_details.replace(
+                                        bucket_details = bucket_details.replace(
                                             "<source_bucket_name>", old_bucket
+                                        )
+
+                                    if config.test_ops.get(
+                                        "dest_param_owner_translation", False
+                                    ):
+                                        bucket_details = bucket_details.replace(
+                                            "<dest_bucket_name>",
+                                            new_bkt_name,
+                                        )
+                                        bucket_details = bucket_details.replace(
+                                            "<dest_owner>",
+                                            new_users_info[0]["user_id"],
                                         )
 
                                     bucket_source_pipe = config.test_ops.get(
@@ -289,6 +322,25 @@ def test_exec(config, ssh_con):
                             reusable.verify_object_sync_on_other_site(
                                 rgw_ssh_con, bkt, config
                             )
+
+                            if config.test_ops.get("dest_param_storage_class", False):
+                                log.info(
+                                    f"Start the validation of object sync in destination with staorage class {config.storage_class}"
+                                )
+                                _, out, _ = rgw_ssh_con.exec_command(
+                                    f"radosgw-admin bucket list --bucket {bkt.name}"
+                                )
+                                bkt_list = json.loads(out.read().decode())
+                                for obj in bkt_list:
+                                    if obj["name"].startswith(f"key_{bkt.name}_"):
+                                        if (
+                                            obj["meta"]["storage_class"]
+                                            != config.storage_class
+                                        ):
+                                            raise TestExecError(
+                                                f"object synced to non-master for bucket {bkt.name}, does not belong to storage class {config.storage_class}"
+                                            )
+
                         else:
                             time.sleep(1200)
                             _, stdout, _ = rgw_ssh_con.exec_command(
@@ -389,10 +441,43 @@ def test_exec(config, ssh_con):
                                         f"object should be sync to another site for bucket {bkt.name}, but not synced"
                                     )
 
-                        if config.test_ops.get("write_io_verify_another_site", False):
                             if config.test_ops.get(
-                                "sync_to_diff_bucket", False
-                            ) or config.test_ops.get("sync_from_diff_bucket", False):
+                                "dest_param_owner_translation", False
+                            ):
+                                log.info(
+                                    f"Verify object sync on same site for bucket {bkt.name}"
+                                )
+                                bucket_stats = json.loads(
+                                    utils.exec_shell_cmd(
+                                        f"radosgw-admin bucket stats --bucket {bkt.name}"
+                                    )
+                                )
+                                bkt_objects = bucket_stats["usage"]["rgw.main"][
+                                    "num_objects"
+                                ]
+                                if bkt_objects != config.objects_count:
+                                    raise TestExecError(
+                                        f"Did not find {config.objects_count} in bucket {bkt.name}, but found {bkt_objects}"
+                                    )
+
+                                log.info(
+                                    f"object did sync on same site for bucket {bkt.name} as expected"
+                                )
+                                reusable.verify_object_sync_on_other_site(
+                                    rgw_ssh_con,
+                                    bkt_new,
+                                    config,
+                                    bucket_object=bkt_objects,
+                                )
+
+                        if config.test_ops.get("write_io_verify_another_site", False):
+                            if (
+                                config.test_ops.get("sync_to_diff_bucket", False)
+                                or config.test_ops.get("sync_from_diff_bucket", False)
+                                or config.test_ops.get(
+                                    "dest_param_owner_translation", False
+                                )
+                            ):
                                 cmd_output = json.loads(
                                     utils.exec_shell_cmd(
                                         f"radosgw-admin bucket stats --bucket {bkt.name}"
@@ -478,6 +563,29 @@ def test_exec(config, ssh_con):
                                     f"Object synced for bucket {bkt.name}, on another site as expected"
                                 )
 
+                                if config.test_ops.get(
+                                    "dest_param_storage_class", False
+                                ):
+                                    log.info(
+                                        f"Start the validation of object sync in destination with staorage class {config.storage_class}"
+                                    )
+                                    bkt_list = json.loads(
+                                        utils.exec_shell_cmd(
+                                            f"radosgw-admin bucket list --bucket {bkt.name}"
+                                        )
+                                    )
+                                    for obj in bkt_list:
+                                        if obj["name"].startswith(
+                                            f"new-key_{bkt.name}_"
+                                        ):
+                                            if (
+                                                obj["meta"]["storage_class"]
+                                                != config.storage_class
+                                            ):
+                                                raise TestExecError(
+                                                    f"object synced to master for bucket {bkt.name}, does not belong to storage class {config.storage_class}"
+                                                )
+
                             elif config.test_ops.get(
                                 "sync_to_diff_bucket", False
                             ) or config.test_ops.get("sync_from_diff_bucket", False):
@@ -529,6 +637,59 @@ def test_exec(config, ssh_con):
                                         )
                                     log.info(
                                         f"Object synced for bucket {new_bkt}, on another site as expected"
+                                    )
+
+                            elif config.test_ops.get(
+                                "dest_param_owner_translation", False
+                            ):
+                                if bkt_objects != sync_num_obj:
+                                    raise TestExecError(
+                                        f"Object should not sync in bucket {bkt.name}, but found {bkt_objects}"
+                                    )
+
+                                _, stats_stdout, _ = rgw_ssh_con.exec_command(
+                                    f"radosgw-admin bucket stats --bucket {new_bkt_name}"
+                                )
+                                re_cmd_output = json.loads(stats_stdout.read().decode())
+                                log.info(
+                                    f"re_cmd_output for {new_bkt_name} : {re_cmd_output}"
+                                )
+                                if (
+                                    re_cmd_output["usage"]["rgw.main"]["num_objects"]
+                                    != config.objects_count
+                                ):
+                                    raise TestExecError(
+                                        f"IO performed for {bkt.name} should not sync to {new_bkt_name} in same site as of IO"
+                                    )
+                                log.info(
+                                    f"IO did not sync to {new_bkt_name} as expected in same site as of IO"
+                                )
+                                log.info(
+                                    f"verify IO sync on {new_bkt_name} in another site"
+                                )
+                                new_bucket_stats = json.loads(
+                                    utils.exec_shell_cmd(
+                                        f"radosgw-admin bucket stats --bucket {new_bkt_name}"
+                                    )
+                                )
+                                if (
+                                    config.test_ops["zonegroup_flow_type"]
+                                    == "directional"
+                                ):
+                                    if "rgw.main" in new_bucket_stats["usage"].keys():
+                                        raise TestExecError(
+                                            f"Object did not expect to sync to bucket {new_bkt_name}, but found {new_bucket_stats['usage']['rgw.main']['num_objects']}"
+                                        )
+                                else:
+                                    new_bkt_objects = new_bucket_stats["usage"][
+                                        "rgw.main"
+                                    ]["num_objects"]
+                                    if new_bkt_objects != config.objects_count:
+                                        raise TestExecError(
+                                            f"Object did not sync in bucket {new_bkt_name}, but found {new_bkt_objects}"
+                                        )
+                                    log.info(
+                                        f"Object synced for bucket {new_bkt_name}, on another site as expected"
                                     )
 
                             else:
