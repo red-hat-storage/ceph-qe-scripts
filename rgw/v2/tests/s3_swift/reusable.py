@@ -79,6 +79,38 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
     return bucket
 
 
+def create_bucket_sync_init(bucket_name, rgw, user_info, location=None):
+    log.info("creating bucket with name: %s" % bucket_name)
+    bucket = s3lib.resource_op(
+        {"obj": rgw, "resource": "Bucket", "args": [bucket_name]}
+    )
+    kw_args = None
+    if location is not None:
+        kw_args = dict(CreateBucketConfiguration={"LocationConstraint": location})
+    created = s3lib.resource_op(
+        {
+            "obj": bucket,
+            "resource": "create",
+            "args": None,
+            "kwargs": kw_args,
+            "extra_info": {"access_key": user_info["access_key"]},
+        }
+    )
+    log.info(f"bucket creation data: {created}")
+    if created is False:
+        raise TestExecError("Resource execution failed: bucket creation failed")
+    if created is not None:
+        response = HttpResponseParser(created)
+        if response.status_code == 200:
+            log.info("bucket created")
+        else:
+            raise TestExecError("bucket creation failed")
+    else:
+        raise TestExecError("bucket creation failed")
+
+    return bucket
+
+
 def get_remote_conn_in_multisite():
     """
     Method to fetch remote ip incase of multisite setup

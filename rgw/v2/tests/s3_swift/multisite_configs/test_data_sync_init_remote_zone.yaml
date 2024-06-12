@@ -1,0 +1,16 @@
+#CEPH-83575300, CEPH-83575303
+# script rgw/v2/tests/s3_swift/test_data_sync_init_remote.py
+config:
+ user_count: 1
+ haproxy: true
+ bucket_count: 4
+ objects_count: 2000
+ objects_size_range:
+  min: 5
+  max: 15
+ test_ops:
+  create_bucket: true
+  create_object: true
+  enable_version: true
+  delete_bucket_object: false
+  delete_bucket_object_version: false
