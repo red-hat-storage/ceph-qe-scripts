@@ -47,6 +47,48 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+
+    res = utils.exec_shell_cmd("echo '1*redhat' >/etc/bindpass")
+
+    rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
+    log.info(f"rgw service name is {rgw_service_name}")
+    file_name = "/home/rgw_spec.yml"
+    utils.exec_shell_cmd(
+        f"ceph orch ls --service-name {rgw_service_name} --export > {file_name}"
+    )
+    op = utils.exec_shell_cmd(f"cat {file_name}")
+    log.info(f"rgw spec is \n {op}")
+    indent = " "
+    new_content = f'extra_container_args:\n{indent} - "-v"\n{indent} - "/etc/bindpass:/etc/bindpass"'
+    with open(file_name, "a") as f:
+        f.write(new_content)
+    op = utils.exec_shell_cmd(f"cat /home/rgw_spec.yml")
+    log.info(f"Final rgw spec content is {op}")
+    cmd = f"ceph orch apply -i {file_name}"
+    utils.exec_shell_cmd(cmd)
+
+    # add conf options to ceph
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_ldap_binddn cn=RGW"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_ldap_dnattr uid"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_ldap_searchdn ou=ceph,dc=ceph-amk-test-r5ozm1-node8"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_ldap_secret /etc/bindpass"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_ldap_uri ldap://10.0.209.121:389"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_s3_auth_use_ldap true"
+    )
+
+    utils.exec_shell_cmd(f"ceph orch restart {rgw_service_name}")
+
     # base64 encode json to get ldap token
     user_data = {
         "RGW_TOKEN": {
