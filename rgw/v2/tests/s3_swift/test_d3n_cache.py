@@ -3,6 +3,7 @@ import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+import json
 import logging
 import time
 import traceback
@@ -21,26 +22,38 @@ TEST_DATA_PATH = None
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
-
     if config.d3n_feature is True:
         log.info("Enabling D3n feature on the cluster")
-        cmd = f"ls {config.datacache_path}"
-        path_exist = utils.exec_shell_cmd(cmd)
-        log.info(f"value is {path_exist}")
-        if path_exist is False:
-            log.info(f"creating datacache path")
-            cmd = f"mkdir {config.datacache_path}"
-            path_create = utils.exec_shell_cmd(cmd)
-            log.info(f"value2 is {path_create}")
-            if path_create is False:
-                raise AssertionError("datacache path creation failed")
-
+        data_path_cmd = f"sudo ls {config.datacache_path}"
+        host_ips = utils.exec_shell_cmd("cut -f 1 /etc/hosts | cut -d ' ' -f 3")
+        host_ips = host_ips.splitlines()
+        log.info(f"hosts_ips: {host_ips}")
+        for ip in host_ips:
+            if ip.startswith("10."):
+                log.info(f"ip is {ip}")
+                ssh_con = utils.connect_remote(ip)
+                stdin, stdout, stderr = ssh_con.exec_command(
+                    "sudo netstat -nltp | grep radosgw"
+                )
+                netstst_op = stdout.readline().strip()
+                log.info(f"netstat op on node {ip} is:{netstst_op}")
+                if netstst_op:
+                    log.info("Entering RGW node")
+                    _, stdout, stderr = ssh_con.exec_command(data_path_cmd)
+                    stderr = stderr.readline().strip()
+                    if stderr:
+                        log.info(f"creating datacache path")
+                        create_cmd = f"sudo mkdir {config.datacache_path}"
+                        log.info(f"executing command:{create_cmd}")
+                        _, stdout, stderr = ssh_con.exec_command(create_cmd)
+                        stderr = stderr.readline().strip()
+                        if stderr:
+                            raise AssertionError("datacache path creation failed!")
         rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
         log.info(f"rgw service name is {rgw_service_name}")
         file_name = "/home/rgw_spec.yml"
@@ -61,21 +74,26 @@ def test_exec(config, ssh_con):
         ceph_status = utils.exec_shell_cmd(cmd="sudo ceph status")
         if "HEALTH_ERR" in ceph_status:
             raise AssertionError("cluster is in HEALTH_ERR state")
-
         ceph_conf.set_to_ceph_conf(
-            "global", ConfigOpts.rgw_d3n_l1_local_datacache_enabled, "true", ssh_con
+            "global",
+            ConfigOpts.rgw_d3n_l1_local_datacache_enabled,
+            "true",
+            ssh_con,
+            set_to_all=True,
         )
         ceph_conf.set_to_ceph_conf(
             "global",
             ConfigOpts.rgw_d3n_l1_datacache_persistent_path,
             str(config.datacache_path),
             ssh_con,
+            set_to_all=True,
         )
         ceph_conf.set_to_ceph_conf(
             "global",
             ConfigOpts.rgw_d3n_l1_datacache_size,
             str(config.datacache_size),
             ssh_con,
+            set_to_all=True,
         )
         srv_restarted = rgw_service.restart(ssh_con)
         time.sleep(30)
@@ -86,10 +104,8 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("Testing D3N-Cache feature enablement")
     test_info.started_info()
-
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
         test_data_dir = "test_data"
@@ -124,7 +140,6 @@ if __name__ == "__main__":
         test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
-
     except (RGWBaseException, Exception) as e:
         log.error(e)
         log.error(traceback.format_exc())

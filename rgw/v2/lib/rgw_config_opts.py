@@ -125,7 +125,7 @@ class CephConfFileOP(FileOps, ConfigParse):
 
 
 class CephConfigSet:
-    def set_to_ceph_cli(self, key, value):
+    def set_to_ceph_cli(self, key, value, set_to_all=False):
         log.info("setting key and value using ceph config set cli")
         self.prefix = "sudo ceph config set"
 
@@ -137,23 +137,28 @@ class CephConfigSet:
             daemon_name = node.get("daemon_name")
             daemon_name_list.append(daemon_name)
 
-        self.who = "client." + daemon_name_list[0]  # naming convention as ceph conf
-        if value is True:
-            value = "true"
-        log.info(f"got key: {key}")
-        log.info(f"got value: {value}")
-        cmd_list = [self.prefix, self.who, key, str(value)]
-        cmd = " ".join(cmd_list)
-        config_set = utils.exec_shell_cmd(cmd)
-        if config_set is False:
-            raise InvalidCephConfigOption("Invalid ceph config options")
+        for daemon in daemon_name_list:
+            self.who = "client." + daemon  # naming convention as ceph conf
+            if value is True:
+                value = "true"
+            log.info(f"got key: {key}")
+            log.info(f"got value: {value}")
+            cmd_list = [self.prefix, self.who, key, str(value)]
+            cmd = " ".join(cmd_list)
+            config_set = utils.exec_shell_cmd(cmd)
+            if config_set is False:
+                raise InvalidCephConfigOption("Invalid ceph config options")
+            if not set_to_all:
+                break
 
 
 class CephConfOp(CephConfFileOP, CephConfigSet):
     def __init__(self, ssh_con=None) -> None:
         super().__init__(ssh_con)
 
-    def set_to_ceph_conf(self, section, option, value=None, ssh_con=None):
+    def set_to_ceph_conf(
+        self, section, option, value=None, ssh_con=None, set_to_all=False
+    ):
         version_id, version_name = utils.get_ceph_version()
         log.info(f"ceph version id: {version_id}")
         log.info(f"version name: {version_name}")
@@ -168,4 +173,4 @@ class CephConfOp(CephConfFileOP, CephConfigSet):
             log.info("using ceph config cli to set the config values")
             log.info(option)
             log.info(value)
-            self.set_to_ceph_cli(option, value)
+            self.set_to_ceph_cli(option, value, set_to_all=set_to_all)
