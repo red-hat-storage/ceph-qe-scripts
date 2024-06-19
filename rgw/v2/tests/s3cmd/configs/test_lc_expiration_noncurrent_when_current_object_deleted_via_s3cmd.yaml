@@ -1,0 +1,14 @@
+# Polarian: CEPH-83573543: Verify lifecycle removes all the non-current objects, while the current object is removed via s3cmd
+# Script: ceph-qe-scripts/rgw/v2/tests/s3cmd/test_lifecycle_s3cmd.py
+config:
+  test_ops:
+    lc_non_current_with_s3cmd: True
+    test_lc_expiration: true
+    days: 1
+    test_noncurrent_expiration: true
+  rgw_lc_debug_interval: 1
+  user_count: 1
+  bucket_count: 1
+  objects_size_range:
+    min: 5
+    max: 15
