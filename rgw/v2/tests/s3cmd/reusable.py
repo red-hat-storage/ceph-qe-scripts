@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as xml
+from pathlib import Path
 
 import boto
 import boto.s3.connection
@@ -28,7 +29,10 @@ from v2.lib.exceptions import (
 from v2.lib.manage_data import io_generator
 from v2.lib.s3cmd.resource_op import S3CMD
 from v2.utils import utils
-from v2.utils.utils import exec_shell_cmd
+from v2.utils.utils import RGWService, exec_shell_cmd
+
+home_path = os.path.expanduser("~cephuser")
+s3cmd_path = home_path + "/venv/bin/s3cmd"
 
 
 def create_bucket(bucket_name, ssl=None):
@@ -51,6 +55,45 @@ def create_bucket(bucket_name, ssl=None):
     expected_response = f"Bucket 's3://{bucket_name}/' created"
     error_message = f"Expected: {expected_response}, Actual: {mb_response}"
     assert expected_response in mb_response, error_message
+
+
+def set_lc_lifecycle(lifecycle_rule, config, bucket_name):
+    """
+    Set lifecycle policy for a bucket
+    Args:
+        lifecycle_rule(str): Path where lc_config xml is created/present
+        config(str): configuration of cluster
+        bucket_name(str): Name of the bucket where policy needs to be set
+    """
+    log.info("Generate a LC rule xml file")
+    Generate_LC_xml(lifecycle_rule, config)
+    log.info(f"Apply the LC rule via the xml file on bucket {bucket_name}")
+    utils.exec_shell_cmd(
+        f"{s3cmd_path} setlifecycle {lifecycle_rule} s3://{bucket_name}"
+    )
+
+    utils.exec_shell_cmd(f"{s3cmd_path} getlifecycle s3://{bucket_name}")
+
+
+def enable_versioning_for_a_bucket(user_info, bucket_name, ip_and_port, ssl=None):
+    """
+    Enable versioning for existing bucket
+    Args:
+        user_info : User details json
+        bucket_name(str): Name of the bucket to be created
+        ip_and_port (str) : hostname and port where rgw daemon is running
+    """
+    port = int(ip_and_port.split(":")[1])
+    conn = boto.connect_s3(
+        aws_access_key_id=user_info["access_key"],
+        aws_secret_access_key=user_info["secret_key"],
+        host=ip_and_port.split(":")[0],
+        port=port,
+        is_secure=False,  # Change it to True if RGW running using SSL
+        calling_format=boto.s3.connection.OrdinaryCallingFormat(),
+    )
+    bucket = conn.get_bucket(bucket_name)
+    bucket.configure_versioning(versioning=True)
 
 
 def create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl=None):
@@ -210,6 +253,18 @@ def get_rgw_ip_and_port(ssh_con=None):
         port = utils.get_radosgw_port_no()
     ip_and_port = f"{ip}:{port}"
     return ip_and_port
+
+
+def rgw_service_restart(ssh_con):
+    """
+    Restart Rgw services
+    """
+    log.info("trying to restart services")
+    rgw_service = RGWService()
+    srv_restarted = rgw_service.restart(ssh_con)
+    time.sleep(30)
+    if srv_restarted is False:
+        raise TestExecError("RGW service restart failed")
 
 
 def run_subprocess(cmd):

@@ -10,6 +10,7 @@ Usage: test_lifecycle_s3cmd.py -c <input_yaml>
     test_s3cmd_lifecycle_archive_newer_noncurrent_expiration.yaml
     test_s3cmd_lifecycle_archive_object_size.yaml
     test_s3cmd_lifecycle_archive_transition.yaml
+    test_lc_expiration_noncurrent_when_current_object_deleted_via_s3cmd.yaml
 
 Operation:
     Create a user
@@ -20,12 +21,15 @@ Operation:
 """
 
 import argparse
+import json
 import logging
 import os
 import socket
 import sys
+import time
 import traceback
 import xml.etree.ElementTree as xml
+from pathlib import Path
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
@@ -33,7 +37,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 from v2.lib import resource_op
 from v2.lib.admin import UserMgmt
 from v2.lib.exceptions import RGWBaseException, TestExecError
-from v2.lib.rgw_config_opts import CephConfOp
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3 import lifecycle_validation as lc_validate
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
@@ -46,6 +50,15 @@ from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
 
 log = logging.getLogger()
+
+home_path = os.path.expanduser("~cephuser")
+s3cmd_path = home_path + "/venv/bin/s3cmd"
+
+is_multisite = utils.is_cluster_multisite()
+if is_multisite:
+    lifecycle_rule = home_path + "/rgw-ms-tests/ceph-qe-scripts/rgw/lifecycle_rule.xml"
+else:
+    lifecycle_rule = home_path + "/rgw-tests/ceph-qe-scripts/rgw/lifecycle_rule.xml"
 
 
 def test_exec(config, ssh_con):
@@ -73,30 +86,91 @@ def test_exec(config, ssh_con):
     s3_auth.do_auth(user_info[0], ip_and_port)
     auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
     rgw_conn = auth.do_auth()
-    for bc in range(config.bucket_count):
-        bucket_name = utils.gen_bucket_name_from_userid(
-            user_info[0]["user_id"], rand_no=bc
+
+    if config.test_ops.get("lc_non_current_with_s3cmd", False):
+        log.info(f"Polarian: CEPH-83573543")
+        log.info("making changes to ceph.conf")
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_lc_debug_interval,
+            str(config.rgw_lc_debug_interval),
+            ssh_con,
         )
-        if config.version_enable:
-            s3cmd_reusable.create_versioned_bucket(
-                user_info[0], bucket_name, ip_and_port, ssl=None
-            )
-        else:
-            s3cmd_reusable.create_bucket(bucket_name)
-        log.info(f"Bucket {bucket_name} created")
+        ceph_conf.set_to_ceph_conf(
+            "global", ConfigOpts.rgw_lifecycle_work_time, "00:00-23:59"
+        )
+        s3cmd_reusable.rgw_service_restart(ssh_con)
+
+        bucket_name = "tax-bkt1"
+        object_name = "tax-obj1"
+        s3cmd_reusable.create_bucket(bucket_name)
+        utils.exec_shell_cmd(f"fallocate -l 1K obj1k")
         log.info(f"Now Upload the objects to the bucket {bucket_name}")
-        s3cmd_reusable.upload_objects_via_s3cmd(bucket_name, config)
-        log.info("Generate a LC rule xml file")
-        s3cmd_reusable.Generate_LC_xml(
-            "/home/cephuser/rgw-ms-tests/ceph-qe-scripts/rgw/lifecycle_rule.xml", config
+        s3cmd_reusable.enable_versioning_for_a_bucket(
+            user_info[0], bucket_name, ip_and_port, ssl=None
         )
-        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
-        log.info(f"Apply the LC rule via the xml file on bucket {bucket_name}")
-        lc_s3cmd = f"{s3cmd_path} setlifecycle /home/cephuser/rgw-ms-tests/ceph-qe-scripts/rgw/lifecycle_rule.xml s3://{bucket_name}"
-        utils.exec_shell_cmd(lc_s3cmd)
-        lc_s3cmd = f"{s3cmd_path} getlifecycle s3://{bucket_name}"
-        utils.exec_shell_cmd(lc_s3cmd)
-        s3cmd_reusable.lc_validation_at_archive_zone(bucket_name, config)
+        log.info(
+            f"Now Upload 2 versions of the object: {object_name} to the bucket:{bucket_name}"
+        )
+        for i in range(2):
+            cmd = f"{s3cmd_path} put obj1k s3://{bucket_name}/{object_name}"
+            out = utils.exec_shell_cmd(cmd)
+        out = json.loads(
+            utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket_name}")
+        )
+        obj_count = 0
+        for obj in out:
+            if obj["name"] == object_name:
+                obj_count += 1
+        if obj_count != 2:
+            raise AssertionError(f"2 version of object:{object_name} not created")
+
+        log.info("Delete Current object using s3cmd ")
+        out = utils.exec_shell_cmd(f"{s3cmd_path} rm s3://{bucket_name}/{object_name}")
+
+        log.info("s3cmd ls Post delete")
+        out = utils.exec_shell_cmd(f"{s3cmd_path} ls s3://{bucket_name}")
+        if len(out) != 0:
+            raise AssertionError("object delete via s3cmd failed")
+
+        log.info("Restart RGW sevice and make sure no crash is observed: BZ1817985")
+        s3cmd_reusable.rgw_service_restart(ssh_con)
+        crash_info = reusable.check_for_crash()
+        if crash_info:
+            raise AssertionError("ceph daemon crash found!")
+        s3cmd_reusable.set_lc_lifecycle(lifecycle_rule, config, bucket_name)
+        sleep_time = int(config.rgw_lc_debug_interval) * int(
+            config.test_ops.get("days")
+        )
+        log.info(f"sleep time is {sleep_time}")
+        time.sleep(sleep_time)
+        utils.exec_shell_cmd("radosgw-admin lc list")
+
+        out = json.loads(
+            utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket_name}")
+        )
+        object_exist = False
+        for bkt in out:
+            if bkt["name"] == object_name and bkt["tag"] != "delete-marker":
+                object_exist = True
+        if object_exist:
+            raise AssertionError("Non-current object expiration failed")
+    else:
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info[0]["user_id"], rand_no=bc
+            )
+            if config.version_enable:
+                s3cmd_reusable.create_versioned_bucket(
+                    user_info[0], bucket_name, ip_and_port, ssl=None
+                )
+            else:
+                s3cmd_reusable.create_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} created")
+            log.info(f"Now Upload the objects to the bucket {bucket_name}")
+            s3cmd_reusable.upload_objects_via_s3cmd(bucket_name, config)
+            s3cmd_reusable.set_lc_lifecycle(lifecycle_rule, config, bucket_name)
+            s3cmd_reusable.lc_validation_at_archive_zone(bucket_name, config)
 
     log.info("Remove downloaded objects from cluster")
     utils.exec_shell_cmd("rm -rf *-obj-*")  # check for any crashes during the execution
