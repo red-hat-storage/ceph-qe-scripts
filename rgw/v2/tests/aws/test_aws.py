@@ -101,6 +101,24 @@ def test_exec(config, ssh_con):
             aws_reusable.get_object(bucket_name, object_name, endpoint)
             log.info("Object download successful")
 
+        if config.test_ops.get("versioned_list_objects_marker", False):
+            log.info("Upload minimum of 3 objects onto a versioned bucket")
+            object_names = ["1.txt", "2.txt", "3.txt"]
+            for obj in object_names:
+                utils.exec_shell_cmd(f"fallocate -l 1K {obj}")
+                aws_reusable.put_object(bucket_name, obj, endpoint)
+            log.info("Object uplod successful")
+            log.info("List bucket with marker object 1.txt")
+            marker = "1.txt"
+            response = aws_reusable.list_objects(bucket_name, endpoint, marker)
+            res_json = json.loads(response)
+            log.info("The list should not have the marker object entry")
+            for obj in res_json["Contents"]:
+                log.info("Key :" + obj["Key"])
+                if obj["Key"] == "1.txt":
+                    raise Exception(f"Marker is being listed in the list objects")
+            log.info("Marker entry not found")
+
         if config.user_remove is True:
             s3_reusable.remove_user(user)
 

@@ -1,0 +1,13 @@
+# script: test_aws.py
+# polarion-ID: CEPH-83572736
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 3
+  user_remove: true
+  objects_size_range:
+    min: 1M
+    max: 3M
+  test_ops:
+    versioned_list_objects_marker: true
+    enable_version: true
