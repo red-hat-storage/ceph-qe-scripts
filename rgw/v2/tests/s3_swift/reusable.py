@@ -1685,19 +1685,6 @@ def prepare_for_bucket_lc_transition(config):
                 utils.exec_shell_cmd(
                     f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
                 )
-            utils.exec_shell_cmd(
-                "radosgw-admin zone placement modify --rgw-zone primary --placement-id default-placement  --compression zlib"
-            )
-            utils.exec_shell_cmd(
-                "ceph config set client.rgw.shared.pri rgw_crypt_default_encryption_key 4YSmvJtBv0aZ7geVgAsdpRnLBEwWSWlMIGnRS8a9TSA="
-            )
-            remote_site_ssh_con = get_remote_conn_in_multisite()
-            remote_site_ssh_con.exec_command(
-                "radosgw-admin zone placement modify --rgw-zone primary --placement-id default-placement  --compression zlib"
-            )
-            remote_site_ssh_con.exec_command(
-                "ceph config set client.rgw.shared.sec rgw_crypt_default_encryption_key 4YSmvJtBv0aZ7geVgAsdpRnLBEwWSWlMIGnRS8a9TSA="
-            )
         else:
             target_path = "aws-bucket-01"
             utils.exec_shell_cmd(
@@ -1714,6 +1701,7 @@ def prepare_for_bucket_lc_transition(config):
     if is_multisite:
         utils.exec_shell_cmd("radosgw-admin period update --commit")
         if config.test_ops.get("test_ibm_cloud_transition", False):
+            # CEPH-83581977, test cloud transition of encrypted and compressed objects
             utils.exec_shell_cmd(
                 "radosgw-admin zone placement modify --rgw-zone primary --placement-id default-placement  --compression zlib"
             )
@@ -1722,7 +1710,6 @@ def prepare_for_bucket_lc_transition(config):
             )
             utils.exec_shell_cmd("ceph orch restart rgw.shared.pri")
             remote_site_ssh_con = get_remote_conn_in_multisite()
-            # Test IBM COS with compression and encryption CEPH-83581977
             remote_site_ssh_con.exec_command(
                 "radosgw-admin zone placement modify --rgw-zone primary --placement-id default-placement  --compression zlib"
             )
