@@ -227,7 +227,7 @@ def test_exec(config, ssh_con):
                         )
     # check sync status if a multisite cluster
     reusable.check_sync_status()
-
+    reusable.remove_user(each_user)
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
     if crash_info:

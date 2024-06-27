@@ -1700,6 +1700,23 @@ def prepare_for_bucket_lc_transition(config):
                 )
     if is_multisite:
         utils.exec_shell_cmd("radosgw-admin period update --commit")
+        if config.test_ops.get("test_ibm_cloud_transition", False):
+            # CEPH-83581977, test cloud transition of encrypted and compressed objects
+            utils.exec_shell_cmd(
+                "radosgw-admin zone placement modify --rgw-zone primary --placement-id default-placement  --compression zlib"
+            )
+            utils.exec_shell_cmd(
+                "ceph config set client.rgw.shared.pri rgw_crypt_default_encryption_key 4YSmvJtBv0aZ7geVgAsdpRnLBEwWSWlMIGnRS8a9TSA="
+            )
+            utils.exec_shell_cmd("ceph orch restart rgw.shared.pri")
+            remote_site_ssh_con = get_remote_conn_in_multisite()
+            remote_site_ssh_con.exec_command(
+                "radosgw-admin zone placement modify --rgw-zone primary --placement-id default-placement  --compression zlib"
+            )
+            remote_site_ssh_con.exec_command(
+                "ceph config set client.rgw.shared.sec rgw_crypt_default_encryption_key 4YSmvJtBv0aZ7geVgAsdpRnLBEwWSWlMIGnRS8a9TSA="
+            )
+            remote_site_ssh_con.exec_command("ceph orch restart rgw.shared.sec")
 
 
 def bucket_reshard_manual(bucket, config):
