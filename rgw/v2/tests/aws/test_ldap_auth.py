@@ -129,6 +129,13 @@ def test_exec(config, ssh_con):
         out = utils.exec_shell_cmd(cmd)
         log.info(f"Listing bucket {bucket_name}: {out}")
 
+    # test User create on top of a LDAP user with same uid
+    # Polarion CEPH-9822
+    log.info("Try to create a regular user with same UID as LDAP user")
+    cmd = f"radosgw-admin user create --uid ldapuser1"
+    err = utils.exec_shell_cmd(cmd, return_err=True)
+    assert "exists" in str(err), "User create should fail!"
+
     # check for any crashes during the execution
     crash_info = s3_reusable.check_for_crash()
     if crash_info:
