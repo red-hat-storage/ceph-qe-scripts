@@ -1,0 +1,9 @@
+# Polarian TC : CEPH-9810
+# script: test_s3cmd.py
+config:
+  bucket_count: 1
+  objects_count: 15000
+  test_ops:
+    object_download: true
+    user_name: s3cmduser
+    bucket_prefix: test-s3cmd-bucket-
