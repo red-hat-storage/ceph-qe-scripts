@@ -3,7 +3,9 @@ Usage: test_aws.py -c <input_yaml>
 
 <input_yaml>
     Note: Following yaml can be used
+    configs/test_aws_non_ascii.yaml
     configs/test_aws_versioned_bucket_creation.yaml
+    configs/test_aws_regular_and_versioned_bucket_creation.yaml
     configs/test_complete_multipart_upload_etag_not_empty.yaml
 
 Operation:
@@ -60,17 +62,31 @@ def test_exec(config, ssh_con):
         aws_auth.do_auth_aws(user)
 
         for bc in range(config.bucket_count):
-            if config.test_ops.get("bucket_name", False):
+            if config.test_ops.get("regular_and_version", False):
                 bkt_suffix = bc + 1
-                bucket_name = config.test_ops["bucket_name"] + f"{bkt_suffix}"
-            else:
-                bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
-            aws_reusable.create_bucket(bucket_name, endpoint)
-            log.info(f"Bucket {bucket_name} created")
+                reg_bucket_name = config.test_ops["reg_bucket_name"] + f"{bkt_suffix}"
+                ver_bucket_name = config.test_ops["ver_bucket_name"] + f"{bkt_suffix}"
+                aws_reusable.create_bucket(reg_bucket_name, endpoint)
+                aws_reusable.create_bucket(ver_bucket_name, endpoint)
+                log.info(f"Bucket {reg_bucket_name} and {ver_bucket_name} created")
+                log.info(f"bucket versioning enabled on bucket: {ver_bucket_name}")
+                aws_reusable.put_get_bucket_versioning(ver_bucket_name, endpoint)
 
-            if config.test_ops.get("enable_version", False):
-                log.info(f"bucket versioning test on bucket: {bucket_name}")
-                aws_reusable.put_get_bucket_versioning(bucket_name, endpoint)
+            else:
+                if config.test_ops.get("bucket_name", False):
+                    bkt_suffix = bc + 1
+                    bucket_name = config.test_ops["bucket_name"] + f"{bkt_suffix}"
+                else:
+                    bucket_name = utils.gen_bucket_name_from_userid(
+                        user_name, rand_no=bc
+                    )
+                aws_reusable.create_bucket(bucket_name, endpoint)
+                log.info(f"Bucket {bucket_name} created")
+
+                if config.test_ops.get("enable_version", False):
+                    log.info(f"bucket versioning test on bucket: {bucket_name}")
+                    aws_reusable.put_get_bucket_versioning(bucket_name, endpoint)
+
         if config.test_ops.get("verify_etag_for_complete_multipart_upload", False):
             log.info(
                 f"Verifying ETag element for complete multipart upload is not empty string"

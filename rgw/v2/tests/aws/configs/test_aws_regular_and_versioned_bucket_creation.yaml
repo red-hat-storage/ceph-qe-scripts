@@ -1,5 +1,5 @@
 # script: test_aws.py
-# polarion-ID: CEPH-83575073 [PUT Workload] Test sync with 20M bi-directional with LB. (Versioned buckets)
+# polarion-ID: CEPH-83575382
 config:
   user_count: 1
   bucket_count: 1
@@ -10,5 +10,6 @@ config:
     max: 3M
   test_ops:
     user_name: cosbench01
-    bucket_name: cosbench01-bkt-
-    enable_version: true
+    reg_bucket_name: reg-cosbench-bkt-
+    ver_bucket_name: ver-cosbench-bkt-
+    regular_and_version: true
