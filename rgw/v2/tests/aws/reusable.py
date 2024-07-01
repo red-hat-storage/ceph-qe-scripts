@@ -512,3 +512,36 @@ def get_object(bucket_name, object_name, end_point, ssl=None):
         return get_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
+
+
+def list_objects(bucket_name, endpoint, marker=None, ssl=None):
+    """
+    List all the objects in the bucket
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        end_point(str): endpoint
+        marker(str): The key name from where the listing needs to start
+        ssl:
+    Return:
+        Returns details of every object in the bucket post the marker
+    """
+    get_method = AWS(operation="list-objects")
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = " "
+    if marker:
+        marker_param = marker
+    else:
+        marker_param = " "
+    command = get_method.command(
+        params=[
+            f"--bucket {bucket_name} --marker {marker_param} --endpoint-url {endpoint}",
+            ssl_param,
+        ]
+    )
+    try:
+        get_response = utils.exec_shell_cmd(command)
+        return get_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
