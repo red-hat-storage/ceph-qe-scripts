@@ -1,7 +1,7 @@
-# script: test_rgw_ops_logs.py
-# Bugs: 2039816 & 1910419
-# Polarian: CEPH-83575194
-# customers: Fujitsu  ISbank Inditex
+# script: test_rgw_ops_log.py
+# Bugs: 2039816 & 1910419 & 2170836
+# Polarian: CEPH-83575194 & CEPH-83575470
+# customers: Fujitsu, ISbank, Inditex, DRW, GCHQ
 config:
   user_count: 1
   bucket_count: 2

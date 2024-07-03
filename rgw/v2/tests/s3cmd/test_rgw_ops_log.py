@@ -6,7 +6,9 @@ Usage: test_rgw_ops_log.py -c <input_yaml>
 
 <input_yaml>
     Note: Following yaml can be used
-    test_rgw_ops_log.yaml
+    configs/test_rgw_ops_log.yaml
+    configs/test_rgw_log_details.yaml
+    multisite_configs/test_rgw_log_details.yaml
 
 Operation:
     1. Enable ops logging [set rgw_enable_ops_log true, rgw_log_http_headers and rgw_ops_log_socket_path ]
@@ -17,6 +19,7 @@ Operation:
     6. Create a bucket with user credentials
     7. Upload a file to the bucket
     8. We should observe the above operations logged in a file
+    9. Operation 1 to 8 or check log_to_file enabled and get rgw logs detail
  
 """
 
@@ -29,6 +32,9 @@ import subprocess
 import sys
 import time
 import traceback
+from pathlib import Path
+
+import yaml
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
@@ -60,7 +66,6 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     user_info = resource_op.create_users(no_of_users_to_create=config.user_count)[0]
-    user_name = user_info["user_id"]
     rgw_service = RGWService()
 
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
@@ -68,8 +73,10 @@ def test_exec(config, ssh_con):
 
     if config.rgw_ops_log:
         log.info("Testing rgw ops log are saved in a file")
+        utils.exec_shell_cmd("sudo yum install -y nmap-ncat")
+        log.info("Install pakage 'nmap-ncat' for further operation")
         ceph_version_id, _ = utils.get_ceph_version()
-        if float(ceph_version_id[1]) >= 6 and float(ceph_version_id[5]) >= 8:
+        if float(ceph_version_id[1]) >= 6:
             cmd = " ceph orch ps | grep rgw"
             out = utils.exec_shell_cmd(cmd)
             rgw_process_name = out.split()[0]
@@ -83,28 +90,35 @@ def test_exec(config, ssh_con):
                 f"ceph config set client.{rgw_process_name} rgw_ops_log_socket_path /var/run/ceph/opslog"
             )
             srv_restarted = rgw_service.restart()
+            time.sleep(30)
 
             # opslog path
-            log.info(f"The opslog file created is /var/run/ceph/*/opslog ")
-
-            # s3:operation - list all buckets
-            log.info("list all buckets operation")
-            utils.exec_shell_cmd("s3cmd ls")
-            opslog_out = subprocess.getoutput(
-                "timeout 1 nc -U --recv-only /var/run/ceph/*/opslog"
+            ceph_detail = json.loads(utils.exec_shell_cmd("ceph -s -f json"))
+            log.info(
+                f"The opslog file created is /var/run/ceph/{ceph_detail['fsid']}/opslog"
             )
-            print(f"print opslog for list_buckets {opslog_out}")
             # Currently opslog is an incomplete dictionary
 
             # s3:operation - create bucket operation
-            bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info["user_id"], rand_no=0
+            )
             s3cmd_reusable.create_bucket(bucket_name)
             log.info(f"Bucket {bucket_name} created")
             log.info("Check the operation 'create_bucket'")
-            opslog_out = subprocess.getoutput(
-                "timeout 1 nc -U --recv-only /var/run/ceph/*/opslog"
+            pr = subprocess.Popen(
+                f"timeout 1 nc -U --recv-only /var/run/ceph/{ceph_detail['fsid']}/opslog",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=False,
+                shell=True,
             )
-            print(f"print opslog for bucket create {opslog_out}")
+            opslog_out, _ = pr.communicate()
+            opslog_out = opslog_out.decode("utf-8", errors="ignore")
+            opslog_out = str(opslog_out).split(",\n")[0] + "]"
+            data = json.loads(opslog_out)
+            log.info(f"opslog for operation create_bucket is {data}")
+            log.info(f"Uri is {data[0]['uri']}")
 
             # s3:op - put object in a bucket
             log.info("Upload a file")
@@ -113,12 +127,79 @@ def test_exec(config, ssh_con):
             )
             uploaded_file = uploaded_file_info["name"]
             log.info(f"Uploaded file {uploaded_file} to bucket {bucket_name}")
-            opslog_out = subprocess.getoutput(
-                "timeout 1 nc -U --recv-only /var/run/ceph/*/opslog"
+            pr = subprocess.Popen(
+                f"timeout 1 nc -U --recv-only /var/run/ceph/{ceph_detail['fsid']}/opslog",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=False,
+                shell=True,
             )
-            print(f"print opslog for put object {opslog_out}")
+            opslog_out, _ = pr.communicate()
+            opslog_out = opslog_out.decode("utf-8", errors="ignore")
+            opslog_out = str(opslog_out).split(",\n")[0] + "]"
+            data = json.loads(opslog_out)
+            log.info(f"opslog for operation upload object is {data}")
+            log.info(f"Uri is {data[0]['uri']}")
 
-    # check for any crashes during the execution
+            # s3:operation - list objects in bucket
+            log.info("list all objects in bucket operation")
+            utils.exec_shell_cmd(f"/home/cephuser/venv/bin/s3cmd ls s3://{bucket_name}")
+
+            pr = subprocess.Popen(
+                f"timeout 1 nc -U --recv-only /var/run/ceph/{ceph_detail['fsid']}/opslog",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                universal_newlines=False,
+                shell=True,
+            )
+            opslog_out, _ = pr.communicate()
+            opslog_out = opslog_out.decode("utf-8", errors="ignore")
+            opslog_out = str(opslog_out).split(",\n")[0] + "]"
+            data = json.loads(opslog_out)
+            log.info(f"opslog for list_object is : {data}")
+            log.info(f"Uri is {data[0]['uri']}")
+
+    if config.test_ops.get("rgw_log_detail", False):
+        log.info("Verify rgw logs exist and rgw log details")
+        ceph_version_id, _ = utils.get_ceph_version()
+        rgw_log_dict = {}
+        rgw_log_dict[ceph_version_id] = {}
+        root_path = str(Path.home()) + "/rgw_log_details.yaml"
+        log.info(f"Verify file exist {root_path}, if not create file")
+        if not os.path.exists(root_path):
+            utils.exec_shell_cmd(f"touch {root_path}")
+
+        out = utils.exec_shell_cmd(f"ceph config dump | grep log_to_file")
+        if out is False:
+            utils.exec_shell_cmd(f"ceph config set global log_to_file true")
+
+        ceph_detail = json.loads(utils.exec_shell_cmd("ceph -s -f json"))
+        out = utils.exec_shell_cmd("ceph orch ps | grep rgw | cut -d ' ' -f 1")
+        rgw_process_names = out.split()
+        for rgw_deamon in rgw_process_names:
+            rgw_host = rgw_deamon.split(".")[-2]
+            if rgw_host not in rgw_log_dict[ceph_version_id].keys():
+                out = utils.exec_shell_cmd(f"ceph orch host ls | grep {rgw_host}")
+                host_ip = out.split()[-2]
+                log.info(f"connect to host {rgw_host} ip is {host_ip}")
+                host_ssh_con = utils.connect_remote(host_ip)
+                _, stdout, _ = host_ssh_con.exec_command(
+                    f"sudo ls -l /var/log/ceph/{ceph_detail['fsid']}/ | grep rgw"
+                )
+                cmd_output = stdout.read().decode()
+                cmd_output = str(cmd_output).split("\n")
+                rgw_log_dict[ceph_version_id][rgw_host] = cmd_output
+                log.info(f"rgw log details from host {rgw_host} are {rgw_log_dict}")
+
+        rgw_log_data = yaml.dump(rgw_log_dict)
+        with open(root_path, "a") as file:
+            file.write(rgw_log_data)
+        with open(root_path, "r") as file:
+            file_details = file.read()
+        log.info(f"ceph rgw log details are {file_details}")
+
+    log.info("remove user created")
+    reusable.remove_user(user_info)
     crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
@@ -163,7 +244,7 @@ if __name__ == "__main__":
 
     except (RGWBaseException, Exception) as e:
         log.error(e)
-        log.info(traceback.format_exc())
+        log.error(traceback.format_exc())
         test_info.failed_status("test failed")
         sys.exit(1)
 
