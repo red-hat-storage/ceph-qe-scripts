@@ -4,6 +4,7 @@ test chown for a bucket encrypted with sse-s3
 Usage: test_encrypted_bucket_chown.py -c <input_yaml>
 <input_yaml>
     test_encrypted_bucket_chown.yaml
+    test_chown_before_encrypt.yaml
 
 Operation:
     Create 2 users and create a bucket with user1 credentials
@@ -67,79 +68,149 @@ def test_exec(config, ssh_con):
         # get ceph version
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
 
-        objects_created_list = []
-        if config.test_ops["create_bucket"] is True:
-            log.info("no of buckets to create: %s" % config.bucket_count)
-            for bc in range(config.bucket_count):
-                bucket_name = utils.gen_bucket_name_from_userid(
-                    user1["user_id"], rand_no=bc
-                )
-                log.info("creating bucket with name: %s" % bucket_name)
-                bucket = reusable.create_bucket(bucket_name, rgw_conn1, user1)
-                if config.test_ops.get("enable_version", False):
-                    log.info("enable bucket version")
-                    reusable.enable_versioning(
-                        bucket, rgw_conn1, user1, write_bucket_io_info
+        if config.test_ops["chown_after_encrypt"]:
+            objects_created_list = []
+            if config.test_ops["create_bucket"] is True:
+                log.info(f"no of buckets to create: {config.bucket_count}")
+                for bc in range(config.bucket_count):
+                    bucket_name = utils.gen_bucket_name_from_userid(
+                        user1["user_id"], rand_no=bc
                     )
-                # enable per bucket encryption on the bucket
-                log.info(
-                    f"Encryption type is per-bucket, enable it on bucket : {bucket_name}"
-                )
-                encryption_method = config.encryption_keys
-                sse_s3.put_bucket_encryption(s3_client1, bucket_name, encryption_method)
-                # get bucket encryption
-                log.info(f"get bucket encryption for bucket : {bucket_name}")
-                sse_s3.get_bucket_encryption(s3_client1, bucket_name)
-
-                # change owner of the bucket to user2
-                log.info(
-                    f"user info for user1 is {user1['user_id']} and user2 is {user2['user_id']}"
-                )
-                log.info(
-                    f"change owner of the bucket {bucket_name} to {user2['user_id']}"
-                )
-                utils.exec_shell_cmd(
-                    f"radosgw-admin bucket list --uid={user1['user_id']}"
-                )
-                new_uid = user2["user_id"]
-                tenant = "default"
-                bucket = bucket_name
-                reusable.link_chown_nontenant_to_nontenant(new_uid, bucket)
-                bucket = reusable.create_bucket(bucket_name, rgw_conn2, user2)
-                # create objects
-            if config.test_ops["create_object"] is True:
-                # uploading data
-                log.info("s3 objects to create: %s" % config.objects_count)
-                for oc, size in list(config.mapped_sizes.items()):
-                    config.obj_size = size
-                    s3_object_name = utils.gen_s3_object_name(bucket_name, oc)
-                    log.info("s3 object name: %s" % s3_object_name)
-                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
-                    log.info("s3 object path: %s" % s3_object_path)
-
-                    if config.test_ops.get("upload_type") == "multipart":
-                        log.info("upload type: multipart")
-                        reusable.upload_mutipart_object(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            user2,
+                    log.info(f"creating bucket with name: {bucket_name}")
+                    bucket = reusable.create_bucket(bucket_name, rgw_conn1, user1)
+                    if config.test_ops.get("enable_version", False):
+                        log.info("enable bucket version")
+                        reusable.enable_versioning(
+                            bucket, rgw_conn1, user1, write_bucket_io_info
                         )
-                    else:
-                        log.info("upload type: normal")
-                        reusable.upload_object(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            user2,
-                        )
-
-                    # test the object uploaded is encrypted with AES256
-                    sse_s3.get_object_encryption(
-                        s3_client2, bucket_name, s3_object_name
+                    # enable per bucket encryption on the bucket
+                    log.info(
+                        f"Encryption type is per-bucket, enable it on bucket : {bucket_name}"
                     )
+                    encryption_method = config.encryption_keys
+                    sse_s3.put_bucket_encryption(
+                        s3_client1, bucket_name, encryption_method
+                    )
+                    # get bucket encryption
+                    log.info(f"get bucket encryption for bucket : {bucket_name}")
+                    sse_s3.get_bucket_encryption(s3_client1, bucket_name)
+
+                    # change owner of the bucket to user2
+                    log.info(
+                        f"user info for user1 is {user1['user_id']} and user2 is {user2['user_id']}"
+                    )
+                    log.info(
+                        f"change owner of the bucket {bucket_name} to {user2['user_id']}"
+                    )
+                    utils.exec_shell_cmd(
+                        f"radosgw-admin bucket list --uid={user1['user_id']}"
+                    )
+                    new_uid = user2["user_id"]
+                    tenant = "default"
+                    bucket = bucket_name
+                    reusable.link_chown_nontenant_to_nontenant(new_uid, bucket)
+                    bucket = reusable.create_bucket(bucket_name, rgw_conn2, user2)
+                    # create objects
+                if config.test_ops["create_object"] is True:
+                    # uploading data
+                    log.info(f"s3 objects to create: {config.objects_count}")
+                    for oc, size in list(config.mapped_sizes.items()):
+                        config.obj_size = size
+                        s3_object_name = utils.gen_s3_object_name(bucket_name, oc)
+                        log.info(f"s3 object name: {s3_object_name}")
+                        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                        log.info(f"s3 object path: {s3_object_path}")
+
+                        if config.test_ops.get("upload_type") == "multipart":
+                            log.info("upload type: multipart")
+                            reusable.upload_mutipart_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                user2,
+                            )
+                        else:
+                            log.info("upload type: normal")
+                            reusable.upload_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                user2,
+                            )
+
+                        # test the object uploaded is encrypted with AES256
+                        sse_s3.get_object_encryption(
+                            s3_client2, bucket_name, s3_object_name
+                        )
+        else:
+            objects_created_list = []
+            if config.test_ops["create_bucket"] is True:
+                log.info(f"no of buckets to create: {config.bucket_count}")
+                for bc in range(config.bucket_count):
+                    bucket_name = utils.gen_bucket_name_from_userid(
+                        user1["user_id"], rand_no=bc
+                    )
+                    log.info(f"creating bucket with name: {bucket_name}")
+                    bucket = reusable.create_bucket(bucket_name, rgw_conn1, user1)
+                    if config.test_ops.get("enable_version", False):
+                        log.info("enable bucket version")
+                        reusable.enable_versioning(
+                            bucket, rgw_conn1, user1, write_bucket_io_info
+                        )
+                    # change owner of the bucket to user2
+                    log.info(
+                        f"user info for user1 is {user1['user_id']} and user2 is {user2['user_id']}"
+                    )
+                    log.info(
+                        f"change owner of the bucket {bucket_name} to {user2['user_id']}"
+                    )
+                    utils.exec_shell_cmd(
+                        f"radosgw-admin bucket list --uid={user1['user_id']}"
+                    )
+                    new_uid = user2["user_id"]
+                    tenant = "default"
+                    bucket = bucket_name
+                    reusable.link_chown_nontenant_to_nontenant(new_uid, bucket)
+                    bucket = reusable.create_bucket(bucket_name, rgw_conn2, user2)
+
+                    # enable per bucket encryption on the bucket
+                    log.info(
+                        f"Encryption type is per-bucket, enable it on bucket : {bucket_name}"
+                    )
+                    encryption_method = config.encryption_keys
+                    sse_s3.put_bucket_encryption(
+                        s3_client2, bucket_name, encryption_method
+                    )
+                    # get bucket encryption
+                    log.info(f"get bucket encryption for bucket : {bucket_name}")
+                    sse_s3.get_bucket_encryption(s3_client2, bucket_name)
+
+                    if config.test_ops["create_object"] is True:
+                        # uploading data
+                        log.info(f"s3 objects to create: {config.objects_count}")
+                        for oc, size in list(config.mapped_sizes.items()):
+                            config.obj_size = size
+                            s3_object_name = utils.gen_s3_object_name(bucket_name, oc)
+                            log.info(f"s3 object name: {s3_object_name}")
+                            s3_object_path = os.path.join(
+                                TEST_DATA_PATH, s3_object_name
+                            )
+                            log.info(f"s3 object path: {s3_object_path}")
+                            log.info("upload regular object")
+                            reusable.upload_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                user2,
+                            )
+
+                            # test the object uploaded is encrypted with AES256
+                            sse_s3.get_object_encryption(
+                                s3_client2, bucket_name, s3_object_name
+                            )
     else:
         raise TestExecError("Need to have atleast 2 users to bucket chown")
     # check sync status if a multisite cluster
@@ -160,7 +231,7 @@ if __name__ == "__main__":
         test_data_dir = "test_data"
         rgw_service = RGWService()
         TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
-        log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
+        log.info(f"TEST_DATA_PATH: {TEST_DATA_PATH}")
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)

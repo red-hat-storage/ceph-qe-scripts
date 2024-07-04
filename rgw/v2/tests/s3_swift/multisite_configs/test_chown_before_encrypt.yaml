@@ -1,10 +1,10 @@
-# Polarian  CEPH-83574621 Change bucket ownership to a different user when encryption is enabled
+# Polarian  CEPH-83574618 - Chenge bucket ownership before enabling encrption on the bucket
 # Script : test_encrypted_bucket_chown.py
 config:
  user_count: 2
  haproxy: true
  encryption_keys: s3
- bucket_count: 2
+ bucket_count: 1
  objects_count: 50
  local_file_delete: true
  objects_size_range:
@@ -12,7 +12,5 @@ config:
   max: 2M
  test_ops:
   create_bucket: true
-  chown_after_encrypt: true
+  chown_after_encrypt: false
   create_object: true
-  enable_version: true
-  upload_type: normal
