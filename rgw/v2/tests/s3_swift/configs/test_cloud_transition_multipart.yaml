@@ -1,4 +1,4 @@
-# script: test_cloud_transitions.py
+# script:test_cloud_transition.py
 # Polarion ID : CEPH-83575283
 config:
   user_count: 1
@@ -14,3 +14,4 @@ config:
     upload_type: multipart
     lc_id: cloud_transit
     retain_head_object: false
+    enable_encryption: false
