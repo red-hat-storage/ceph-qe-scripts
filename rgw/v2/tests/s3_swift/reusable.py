@@ -809,7 +809,7 @@ async def test_multipart_upload_failed_parts(
         parts_list.append(file1)
 
         file2 = "/tmp/obj2"
-        utils.exec_shell_cmd(f"fallocate -l 100MB {file2}")
+        utils.exec_shell_cmd(f"fallocate -l 10MB {file2}")
         parts_list.append(file2)
 
         log.info("no of parts: %s" % len(parts_list))
@@ -830,7 +830,7 @@ async def test_multipart_upload_failed_parts(
                             mpu,
                             part_number,
                             "/tmp/obj20MB",
-                            1000,
+                            10*1024*1024,
                             parts_info
                         ),
                         upload_part(
@@ -840,7 +840,7 @@ async def test_multipart_upload_failed_parts(
                             mpu,
                             part_number,
                             "/tmp/obj30MB",
-                            2000,
+                            10*1024*1024,
                             parts_info
                         ),
                         upload_part(
@@ -850,7 +850,7 @@ async def test_multipart_upload_failed_parts(
                             mpu,
                             part_number,
                             each_part,
-                            os.stat(each_part).st_size,
+                            10*1024*1024,
                             parts_info
                         ),
 
