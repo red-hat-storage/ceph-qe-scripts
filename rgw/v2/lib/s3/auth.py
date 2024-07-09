@@ -114,6 +114,32 @@ class Auth(object):
         )
         return rgw
 
+    def do_auth_using_client_timeout_config(self, **config):
+        """
+        This function is to perform authentication using client module
+
+        Parameters:
+            **config: Configuration details
+
+        Returns:
+            rgw: Connection status
+        """
+        log.info("performing authentication using client module")
+        additional_config = Config(
+            signature_version=config.get("signature_version", None), connect_timeout=1, read_timeout=1, retries={'max_attempts': 1, "mode": "standard"}
+        )
+        rgw = boto3.client(
+            "s3",
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+            endpoint_url=self.endpoint_url,
+            config=additional_config,
+            verify=False,
+            region_name="",
+            aws_session_token=self.session_token if self.session_token else None,
+        )
+        return rgw
+
     def do_auth_iam_client(self, **extra_config):
         """
         perform authentication using iam client

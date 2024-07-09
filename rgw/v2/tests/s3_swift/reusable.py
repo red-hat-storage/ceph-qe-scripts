@@ -30,6 +30,7 @@ from v2.lib.s3.write_io_info import (
 )
 from v2.lib.sync_status import sync_status
 from v2.utils.utils import HttpResponseParser, RGWService
+from random import randbytes
 
 rgw_service = RGWService()
 
@@ -553,13 +554,13 @@ def upload_mutipart_object(
         log.info("multipart upload complete for key: %s" % s3_object_name)
 
 
-async def upload_part(
+def upload_part(
     rgw_client,
     s3_object_name,
     bucket_name,
     mpu,
     part_number,
-    s3_object_part_path,
+    body_data,
     content_length,
     parts_info,
 ):
@@ -569,7 +570,7 @@ async def upload_part(
             Key=s3_object_name,
             PartNumber=part_number,
             UploadId=mpu["UploadId"],
-            Body=open(s3_object_part_path, mode="rb"),
+            Body=body_data,
             ContentLength=content_length,
         )
         log.info(f"part uploaded response {part_upload_response}")
@@ -578,6 +579,15 @@ async def upload_part(
         return
     part_info = {"PartNumber": part_number, "ETag": part_upload_response["ETag"]}
     parts_info["Parts"].append(part_info)
+    # log.info("all parts upload completed")
+    # response = rgw_client.complete_multipart_upload(
+    #     Bucket=bucket_name,
+    #     Key=s3_object_name,
+    #     UploadId=mpu["UploadId"],
+    #     MultipartUpload=parts_info,
+    # )
+    # log.info(f"complete multipart upload: {response}")
+    # log.info("multipart upload complete for key: %s" % s3_object_name)
 
 
 def parallel_operation_to_stress_rgw(
@@ -606,194 +616,56 @@ def parallel_operation_to_stress_rgw(
             break
 
 
-# def test_multipart_upload_failed_parts(
-#     rgw_client,
-#     s3_object_name,
-#     bucket_name,
-#     TEST_DATA_PATH,
-#     config,
-#     append_data=False,
-#     append_msg=None,
-# ):
-#     # log.info("s3 object name: %s" % s3_object_name)
-#     # s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
-#     # log.info("s3 object path: %s" % s3_object_path)
-#     # s3_object_size = config.obj_size
-#     # split_size = config.split_size if hasattr(config, "split_size") else 5
-#     # log.info("split size: %s" % split_size)
-#     # if append_data is True:
-#     #     data_info = manage_data.io_generator(
-#     #         s3_object_path,
-#     #         s3_object_size,
-#     #         op="append",
-#     #         **{"message": "\n%s" % append_msg},
-#     #     )
-#     # else:
-#     #     data_info = manage_data.io_generator(s3_object_path, s3_object_size)
-#     # if data_info is False:
-#     #     TestExecError("data creation failed")
-#     # mp_dir = os.path.join(TEST_DATA_PATH, s3_object_name + ".mp.parts")
-#     # log.info("mp part dir: %s" % mp_dir)
-#     # log.info("making multipart object part dir")
-#     # mkdir = utils.exec_shell_cmd("sudo mkdir %s" % mp_dir)
-#     # if mkdir is False:
-#     #     raise TestExecError("mkdir failed creating mp_dir_name")
-#     # utils.split_file(s3_object_path, split_size, mp_dir + "/")
-#     # parts_list = sorted(glob.glob(mp_dir + "/" + "*"))
-#     # log.info("parts_list: %s" % parts_list)
-#     # log.info("uploading s3 object: %s" % s3_object_path)
-#
-#     # global stop_threads
-#     # parallel_thread = Thread(
-#     #     target=parallel_operation_to_stress_rgw,
-#     #     args=(
-#     #         rgw_client,
-#     #         bucket_name
-#     #     ),
-#     # )
-#     # parallel_thread.start()
-#
-#     utils.exec_shell_cmd("fallocate -l 20MB /tmp/obj20MB")
-#     utils.exec_shell_cmd("fallocate -l 30MB /tmp/obj30MB")
-#     iteration_count = config.test_ops.get("iteration_count")
-#     for i in range(1, iteration_count + 1):
-#         log.info(
-#             f"--------------------------- iteration {i} ---------------------------"
-#         )
-#
-#         part_number = 1
-#         parts_info = {"Parts": []}
-#         parts_list = []
-#
-#         file1 = "/tmp/obj1"
-#         utils.exec_shell_cmd(f"fallocate -l 8MB {file1}")
-#         parts_list.append(file1)
-#
-#         file2 = "/tmp/obj2"
-#         utils.exec_shell_cmd(f"fallocate -l 100MB {file2}")
-#         parts_list.append(file2)
-#
-#         log.info("no of parts: %s" % len(parts_list))
-#
-#         log.info("initiating multipart upload")
-#         mpu = rgw_client.create_multipart_upload(Bucket=bucket_name, Key=s3_object_name)
-#
-#         for each_part in parts_list:
-#             log.info("trying to upload part: %s" % each_part)
-#             if config.test_ops.get("fail_part_upload") and part_number == 2:
-#                 t1 = Thread(
-#                     target=upload_part,
-#                     args=(
-#                         rgw_client,
-#                         s3_object_name,
-#                         bucket_name,
-#                         mpu,
-#                         part_number,
-#                         "/tmp/obj20MB",
-#                         10,
-#                         parts_info,
-#                     ),
-#                 )
-#                 t2 = Thread(
-#                     target=upload_part,
-#                     args=(
-#                         rgw_client,
-#                         s3_object_name,
-#                         bucket_name,
-#                         mpu,
-#                         part_number,
-#                         "/tmp/obj30MB",
-#                         20,
-#                         parts_info,
-#                     ),
-#                 )
-#                 t3 = Thread(
-#                     target=upload_part,
-#                     args=(
-#                         rgw_client,
-#                         s3_object_name,
-#                         bucket_name,
-#                         mpu,
-#                         part_number,
-#                         each_part,
-#                         os.stat(each_part).st_size,
-#                         parts_info,
-#                     ),
-#                 )
-#
-#                 t1.start()
-#                 t2.start()
-#                 t3.start()
-#
-#                 t1.join()
-#                 t2.join()
-#                 t3.join()
-#
-#             else:
-#                 part_upload_response = rgw_client.upload_part(
-#                     Bucket=bucket_name,
-#                     Key=s3_object_name,
-#                     PartNumber=part_number,
-#                     UploadId=mpu["UploadId"],
-#                     Body=open(each_part, mode="rb"),
-#                 )
-#                 log.info(f"part uploaded response {part_upload_response}")
-#                 part_info = {
-#                     "PartNumber": part_number,
-#                     "ETag": part_upload_response["ETag"],
-#                 }
-#                 parts_info["Parts"].append(part_info)
-#             if each_part != parts_list[-1]:
-#                 # increase the part number only if the current part is not the last part
-#                 part_number += 1
-#             log.info("curr part_number: %s" % part_number)
-#
-#         if len(parts_list) == part_number:
-#             log.info("all parts upload completed")
-#             response = rgw_client.complete_multipart_upload(
-#                 Bucket=bucket_name,
-#                 Key=s3_object_name,
-#                 UploadId=mpu["UploadId"],
-#                 MultipartUpload=parts_info,
-#             )
-#             log.info(f"complete multipart upload: {response}")
-#             log.info("multipart upload complete for key: %s" % s3_object_name)
-#
-#         log.info(f"downlading object: {s3_object_name}")
-#         s3_object_download_path = f"/tmp/{s3_object_name}"
-#         rgw_client.download_file(
-#             bucket_name, s3_object_name, s3_object_download_path,
-#             Config=boto3.s3.transfer.TransferConfig(multipart_chunksize=1024*20,max_concurrency=10, use_threads=True)
-#         )
-#
-#         # log.info("sleeping for 1 second")
-#         # time.sleep(1)
-#
-#         log.info(f"deleting local downloaded file: {s3_object_download_path}")
-#         os.remove(s3_object_download_path)
-#
-#         log.info(f"deleting object: {s3_object_name}")
-#         rgw_client.delete_object(Bucket=bucket_name, Key=s3_object_name)
-#
-#         # if config.local_file_delete is True:
-#         #     log.info("deleting local file part")
-#         #     utils.exec_shell_cmd(f"rm -rf {mp_dir}")
-#     # stop_threads = True
-#     # parallel_thread.join()
-
-
-async def test_multipart_upload_failed_parts(
+def test_multipart_upload_failed_parts(
     rgw_client,
     s3_object_name,
     bucket_name,
     TEST_DATA_PATH,
     config,
+    rgw_conn3,
     append_data=False,
     append_msg=None,
 ):
+    # log.info("s3 object name: %s" % s3_object_name)
+    # s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    # log.info("s3 object path: %s" % s3_object_path)
+    # s3_object_size = config.obj_size
+    # split_size = config.split_size if hasattr(config, "split_size") else 5
+    # log.info("split size: %s" % split_size)
+    # if append_data is True:
+    #     data_info = manage_data.io_generator(
+    #         s3_object_path,
+    #         s3_object_size,
+    #         op="append",
+    #         **{"message": "\n%s" % append_msg},
+    #     )
+    # else:
+    #     data_info = manage_data.io_generator(s3_object_path, s3_object_size)
+    # if data_info is False:
+    #     TestExecError("data creation failed")
+    # mp_dir = os.path.join(TEST_DATA_PATH, s3_object_name + ".mp.parts")
+    # log.info("mp part dir: %s" % mp_dir)
+    # log.info("making multipart object part dir")
+    # mkdir = utils.exec_shell_cmd("sudo mkdir %s" % mp_dir)
+    # if mkdir is False:
+    #     raise TestExecError("mkdir failed creating mp_dir_name")
+    # utils.split_file(s3_object_path, split_size, mp_dir + "/")
+    # parts_list = sorted(glob.glob(mp_dir + "/" + "*"))
+    # log.info("parts_list: %s" % parts_list)
+    # log.info("uploading s3 object: %s" % s3_object_path)
 
-    utils.exec_shell_cmd("fallocate -l 20MB /tmp/obj20MB")
-    utils.exec_shell_cmd("fallocate -l 30MB /tmp/obj30MB")
+    # global stop_threads
+    # parallel_thread = Thread(
+    #     target=parallel_operation_to_stress_rgw,
+    #     args=(
+    #         rgw_client,
+    #         bucket_name
+    #     ),
+    # )
+    # parallel_thread.start()
+
+    # utils.exec_shell_cmd("fallocate -l 60MB /tmp/obj20MB")
+    # utils.exec_shell_cmd("fallocate -l 70MB /tmp/obj30MB")
     iteration_count = config.test_ops.get("iteration_count")
     for i in range(1, iteration_count + 1):
         log.info(
@@ -805,11 +677,11 @@ async def test_multipart_upload_failed_parts(
         parts_list = []
 
         file1 = "/tmp/obj1"
-        utils.exec_shell_cmd(f"fallocate -l 8MB {file1}")
+        # utils.exec_shell_cmd(f"fallocate -l 8MB {file1}")
         parts_list.append(file1)
 
         file2 = "/tmp/obj2"
-        utils.exec_shell_cmd(f"fallocate -l 10MB {file2}")
+        # utils.exec_shell_cmd(f"fallocate -l 41943040 {file2}")
         parts_list.append(file2)
 
         log.info("no of parts: %s" % len(parts_list))
@@ -820,42 +692,65 @@ async def test_multipart_upload_failed_parts(
         for each_part in parts_list:
             log.info("trying to upload part: %s" % each_part)
             if config.test_ops.get("fail_part_upload") and part_number == 2:
-
-                await asyncio.gather(
-                    *[
-                        upload_part(
-                            rgw_client,
-                            s3_object_name,
-                            bucket_name,
-                            mpu,
-                            part_number,
-                            "/tmp/obj20MB",
-                            10*1024*1024,
-                            parts_info
-                        ),
-                        upload_part(
-                            rgw_client,
-                            s3_object_name,
-                            bucket_name,
-                            mpu,
-                            part_number,
-                            "/tmp/obj30MB",
-                            10*1024*1024,
-                            parts_info
-                        ),
-                        upload_part(
-                            rgw_client,
-                            s3_object_name,
-                            bucket_name,
-                            mpu,
-                            part_number,
-                            each_part,
-                            10*1024*1024,
-                            parts_info
-                        ),
-
-                    ]
+                t1 = Thread(
+                    target=upload_part,
+                    args=(
+                        rgw_conn3,
+                        s3_object_name,
+                        bucket_name,
+                        mpu,
+                        part_number,
+                        open("/tmp/obj20MB", mode="rb"),
+                        52428800,
+                        parts_info,
+                    ),
                 )
+                t2 = Thread(
+                    target=upload_part,
+                    args=(
+                        rgw_conn3,
+                        s3_object_name,
+                        bucket_name,
+                        mpu,
+                        part_number,
+                        open("/tmp/obj30MB", mode="rb"),
+                        52428800,
+                        parts_info,
+                    ),
+                )
+                t3 = Thread(
+                    target=upload_part,
+                    args=(
+                        rgw_client,
+                        s3_object_name,
+                        bucket_name,
+                        mpu,
+                        part_number,
+                        open(each_part, mode="rb"),
+                        524288000,
+                        parts_info,
+                    ),
+                )
+                # t4 = Thread(
+                #     target=upload_part,
+                #     args=(
+                #         rgw_client,
+                #         s3_object_name,
+                #         bucket_name,
+                #         mpu,
+                #         part_number,
+                #         open("/tmp/obj30MB", mode="rb"),
+                #         41943040,
+                #         parts_info,
+                #     ),
+                # )
+
+                t1.start()
+                t2.start()
+                # t4.start()
+                t3.start()
+
+                t1.join()
 
             else:
                 part_upload_response = rgw_client.upload_part(
@@ -890,9 +785,12 @@ async def test_multipart_upload_failed_parts(
         log.info(f"downlading object: {s3_object_name}")
         s3_object_download_path = f"/tmp/{s3_object_name}"
         rgw_client.download_file(
-            bucket_name, s3_object_name, s3_object_download_path
+            bucket_name, s3_object_name, s3_object_download_path,
             # Config=boto3.s3.transfer.TransferConfig(multipart_chunksize=1024*20,max_concurrency=10, use_threads=True)
         )
+        t2.join()
+        # t4.join()
+        t3.join()
 
         # log.info("sleeping for 1 second")
         # time.sleep(1)
@@ -908,6 +806,134 @@ async def test_multipart_upload_failed_parts(
         #     utils.exec_shell_cmd(f"rm -rf {mp_dir}")
     # stop_threads = True
     # parallel_thread.join()
+
+
+# async def test_multipart_upload_failed_parts(
+#     rgw_client,
+#     s3_object_name,
+#     bucket_name,
+#     TEST_DATA_PATH,
+#     config,
+#     append_data=False,
+#     append_msg=None,
+# ):
+#
+#     utils.exec_shell_cmd("fallocate -l 60MB /tmp/obj20MB")
+#     utils.exec_shell_cmd("fallocate -l 70MB /tmp/obj30MB")
+#     iteration_count = config.test_ops.get("iteration_count")
+#     for i in range(1, iteration_count + 1):
+#         log.info(
+#             f"--------------------------- iteration {i} ---------------------------"
+#         )
+#
+#         part_number = 1
+#         parts_info = {"Parts": []}
+#         parts_list = []
+#
+#         file1 = "/tmp/obj1"
+#         utils.exec_shell_cmd(f"fallocate -l 8MB {file1}")
+#         parts_list.append(file1)
+#
+#         file2 = "/tmp/obj2"
+#         utils.exec_shell_cmd(f"fallocate -l 50MB {file2}")
+#         parts_list.append(file2)
+#
+#         log.info("no of parts: %s" % len(parts_list))
+#
+#         log.info("initiating multipart upload")
+#         mpu = rgw_client.create_multipart_upload(Bucket=bucket_name, Key=s3_object_name)
+#
+#         for each_part in parts_list:
+#             log.info("trying to upload part: %s" % each_part)
+#             if config.test_ops.get("fail_part_upload") and part_number == 2:
+#
+#                 await asyncio.gather(
+#                     *[
+#                         upload_part(
+#                             rgw_client,
+#                             s3_object_name,
+#                             bucket_name,
+#                             mpu,
+#                             part_number,
+#                             "/tmp/obj20MB",
+#                             50000000,
+#                             parts_info
+#                         ),
+#                         upload_part(
+#                             rgw_client,
+#                             s3_object_name,
+#                             bucket_name,
+#                             mpu,
+#                             part_number,
+#                             "/tmp/obj30MB",
+#                             50000000,
+#                             parts_info
+#                         ),
+#                         upload_part(
+#                             rgw_client,
+#                             s3_object_name,
+#                             bucket_name,
+#                             mpu,
+#                             part_number,
+#                             each_part,
+#                             50000000,
+#                             parts_info
+#                         ),
+#
+#                     ]
+#                 )
+#
+#             else:
+#                 part_upload_response = rgw_client.upload_part(
+#                     Bucket=bucket_name,
+#                     Key=s3_object_name,
+#                     PartNumber=part_number,
+#                     UploadId=mpu["UploadId"],
+#                     Body=open(each_part, mode="rb"),
+#                 )
+#                 log.info(f"part uploaded response {part_upload_response}")
+#                 part_info = {
+#                     "PartNumber": part_number,
+#                     "ETag": part_upload_response["ETag"],
+#                 }
+#                 parts_info["Parts"].append(part_info)
+#             if each_part != parts_list[-1]:
+#                 # increase the part number only if the current part is not the last part
+#                 part_number += 1
+#             log.info("curr part_number: %s" % part_number)
+#
+#         if len(parts_list) == part_number:
+#             log.info("all parts upload completed")
+#             response = rgw_client.complete_multipart_upload(
+#                 Bucket=bucket_name,
+#                 Key=s3_object_name,
+#                 UploadId=mpu["UploadId"],
+#                 MultipartUpload=parts_info,
+#             )
+#             log.info(f"complete multipart upload: {response}")
+#             log.info("multipart upload complete for key: %s" % s3_object_name)
+#
+#         log.info(f"downlading object: {s3_object_name}")
+#         s3_object_download_path = f"/tmp/{s3_object_name}"
+#         rgw_client.download_file(
+#             bucket_name, s3_object_name, s3_object_download_path
+#             # Config=boto3.s3.transfer.TransferConfig(multipart_chunksize=1024*20,max_concurrency=10, use_threads=True)
+#         )
+#
+#         # log.info("sleeping for 1 second")
+#         # time.sleep(1)
+#
+#         log.info(f"deleting local downloaded file: {s3_object_download_path}")
+#         os.remove(s3_object_download_path)
+#
+#         log.info(f"deleting object: {s3_object_name}")
+#         rgw_client.delete_object(Bucket=bucket_name, Key=s3_object_name)
+#
+#         # if config.local_file_delete is True:
+#         #     log.info("deleting local file part")
+#         #     utils.exec_shell_cmd(f"rm -rf {mp_dir}")
+#     # stop_threads = True
+#     # parallel_thread.join()
 
 
 def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):

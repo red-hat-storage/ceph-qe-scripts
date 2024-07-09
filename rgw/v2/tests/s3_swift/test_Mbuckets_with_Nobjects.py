@@ -101,6 +101,7 @@ def test_exec(config, ssh_con):
         else:
             rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
+        rgw_conn3 = auth.do_auth_using_client_timeout_config()
         # Test multisite sync with 0 shards bugs 2188022, 2180549 Hot Fix for Square eCommerce
         if config.test_sync_0_shards:
             reusable.sync_test_0_shards(config)
@@ -309,14 +310,13 @@ def test_exec(config, ssh_con):
                             log.info(f"value of abort_multipart {abort_multipart}")
                             if config.test_ops.get("fail_part_upload", False):
                                 # time.sleep(30)
-                                asyncio.run(
-                                    reusable.test_multipart_upload_failed_parts(
-                                        rgw_conn2,
-                                        s3_object_name,
-                                        bucket.name,
-                                        TEST_DATA_PATH,
-                                        config,
-                                    )
+                                reusable.test_multipart_upload_failed_parts(
+                                    rgw_conn2,
+                                    s3_object_name,
+                                    bucket.name,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    rgw_conn3
                                 )
                             else:
                                 reusable.upload_mutipart_object(
