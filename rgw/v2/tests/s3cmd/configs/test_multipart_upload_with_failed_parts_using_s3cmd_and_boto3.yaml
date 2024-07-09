@@ -1,0 +1,13 @@
+# test case id: CEPH-83589550
+# BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2262650
+# BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2266680
+# test_script: test_s3cmd.py
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  objects_size_range:
+    min: 108M
+    max: 108M
+  test_ops:
+    test_multipart_upload_with_failed_upload_parts: true
