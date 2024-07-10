@@ -1,0 +1,9 @@
+# script: test_rgw_ops_log.py
+# Bugs: 2188557
+# Polarian: CEPH-83575470
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  test_ops:
+    rgw_log_detail: true
