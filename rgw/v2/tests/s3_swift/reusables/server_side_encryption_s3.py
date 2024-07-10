@@ -15,7 +15,9 @@ from v2.lib.rgw_config_opts import ConfigOpts
 log = logging.getLogger()
 
 
-def put_bucket_encryption(s3_client, bucketname, encryption_method):
+def put_bucket_encryption(
+    s3_client, bucketname, encryption_method, encrypt_decrypt_key="testKey01"
+):
     """
     put bucket encryption on a given bucket.
     """
@@ -32,7 +34,7 @@ def put_bucket_encryption(s3_client, bucketname, encryption_method):
                 {
                     "ApplyServerSideEncryptionByDefault": {
                         "SSEAlgorithm": "aws:kms",
-                        "KMSMasterKeyID": "testKey01",
+                        "KMSMasterKeyID": encrypt_decrypt_key,
                     }
                 }
             ]
@@ -62,11 +64,12 @@ def get_object_encryption(s3_client, bucketname, s3_object_name):
     get object encryption for an object, it should be AES256
     """
     get_obj_encryption = s3_client.get_object(Bucket=bucketname, Key=s3_object_name)
+    log.info(f"get_obj_encryption result: {get_obj_encryption}")
     result = get_obj_encryption["ServerSideEncryption"]
     if result == "AES256":
         log.info(f"server side encryption is with s3 keys on object {s3_object_name}")
     elif result == "aws:kms":
-        log.info(f"server side encryption is with kmsi keys on object {s3_object_name}")
+        log.info(f"server side encryption is with kms keys on object {s3_object_name}")
     else:
         raise TestExecError("object encryption has failed")
 
@@ -107,16 +110,16 @@ def put_object_encryption(
         put_obj_encryption = s3_client.put_object(
             Bucket=bucketname,
             Key=s3_object_name,
-            Body=s3_object_path,
+            Body=open(s3_object_path, "rb"),
             ServerSideEncryption="AES256",
         )
     else:
         put_obj_encryption = s3_client.put_object(
             Bucket=bucketname,
             Key=s3_object_name,
-            Body=s3_object_path,
+            Body=open(s3_object_path, "rb"),
             ServerSideEncryption="aws:kms",
-            SSEKMSKeyId="testKey01",
+            SSEKMSKeyId=config.test_ops.get("encrypt_decrypt_key", "testKey01"),
         )
 
     if not put_obj_encryption:

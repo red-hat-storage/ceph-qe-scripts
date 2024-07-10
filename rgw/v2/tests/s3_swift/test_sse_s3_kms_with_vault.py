@@ -11,6 +11,11 @@ Usage: test_sse_s3_with_vault.py -c <input_yaml>
     test_sse_s3_per_object_versioninig_enabled.yaml
     test_sse_kms_per_object.yaml
     test_sse_kms_per_object_versioninig_enabled.yaml
+    test_sse_kms_kmip_gklm_per_bucket_encryption_multipart_object_upload.yaml
+    test_sse_kms_kmip_gklm_per_bucket_encryption_normal_object_upload.yaml
+    test_sse_kms_kmip_gklm_per_bucket_encryption_version_enabled.yaml
+    test_sse_kms_kmip_gklm_per_object.yaml
+    test_sse_kms_kmip_gklm_per_object_versioninig_enabled.yaml
 
 Operation:
     Create a user and create a bucket with user credentials
@@ -162,7 +167,10 @@ def test_exec(config, ssh_con):
                                 f"Encryption type is per-bucket, enable it on bucket : {bucket_name_to_create}"
                             )
                             sse_s3.put_bucket_encryption(
-                                s3_client, bucket_name_to_create, encryption_method
+                                s3_client,
+                                bucket_name_to_create,
+                                encryption_method,
+                                config.test_ops.get("encrypt_decrypt_key", "testKey01"),
                             )
                             # get bucket encryption
                             log.info(
@@ -205,6 +213,15 @@ def test_exec(config, ssh_con):
                                 "Wait for sync lease to catch up on the remote site."
                             )
                             time.sleep(1200)
+
+                        if config.test_ops.get("download_object", False):
+                            reusable.download_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                s3_object_path,
+                                config,
+                            )
                         if config.test_ops.get("download_object_at_remote_site", False):
                             reusable.test_object_download_at_replicated_site(
                                 bucket_name_to_create, s3_object_name, each_user, config
@@ -215,8 +232,8 @@ def test_exec(config, ssh_con):
                             reusable.delete_versioned_object(
                                 bucket,
                                 s3_object_name,
-                                s3_object_path,
                                 rgw_conn,
+                                s3_object_path,
                                 each_user,
                             )
                     if config.test_sync_consistency_bucket_stats:
@@ -225,6 +242,11 @@ def test_exec(config, ssh_con):
                         reusable.test_bucket_stats_across_sites(
                             bucket_name_to_create, config
                         )
+
+                if config.test_ops.get(
+                    "delete_bucket_object", False
+                ) or config.test_ops.get("delete_bucket_object_version", False):
+                    reusable.delete_bucket(bucket)
     # check sync status if a multisite cluster
     reusable.check_sync_status()
     reusable.remove_user(each_user)

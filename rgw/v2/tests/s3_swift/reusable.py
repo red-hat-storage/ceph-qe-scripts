@@ -236,7 +236,10 @@ def upload_object(
             args.append(extra_args)
         elif config.encryption_keys == "kms":
             log.info("SSE KMS encryption method applied with vault backend")
-            extra_args = {"ServerSideEncryption": "aws:kms", "SSEKMSKeyId": "testKey01"}
+            extra_args = {
+                "ServerSideEncryption": "aws:kms",
+                "SSEKMSKeyId": config.test_ops.get("encrypt_decrypt_key", "testKey01"),
+            }
             args.append(extra_args)
     object_uploaded_status = s3lib.resource_op(
         {
