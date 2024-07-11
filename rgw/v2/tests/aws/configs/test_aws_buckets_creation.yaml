@@ -1,0 +1,13 @@
+# script: test_aws.py
+# polarion-ID: CEPH-83575383
+config:
+  user_count: 1
+  bucket_count: 20
+  objects_count: 1
+  user_remove: false
+  objects_size_range:
+    min: 1
+    max: 3
+  test_ops:
+    user_name: cosbench01
+    bucket_name: cos-bucket-

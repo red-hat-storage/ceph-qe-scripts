@@ -6,6 +6,7 @@ Usage: test_aws.py -c <input_yaml>
     configs/test_aws_non_ascii.yaml
     configs/test_aws_versioned_bucket_creation.yaml
     configs/test_aws_regular_and_versioned_bucket_creation.yaml
+    configs/test_aws_buckets_creation.yaml
     configs/test_complete_multipart_upload_etag_not_empty.yaml
     configs/test_versioned_list_marker.yaml
 
