@@ -234,12 +234,17 @@ def get_bucket_notification(rgw_s3_client, bucketname, empty=False):
     )
 
 
-def verify_event_record(event_type, bucket, event_record_path, ceph_version):
+def verify_event_record(
+    event_type, bucket, event_record_path, ceph_version, config=None
+):
     """
     verify event records
     """
     if os.path.getsize(event_record_path) == 0:
-        raise EventRecordDataError("event record not generated! File is empty")
+        if config and config.test_ops.get("test_delete_object_sync_archive", False):
+            log.info("event record not generated! File is empty, excpected behavior")
+        else:
+            raise EventRecordDataError("event record not generated! File is empty")
 
     # verify event record for a particular event type
     notifications_received = False
@@ -367,11 +372,16 @@ def verify_event_record(event_type, bucket, event_record_path, ceph_version):
                 log.info(f"awsRegion: {awsRegion}")
             else:
                 raise EventRecordDataError("awsRegion not in event record")
-
     if notifications_received is False:
-        raise EventRecordDataError(
-            f"Notifications not received for event type {event_type}"
-        )
+        if config.test_ops.get("test_delete_object_sync_archive", False):
+            log.info("Deletion event does not occur in archive zone")
+            log.info(
+                "Notifications not received for event type {event_type}, expected behavior with archive zone"
+            )
+        else:
+            raise EventRecordDataError(
+                f"Notifications not received for event type {event_type}"
+            )
 
 
 class NotificationService:
