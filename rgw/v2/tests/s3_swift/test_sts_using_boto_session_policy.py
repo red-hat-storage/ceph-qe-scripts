@@ -5,6 +5,10 @@ Usage: test_sts_using_boto_session_policy.py -c <input_yaml>
 <input_yaml>
     configs/test_sts_using_boto_permissive_session_policy.yaml
     configs/test_sts_using_boto_restricted_session_policy.yaml
+    test_sts_using_boto_verify_session_policy_allow_actions.yaml
+    test_sts_using_boto_verify_session_policy_deny_actions.yaml
+    test_sts_using_boto_verify_session_policy_allow_put_object_and_deny_abort_multipart.yaml
+    test_sts_using_boto_verify_session_policy_deny_sns_topic_actions.yaml
 
 Operation:
     s1: Create 2 Users.
@@ -37,6 +41,7 @@ import time
 import traceback
 
 import v2.lib.resource_op as s3lib
+import v2.tests.s3_swift.reusables.bucket_policy_ops as bucket_policy_ops
 import v2.utils.utils as utils
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
@@ -75,6 +80,13 @@ def test_exec(config, ssh_con):
     ceph_config_set.set_to_ceph_conf(
         "global", ConfigOpts.rgw_s3_auth_use_sts, "True", ssh_con
     )
+    if config.test_ops.get("verify_policy"):
+        ceph_config_set.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_enable_static_website,
+            True,
+            ssh_con,
+        )
     srv_restarted = rgw_service.restart(ssh_con)
     time.sleep(30)
     if srv_restarted is False:
@@ -84,6 +96,7 @@ def test_exec(config, ssh_con):
 
     auth = Auth(user1, ssh_con, ssl=config.ssl)
     iam_client = auth.do_auth_iam_client()
+    user1_rgw_client = auth.do_auth_using_client()
 
     policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
     policy_document = policy_document.replace("<user_name>", user2["user_id"])
@@ -145,6 +158,8 @@ def test_exec(config, ssh_con):
     log.info("got the credentials after assume role")
     s3client = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
     s3_client_rgw = s3client.do_auth()
+    sts_user_rgw_client = s3client.do_auth_using_client()
+    sts_user_rgw_sns_client = auth.do_auth_sns_client()
 
     io_info_initialize.initialize(basic_io_structure.initial())
     write_user_info = AddUserInfo()
@@ -158,32 +173,58 @@ def test_exec(config, ssh_con):
     )
     write_user_info.add_user_info(user_info)
 
-    if config.test_ops["create_bucket"] is True:
-        log.info("no of buckets to create: %s" % config.bucket_count)
-        for bc in range(config.bucket_count):
-            bucket_name_to_create = utils.gen_bucket_name_from_userid(
-                assumed_role_user_info["user_id"], rand_no=bc
+    if config.test_ops.get("verify_policy"):
+        verify_policy = config.test_ops.get("verify_policy", "session_policy")
+        bucket_name = f"{assumed_role_user_info['user_id']}-bkt1"
+        s3_object_name = f"Key_{bucket_name}"
+        bucket_policy_ops.CreateBucket(
+            rgw_client=user1_rgw_client, bucket_name=bucket_name
+        )
+        for i in range(1, 10):
+            bucket_policy_ops.PutObject(
+                rgw_client=user1_rgw_client,
+                bucket_name=bucket_name,
+                object_name=f"obj{i}",
             )
-            log.info("creating bucket with name: %s" % bucket_name_to_create)
-            bucket = reusable.create_bucket(
-                bucket_name_to_create, s3_client_rgw, assumed_role_user_info
-            )
-            if config.test_ops["create_object"] is True:
-                # uploading data
-                log.info("s3 objects to create: %s" % config.objects_count)
-                for oc, size in list(config.mapped_sizes.items()):
-                    config.obj_size = size
-                    s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, oc)
-                    log.info("s3 object name: %s" % s3_object_name)
-                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
-                    log.info("s3 object path: %s" % s3_object_path)
-                    reusable.failed_upload_object(
-                        s3_object_name,
-                        bucket,
-                        TEST_DATA_PATH,
-                        config,
-                        assumed_role_user_info,
-                    )
+        bucket_policy_ops.verify_policy(
+            config=config,
+            bucket_owner_rgw_client=user1_rgw_client,
+            rgw_client=sts_user_rgw_client,
+            bucket_name=bucket_name,
+            object_name=s3_object_name,
+            rgw_s3_resource=s3_client_rgw,
+            sns_client=sts_user_rgw_sns_client,
+            policy_document=config.sts.get(verify_policy),
+        )
+    else:
+        if config.test_ops["create_bucket"] is True:
+            log.info(f"no of buckets to create: {config.bucket_count}")
+            for bc in range(config.bucket_count):
+                bucket_name_to_create = utils.gen_bucket_name_from_userid(
+                    assumed_role_user_info["user_id"], rand_no=bc
+                )
+                log.info(f"creating bucket with name: {bucket_name_to_create}")
+                bucket = reusable.create_bucket(
+                    bucket_name_to_create, s3_client_rgw, assumed_role_user_info
+                )
+                if config.test_ops["create_object"] is True:
+                    # uploading data
+                    log.info(f"s3 objects to create: {config.objects_count}")
+                    for oc, size in list(config.mapped_sizes.items()):
+                        config.obj_size = size
+                        s3_object_name = utils.gen_s3_object_name(
+                            bucket_name_to_create, oc
+                        )
+                        log.info(f"s3 object name: {s3_object_name}")
+                        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                        log.info(f"s3 object path: {s3_object_path}")
+                        reusable.failed_upload_object(
+                            s3_object_name,
+                            bucket,
+                            TEST_DATA_PATH,
+                            config,
+                            assumed_role_user_info,
+                        )
 
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
@@ -192,7 +233,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("create m buckets with n objects")
     test_info.started_info()
 
@@ -200,7 +240,7 @@ if __name__ == "__main__":
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
         test_data_dir = "test_data"
         TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
-        log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
+        log.info(f"TEST_DATA_PATH: {TEST_DATA_PATH}")
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)

@@ -5,7 +5,8 @@ usage : test_bucket_policy_ops.py -c configs/<input-yaml>
 where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml and test_bucket_policy_replace.yaml,
   test_bucket_policy_multiple_conflicting_statements.yaml, test_bucket_policy_multiple_statements.yaml,
   test_bucket_policy_condition.yaml, test_bucket_policy_condition_explicit_deny.yaml,
-  test_bucket_policy_invalid_*.yaml, test_sse_kms_per_bucket_with_bucket_policy.yaml
+  test_bucket_policy_invalid_*.yaml, test_sse_kms_per_bucket_with_bucket_policy.yaml,
+  test_bucket_policy_deny_actions.yaml
 
 Operation:
 - create bucket in tenant1 for user1
@@ -24,6 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
 import json
 import logging
+import time
 import traceback
 
 import botocore.exceptions as boto3exception
@@ -34,12 +36,13 @@ import v2.utils.utils as utils
 from botocore.handlers import validate_bucket_name
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import HttpResponseParser
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
 
@@ -85,6 +88,22 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
 
+    ceph_config_set = CephConfOp(ssh_con)
+    rgw_service = RGWService()
+    if config.test_ops.get("verify_policy"):
+        ceph_config_set.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_enable_static_website,
+            True,
+            ssh_con,
+        )
+    srv_restarted = rgw_service.restart(ssh_con)
+    time.sleep(30)
+    if srv_restarted is False:
+        raise TestExecError("RGW service restart failed")
+    else:
+        log.info("RGW service restarted")
+
     # create user
     config.user_count = 1
     tenant1 = "MountEverest"
@@ -105,6 +124,7 @@ def test_exec(config, ssh_con):
     rgw_tenant1_user1_c = tenant1_user1_auth.do_auth_using_client()
     rgw_tenant2_user1 = tenant2_user1_auth.do_auth()
     rgw_tenant2_user1_c = tenant2_user1_auth.do_auth_using_client()
+    rgw_tenant2_user1_sns_client = tenant2_user1_auth.do_auth_sns_client()
     bucket_name1 = utils.gen_bucket_name_from_userid(
         tenant1_user1_info["user_id"], rand_no=1
     )
@@ -227,11 +247,17 @@ def test_exec(config, ssh_con):
             rgw_tenant2_user1_c.meta.events.unregister(
                 "before-parameter-build.s3", validate_bucket_name
             )
+            rgw_tenant1_user1_c.meta.events.unregister(
+                "before-parameter-build.s3", validate_bucket_name
+            )
             bucket_policy_ops.verify_policy(
+                bucket_owner_rgw_client=rgw_tenant1_user1_c,
                 config=config,
                 rgw_client=rgw_tenant2_user1_c,
                 bucket_name=bucket_name_verify_policy,
-                object_name=s3_object_name,
+                object_name=f"{s3_object_name}-verify-policy",
+                rgw_s3_resource=rgw_tenant2_user1,
+                sns_client=rgw_tenant2_user1_sns_client,
             )
 
         # modifying bucket policy to take new policy
