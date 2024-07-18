@@ -1,9 +1,10 @@
-# script:test_cloud_transition.py
-# Polarion ID : CEPH-83575278
+# script: test_cloud_transition.py
+# Polarion ID : CEPH-83575497
 config:
   user_count: 1
   bucket_count: 1
-  objects_count: 100
+  objects_count: 20
+  encryption_keys: s3
   etag_verification: true
   objects_size_range:
     min: 5
@@ -13,4 +14,4 @@ config:
     create_object: true
     lc_id: cloud_transit
     retain_head_object: false
-    enable_encryption: false
+    enable_encryption: true

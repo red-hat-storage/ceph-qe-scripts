@@ -6,6 +6,10 @@ Usage: test_cloud_transitions.py -c <input_yaml>
 
 <input_yaml>:
     configs/test_cloud_transitions.yaml
+    configs/test_cloud_transition_encrypted.yaml
+    configs/test_cloud_transition_headobject_false.yaml
+    configs/test_cloud_transition_headobject_true.yaml
+    configs/test_cloud_transition_multipart.yaml
 """
 import os
 import sys
@@ -27,6 +31,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import lc_policy
+from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -46,6 +51,7 @@ def test_exec(config, ssh_con):
     # authenticate
     auth = Auth(user_info, ssh_con, ssl=config.ssl)
     rgw_conn = auth.do_auth()
+    s3_client1 = auth.do_auth_using_client()
 
     log.info("Create buckets and objects in source cluster")
     if config.test_ops["create_bucket"] is True:
@@ -54,11 +60,25 @@ def test_exec(config, ssh_con):
             bucket_name_to_create = utils.gen_bucket_name_from_userid(
                 user_info["user_id"], rand_no=bc
             )
-            log.info("creating bucket with name: %s" % bucket_name_to_create)
+            log.info(f"creating bucket with name: {bucket_name_to_create}")
             bucket = reusable.create_bucket(bucket_name_to_create, rgw_conn, user_info)
+
+            if config.test_ops["enable_encryption"]:
+                # enable per bucket encryption on the bucket
+                log.info(
+                    f"Encryption type is per-bucket, enable it on bucket : {bucket_name_to_create}"
+                )
+                encryption_method = config.encryption_keys
+                sse_s3.put_bucket_encryption(
+                    s3_client1, bucket_name_to_create, encryption_method
+                )
+                # get bucket encryption
+                log.info(f"get bucket encryption for bucket : {bucket_name_to_create}")
+                sse_s3.get_bucket_encryption(s3_client1, bucket_name_to_create)
+
             if config.test_ops["create_object"] is True:
                 # uploading data
-                log.info("s3 objects to create: %s" % config.objects_count)
+                log.info(f"s3 objects to create: {config.objects_count}")
                 config.mapped_sizes = utils.make_mapped_sizes(config)
                 for oc, size in list(config.mapped_sizes.items()):
                     config.obj_size = size
