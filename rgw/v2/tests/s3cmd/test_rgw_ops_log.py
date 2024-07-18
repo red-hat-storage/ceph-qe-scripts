@@ -176,27 +176,59 @@ def test_exec(config, ssh_con):
         ceph_detail = json.loads(utils.exec_shell_cmd("ceph -s -f json"))
         out = utils.exec_shell_cmd("ceph orch ps | grep rgw | cut -d ' ' -f 1")
         rgw_process_names = out.split()
-        for rgw_deamon in rgw_process_names:
-            rgw_host = rgw_deamon.split(".")[-2]
-            if rgw_host not in rgw_log_dict[ceph_version_id].keys():
+
+        with open(root_path, "r") as file:
+            file_details = yaml.safe_load(file)
+
+        if file_details == None:
+            file_details = {}
+
+        if ceph_version_id not in file_details.keys():
+            for rgw_deamon in rgw_process_names:
+                rgw_host = rgw_deamon.split(".")[-2]
                 out = utils.exec_shell_cmd(f"ceph orch host ls | grep {rgw_host}")
-                host_ip = out.split()[-2]
+                out_details = out.split()
+                host_ip = out_details[1]
                 log.info(f"connect to host {rgw_host} ip is {host_ip}")
                 host_ssh_con = utils.connect_remote(host_ip)
                 _, stdout, _ = host_ssh_con.exec_command(
                     f"sudo ls -l /var/log/ceph/{ceph_detail['fsid']}/ | grep rgw"
                 )
                 cmd_output = stdout.read().decode()
-                cmd_output = str(cmd_output).split("\n")
-                rgw_log_dict[ceph_version_id][rgw_host] = cmd_output
+                log.info(f"For {rgw_host} rgw log details are {cmd_output}")
+                cmd_output = str(cmd_output).split()
+                dict_log = {}
+                dict_log[cmd_output[-1]] = cmd_output[4]
+                rgw_log_dict[ceph_version_id][rgw_host] = dict_log
                 log.info(f"rgw log details from host {rgw_host} are {rgw_log_dict}")
 
-        rgw_log_data = yaml.dump(rgw_log_dict)
-        with open(root_path, "a") as file:
-            file.write(rgw_log_data)
+            rgw_log_data = yaml.dump(rgw_log_dict)
+            with open(root_path, "a") as file:
+                file.write(rgw_log_data)
+
         with open(root_path, "r") as file:
-            file_details = file.read()
+            file_details = yaml.safe_load(file)
+
         log.info(f"ceph rgw log details are {file_details}")
+        if len(file_details) > 1:
+            for key in file_details.keys():
+                if key != ceph_version_id:
+                    pre_upgrade_details = file_details[key]
+                else:
+                    post_upgrade_details = file_details[key]
+
+            for key_host in pre_upgrade_details.keys():
+                for key_host_log in pre_upgrade_details[key_host].keys():
+                    pre_log_size = pre_upgrade_details[key_host][key_host_log]
+                    post_log_size = post_upgrade_details[key_host][key_host_log]
+                    log_diff = int(post_log_size) - int((pre_log_size))
+                    log.info(
+                        f"Post upgrade log size increased by {log_diff} byte for {key_host_log}"
+                    )
+                    if log_diff >= 1000000000:
+                        raise AssertionError(
+                            "Post upgrade log size is more than or eaqual to 1GB, which should not be the case"
+                        )
 
     log.info("remove user created")
     reusable.remove_user(user_info)
