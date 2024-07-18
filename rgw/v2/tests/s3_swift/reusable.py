@@ -12,6 +12,7 @@ import logging
 import math
 import time
 import timeit
+from threading import Thread
 
 import configobj
 import v2.lib.manage_data as manage_data
@@ -596,6 +597,124 @@ def upload_mutipart_object(
         log.info("all parts upload completed")
         mpu.complete(MultipartUpload=parts_info)
         log.info("multipart upload complete for key: %s" % s3_object_name)
+
+
+def upload_part(
+    rgw_client,
+    s3_object_name,
+    bucket_name,
+    mpu,
+    part_number,
+    body,
+    content_length,
+    parts_info,
+):
+    try:
+        part_upload_response = rgw_client.upload_part(
+            Bucket=bucket_name,
+            Key=s3_object_name,
+            PartNumber=part_number,
+            UploadId=mpu["UploadId"],
+            Body=body,
+            ContentLength=content_length,
+        )
+        log.info(f"part uploaded response {part_upload_response}")
+    except Exception as e:
+        log.info(e)
+        return
+    part_info = {"PartNumber": part_number, "ETag": part_upload_response["ETag"]}
+    parts_info["Parts"].append(part_info)
+
+
+def test_multipart_upload_failed_parts(
+    rgw_client, s3_object_name, bucket_name, part1_path, part2_path
+):
+    parts_info = {"Parts": []}
+    log.info("no of parts: 2")
+
+    log.info("initiating multipart upload")
+    mpu = rgw_client.create_multipart_upload(Bucket=bucket_name, Key=s3_object_name)
+
+    part_number = 1
+    log.info(f"trying to upload part {part_number}")
+    part_upload_response = rgw_client.upload_part(
+        Bucket=bucket_name,
+        Key=s3_object_name,
+        PartNumber=part_number,
+        UploadId=mpu["UploadId"],
+        Body=open(part1_path, mode="rb"),
+    )
+    log.info(f"part uploaded response {part_upload_response}")
+    part_info = {
+        "PartNumber": part_number,
+        "ETag": part_upload_response["ETag"],
+    }
+    parts_info["Parts"].append(part_info)
+
+    part_number = 2
+    log.info(
+        f"trying to upload part {part_number} with three clients parallely out of which only one is success"
+    )
+    t1 = Thread(
+        target=upload_part,
+        args=(
+            rgw_client,
+            s3_object_name,
+            bucket_name,
+            mpu,
+            part_number,
+            open("/tmp/obj20MB", mode="rb"),
+            12582912,
+            parts_info,
+        ),
+    )
+    t2 = Thread(
+        target=upload_part,
+        args=(
+            rgw_client,
+            s3_object_name,
+            bucket_name,
+            mpu,
+            part_number,
+            open("/tmp/obj30MB", mode="rb"),
+            12582912,
+            parts_info,
+        ),
+    )
+    t3 = Thread(
+        target=upload_part,
+        args=(
+            rgw_client,
+            s3_object_name,
+            bucket_name,
+            mpu,
+            part_number,
+            open(part2_path, mode="rb"),
+            os.stat(part2_path).st_size,
+            parts_info,
+        ),
+    )
+
+    t1.start()
+    t2.start()
+    t3.start()
+
+    t3.join()
+    t1.join()
+    t2.join()
+
+    if len(parts_info["Parts"]) == part_number:
+        log.info("all parts upload completed")
+        response = rgw_client.complete_multipart_upload(
+            Bucket=bucket_name,
+            Key=s3_object_name,
+            UploadId=mpu["UploadId"],
+            MultipartUpload=parts_info,
+        )
+        log.info(f"complete multipart upload: {response}")
+        log.info(f"multipart upload complete for key: {s3_object_name}")
+    else:
+        raise Exception("Multipart upload for part2 failed")
 
 
 def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):

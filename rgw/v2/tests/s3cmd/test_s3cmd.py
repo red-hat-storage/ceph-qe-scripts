@@ -9,6 +9,7 @@ Usage: test_s3cmd.py -c <input_yaml>
     test_multiple_delete_marker_check.yaml
     configs/test_disable_and_enable_dynamic_resharding_with_10k_bucket.yaml
     configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
+    test_multipart_upload_with_failed_parts_using_s3cmd_and_boto3.yaml
 
 Operation:
     Create an user
@@ -337,6 +338,73 @@ def test_exec(config, ssh_con):
 
         log.info("remove user created")
         reusable.remove_user(user_info[0])
+
+    # CEPH-83589550 - Bug 2262650 - [GSS]Missing Objects in RGW S3 bucket while making GET request - 404 not found error
+    elif config.test_ops.get("test_multipart_upload_with_failed_upload_parts", False):
+        log.info("Verify multipart upload with failed upload parts in parallel")
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        rgw_conn = auth.do_auth_using_client()
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info[0]["user_id"], rand_no=bc
+            )
+            s3cmd_reusable.create_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} created")
+            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+
+            # removing local files if present already
+            utils.exec_shell_cmd(
+                "rm -rf /tmp/obj1 && rm -rf /tmp/obj2 && rm -rf /tmp/obj20MB && rm -rf /tmp/obj30MB"
+            )
+            # create local parts with 8MB and 100MB
+            utils.exec_shell_cmd("fallocate -l 8388608 /tmp/obj1")
+            utils.exec_shell_cmd("fallocate -l 104857600 /tmp/obj2")
+            # create local temp files with 20MB and 30MB for failed part2 uploads
+            utils.exec_shell_cmd("fallocate -l 20971520 /tmp/obj20MB")
+            utils.exec_shell_cmd("fallocate -l 31457280 /tmp/obj30MB")
+
+            for oc in range(config.objects_count):
+                log.info(
+                    f"------------------------iteration-{oc}------------------------"
+                )
+                s3_object_name = f"Key_{bucket_name}"
+                reusable.test_multipart_upload_failed_parts(
+                    rgw_conn,
+                    s3_object_name,
+                    bucket_name,
+                    "/tmp/obj1",
+                    "/tmp/obj2",
+                )
+                cmd = f"{s3cmd_path} get s3://{bucket_name}/{s3_object_name} /tmp/ --force && {s3cmd_path} rm s3://{bucket_name}/{s3_object_name}"
+                out = utils.exec_shell_cmd(cmd)
+                if out is False:
+                    raise Exception("Multipart object download failed")
+
+            # removing local downloaded file
+            utils.exec_shell_cmd(f"rm -rf /tmp/{s3_object_name}")
+
+            # check if gc process + bucket check fix workaround removes failed parts on 5.3
+            # BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2266680
+            utils.exec_shell_cmd(
+                f"radosgw-admin gc process --bucket={bucket_name} --include-all"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin bucket check --fix --bucket={bucket_name} &> bc.log"
+            )
+            log.info("sleeping for 10 seconds")
+            time.sleep(10)
+            out = utils.exec_shell_cmd(
+                f"radosgw-admin bucket list --bucket={bucket_name}"
+            )
+            bkt_list_json = json.loads(out)
+            if len(bkt_list_json) != 0:
+                raise Exception(
+                    "failed upload parts are not deleted and still listing in bucket list"
+                )
+            else:
+                log.info("bucket list is empty as expected")
 
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
