@@ -24,6 +24,7 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_bucket_notification_kafka_broker_persistent_dynamic_reshard.yaml
     test_bucket_notification_kafka_broker_persistent_manual_reshard.yaml
     test_sse_s3_per_bucket_with_notifications_dynamic_reshard.yaml
+    multisite_configs/test_bucket_notification_kafka_broker_archive_delete_replication_from_pri.yaml
 Operation:
     create user (tenant/non-tenant)
     Create topic and get topic
@@ -306,7 +307,10 @@ def test_exec(config, ssh_con):
                     )
                     if status is None:
                         raise TestExecError("copy object failed")
-
+                # delete objects
+                if config.test_ops.get("test_delete_object_sync_archive", False):
+                    bucket_resource = other_site_bucket
+                    reusable.delete_objects(bucket_resource)
                 # delete objects
                 if config.test_ops.get("delete_bucket_object", False):
                     if config.test_ops.get("enable_version", False):
@@ -343,7 +347,9 @@ def test_exec(config, ssh_con):
                         bucket_name_for_verification,
                         event_record_path,
                         ceph_version_name,
+                        config,
                     )
+
                     if verify is False:
                         raise EventRecordDataError(
                             "Event record is empty! notification is not seen"
