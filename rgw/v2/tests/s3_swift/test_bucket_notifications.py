@@ -25,6 +25,7 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_bucket_notification_kafka_broker_persistent_manual_reshard.yaml
     test_sse_s3_per_bucket_with_notifications_dynamic_reshard.yaml
     multisite_configs/test_bucket_notification_kafka_broker_archive_delete_replication_from_pri.yaml
+    test_bucket_notification_kafka_broker_rgw_admin_notif_rm.yaml
 Operation:
     create user (tenant/non-tenant)
     Create topic and get topic
@@ -129,6 +130,15 @@ def test_exec(config, ssh_con):
 
         # get ceph version
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
+        rgw_admin_notif_commands_available = False
+        ceph_version_id = ceph_version_id.split("-")
+        ceph_version_id = ceph_version_id[0].split(".")
+        if (
+            float(ceph_version_id[0]) == 18
+            and float(ceph_version_id[1]) >= 2
+            and float(ceph_version_id[2]) >= 1
+        ):
+            rgw_admin_notif_commands_available = True
 
         objects_created_list = []
         if config.test_ops.get("create_bucket", False):
@@ -193,7 +203,7 @@ def test_exec(config, ssh_con):
                     )
 
                     log.info("get kafka topic using rgw cli")
-                    get_rgw_topic = notification.rgw_topic_ops(
+                    get_rgw_topic = notification.rgw_admin_topic_notif_ops(
                         op="get", args={"topic": topic_name, **extra_topic_args}
                     )
                     if get_rgw_topic is False:
@@ -227,7 +237,7 @@ def test_exec(config, ssh_con):
 
                     # get bucket notification using rgw cli
                     log.info("get notification topic using rgw cli")
-                    get_notif_topic = notification.rgw_topic_ops(
+                    get_notif_topic = notification.rgw_admin_topic_notif_ops(
                         op="get",
                         args={"topic": bkt_notif_topic_name, **extra_topic_args},
                     )
@@ -235,6 +245,63 @@ def test_exec(config, ssh_con):
                         raise TestExecError(
                             "radosgw-admin topic get failed for bucket notification topic"
                         )
+
+                    # list rgw topics using rgw admin cli
+                    log.info("list topic using rgw cli")
+                    topics_list = notification.rgw_admin_topic_notif_ops(
+                        op="list",
+                        args={"topic": bkt_notif_topic_name, **extra_topic_args},
+                    )
+                    topic_listed = False
+                    notif_topic_listed = False
+                    for topic_dict in topics_list["topics"]:
+                        if topic_dict["name"] == topic_name:
+                            topic_listed = True
+                        if topic_dict["name"] == bkt_notif_topic_name:
+                            notif_topic_listed = True
+                    if topic_listed is False:
+                        raise TestExecError(
+                            f"radosgw-admin topic list doesnot contain topic: {topic_name}"
+                        )
+
+                    if rgw_admin_notif_commands_available:
+                        # verify notification topic does not list in radosgw-admin topic list
+                        if notif_topic_listed is True:
+                            raise TestExecError(
+                                f"radosgw-admin topic list lists even auto-generated notification topic: {bkt_notif_topic_name}"
+                            )
+
+                        # list bucket notification using rgw admin notification commands
+                        log.info(
+                            f"list notifications of bucket {bucket_name_to_create} using rgw admin notification commands"
+                        )
+                        list_notif = notification.rgw_admin_topic_notif_ops(
+                            sub_command="notification",
+                            op="list",
+                            args={"bucket": bucket_name_to_create, **extra_topic_args},
+                        )
+                        if list_notif is False:
+                            raise TestExecError(
+                                f"radosgw-admin notification list failed for bucket {bucket_name_to_create}"
+                            )
+
+                        # get bucket notification using rgw admin notification commands
+                        log.info(
+                            f"get notification for bucket {bucket_name_to_create} with notification id {notification_name} using rgw admin notification commands"
+                        )
+                        get_notif = notification.rgw_admin_topic_notif_ops(
+                            sub_command="notification",
+                            op="get",
+                            args={
+                                "bucket": bucket_name_to_create,
+                                "notification-id": notification_name,
+                                **extra_topic_args,
+                            },
+                        )
+                        if get_notif is False:
+                            raise TestExecError(
+                                f"radosgw-admin notification get failed for bucket {bucket_name_to_create} with notification {notification_name}"
+                            )
 
                 # stop kafka server
                 if config.test_ops.get("verify_persistence_with_kafka_stop", False):
@@ -360,10 +427,33 @@ def test_exec(config, ssh_con):
                         rgw_s3_client,
                         bucket_name_to_create,
                     )
+
+                # remove all bucket notification using rgw admin notification cli
+                if (
+                    config.test_ops.get("rgw_admin_notification_rm", False)
+                    and rgw_admin_notif_commands_available
+                ):
+                    log.info(
+                        f"remove all notifications for bucket {bucket_name_to_create}"
+                    )
+                    rm_notif = notification.rgw_admin_topic_notif_ops(
+                        sub_command="notification",
+                        op="rm",
+                        args={"bucket": bucket_name_to_create, **extra_topic_args},
+                    )
+                    if rm_notif is False:
+                        raise TestExecError(
+                            f"radosgw-admin notification rm failed for bucket {bucket_name_to_create}"
+                        )
+
+                if config.test_ops.get("put_empty_bucket_notification", False) or (
+                    config.test_ops.get("rgw_admin_notification_rm", False)
+                    and rgw_admin_notif_commands_available
+                ):
                     log.info(
                         "verify topic get using rgw cli after put empty notification"
                     )
-                    get_rgw_notif_topic = notification.rgw_topic_ops(
+                    get_rgw_notif_topic = notification.rgw_admin_topic_notif_ops(
                         op="get",
                         args={"topic": bkt_notif_topic_name, **extra_topic_args},
                     )
@@ -383,7 +473,7 @@ def test_exec(config, ssh_con):
                     # verify deleting a bucket deletes its associated notification topic.
                     # refer https://bugzilla.redhat.com/show_bug.cgi?id=1936415
                     log.info("verify get notification topic failure using rgw cli")
-                    get_notif_topic = notification.rgw_topic_ops(
+                    get_notif_topic = notification.rgw_admin_topic_notif_ops(
                         op="get",
                         args={"topic": bkt_notif_topic_name, **extra_topic_args},
                     )
@@ -394,7 +484,7 @@ def test_exec(config, ssh_con):
 
                     # delete rgw topic
                     log.info("remove kafka topic using rgw cli")
-                    topic_rm = notification.rgw_topic_ops(
+                    topic_rm = notification.rgw_admin_topic_notif_ops(
                         op="rm", args={"topic": topic_name, **extra_topic_args}
                     )
                     if topic_rm is False:
