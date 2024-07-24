@@ -1,0 +1,11 @@
+#script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_swift_basic_ops.py
+#Polarian-id: CEPH-83572699
+config:
+    user_type: non-tenanted
+    container_count: 1
+    objects_count: 1
+    objects_size_range:
+        min: 5
+        max: 15
+    test_ops:
+        swift_at_root: true
