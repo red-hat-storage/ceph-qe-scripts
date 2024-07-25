@@ -315,7 +315,7 @@ def put_get_bucket_versioning(bucket_name, end_point, status="Enabled", ssl=None
         raise AWSCommandExecError(message=str(e))
 
 
-def get_endpoint(ssh_con=None):
+def get_endpoint(ssh_con=None, ssl=None):
     """
     Returns RGW ip and port in <ip>:<port> format
     Returns: RGW ip and port
@@ -331,6 +331,8 @@ def get_endpoint(ssh_con=None):
         ip = socket.gethostbyname(hostname)
         port = utils.get_radosgw_port_no()
     ip_and_port = f"http://{ip}:{port}"
+    if ssl:
+        ip_and_port = f"https://{ip}:{port}"
     return ip_and_port
 
 

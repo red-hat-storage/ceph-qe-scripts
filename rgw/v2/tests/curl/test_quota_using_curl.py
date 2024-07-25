@@ -53,7 +53,7 @@ def test_exec(config, ssh_con):
         user_name = each_user["user_id"]
         log.info(user_name)
 
-        curl_auth = CURL(each_user, ssh_con)
+        curl_auth = CURL(each_user, ssh_con, ssl=config.ssl)
 
         caps_add_cmd = f'sudo radosgw-admin caps add --uid={user_name} --caps="users=*;buckets=*;usage=*"'
         utils.exec_shell_cmd(caps_add_cmd)

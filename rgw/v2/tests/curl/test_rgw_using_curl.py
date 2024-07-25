@@ -52,7 +52,7 @@ def test_exec(config, ssh_con):
         user_name = each_user["user_id"]
         log.info(user_name)
 
-        curl_auth = CURL(each_user, ssh_con)
+        curl_auth = CURL(each_user, ssh_con, ssl=config.ssl)
 
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
