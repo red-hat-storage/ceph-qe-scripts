@@ -28,6 +28,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
 from v2.lib import resource_op
 from v2.lib.aws import auth as aws_auth
+from v2.lib.aws.resource_op import AWS
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.aws import reusable as aws_reusable
@@ -60,7 +61,8 @@ def test_exec(config, ssh_con):
     for user in user_info:
         user_name = user["user_id"]
         log.info(user_name)
-        endpoint = aws_reusable.get_endpoint(ssh_con)
+        cli_aws = AWS(ssl=config.ssl)
+        endpoint = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
         aws_auth.do_auth_aws(user)
 
         for bc in range(config.bucket_count):
@@ -68,11 +70,13 @@ def test_exec(config, ssh_con):
                 bkt_suffix = bc + 1
                 reg_bucket_name = config.test_ops["reg_bucket_name"] + f"{bkt_suffix}"
                 ver_bucket_name = config.test_ops["ver_bucket_name"] + f"{bkt_suffix}"
-                aws_reusable.create_bucket(reg_bucket_name, endpoint)
-                aws_reusable.create_bucket(ver_bucket_name, endpoint)
+                aws_reusable.create_bucket(cli_aws, reg_bucket_name, endpoint)
+                aws_reusable.create_bucket(cli_aws, ver_bucket_name, endpoint)
                 log.info(f"Bucket {reg_bucket_name} and {ver_bucket_name} created")
                 log.info(f"bucket versioning enabled on bucket: {ver_bucket_name}")
-                aws_reusable.put_get_bucket_versioning(ver_bucket_name, endpoint)
+                aws_reusable.put_get_bucket_versioning(
+                    cli_aws, ver_bucket_name, endpoint
+                )
 
             else:
                 if config.test_ops.get("bucket_name", False):
@@ -82,12 +86,14 @@ def test_exec(config, ssh_con):
                     bucket_name = utils.gen_bucket_name_from_userid(
                         user_name, rand_no=bc
                     )
-                aws_reusable.create_bucket(bucket_name, endpoint)
+                aws_reusable.create_bucket(cli_aws, bucket_name, endpoint)
                 log.info(f"Bucket {bucket_name} created")
 
                 if config.test_ops.get("enable_version", False):
                     log.info(f"bucket versioning test on bucket: {bucket_name}")
-                    aws_reusable.put_get_bucket_versioning(bucket_name, endpoint)
+                    aws_reusable.put_get_bucket_versioning(
+                        cli_aws, bucket_name, endpoint
+                    )
 
         if config.test_ops.get("verify_etag_for_complete_multipart_upload", False):
             log.info(
@@ -97,6 +103,7 @@ def test_exec(config, ssh_con):
                 config.obj_size = size
                 key_name = utils.gen_s3_object_name(bucket_name, oc)
                 complete_multipart_upload_resp = aws_reusable.upload_multipart_aws(
+                    cli_aws,
                     bucket_name,
                     key_name,
                     TEST_DATA_PATH,
@@ -108,15 +115,15 @@ def test_exec(config, ssh_con):
                         "Etag not generated during complete multipart upload operation"
                     )
                 log.info(f"Download multipart object {key_name}")
-                aws_reusable.get_object(bucket_name, key_name, endpoint)
+                aws_reusable.get_object(cli_aws, bucket_name, key_name, endpoint)
 
         if config.test_ops.get("verify_non_ascii_character_upload", False):
             log.info(f"Object name and body containing non ascii character upload")
             object_name = "ˍ´--øÆ.txt"
             utils.exec_shell_cmd(f"fallocate -l 1K {object_name}")
-            aws_reusable.put_object(bucket_name, object_name, endpoint)
+            aws_reusable.put_object(cli_aws, bucket_name, object_name, endpoint)
             log.info("Object upload successful")
-            aws_reusable.get_object(bucket_name, object_name, endpoint)
+            aws_reusable.get_object(cli_aws, bucket_name, object_name, endpoint)
             log.info("Object download successful")
 
         if config.test_ops.get("versioned_list_objects_marker", False):
@@ -124,11 +131,11 @@ def test_exec(config, ssh_con):
             object_names = ["1.txt", "2.txt", "3.txt"]
             for obj in object_names:
                 utils.exec_shell_cmd(f"fallocate -l 1K {obj}")
-                aws_reusable.put_object(bucket_name, obj, endpoint)
+                aws_reusable.put_object(cli_aws, bucket_name, obj, endpoint)
             log.info("Object uplod successful")
             log.info("List bucket with marker object 1.txt")
             marker = "1.txt"
-            response = aws_reusable.list_objects(bucket_name, endpoint, marker)
+            response = aws_reusable.list_objects(cli_aws, bucket_name, endpoint, marker)
             res_json = json.loads(response)
             log.info("The list should not have the marker object entry")
             for obj in res_json["Contents"]:

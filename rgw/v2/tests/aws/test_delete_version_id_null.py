@@ -27,6 +27,7 @@ from pathlib import Path
 
 from v2.lib import resource_op
 from v2.lib.aws import auth as aws_auth
+from v2.lib.aws.resource_op import AWS
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.aws import reusable as aws_reusable
@@ -71,64 +72,70 @@ def test_exec(config, ssh_con):
     for user in user_info:
         user_name = user["user_id"]
         log.info(user_name)
+        cli_aws = AWS(ssl=config.ssl)
         aws_auth.do_auth_aws(user)
         aws_auth.do_auth_aws(user, remote_site_ssh_con)
         local_port = utils.get_radosgw_port_no(ssh_con)
         log.info(f"local_port is {local_port}")
         remote_port = utils.get_radosgw_port_no(remote_site_ssh_con)
         log.info(f"remote_port is {remote_port}")
-        local_endpoint = f"http://{current_rgw_ip}:{local_port}"
-        remote_endpoint = f"http://{remote_rgw_ip}:{remote_port}"
+        internet_protocol = "https" if config.ssl else "http"
+        local_endpoint = f"{internet_protocol}://{current_rgw_ip}:{local_port}"
+        remote_endpoint = f"{internet_protocol}://{remote_rgw_ip}:{remote_port}"
 
         bucket_name = "testbkt"
-        aws_reusable.create_bucket(bucket_name, local_endpoint)
+        aws_reusable.create_bucket(cli_aws, bucket_name, local_endpoint)
         log.info(f"Bucket {bucket_name} created")
         object_name = "hello.txt"
         utils.exec_shell_cmd(f"fallocate -l 1K {object_name}")
-        aws_reusable.put_object(bucket_name, object_name, local_endpoint)
+        aws_reusable.put_object(cli_aws, bucket_name, object_name, local_endpoint)
         time.sleep(30)
 
         # waiting for sync to be caught up with other site
         s3_reusable.check_sync_status()
         # Verifying object with version id null is created on both local and remote sites
         aws_reusable.verify_object_with_version_id_null(
-            bucket_name, object_name, local_endpoint
+            cli_aws, bucket_name, object_name, local_endpoint
         )
         aws_reusable.verify_object_with_version_id_null(
-            bucket_name, object_name, remote_endpoint
+            cli_aws, bucket_name, object_name, remote_endpoint
         )
 
         log.info(
             f"Enabling versioning for the bucket {bucket_name} from local site:{current_zone_name}"
         )
-        aws_reusable.put_get_bucket_versioning(bucket_name, local_endpoint)
+        aws_reusable.put_get_bucket_versioning(cli_aws, bucket_name, local_endpoint)
 
         # Upload another version of the object to the bucket from local site
-        aws_reusable.put_object(bucket_name, object_name, local_endpoint)
+        aws_reusable.put_object(cli_aws, bucket_name, object_name, local_endpoint)
         time.sleep(30)
 
-        version_list = aws_reusable.list_object_versions(bucket_name, local_endpoint)
+        version_list = aws_reusable.list_object_versions(
+            cli_aws, bucket_name, local_endpoint
+        )
         log.info(
             f"versions of objects for the bucket {bucket_name} from local site: {current_zone_name} is {version_list}"
         )
 
-        version_list = aws_reusable.list_object_versions(bucket_name, remote_endpoint)
+        version_list = aws_reusable.list_object_versions(
+            cli_aws, bucket_name, remote_endpoint
+        )
         log.info(
             f"versions of objects for the bucket {bucket_name} from remote site:{remote_zone_name} is {version_list}"
         )
 
         # Deleting object with version id null from local site
         aws_reusable.delete_object(
-            bucket_name, object_name, local_endpoint, versionid="null"
+            cli_aws, bucket_name, object_name, local_endpoint, versionid="null"
         )
         time.sleep(30)
 
         # Verifying object with version id null is deleted from both sites:local and remote
         aws_reusable.verify_object_with_version_id_null(
-            bucket_name, object_name, local_endpoint, created=False
+            cli_aws, bucket_name, object_name, local_endpoint, created=False
         )
         aws_reusable.verify_object_with_version_id_null(
-            bucket_name, object_name, remote_endpoint, created=False
+            cli_aws, bucket_name, object_name, remote_endpoint, created=False
         )
 
         s3_reusable.remove_user(user)

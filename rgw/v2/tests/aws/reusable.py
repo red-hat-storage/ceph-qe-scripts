@@ -18,12 +18,11 @@ log = logging.getLogger()
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../../")))
 
 import v2.utils.utils as utils
-from v2.lib.aws.resource_op import AWS
 from v2.lib.exceptions import AWSCommandExecError, TestExecError
 from v2.lib.manage_data import io_generator
 
 
-def create_bucket(bucket_name, end_point, ssl=None):
+def create_bucket(aws_auth, bucket_name, end_point):
     """
     Creates bucket
     ex: /usr/local/bin/aws s3api create-bucket --bucket verbkt1 --endpoint-url http://x.x.x.x:xx
@@ -31,13 +30,9 @@ def create_bucket(bucket_name, end_point, ssl=None):
         bucket_name(str): Name of the bucket to be created
         end_point(str): endpoint
     """
-    create_method = AWS(operation="create-bucket")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    command = create_method.command(
-        params=[f"--bucket {bucket_name} --endpoint-url {end_point}", ssl_param]
+    command = aws_auth.command(
+        operation="create-bucket",
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
     )
     try:
         create_response = utils.exec_shell_cmd(command)
@@ -48,24 +43,19 @@ def create_bucket(bucket_name, end_point, ssl=None):
         raise AWSCommandExecError(message=str(e))
 
 
-def list_object_versions(bucket_name, end_point, ssl=None):
+def list_object_versions(aws_auth, bucket_name, end_point):
     """
     Lists object versions for an bucket
     Ex: /usr/local/bin/aws s3api list-object-versions --bucket <bucket_name> --endpoint <endpoint_url>
     Args:
         bucket_name(str): Name of the bucket from which object needs to be listed
         end_point(str): endpoint
-        ssl:
     Return:
         Response of list-object-versions operation
     """
-    list_method = AWS(operation="list-object-versions")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    command = list_method.command(
-        params=[f"--bucket {bucket_name} --endpoint-url {end_point}", ssl_param]
+    command = aws_auth.command(
+        operation="list-object-versions",
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
     )
     try:
         list_response = utils.exec_shell_cmd(command)
@@ -76,7 +66,7 @@ def list_object_versions(bucket_name, end_point, ssl=None):
         raise AWSCommandExecError(message=str(e))
 
 
-def create_multipart_upload(bucket_name, key_name, end_point, ssl=None):
+def create_multipart_upload(aws_auth, bucket_name, key_name, end_point):
     """
     Initiate multipart uploads for given object on a given bucket
     Ex: /usr/local/bin/aws s3api create-multipart-upload --bucket <bucket_name> --key <key_name> --endpoint <endpoint_url>
@@ -84,20 +74,14 @@ def create_multipart_upload(bucket_name, key_name, end_point, ssl=None):
         bucket_name(str): Name of the bucket
         key_name(str): Name of the object for which multipart upload has to be initiated
         end_point(str): endpoint
-        ssl:
     Return:
         Response of create-multipart-upload
     """
-    create_mp_method = AWS(operation="create-multipart-upload")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    command = create_mp_method.command(
+    command = aws_auth.command(
+        operation="create-multipart-upload",
         params=[
             f"--bucket {bucket_name} --key {key_name} --endpoint-url {end_point}",
-            ssl_param,
-        ]
+        ],
     )
     try:
         response = utils.exec_shell_cmd(command)
@@ -111,7 +95,13 @@ def create_multipart_upload(bucket_name, key_name, end_point, ssl=None):
 
 
 def upload_part(
-    bucket_name, key_name, part_number, upload_id, body, end_point, ssl=None
+    aws_auth,
+    bucket_name,
+    key_name,
+    part_number,
+    upload_id,
+    body,
+    end_point,
 ):
     """
     Upload part to the key in a bucket
@@ -125,21 +115,15 @@ def upload_part(
         upload_id(str): upload id fetched during initiating multipart upload
         body(str): part file which needed to be uploaded
         end_point(str): endpoint
-        ssl:
     Return:
         Response of uplaod_part i.e Etag
     """
-    upload_part_method = AWS(operation="upload-part")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    command = upload_part_method.command(
+    command = aws_auth.command(
+        operation="upload-part",
         params=[
             f"--bucket {bucket_name} --key {key_name} --part-number {part_number} --upload-id {upload_id}"
             f" --body {body} --endpoint-url {end_point}",
-            ssl_param,
-        ]
+        ],
     )
     try:
         response = utils.exec_shell_cmd(command)
@@ -154,7 +138,7 @@ def upload_part(
 
 
 def complete_multipart_upload(
-    bucket_name, key_name, upload_file, upload_id, end_point, ssl=None
+    aws_auth, bucket_name, key_name, upload_file, upload_id, end_point
 ):
     """
     Complete multipart uploads for given object on a given bucket
@@ -174,21 +158,15 @@ def complete_multipart_upload(
         key_name(str): Name of the object for which multipart upload has to be Completed
         upload_id(str): upload id fetched during initiating multipart upload
         end_point(str): endpoint
-        ssl:
     Return:
         Response of create-multipart-upload
     """
-    complete_mp_method = AWS(operation="complete-multipart-upload")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    command = complete_mp_method.command(
+    command = aws_auth.command(
+        operation="complete-multipart-upload",
         params=[
             f"--multipart-upload file://{upload_file} --bucket {bucket_name} --key {key_name} --upload-id {upload_id} "
             f"--endpoint-url {end_point}",
-            ssl_param,
-        ]
+        ],
     )
     try:
         response = utils.exec_shell_cmd(command)
@@ -202,7 +180,7 @@ def complete_multipart_upload(
         raise AWSCommandExecError(message=str(e))
 
 
-def put_object(bucket_name, object_name, end_point, ssl=None):
+def put_object(aws_auth, bucket_name, object_name, end_point):
     """
     Put/uploads object to the bucket
     Ex: /usr/local/bin/aws s3api put-object --bucket <bucket_name> --key <object_name> --body <content> --endpoint <endpoint_url>
@@ -210,20 +188,14 @@ def put_object(bucket_name, object_name, end_point, ssl=None):
         bucket_name(str): Name of the bucket from which object needs to be listed
         object_name(str): Name of the object/file
         end_point(str): endpoint
-        ssl:
     Return:
         Response of put-object operation
     """
-    put_method = AWS(operation="put-object")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    command = put_method.command(
+    command = aws_auth.command(
+        operation="put-object",
         params=[
             f"--bucket {bucket_name} --key {object_name} --body {object_name} --endpoint-url {end_point}",
-            ssl_param,
-        ]
+        ],
     )
     try:
         create_response = utils.exec_shell_cmd(command)
@@ -235,7 +207,7 @@ def put_object(bucket_name, object_name, end_point, ssl=None):
         raise AWSCommandExecError(message=str(e))
 
 
-def delete_object(bucket_name, object_name, end_point, ssl=None, versionid=None):
+def delete_object(aws_auth, bucket_name, object_name, end_point, versionid=None):
     """
     Deletes object from the bucket
     Ex: /usr/local/bin/aws s3api delete-object --bucket <bucket_name> --key <object_name> --endpoint <endpoint_url>
@@ -244,29 +216,23 @@ def delete_object(bucket_name, object_name, end_point, ssl=None, versionid=None)
         bucket_name(str): Name of the bucket from which object needs to be listed
         object_name(str): Name of the object/file
         end_point(str): endpoint
-        ssl:
         versionid(str): Id of object version which needs to be deleted
     Return:
         Response of delete-object operation
     """
-    delete_method = AWS(operation="delete-object")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    command = delete_method.command(
+    command = aws_auth.command(
+        operation="delete-object",
         params=[
             f"--bucket {bucket_name} --key {object_name} --endpoint-url {end_point}",
-            ssl_param,
-        ]
+        ],
     )
     if versionid:
-        command = delete_method.command(
+        command = aws_auth.command(
+            operation="delete-object",
             params=[
                 f"--bucket {bucket_name} --key {object_name} --endpoint-url {end_point}"
                 f" --version-id {versionid}",
-                ssl_param,
-            ]
+            ],
         )
     try:
         delete_response = utils.exec_shell_cmd(command)
@@ -277,7 +243,7 @@ def delete_object(bucket_name, object_name, end_point, ssl=None, versionid=None)
         raise AWSCommandExecError(message=str(e))
 
 
-def put_get_bucket_versioning(bucket_name, end_point, status="Enabled", ssl=None):
+def put_get_bucket_versioning(aws_auth, bucket_name, end_point, status="Enabled"):
     """
     make bucket created as versioned
     ex:
@@ -287,24 +253,18 @@ def put_get_bucket_versioning(bucket_name, end_point, status="Enabled", ssl=None
         bucket_name(str): Name of the bucket to be created
         end_point(str): endpoint
     """
-    put_method = AWS(
-        operation=f"put-bucket-versioning --versioning-configuration Status={status}"
-    )
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    put_cmd = put_method.command(
-        params=[f"--bucket {bucket_name} --endpoint-url {end_point}", ssl_param]
+    put_cmd = aws_auth.command(
+        operation=f"put-bucket-versioning --versioning-configuration Status={status}",
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
     )
     try:
         put_response = utils.exec_shell_cmd(put_cmd)
         log.info(f"response of put versioning:{put_response}")
         if put_response:
             raise Exception(f"Version Enabling failed for {bucket_name}")
-        get_method = AWS(operation="get-bucket-versioning")
-        get_cmd = get_method.command(
-            params=[f"--bucket {bucket_name} --endpoint-url {end_point}", ssl_param]
+        get_cmd = aws_auth.command(
+            operation="get-bucket-versioning",
+            params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
         )
         get_response = json.loads(utils.exec_shell_cmd(get_cmd))
         if get_response["Status"] != status:
@@ -361,7 +321,7 @@ def update_aws_file_with_sts_user(sts_user_info):
 
 
 def verify_object_with_version_id_null(
-    bucket_name, object_name, endpoint, created=True
+    aws_auth, bucket_name, object_name, endpoint, created=True
 ):
     """
     Method to verify whether object with version is created or deleted
@@ -375,7 +335,7 @@ def verify_object_with_version_id_null(
         Raise assertion error when validation fails.
     """
     version_id_null = False
-    version_list = list_object_versions(bucket_name, endpoint)
+    version_list = list_object_versions(aws_auth, bucket_name, endpoint)
     version_list = json.loads(version_list)
     for ver in version_list["Versions"]:
         log.info(f"ver is {ver}")
@@ -397,6 +357,7 @@ def verify_object_with_version_id_null(
 
 
 def upload_multipart_aws(
+    aws_auth,
     bucket_name,
     key_name,
     TEST_DATA_PATH,
@@ -418,7 +379,9 @@ def upload_multipart_aws(
         Response of aws complete multipart upload operation
     """
     log.info("Create multipart upload")
-    create_mp_upload_resp = create_multipart_upload(bucket_name, key_name, endpoint)
+    create_mp_upload_resp = create_multipart_upload(
+        aws_auth, bucket_name, key_name, endpoint
+    )
     upload_id = json.loads(create_mp_upload_resp)["UploadId"]
 
     log.info(f"object name: {key_name}")
@@ -458,7 +421,13 @@ def upload_multipart_aws(
         log.info(f"upload part {part_number} of object: {key_name}")
         upload_part_resp = json.loads(
             upload_part(
-                bucket_name, key_name, part_number, upload_id, each_part, endpoint
+                aws_auth,
+                bucket_name,
+                key_name,
+                part_number,
+                upload_id,
+                each_part,
+                endpoint,
             )
         )
         part_info = {"PartNumber": part_number, "ETag": upload_part_resp["ETag"]}
@@ -479,33 +448,27 @@ def upload_multipart_aws(
         log.info("all parts upload completed")
         complete_multipart_upload_resp = json.loads(
             complete_multipart_upload(
-                bucket_name, key_name, "mpstructure.json", upload_id, endpoint
+                aws_auth, bucket_name, key_name, "mpstructure.json", upload_id, endpoint
             )
         )
         return complete_multipart_upload_resp
 
 
-def get_object(bucket_name, object_name, end_point, ssl=None):
+def get_object(aws_auth, bucket_name, object_name, end_point):
     """
     Does a get object from the bucket
     Args:
         bucket_name(str): Name of the bucket from which object needs to be listed
         object_name(str): Name of the object/file
         end_point(str): endpoint
-        ssl:
     Return:
         Response of get object operation
     """
-    get_method = AWS(operation="get-object")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
-    command = get_method.command(
+    command = aws_auth.command(
+        operation="get-object",
         params=[
             f"--bucket {bucket_name} --key {object_name} out_object --endpoint-url {end_point}",
-            ssl_param,
-        ]
+        ],
     )
     try:
         get_response = utils.exec_shell_cmd(command)
@@ -516,31 +479,25 @@ def get_object(bucket_name, object_name, end_point, ssl=None):
         raise AWSCommandExecError(message=str(e))
 
 
-def list_objects(bucket_name, endpoint, marker=None, ssl=None):
+def list_objects(aws_auth, bucket_name, endpoint, marker=None):
     """
     List all the objects in the bucket
     Args:
         bucket_name(str): Name of the bucket from which object needs to be listed
         end_point(str): endpoint
         marker(str): The key name from where the listing needs to start
-        ssl:
     Return:
         Returns details of every object in the bucket post the marker
     """
-    get_method = AWS(operation="list-objects")
-    if ssl:
-        ssl_param = "-s"
-    else:
-        ssl_param = " "
     if marker:
         marker_param = marker
     else:
         marker_param = " "
-    command = get_method.command(
+    command = aws_auth.command(
+        operation="list-objects",
         params=[
             f"--bucket {bucket_name} --marker {marker_param} --endpoint-url {endpoint}",
-            ssl_param,
-        ]
+        ],
     )
     try:
         get_response = utils.exec_shell_cmd(command)
