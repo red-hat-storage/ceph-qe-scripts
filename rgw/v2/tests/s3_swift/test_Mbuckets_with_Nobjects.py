@@ -18,6 +18,7 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
 	test_gc_list_multipart.yaml
 	test_Mbuckets_with_Nobjects_etag.yaml
 	test_changing_data_log_num_shards_cause_no_crash.yaml
+    test_bi_put_with_incomplete_multipart_upload.yaml
 
 Operation:
 	Creates M bucket and N objects
@@ -29,7 +30,8 @@ Operation:
 	Creates M bucket and N objects. Upload multipart object.
 	Creates M bucket and N objects. With sharding set to max_shards as specified in the config
 	Verify gc command
-        Verify eTag
+	Verify eTag
+ 	Verify bi put on incomplete multipart upload
 """
 # test basic creation of buckets with objects
 import os
@@ -898,6 +900,58 @@ def test_exec(config, ssh_con):
                 "No 'notifying datalog change' entries should be seen in rgw logs when rgw_data_notify_interval_msec=0 "
             )
         ceph_conf.set_to_ceph_conf("global", ConfigOpts.debug_rgw, "0", ssh_con)
+
+    if config.test_ops.get("verify_bi_put", False):
+        log.info("CEPH-83574876 : Verify 'bi put' uses right bucket index shard")
+        bucket_stats = json.loads(
+            utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket.name}")
+        )
+        bucket_id = bucket_stats["id"]
+        log.info(f"Bucket id is {bucket_id}")
+        bi_list_cmd = f"radosgw-admin bi list --bucket {bucket.name} > bi_list.json"
+        bi_list = utils.exec_shell_cmd(bi_list_cmd)
+        utils.exec_shell_cmd("cat bi_list.json")
+
+        utils.exec_shell_cmd(
+            f"radosgw-admin bi put --bucket {bucket.name} --object {s3_object_name} --infile bi_list.json"
+        )
+        bi_list_post_bi_put = utils.exec_shell_cmd(
+            f"radosgw-admin bi list --bucket {bucket.name} | grep idx"
+        )
+
+        bi_list_post_bi_put = list(bi_list_post_bi_put.split("\n"))
+        bi_list_post_bi_put.pop()
+
+        bi_list_post_bi_put_sorted = bi_list_post_bi_put[:]
+        bi_list_post_bi_put_sorted.sort()
+
+        if bi_list_post_bi_put != bi_list_post_bi_put_sorted:
+            raise AssertionError(
+                "bi list content of incomplete multipart is not in sorted order"
+            )
+
+        total_no_of_incomplete_multipart = len(bi_list_post_bi_put)
+        log.info(
+            f"total_no_of_incomplete_multipart is {total_no_of_incomplete_multipart}"
+        )
+
+        index_pool_list = utils.exec_shell_cmd(
+            f"rados ls -p default.rgw.buckets.index|grep {bucket_id}"
+        ).split("\n")
+        index_pool_list.pop()
+        log.info(f"Index pool list: {index_pool_list}")
+
+        for pool in index_pool_list:
+            cmd = f"rados -p default.rgw.buckets.index listomapkeys {pool}"
+            output = utils.exec_shell_cmd(cmd)
+            output_new = list(output.split("\n"))
+            output_new.pop()
+            op_len_new = len(output_new)
+            if op_len_new > 0:
+                if op_len_new != total_no_of_incomplete_multipart:
+                    raise AssertionError(
+                        "All the incomplete multiparts are not present in same shard"
+                    )
 
     if config.test_ops["sharding"]["enable"] is True:
         ceph_conf.set_to_ceph_conf(
