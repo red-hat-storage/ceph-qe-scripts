@@ -4,6 +4,7 @@ Usage: test_sts_rename_large_object.py -c <input_yaml>
 <input_yaml>
     Note: Following yaml can be used
     configs/test_sts_rename_large_object.yaml
+    configs/test_s3copyObj_admin_user.yaml
 
 Operation:
     s1: Create 2 Users[t1user, t2user], where t1user is the admin user and t2user is the sts user
@@ -72,13 +73,14 @@ def test_exec(config, ssh_con):
     aws_auth.do_auth_aws(user1)
     bucket_name = utils.gen_bucket_name_from_userid(user1["user_id"])
     log.info(f"creating bucket with name: {bucket_name}")
-    endpoint = aws_reusable.get_endpoint(ssh_con)
-    aws_reusable.create_bucket(bucket_name, endpoint)
+    cli_aws = AWS(ssl=config.ssl)
+    endpoint = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
+    aws_reusable.create_bucket(cli_aws, bucket_name, endpoint)
     log.info(f"Bucket {bucket_name} created")
 
     if config.test_ops.get("enable_version", False):
         log.info(f"bucket versioning test on bucket: {bucket_name}")
-        aws_reusable.put_get_bucket_versioning(bucket_name, endpoint)
+        aws_reusable.put_get_bucket_versioning(cli_aws, bucket_name, endpoint)
 
     log.info("adding sts config to ceph.conf")
     session_encryption_token = "abcdefghijklmnoq"
@@ -155,6 +157,8 @@ def test_exec(config, ssh_con):
         source_file = "obj1_1g.txt"
         utils.exec_shell_cmd(f"fallocate -l 1G {source_file}")
         aws_cli = "/usr/local/bin/aws s3"
+        if config.ssl:
+            aws_cli = aws_cli + " --no-verify-ssl"
 
         if config.s3_copy_obj:
             add_admin_flag = (
@@ -168,9 +172,11 @@ def test_exec(config, ssh_con):
             utils.exec_shell_cmd(
                 f"{aws_cli} cp {source_file} s3://{bucket_name}/all_buckets/{source_file} --endpoint {endpoint} "
             )
-            utils.exec_shell_cmd(
-                f"{aws_cli}api copy-object --copy-source {bucket_name}/all_buckets/{source_file} --key all_buckets/{source_file} --bucket {bucket_name}  --endpoint {endpoint} "
-            )
+
+            copy_cmd = f"/usr/local/bin/aws s3api copy-object --copy-source {bucket_name}/all_buckets/{source_file} --key all_buckets/{source_file} --bucket {bucket_name}  --endpoint {endpoint}"
+            if config.ssl:
+                copy_cmd = copy_cmd + " --no-verify-ssl"
+            utils.exec_shell_cmd(copy_cmd)
         else:
             utils.exec_shell_cmd(
                 f"{aws_cli} cp {source_file} s3://{bucket_name} --endpoint {endpoint} --profile=sts"
