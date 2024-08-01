@@ -63,7 +63,6 @@ TEST_DATA_PATH = None
 
 
 def get_svc_time(ssh_con=None):
-
     cmd = "pidof radosgw"
     if ssh_con:
         _, pid, _ = ssh_con.exec_command(cmd)
@@ -89,7 +88,6 @@ def get_svc_time(ssh_con=None):
 
 
 def test_exec(config, ssh_con):
-
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
@@ -228,7 +226,7 @@ def test_exec(config, ssh_con):
                             "uid": tenant1_user1_info["user_id"],
                         }
 
-                    get_rgw_topic = notification.rgw_topic_ops(
+                    get_rgw_topic = notification.rgw_admin_topic_notif_ops(
                         op="get", args={"topic": topic_name, **extra_topic_args}
                     )
                     if get_rgw_topic is False:
@@ -704,7 +702,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("test bucket policy")
     test_info.started_info()
 

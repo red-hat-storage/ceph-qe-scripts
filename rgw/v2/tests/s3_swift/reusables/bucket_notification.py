@@ -149,21 +149,21 @@ def get_topic(client, topic_arn, ceph_version):
             log.info(f"get topic attributes: {get_topic_info_json}")
 
 
-def rgw_topic_ops(op, args):
+def rgw_admin_topic_notif_ops(op, args, sub_command="topic"):
     """
-    perform radosgw-admin topic operation with arguments passed
+    perform radosgw-admin topic/notification operation with arguments passed
     args:
         op: one of get, list, rm
     """
-    cmd = f"radosgw-admin topic {op}"
+    cmd = f"radosgw-admin {sub_command} {op}"
     for arg, val in args.items():
         cmd = f"{cmd} --{arg} {val}"
     out = utils.exec_shell_cmd(cmd)
     log.info(out)
     if out is False:
-        log.info(f"topic {op} using rgw cli is failed")
+        log.info(f"{sub_command} {op} using rgw cli failed")
         return False
-    log.info(f"topic {op} using rgw cli is successful")
+    log.info(f"{sub_command} {op} using rgw cli is successful")
     if out:
         out = json.loads(out)
     return out
