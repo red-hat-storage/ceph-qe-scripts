@@ -1,0 +1,36 @@
+# script: test_policy_encryption_torrent.py
+# polarion id: CEPH-83574614, CEPH-11209
+config:
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    upload_type: normal
+    verify_policy: True
+    policy_document:
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": ["s3:GetObjectTorrent", "s3:GetObject"],
+            "Principal": {"AWS": "arn:aws:iam::<tenant_name>:user/<user_name>"},
+            "Resource": "arn:aws:s3:::*",
+            "Effect": "Allow",
+            "Sid": "statement1",
+          }
+        ]
+      }
+    policy_document1:
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Action": ["s3:GetObjectTorrent", "s3:GetObject"],
+            "Principal": {"AWS": "arn:aws:iam::<tenant_name>:user/<user_name>"},
+            "Resource": "arn:aws:s3:::*",
+            "Effect": "Allow",
+            "Sid": "statement1",
+          }
+        ]
+      }
