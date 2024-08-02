@@ -6,8 +6,20 @@ Usage: test_sts_aswi.py -c <input_yaml>
     test_sts_aswi.yaml
     test_sts_aswi_azp_claim.yaml
     test_sts_aswi_sub_claim.yaml
+    test_sts_aswi_aud_claim.yaml
+    test_sts_aswi_aws_principal_tag_role_policy.yaml
+    test_sts_aswi_aws_request_tag_trust_policy.yaml
+    test_sts_aswi_aws_tagkeys_role_policy.yaml
+    test_sts_aswi_aws_tagkeys_trust_policy.yaml
+    test_sts_aswi_creds_expire_copy_in_progress.yaml
+    test_sts_aswi_iam_resource_tag_trust_policy.yaml
+    test_sts_aswi_s3_res_equals_aws_princ_tag_role_policy.yaml
+    test_sts_aswi_s3_resource_tag_role_policy.yaml
     test_sts_aswi_verify_role_policy_allow_actions.yaml
     test_sts_aswi_verify_role_policy_deny_actions.yaml
+    test_sts_aswi_isv.yaml
+    test_sts_aswi_isv_verify_role_policy_allow_actions.yaml
+    test_sts_aswi_isv_verify_role_policy_deny_actions.yaml
 
 Operation:
     s1: Create 2 Users.
@@ -42,6 +54,7 @@ from datetime import datetime
 import boto3
 import v2.lib.resource_op as s3lib
 import v2.tests.s3_swift.reusables.bucket_policy_ops as bucket_policy_ops
+import v2.tests.s3_swift.reusables.sts as stsaswi
 import v2.utils.utils as utils
 from botocore.exceptions import ClientError
 from v2.lib.exceptions import RGWBaseException, TestExecError
@@ -66,13 +79,6 @@ def test_exec(config, ssh_con):
     ceph_config_set = CephConfOp(ssh_con)
     rgw_service = RGWService()
     local_ip_addr = utils.get_localhost_ip_address()
-
-    keycloak = Keycloak(
-        client_id="sts_client",
-        client_secret="client_secret1",
-        ip_addr=local_ip_addr,
-        attributes=config.test_ops.get("session_tags"),
-    )
 
     if config.sts is None:
         raise TestExecError("sts policies are missing in yaml config")
@@ -121,15 +127,7 @@ def test_exec(config, ssh_con):
     sts_client = auth2.do_auth_sts_client()
     log.info(f"sts client: {sts_client}")
 
-    web_token = keycloak.get_web_access_token()
-    log.info(f"web token: {web_token}")
-    jwt = keycloak.introspect_token(web_token)
     policy_document = json.dumps(config.sts["policy_document"]).replace(" ", "")
-    policy_document = policy_document.replace("ip_addr", local_ip_addr)
-    policy_document = policy_document.replace("azp_claim", jwt["azp"])
-    policy_document = policy_document.replace("sub_claim", jwt["sub"])
-    log.info(policy_document)
-
     role_policy = json.dumps(config.sts["role_policy"]).replace(" ", "")
 
     add_caps_cmd = (
@@ -160,9 +158,43 @@ def test_exec(config, ssh_con):
     )
     utils.exec_shell_cmd(add_caps_cmd)
 
-    keycloak.delete_open_id_connect_provider(iam_client)
-    keycloak.create_open_id_connect_provider(iam_client)
-    keycloak.list_open_id_connect_provider(iam_client)
+    # configure identity_provider, get web token and create open_id_connect_provider
+    stsaswi.delete_open_id_connect_provider(iam_client)
+    identity_provider = config.test_ops.get("identity_provider", "Keycloak")
+    if identity_provider == "Keycloak":
+        keycloak = Keycloak(
+            client_id="sts_client",
+            client_secret="client_secret1",
+            ip_addr=local_ip_addr,
+            attributes=config.test_ops.get("session_tags"),
+        )
+
+        web_token = keycloak.get_web_access_token()
+        jwt = keycloak.introspect_token(web_token)
+        policy_document = policy_document.replace("ip_addr", local_ip_addr)
+        policy_document = policy_document.replace("azp_claim", jwt["azp"])
+        policy_document = policy_document.replace("sub_claim", jwt["sub"])
+        stsaswi.create_open_id_connect_provider(iam_client, identity_provider, keycloak)
+    elif identity_provider == "IBM_Security_Verify":
+        utils.exec_shell_cmd(
+            "curl -o /home/cephuser/get_isv_web_token.sh http://magna002.ceph.redhat.com/cephci-jenkins/RGW_IBM_Security_Verify/get_isv_web_token.sh"
+        )
+        utils.exec_shell_cmd("chmod +rwx /home/cephuser/get_isv_web_token.sh")
+        out = json.loads(utils.exec_shell_cmd("sh /home/cephuser/get_isv_web_token.sh"))
+        log.info(f"web token output: {out}")
+        web_token = out["id_token"]
+        out = utils.exec_shell_cmd(
+            "curl http://magna002.ceph.redhat.com/cephci-jenkins/RGW_IBM_Security_Verify/oidc_url"
+        )
+        url = out.strip()
+        idp_url_for_arn = url.replace("https://", "")
+        policy_document = policy_document.replace("idp_url", idp_url_for_arn)
+        stsaswi.create_open_id_connect_provider(iam_client, identity_provider)
+    stsaswi.list_open_id_connect_provider(iam_client)
+
+    log.info(f"assume-role-policy-doc: {policy_document}")
+    log.info(f"role policy: {role_policy}")
+    log.info(f"web token: {web_token}")
 
     role_name = f"S3RoleOf.{user1['user_id']}"
     log.info(f"role_name: {role_name}")
@@ -189,9 +221,6 @@ def test_exec(config, ssh_con):
     log.info("put_policy_response")
     log.info(put_policy_response)
 
-    web_token = keycloak.get_web_access_token()
-    log.info(f"web token: {web_token}")
-    keycloak.introspect_token(web_token)
     sts_creds_created_time = time.time()
     sts_creds_validity_seconds = config.test_ops.get("sts_creds_validity_seconds", 3600)
     assume_role_response = sts_client.assume_role_with_web_identity(

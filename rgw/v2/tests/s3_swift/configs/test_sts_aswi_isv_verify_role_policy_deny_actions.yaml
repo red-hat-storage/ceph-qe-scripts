@@ -1,0 +1,52 @@
+# polarion test case id: CEPH-83595848
+# test scripts : test_sts_aswi.py
+config:
+     bucket_count: 2
+     objects_count: 50
+     objects_size_range:
+          min: 5
+          max: 15
+     encryption_keys: kms
+     lifecycle_conf:
+        - ID: LC_Rule_1
+          Filter:
+            Prefix: key2
+          Status: Enabled
+          Expiration:
+            Days: 20
+     test_ops:
+          identity_provider: IBM_Security_Verify
+          create_bucket: true
+          create_object: true
+          endpoint: kafka
+          ack_type: broker
+          verify_policy: role_policy
+          bucket_tags: [
+              {
+                  "Key": "product",
+                  "Value": "ceph"
+              }
+          ]
+     sts:
+          policy_document:
+                "Version": "2012-10-17"
+                "Statement": [
+                    {
+                         "Effect": "Allow",
+                         "Principal": {
+                           "Federated": ["arn:aws:iam:::oidc-provider/idp_url"]
+                         },
+                         "Action": ["sts:AssumeRoleWithWebIdentity"],
+                    }
+                ]
+          role_policy:
+               "Version": "2012-10-17"
+               "Statement":
+                [
+                    {
+                         "Action": ["s3:PutObject", "s3:ListBucket", "s3:GetObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:PutBucketVersioning", "s3:GetBucketVersioning", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy", "s3:PutBucketWebsite", "s3:GetBucketWebsite", "s3:PutLifecycleConfiguration", "s3:GetLifecycleConfiguration", "s3:PutBucketEncryption", "s3:GetBucketEncryption", "s3:PutBucketTagging", "s3:GetBucketTagging", "s3:DeleteBucket", "s3:CreateBucket"],
+                         "Resource": "arn:aws:s3:::*",
+                         "Effect": "Deny",
+                         "Sid": "statement1",
+                    }
+               ]
