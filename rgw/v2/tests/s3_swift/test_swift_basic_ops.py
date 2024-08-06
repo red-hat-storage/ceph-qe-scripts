@@ -19,6 +19,7 @@ Usage: test_swift_basic_ops.py -c <input_yaml>
     test_swift_user_access_write.yaml
     test_swift_user_access_readwrite.yaml
     test_swift_object_expire_op.yaml
+    test_swift_at_root.yaml
 
 Operation:
     Create swift user
@@ -51,6 +52,7 @@ import time
 import traceback
 
 import names
+import requests
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as swiftlib
 import v2.utils.utils as utils
@@ -800,6 +802,62 @@ def test_exec(config, ssh_con):
                     raise AssertionError(
                         "Should not fail to write content since permission is readwrite"
                     )
+
+        elif config.test_ops.get("swift_at_root", False):
+            log.info("making changes to ceph.conf")
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_swift_url_prefix, "/", ssh_con
+            )
+            log.info("trying to restart services ")
+            srv_restarted = rgw_service.restart(ssh_con)
+            time.sleep(30)
+            if srv_restarted is False:
+                raise TestExecError("RGW service restart failed")
+            else:
+                log.info("RGW service restarted")
+            log.info("Check the swift url works at root")
+            ip_and_port = rgw.authurl.split("/")[2]
+            proto = "https" if config.ssl else "http"
+            url = f"{proto}://{ip_and_port}/"
+
+            log.info("Check swift /info")
+            response = requests.get(f"{url}/info")
+            if response.status_code == 200:
+                log.info(f"{response.text}")
+            else:
+                raise TestExecError(
+                    f"Swift at root /info not working: {response.status_code}"
+                )
+
+            log.info("Check swift /crossdomain.xml")
+            response = requests.get(f"{url}/crossdomain.xml")
+            if response.status_code == 200:
+                log.info(f"{response.text}")
+            else:
+                raise TestExecError(
+                    f"Swift at root /crossdomain not working: {response.status_code}"
+                )
+
+            log.info("Check swift /healthcheck")
+            response = requests.get(f"{url}/healthcheck")
+            if response.status_code == 200:
+                log.info(f"{response.text}")
+            else:
+                raise TestExecError(
+                    f"Swift at root /healthcheck not working: {response.status_code}"
+                )
+            log.info("With swift at root set, S3 access should fail")
+            bucket_name_to_create = "test_bucket"
+            auth_s3 = s3_auth(user_info, ssh_con, ssl=config.ssl)
+            s3_rgw_conn = auth_s3.do_auth()
+            try:
+                bucket = reusable.create_bucket(
+                    bucket_name_to_create, s3_rgw_conn, user_info
+                )
+            except Exception as e:
+                log.info(f"Bucket creation failed as expected with {e}")
+            else:
+                raise TestExecError("Bucket creation succeeded")
 
         else:
             container_name = utils.gen_bucket_name_from_userid(
