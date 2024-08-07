@@ -6,6 +6,8 @@ Usage: test_sts_aswi.py -c <input_yaml>
     test_sts_aswi.yaml
     test_sts_aswi_azp_claim.yaml
     test_sts_aswi_sub_claim.yaml
+    test_sts_aswi_verify_role_policy_allow_actions.yaml
+    test_sts_aswi_verify_role_policy_deny_actions.yaml
 
 Operation:
     s1: Create 2 Users.
@@ -39,6 +41,7 @@ from datetime import datetime
 
 import boto3
 import v2.lib.resource_op as s3lib
+import v2.tests.s3_swift.reusables.bucket_policy_ops as bucket_policy_ops
 import v2.utils.utils as utils
 from botocore.exceptions import ClientError
 from v2.lib.exceptions import RGWBaseException, TestExecError
@@ -87,6 +90,13 @@ def test_exec(config, ssh_con):
     ceph_config_set.set_to_ceph_conf(
         "global", ConfigOpts.rgw_s3_auth_use_sts, "True", ssh_con
     )
+    if config.test_ops.get("verify_policy"):
+        ceph_config_set.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_enable_static_website,
+            True,
+            ssh_con,
+        )
 
     if config.test_ops.get("test_copy_in_progress_sts_creds_expire"):
         ceph_config_set.set_to_ceph_conf(
@@ -201,6 +211,7 @@ def test_exec(config, ssh_con):
     s3_auth = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
     rgw_conn_using_sts_creds = s3_auth.do_auth()
     rgw_client_using_sts_creds = s3_auth.do_auth_using_client()
+    sts_user_sns_client = s3_auth.do_auth_sns_client()
 
     io_info_initialize.initialize(basic_io_structure.initial())
     write_user_info = AddUserInfo()
@@ -213,64 +224,85 @@ def test_exec(config, ssh_con):
         }
     )
     write_user_info.add_user_info(user_info)
-
-    if config.test_ops["create_bucket"]:
-        log.info(f"Number of buckets to create {config.bucket_count}")
-        for bc in range(config.bucket_count):
-            bucket_name_to_create = utils.gen_bucket_name_from_userid(
-                assumed_role_user_info["user_id"], rand_no=bc
+    if config.test_ops.get("verify_policy"):
+        verify_policy = config.test_ops.get("verify_policy", "session_policy")
+        bucket_name = f"{assumed_role_user_info['user_id']}-bkt1"
+        bucket_policy_ops.CreateBucket(rgw_client=user1_client, bucket_name=bucket_name)
+        for i in range(1, 10):
+            bucket_policy_ops.PutObject(
+                rgw_client=user1_client, bucket_name=bucket_name, object_name=f"obj{i}"
             )
-            log.info("creating bucket with name: %s" % bucket_name_to_create)
-            if config.test_ops.get("s3_resource_tag"):
-                rgw_conn = rgw_conn_user1
-            else:
-                rgw_conn = rgw_conn_using_sts_creds
-            bucket = reusable.create_bucket(
-                bucket_name_to_create, rgw_conn, assumed_role_user_info
-            )
-            if config.test_ops.get("s3_resource_tag"):
-                bucket = s3lib.resource_op(
-                    {
-                        "obj": rgw_conn_using_sts_creds,
-                        "resource": "Bucket",
-                        "args": [bucket_name_to_create],
-                    }
+        s3_object_name = f"Key_{bucket_name}"
+        bucket_policy_ops.verify_policy(
+            config=config,
+            bucket_owner_rgw_client=user1_client,
+            rgw_client=rgw_client_using_sts_creds,
+            bucket_name=bucket_name,
+            object_name=s3_object_name,
+            rgw_s3_resource=rgw_conn_using_sts_creds,
+            sns_client=sts_user_sns_client,
+            policy_document=config.sts.get(verify_policy),
+        )
+    else:
+        if config.test_ops["create_bucket"]:
+            log.info(f"Number of buckets to create {config.bucket_count}")
+            for bc in range(config.bucket_count):
+                bucket_name_to_create = utils.gen_bucket_name_from_userid(
+                    assumed_role_user_info["user_id"], rand_no=bc
                 )
-            if config.test_ops.get("bucket_tags"):
-                response = user1_client.put_bucket_tagging(
-                    Bucket=bucket_name_to_create,
-                    Tagging={
-                        "TagSet": config.test_ops.get("bucket_tags"),
-                    },
+                log.info(f"creating bucket with name: {bucket_name_to_create}")
+                if config.test_ops.get("s3_resource_tag"):
+                    rgw_conn = rgw_conn_user1
+                else:
+                    rgw_conn = rgw_conn_using_sts_creds
+                bucket = reusable.create_bucket(
+                    bucket_name_to_create, rgw_conn, assumed_role_user_info
                 )
-                log.info(f"put bucket tagging response: {response}")
-            if config.test_ops["create_object"]:
-                # uploading data
-                log.info("s3 objects to create: %s" % config.objects_count)
-                for oc, size in list(config.mapped_sizes.items()):
-                    config.obj_size = size
-                    s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, oc)
-                    log.info("s3 object name: %s" % s3_object_name)
-                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
-                    log.info("s3 object path: %s" % s3_object_path)
-                    if config.test_ops.get("upload_type") == "multipart":
-                        log.info("upload type: multipart")
-                        reusable.upload_mutipart_object(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            assumed_role_user_info,
+                if config.test_ops.get("s3_resource_tag"):
+                    bucket = s3lib.resource_op(
+                        {
+                            "obj": rgw_conn_using_sts_creds,
+                            "resource": "Bucket",
+                            "args": [bucket_name_to_create],
+                        }
+                    )
+                if config.test_ops.get("bucket_tags"):
+                    response = user1_client.put_bucket_tagging(
+                        Bucket=bucket_name_to_create,
+                        Tagging={
+                            "TagSet": config.test_ops.get("bucket_tags"),
+                        },
+                    )
+                    log.info(f"put bucket tagging response: {response}")
+                if config.test_ops["create_object"]:
+                    # uploading data
+                    log.info(f"s3 objects to create: {config.objects_count}")
+                    for oc, size in list(config.mapped_sizes.items()):
+                        config.obj_size = size
+                        s3_object_name = utils.gen_s3_object_name(
+                            bucket_name_to_create, oc
                         )
-                    else:
-                        log.info("upload type: normal")
-                        reusable.upload_object(
-                            s3_object_name,
-                            bucket,
-                            TEST_DATA_PATH,
-                            config,
-                            assumed_role_user_info,
-                        )
+                        log.info(f"s3 object name: {s3_object_name}")
+                        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                        log.info(f"s3 object path: {s3_object_path}")
+                        if config.test_ops.get("upload_type") == "multipart":
+                            log.info("upload type: multipart")
+                            reusable.upload_mutipart_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                assumed_role_user_info,
+                            )
+                        else:
+                            log.info("upload type: normal")
+                            reusable.upload_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                assumed_role_user_info,
+                            )
 
     # refer bz: https://bugzilla.redhat.com/show_bug.cgi?id=2214981
     if config.test_ops.get("test_copy_in_progress_sts_creds_expire"):
@@ -321,7 +353,7 @@ if __name__ == "__main__":
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
         test_data_dir = "test_data"
         TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
-        log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
+        log.info(f"TEST_DATA_PATH: {TEST_DATA_PATH}")
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
