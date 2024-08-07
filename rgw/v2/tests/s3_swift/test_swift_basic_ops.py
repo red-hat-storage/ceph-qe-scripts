@@ -858,6 +858,13 @@ def test_exec(config, ssh_con):
                 log.info(f"Bucket creation failed as expected with {e}")
             else:
                 raise TestExecError("Bucket creation succeeded")
+            log.info("Unsetting the swift at root config option")
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_swift_url_prefix, "\ ", ssh_con
+            )
+            log.info("trying to restart services ")
+            srv_restarted = rgw_service.restart(ssh_con)
+            time.sleep(30)
 
         else:
             container_name = utils.gen_bucket_name_from_userid(
