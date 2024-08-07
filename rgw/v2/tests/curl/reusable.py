@@ -7,10 +7,13 @@ import glob
 import json
 import logging
 import os
+import random
 import re
+import string
 import sys
 import time
 
+import names
 import v2.lib.manage_data as manage_data
 from v2.lib.exceptions import TestExecError
 from v2.lib.manage_data import io_generator
@@ -69,6 +72,86 @@ def install_curl(version="7.88.1"):
     except:
         raise TestExecError("CURL Installation Failed")
     return True
+
+
+def create_user(curl_auth, user_name=None):
+    """
+    create rgw user using curl
+    ex: curl -X PUT http://10.0.209.142:80/admin/user?display-name=display_name&uid=user_name
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        user_name(str): Name of the user to be created
+    """
+    if user_name is None:
+        user_name = (
+            names.get_first_name().lower()
+            + random.choice(string.ascii_lowercase)
+            + "."
+            + str(random.randint(1, 1000)),
+        )
+    log.info(f"rgw user to create: {user_name}")
+    headers = {
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    }
+    command = curl_auth.command(
+        http_method="PUT",
+        headers=headers,
+        url_suffix=f"admin/user?display-name={user_name}&uid={user_name}",
+    )
+    user_create_resp = utils.exec_shell_cmd(command)
+    if user_create_resp is False:
+        raise TestExecError("user creation failed")
+    log.info(f"user create response: {user_create_resp}")
+    return user_create_resp
+
+
+def get_user_info(curl_auth, uid):
+    """
+    get rgw user info using curl
+    ex: curl -X GET http://10.0.209.142:80/admin/user?uid=user_name
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        uid(str): uid of the user
+    """
+    log.info(f"get rgw user info for uid: {uid}")
+    headers = {
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    }
+    command = curl_auth.command(
+        http_method="GET",
+        headers=headers,
+        url_suffix=f"admin/user?uid={uid}",
+    )
+    user_get_resp = utils.exec_shell_cmd(command)
+    if user_get_resp is False:
+        raise TestExecError("get user info failed")
+    log.info(f"user get response: {user_get_resp}")
+    return user_get_resp
+
+
+def create_subuser(curl_auth, uid, subuser_name):
+    """
+    create rgw user using curl
+    ex: curl -X PUT http://10.0.209.142:80/admin/user?subuser=subuser_name&uid=user_name
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        uid(str): uid of the user
+        subuser_name(str): name of the user to be created
+    """
+    log.info(f"subuser to create: {subuser_name}")
+    headers = {
+        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+    }
+    command = curl_auth.command(
+        http_method="PUT",
+        headers=headers,
+        url_suffix=f"admin/user?subuser={subuser_name}&uid={uid}",
+    )
+    subuser_create_resp = utils.exec_shell_cmd(command)
+    if subuser_create_resp is False:
+        raise TestExecError("subuser creation failed")
+    log.info(f"subuser create response: {subuser_create_resp}")
+    return subuser_create_resp
 
 
 def create_bucket(curl_auth, bucket_name):
