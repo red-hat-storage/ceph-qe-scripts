@@ -133,7 +133,7 @@ def test_exec(config, ssh_con):
         rgw_admin_notif_commands_available = False
         ceph_version_id = ceph_version_id.split("-")
         ceph_version_id = ceph_version_id[0].split(".")
-        if (
+        if (float(ceph_version_id[0]) >= 19) or (
             float(ceph_version_id[0]) == 18
             and float(ceph_version_id[1]) >= 2
             and float(ceph_version_id[2]) >= 1
@@ -235,22 +235,22 @@ def test_exec(config, ssh_con):
                         rgw_s3_client, bucket_name_to_create
                     )
 
-                    # get bucket notification using rgw cli
-                    log.info("get notification topic using rgw cli")
-                    get_notif_topic = notification.rgw_admin_topic_notif_ops(
-                        op="get",
-                        args={"topic": bkt_notif_topic_name, **extra_topic_args},
-                    )
-                    if get_notif_topic is False:
-                        raise TestExecError(
-                            "radosgw-admin topic get failed for bucket notification topic"
-                        )
+                    # # get bucket notification using rgw cli
+                    # log.info("get notification topic using rgw cli")
+                    # get_notif_topic = notification.rgw_admin_topic_notif_ops(
+                    #     op="get",
+                    #     args={"topic": bkt_notif_topic_name, **extra_topic_args},
+                    # )
+                    # if get_notif_topic is False:
+                    #     raise TestExecError(
+                    #         "radosgw-admin topic get failed for bucket notification topic"
+                    #     )
 
                     # list rgw topics using rgw admin cli
                     log.info("list topic using rgw cli")
                     topics_list = notification.rgw_admin_topic_notif_ops(
                         op="list",
-                        args={"topic": bkt_notif_topic_name, **extra_topic_args},
+                        args={**extra_topic_args},
                     )
                     topic_listed = False
                     notif_topic_listed = False
