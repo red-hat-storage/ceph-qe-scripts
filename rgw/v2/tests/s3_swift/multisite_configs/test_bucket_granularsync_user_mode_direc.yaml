@@ -1,0 +1,32 @@
+# Polarian TC : CEPH-83581962
+# script: test_s3cmd_bucket_granular_sync_policy.py
+config:
+    user_count: 1
+    bucket_count: 1
+    objects_count: 100
+    objects_size_range:
+        min: 5K
+        max: 2M
+    test_ops:
+        dest_param_user_mode: true
+        zonegroup_group: true
+        zonegroup_status: allowed
+        zonegroup_flow: true
+        zonegroup_flow_type: directional
+        zonegroup_source_zone: primary
+        zonegroup_dest_zone: secondary
+        zonegroup_source_zones: primary
+        zonegroup_dest_zones: secondary
+        zonegroup_pipe: true
+        bucket_group: true
+        bucket_status: enabled
+        bucket_flow: false
+        bucket_pipe: true
+        bucket_source_zones: primary
+        bucket_dest_zones: secondary
+        bucket_policy_details: --mode=user --uid=<user_id>
+        create_object: true
+        create_bucket: true
+        should_sync: true
+        write_io_verify_another_site: true
+        zonegroup_group_remove: true
