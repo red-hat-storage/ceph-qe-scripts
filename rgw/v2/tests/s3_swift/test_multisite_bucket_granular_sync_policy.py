@@ -18,6 +18,8 @@ Usage: test_multisite_bucket_granular_sync_policy.py
     multisite_configs/test_bucket_granularsync_storage_class_direc.yaml
     multisite_configs/test_bucket_granularsync_owner_translation_direc.yaml
     multisite_configs/test_bucket_granularsync_owner_translation_symm.yaml
+    multisite_configs/test_bucket_granularsync_user_mode_symm.yaml
+    multisite_configs/test_bucket_granularsync_user_mode_direc.yaml
 
 Operation:
 	Creates delete sync policy group bucket , zonegroupl level
@@ -250,6 +252,14 @@ def test_exec(config, ssh_con):
                                         bucket_details = bucket_details.replace(
                                             "<dest_owner>",
                                             new_users_info[0]["user_id"],
+                                        )
+
+                                    if config.test_ops.get(
+                                        "dest_param_user_mode", False
+                                    ):
+                                        bucket_details = bucket_details.replace(
+                                            "<user_id>",
+                                            each_user["user_id"],
                                         )
 
                                     bucket_source_pipe = config.test_ops.get(
