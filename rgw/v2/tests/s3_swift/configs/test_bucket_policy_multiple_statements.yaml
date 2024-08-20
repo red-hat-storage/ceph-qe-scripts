@@ -44,7 +44,7 @@ config:
             "Sid": "statement2",
           },
           {
-            "Action": ["s3:PutBucketVersioning", "s3:GetBucketVersioning", "s3:PutBucketWebsite", "s3:GetBucketWebsite", "s3:PutLifecycleConfiguration", "s3:GetLifecycleConfiguration", "s3:PutBucketEncryption", "s3:GetBucketEncryption", "s3:PutBucketNotification", "s3:GetBucketNotification", "s3:PutBucketTagging", "s3:GetBucketTagging", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy"],
+            "Action": ["s3:PutBucketVersioning", "s3:GetBucketVersioning", "s3:PutBucketWebsite", "s3:GetBucketWebsite", "s3:PutLifecycleConfiguration", "s3:GetLifecycleConfiguration", "s3:PutBucketEncryption", "s3:GetBucketEncryption", "s3:PutBucketTagging", "s3:GetBucketTagging", "s3:PutBucketPolicy", "s3:GetBucketPolicy", "s3:DeleteBucketPolicy"],
             "Principal": {"AWS": "arn:aws:iam::<tenant_name>:user/<user_name>"},
             "Resource": "arn:aws:s3:::*",
             "Effect": "Allow",

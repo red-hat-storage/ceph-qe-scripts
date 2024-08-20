@@ -140,9 +140,11 @@ def DeleteObject(**kw):
     if classify_response(list_objects_response) is False:
         raise TestExecError("list objects failed with bucket owner client")
     objects_dict = {"Objects": []}
+    objects_count = 0
     for key in list_objects_response["Contents"]:
         key_dict = {"Key": key["Key"]}
         objects_dict["Objects"].append(key_dict)
+        objects_count = objects_count + 1
 
     log.info(f"s3 objects to delete: {objects_dict}")
     objects_delete_response = s3lib.resource_op(
@@ -155,8 +157,24 @@ def DeleteObject(**kw):
     log.info(f"objects_delete_response: {objects_delete_response}")
     objects_delete_status = classify_response(objects_delete_response)
     if effect == "Allow":
+        if objects_delete_response:
+            objects_deleted_count = len(objects_delete_response["Deleted"])
+            log.error(f"expected number of objects deleted: {objects_count}")
+            log.error(f"actual number of objects deleted: {objects_deleted_count}")
+            objects_delete_status = (
+                False if objects_deleted_count != objects_count else True
+            )
         return object_delete_status and objects_delete_status
     else:
+        if objects_delete_response:
+            deletion_error_count = len(objects_delete_response["Errors"])
+            log.error(f"expected number of object deletion errors: {objects_count}")
+            log.error(
+                f"actual number of object deletion errors: {deletion_error_count}"
+            )
+            objects_delete_status = (
+                True if deletion_error_count != objects_count else False
+            )
         return object_delete_status or objects_delete_status
 
 
