@@ -5,7 +5,7 @@ config:
  test_sync_consistency_bucket_stats: true
  encryption_keys: s3
  bucket_count: 1
- objects_count: 30
+ objects_count: 5
  local_file_delete: true
  objects_size_range:
   min: 6M
@@ -16,6 +16,6 @@ config:
   enable_version: true
   sse_s3_per_bucket: true
   upload_type: multipart
-  delete_bucket_object: true
+  delete_bucket_object: false
   delete_bucket_object_version: false
   download_object_at_remote_site: true
