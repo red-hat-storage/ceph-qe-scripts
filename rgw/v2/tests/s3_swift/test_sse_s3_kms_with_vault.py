@@ -47,6 +47,9 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
+from v2.tests.s3_swift.reusables import (
+    upload_object_via_s3client as put_object_s3client,
+)
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -179,13 +182,28 @@ def test_exec(config, ssh_con):
                             sse_s3.get_bucket_encryption(
                                 s3_client, bucket_name_to_create
                             )
-                            reusable.get_object_upload_type(
-                                s3_object_name,
-                                bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                each_user,
-                            )
+                            if config.test_ops["version_count"] > 0:
+                                for vc in range(config.test_ops["version_count"]):
+                                    log.info(
+                                        f"version count for {s3_object_name} is {vc}"
+                                    )
+                                    log.info("modifying data: %s" % s3_object_name)
+                                    put_object_s3client.upload_object_via_s3client(
+                                        s3_client,
+                                        bucket_name_to_create,
+                                        s3_object_name,
+                                        TEST_DATA_PATH,
+                                        config,
+                                        each_user,
+                                    )
+                            else:
+                                reusable.get_object_upload_type(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                )
 
                         else:
                             log.info(f"Encryption type is per-object.")
