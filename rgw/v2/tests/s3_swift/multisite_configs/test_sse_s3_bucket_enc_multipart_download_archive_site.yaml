@@ -14,7 +14,7 @@ config:
  test_ops:
   create_bucket: true
   create_object: true
-  enable_version: false
+  enable_version: true
   sse_s3_per_bucket: true
   upload_type: multipart
   delete_bucket_object: false
