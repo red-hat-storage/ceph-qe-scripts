@@ -182,8 +182,8 @@ def test_exec(config, ssh_con):
                             sse_s3.get_bucket_encryption(
                                 s3_client, bucket_name_to_create
                             )
-                            if config.test_ops["version_count"] > 0:
-                                for vc in range(config.test_ops["version_count"]):
+                            if config.test_ops.get("version_count", 0) > 0:
+                                for vc in range(config.test_ops.get("version_count")):
                                     log.info(
                                         f"version count for {s3_object_name} is {vc}"
                                     )
