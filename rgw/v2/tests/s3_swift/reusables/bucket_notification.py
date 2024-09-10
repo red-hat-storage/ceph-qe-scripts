@@ -337,8 +337,14 @@ def verify_event_record(
 
             # verify bucket owner in event record
             bucket_owner = bucket_stats_json["owner"]
-            if "$" in bucket_owner:
+
+            ceph_version_id, _ = utils.get_ceph_version()
+            ceph_version_id = ceph_version_id.split("-")
+            ceph_version_id = ceph_version_id[0].split(".")
+
+            if "$" in bucket_owner and int(ceph_version_id[0]) < 19:
                 bucket_owner = bucket_owner.split("$")[-1]
+
             bkt_owner_evnt = event_record_json["Records"][0]["s3"]["bucket"][
                 "ownerIdentity"
             ]["principalId"]
