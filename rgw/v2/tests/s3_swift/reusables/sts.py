@@ -156,6 +156,62 @@ def assume_role(sts_client, **kwargs):
     return assume_role_response
 
 
+def list_open_id_connect_provider(iam_client):
+    # list openid connect providers
+    try:
+        oidc_response = iam_client.list_open_id_connect_providers()
+        log.info(f"list oidc response: {oidc_response}")
+        return oidc_response
+    except Exception as e:
+        log.info("No openid connect providers exists")
+
+
+def delete_open_id_connect_provider(iam_client):
+    json_out = list_open_id_connect_provider(iam_client)
+    if json_out:
+        for provider in json_out["OpenIDConnectProviderList"]:
+            arn = provider["Arn"]
+            oidc_response = iam_client.delete_open_id_connect_provider(
+                OpenIDConnectProviderArn=arn
+            )
+            log.info(f"delete oidc response: {oidc_response}")
+            time.sleep(5)
+    else:
+        log.info("No openid connect providers exists to delete")
+
+
+def create_open_id_connect_provider(
+    iam_client, identity_provider="Keycloak", keycloak=None
+):
+    # obtain oidc idp thumbprint
+    global obtain_oidc_thumbprint_sh
+    if identity_provider == "Keycloak":
+        with open("obtain_oidc_thumbprint.sh", "w") as rsh:
+            rsh.write(f"{obtain_oidc_thumbprint_sh}")
+        url = f"http://{keycloak.ip_addr}:8180/realms/master"
+        client_id_list = ["account", keycloak.client_id]
+    elif identity_provider == "IBM_Security_Verify":
+        utils.exec_shell_cmd(
+            "curl -o obtain_oidc_thumbprint.sh http://magna002.ceph.redhat.com/cephci-jenkins/RGW_IBM_Security_Verify/obtain_oidc_thumbprint.sh"
+        )
+        out = utils.exec_shell_cmd(
+            "curl http://magna002.ceph.redhat.com/cephci-jenkins/RGW_IBM_Security_Verify/oidc_url"
+        )
+        url = out.strip()
+        client_id_list = []
+    utils.exec_shell_cmd("chmod +rwx obtain_oidc_thumbprint.sh")
+    thumbprints = utils.exec_shell_cmd("./obtain_oidc_thumbprint.sh")
+    thumbprints = thumbprints.strip().split("\n")
+    # create openid connect provider
+    oidc_response = iam_client.create_open_id_connect_provider(
+        Url=url,
+        ClientIDList=client_id_list,
+        ThumbprintList=thumbprints,
+    )
+    log.info(f"create oidc response: {oidc_response}")
+    return True
+
+
 class Keycloak:
     def __init__(
         self,
@@ -521,46 +577,3 @@ class Keycloak:
         if out is False:
             raise Exception("failed to update realm")
         return out
-
-    def create_open_id_connect_provider(self, iam_client):
-        # obtain oidc idp thumbprint
-        global obtain_oidc_thumbprint_sh
-        with open("obtain_oidc_thumbprint.sh", "w") as rsh:
-            rsh.write(f"{obtain_oidc_thumbprint_sh}")
-        utils.exec_shell_cmd("chmod +rwx obtain_oidc_thumbprint.sh")
-        thumbprints = utils.exec_shell_cmd("./obtain_oidc_thumbprint.sh")
-        thumbprints = thumbprints.strip().split("\n")
-        try:
-            # create openid connect provider
-            oidc_response = iam_client.create_open_id_connect_provider(
-                Url=f"http://{self.ip_addr}:8180/realms/master",
-                ClientIDList=["account", self.client_id],
-                ThumbprintList=thumbprints,
-            )
-            log.info(f"create oidc response: {oidc_response}")
-        except Exception as e:
-            log.info(f"Exception {e} occured")
-            log.info("Provider already exists")
-        return True
-
-    def list_open_id_connect_provider(self, iam_client):
-        # list openid connect providers
-        try:
-            oidc_response = iam_client.list_open_id_connect_providers()
-            log.info(f"list oidc response: {oidc_response}")
-            return oidc_response
-        except Exception as e:
-            log.info("No openid connect providers exists")
-
-    def delete_open_id_connect_provider(self, iam_client):
-        json_out = self.list_open_id_connect_provider(iam_client)
-        if json_out:
-            for provider in json_out["OpenIDConnectProviderList"]:
-                arn = provider["Arn"]
-                oidc_response = iam_client.delete_open_id_connect_provider(
-                    OpenIDConnectProviderArn=arn
-                )
-                log.info(f"delete oidc response: {oidc_response}")
-                time.sleep(5)
-        else:
-            log.info("No openid connect providers exists to delete")
