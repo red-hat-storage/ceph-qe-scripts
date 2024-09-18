@@ -1,3 +1,10 @@
+"""
+<input files>
+configs/test_user_with_placement_id_storage_class.yaml
+configs/test_user_with_placement_id_storage_class_cold.yaml
+configs/test_user_modify_with_placementid.yaml
+"""
+
 import os
 import sys
 
@@ -90,6 +97,23 @@ def test_exec(config, ssh_con):
                 log.info(f"user modify with placement id out put is {out}")
                 if "*** Caught signal (Aborted) **" in out:
                     raise AssertionError("user modify with placementid caused crash!!")
+
+        if config.test_ops.get("user_with_default_placement_and_storageclass", False):
+            (
+                placement_id,
+                storage_class_list,
+            ) = reusable.get_placement_and_storageclass_from_cluster()
+            user_name = "Testuser_defaultstorage"
+            storage_class = config.test_ops.get("storage_class", storage_class_list[0])
+            placement_id = config.test_ops.get("placement_id", placement_id)
+            cmd = f"radosgw-admin user create --uid={user_name} --display-name {user_name} --storage-class {storage_class} --placement-id {placement_id}"
+            out = utils.exec_shell_cmd(cmd)
+            reusable.validate_default_placement_and_storageclass_for_user(
+                user_name, placement_id, storage_class
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin user rm --purge-keys --purge-data --uid={user_name}"
+            )
 
         is_multisite = utils.is_cluster_multisite()
         if is_multisite:

@@ -2611,3 +2611,31 @@ def create_storage_class_in_all_zones(current_zone, rgw_ssh_con, config):
                 f"ceph osd pool application enable {pool_name} rgw"
             )
             rgw_ssh_con.exec_command("radosgw-admin period update --commit")
+
+
+def validate_default_placement_and_storageclass_for_user(
+    uid, placement_id, storage_class
+):
+    """
+    This function is to validate default_placement and storageclass set to user
+    uid: uid of the user
+    placement_id: placement_id set to the user
+    storage_class: storage_class set to the user
+    """
+    out = json.loads(utils.exec_shell_cmd(f"radosgw-admin user info --uid={uid}"))
+    if out["default_placement"] != str(placement_id):
+        raise AssertionError(f"default Placement set for user: {uid} is failed")
+    if out["default_storage_class"] != str(storage_class):
+        raise AssertionError(f"default storage class set for user: {uid} is failed")
+
+
+def get_placement_and_storageclass_from_cluster():
+    """
+    This function is to fetch placement_id and storage_class from the cluster.
+    """
+    cmd = "radosgw-admin zone get"
+    out = json.loads(utils.exec_shell_cmd(cmd))
+    placement_id = out["placement_pools"][0]["key"]
+    storage_classes = out["placement_pools"][0]["val"]["storage_classes"]
+    storage_class_list = list(storage_classes.keys())
+    return placement_id, storage_class_list

@@ -1,0 +1,11 @@
+#ceph-qe-scripts/rgw/v2/tests/s3_swift/user_create.py
+# Polarian: CEPH-83575880
+# BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2293615
+config:
+    user_count: 1
+    user_type: non-tenanted
+    test_ops:
+        create_bucket: false
+        swift_user: false
+        user_with_default_placement_and_storageclass: true
+        storage_class: "cold"
