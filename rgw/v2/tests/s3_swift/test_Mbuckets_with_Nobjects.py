@@ -759,13 +759,17 @@ def test_exec(config, ssh_con):
                         bkt_check_before = utils.exec_shell_cmd(cmd)
                         bkt_check_before = json.loads(bkt_check_before)
                         if (
-                            float(ceph_version_id[0]) == 17
-                            and float(ceph_version_id[1]) >= 2
-                            and float(ceph_version_id[2]) >= 6
-                        ) or (
-                            float(ceph_version_id[0]) == 18
-                            and float(ceph_version_id[1]) >= 2
-                            and float(ceph_version_id[2]) >= 1
+                            (
+                                float(ceph_version_id[0]) == 17
+                                and float(ceph_version_id[1]) >= 2
+                                and float(ceph_version_id[2]) >= 6
+                            )
+                            or (
+                                float(ceph_version_id[0]) == 18
+                                and float(ceph_version_id[1]) >= 2
+                                and float(ceph_version_id[2]) >= 1
+                            )
+                            or float(ceph_version_id[0]) >= 19
                         ):
                             log.info("validating orphaned object as per new format")
                             if len(bkt_check_before["invalid_multipart_entries"]) < 1:
@@ -785,13 +789,17 @@ def test_exec(config, ssh_con):
                         bkt_check_after = json.loads(bkt_check_after)
                         log.info(f"o/p of bucket check after fix: {bkt_check_after}")
                         if (
-                            float(ceph_version_id[0]) == 17
-                            and float(ceph_version_id[1]) >= 2
-                            and float(ceph_version_id[2]) >= 6
-                        ) or (
-                            float(ceph_version_id[0]) == 18
-                            and float(ceph_version_id[1]) >= 2
-                            and float(ceph_version_id[2]) >= 1
+                            (
+                                float(ceph_version_id[0]) == 17
+                                and float(ceph_version_id[1]) >= 2
+                                and float(ceph_version_id[2]) >= 6
+                            )
+                            or (
+                                float(ceph_version_id[0]) == 18
+                                and float(ceph_version_id[1]) >= 2
+                                and float(ceph_version_id[2]) >= 1
+                            )
+                            or float(ceph_version_id[0]) >= 19
                         ):
                             log.info("validating bucket check as per new format")
                             if len(bkt_check_after["invalid_multipart_entries"]) != 0:
