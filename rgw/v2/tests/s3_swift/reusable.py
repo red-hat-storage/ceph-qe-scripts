@@ -242,6 +242,11 @@ def upload_object(
                 "SSEKMSKeyId": config.test_ops.get("encrypt_decrypt_key", "testKey01"),
             }
             args.append(extra_args)
+    if config.test_ops.get("test_checksum") is True:
+        checksum_algorithm = config.test_ops.get("checksum_algorithm")
+        log.info(f"ChecksumAlgorithm used is {checksum_algorithm}")
+        extra_args = {"ChecksumAlgorithm": checksum_algorithm}
+        args.append(extra_args)
     object_uploaded_status = s3lib.resource_op(
         {
             "obj": s3_obj,
@@ -554,6 +559,8 @@ def upload_mutipart_object(
     )
     part_number = 1
     parts_info = {"Parts": []}
+    if config.test_ops.get("test_get_object_attributes"):
+        object_parts_info = {"TotalPartsCount": len(parts_list), "Parts": []}
     log.info("no of parts: %s" % len(parts_list))
     abort_part_no = random.randint(1, len(parts_list) - 1)
     """if randomly selected abort-part-no is less than 1 then we will increment it by 1 to make sure atleast one part is uploaded
@@ -588,6 +595,10 @@ def upload_mutipart_object(
         if abort_multipart and part_number == abort_part_no:
             log.info(f"aborting multi part {part_number}")
             return
+        if config.test_ops.get("test_get_object_attributes"):
+            part_info_get_obj_attr = part_info.copy()
+            part_info_get_obj_attr["Size"] = os.stat(each_part).st_size
+            object_parts_info["Parts"].append(part_info_get_obj_attr)
 
     if config.local_file_delete is True:
         log.info("deleting local file part")
@@ -597,6 +608,8 @@ def upload_mutipart_object(
         log.info("all parts upload completed")
         mpu.complete(MultipartUpload=parts_info)
         log.info("multipart upload complete for key: %s" % s3_object_name)
+    if config.test_ops.get("test_get_object_attributes"):
+        return object_parts_info
 
 
 def upload_part(
@@ -2110,7 +2123,7 @@ def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config, bucket_object=
         bkt_objects = bucket_stats["usage"]["rgw.main"]["num_objects"]
         if bkt_objects != config.objects_count:
             raise TestExecError(
-                f"Did not find {config.objects_count} in bucket {bkt.name}, but found {bkt_objects}"
+                f"Did not find {config.objects_count} in bucket {bucket.name}, but found {bkt_objects}"
             )
     else:
         if (
@@ -2553,7 +2566,7 @@ def test_bucket_stats_colocated_archive_zone(bucket_name_to_create, each_user, c
     arc_bucket_versioning = arc_bkt_stat_output["versioning"]
     if arc_bucket_versioning == "off":
         raise TestExecError(
-            f" bucket versioning is not enabled for archive zone when colocated with active zone for {bucket_name}"
+            f" bucket versioning is not enabled for archive zone when colocated with active zone for {bucket_name_to_create}"
         )
     else:
         log.info(
@@ -2639,3 +2652,93 @@ def get_placement_and_storageclass_from_cluster():
     storage_classes = out["placement_pools"][0]["val"]["storage_classes"]
     storage_class_list = list(storage_classes.keys())
     return placement_id, storage_class_list
+
+
+def get_object_attributes(
+    rgw_s3_client,
+    bucket_name,
+    s3_object_name,
+    object_attributes=None,
+    object_parts_info=None,
+):
+    log.info("Verifying GetObjectAttributes")
+    if object_attributes is None:
+        object_attributes = [
+            "ETag",
+            "StorageClass",
+            "ObjectSize",
+            "ObjectParts",
+            "Checksum",
+        ]
+    get_obj_attr_resp = rgw_s3_client.get_object_attributes(
+        Bucket=bucket_name, Key=s3_object_name, ObjectAttributes=object_attributes
+    )
+    log.info(f"get_object_attributes resp: {get_obj_attr_resp}")
+
+    if "Checksum" in object_attributes:
+        log.info("Verifying Checksum")
+        out = utils.exec_shell_cmd(
+            f"radosgw-admin object stat --bucket {bucket_name} --object {s3_object_name}"
+        )
+        obj_stat = json.loads(out)
+        checksum_expected = {}
+        for key, val in obj_stat["attrs"].items():
+            if key.startswith("user.rgw.x-amz-checksum-"):
+                checksum_key = f"Checksum{key.split('-')[-1].upper()}"
+                checksum_expected[checksum_key] = val
+        log.info(f"checksum expected: {checksum_expected}")
+        if checksum_expected != get_obj_attr_resp["Checksum"]:
+            raise TestExecError(f"incorrect Checksum in GetObjectAttributes")
+        else:
+            log.info("Checksum verified successfully")
+        object_attributes.remove("Checksum")
+
+    if "ObjectParts" in object_attributes:
+        if object_parts_info is not None:
+            log.info("Verifying ObjectParts")
+            log.info(f"expected ObjectParts: {object_parts_info}")
+            object_parts_info_actual = get_obj_attr_resp["ObjectParts"]
+            if (
+                object_parts_info["TotalPartsCount"]
+                != object_parts_info_actual["TotalPartsCount"]
+            ):
+                raise TestExecError(
+                    f"incorrect data for TotalPartsCount in ObjectParts"
+                )
+            parts_actual = object_parts_info_actual["Parts"]
+            parts_expected = object_parts_info["Parts"]
+            for index in range(0, len(parts_actual)):
+                if (
+                    parts_expected[index]["PartNumber"]
+                    != parts_actual[index]["PartNumber"]
+                ):
+                    raise TestExecError(f"incorrect data for PartNumber in part{index}")
+                if parts_expected[index]["Size"] != parts_actual[index]["Size"]:
+                    raise TestExecError(f"incorrect data for Size in part{index}")
+            log.info("ObjectParts verified successfully")
+        object_attributes.remove("ObjectParts")
+
+    out = utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket_name}")
+    bkt_list = json.loads(out)
+    object_dict = {}
+    for dict in bkt_list:
+        if dict["name"] == s3_object_name:
+            object_dict = dict
+            break
+    for attr in object_attributes:
+        if attr == "StorageClass":
+            expected = object_dict["meta"]["storage_class"]
+            if expected == "":
+                expected = "STANDARD"
+        if attr == "ObjectSize":
+            expected = object_dict["meta"]["size"]
+        if attr == "ETag":
+            expected = object_dict["meta"]["etag"]
+        actual = get_obj_attr_resp[attr]
+        if expected != actual:
+            raise TestExecError(
+                f"incorrect data for {attr} in GetObjectAttributes. expected {expected}, but returned {actual}"
+            )
+        else:
+            log.info(f"{attr} verified successfully")
+    log.info("GetObjectAttributes verified successfully")

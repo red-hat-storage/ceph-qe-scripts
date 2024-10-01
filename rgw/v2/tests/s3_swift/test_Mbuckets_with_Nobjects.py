@@ -19,6 +19,9 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
 	test_Mbuckets_with_Nobjects_etag.yaml
 	test_changing_data_log_num_shards_cause_no_crash.yaml
     test_bi_put_with_incomplete_multipart_upload.yaml
+    test_Mbuckets_with_Nobjects_get_object_attributes.yaml
+    test_Mbuckets_with_Nobjects_get_object_attributes_checksum_sha256.yaml
+    test_Mbuckets_with_Nobjects_get_object_attributes_multipart.yaml
 
 Operation:
 	Creates M bucket and N objects
@@ -326,30 +329,48 @@ def test_exec(config, ssh_con):
                             log.info("upload type: multipart")
                             abort_multipart = config.abort_multipart
                             log.info(f"value of abort_multipart {abort_multipart}")
-                            reusable.upload_mutipart_object(
-                                s3_object_name,
-                                bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                each_user,
-                                abort_multipart=abort_multipart,
-                            )
-                            if abort_multipart:
-                                log.info(f"verifying abort multipart")
-                                bkt_stat_output = json.loads(
-                                    utils.exec_shell_cmd(
-                                        f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
-                                    )
+                            if config.test_ops.get("test_get_object_attributes"):
+                                object_parts_info = reusable.upload_mutipart_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                    abort_multipart=abort_multipart,
                                 )
-                                if (
-                                    bkt_stat_output["usage"]["rgw.multimeta"][
-                                        "num_objects"
-                                    ]
-                                    > 0
-                                ):
-                                    log.info(f"In complete multipart found")
-                                else:
-                                    raise AssertionError("Abort multipart failed")
+                                log.info(f"sleeping for 3 seconds")
+                                time.sleep(3)
+                                reusable.get_object_attributes(
+                                    rgw_s3_client=rgw_conn2,
+                                    bucket_name=bucket_name_to_create,
+                                    s3_object_name=s3_object_name,
+                                    object_parts_info=object_parts_info,
+                                )
+                            else:
+                                reusable.upload_mutipart_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                    abort_multipart=abort_multipart,
+                                )
+                                if abort_multipart:
+                                    log.info(f"verifying abort multipart")
+                                    bkt_stat_output = json.loads(
+                                        utils.exec_shell_cmd(
+                                            f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
+                                        )
+                                    )
+                                    if (
+                                        bkt_stat_output["usage"]["rgw.multimeta"][
+                                            "num_objects"
+                                        ]
+                                        > 0
+                                    ):
+                                        log.info(f"In complete multipart found")
+                                    else:
+                                        raise AssertionError("Abort multipart failed")
 
                         else:
                             if config.test_ops.get("enable_version", False):
@@ -370,6 +391,14 @@ def test_exec(config, ssh_con):
                                     TEST_DATA_PATH,
                                     config,
                                     each_user,
+                                )
+                            if config.test_ops.get("test_get_object_attributes"):
+                                log.info(f"sleeping for 3 seconds")
+                                time.sleep(3)
+                                reusable.get_object_attributes(
+                                    rgw_s3_client=rgw_conn2,
+                                    bucket_name=bucket_name_to_create,
+                                    s3_object_name=s3_object_name,
                                 )
                         if config.test_ops["download_object"] is True:
                             log.info("trying to download object: %s" % s3_object_name)
