@@ -1,0 +1,10 @@
+# script: test_checksum.py
+# polarion-ID: CEPH-83591699
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  user_remove: true
+  objects_size_range:
+    min: 1M
+    max: 3M

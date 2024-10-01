@@ -10,6 +10,7 @@ import os
 import socket
 import subprocess
 import sys
+import time
 from configparser import RawConfigParser
 from pathlib import Path
 
@@ -66,7 +67,9 @@ def list_object_versions(aws_auth, bucket_name, end_point):
         raise AWSCommandExecError(message=str(e))
 
 
-def create_multipart_upload(aws_auth, bucket_name, key_name, end_point):
+def create_multipart_upload(
+    aws_auth, bucket_name, key_name, end_point, checksum_algo=None
+):
     """
     Initiate multipart uploads for given object on a given bucket
     Ex: /usr/local/bin/aws s3api create-multipart-upload --bucket <bucket_name> --key <key_name> --endpoint <endpoint_url>
@@ -77,12 +80,20 @@ def create_multipart_upload(aws_auth, bucket_name, key_name, end_point):
     Return:
         Response of create-multipart-upload
     """
-    command = aws_auth.command(
-        operation="create-multipart-upload",
-        params=[
-            f"--bucket {bucket_name} --key {key_name} --endpoint-url {end_point}",
-        ],
-    )
+    if checksum_algo:
+        command = aws_auth.command(
+            operation="create-multipart-upload",
+            params=[
+                f"--bucket {bucket_name} --key {key_name} --endpoint-url {end_point} --checksum-algorithm {checksum_algo}",
+            ],
+        )
+    else:
+        command = aws_auth.command(
+            operation="create-multipart-upload",
+            params=[
+                f"--bucket {bucket_name} --key {key_name} --endpoint-url {end_point}",
+            ],
+        )
     try:
         response = utils.exec_shell_cmd(command)
         if not response:
@@ -102,6 +113,8 @@ def upload_part(
     upload_id,
     body,
     end_point,
+    checksum_algo=None,
+    checksum=None,
 ):
     """
     Upload part to the key in a bucket
@@ -118,13 +131,26 @@ def upload_part(
     Return:
         Response of uplaod_part i.e Etag
     """
-    command = aws_auth.command(
-        operation="upload-part",
-        params=[
-            f"--bucket {bucket_name} --key {key_name} --part-number {part_number} --upload-id {upload_id}"
-            f" --body {body} --endpoint-url {end_point}",
-        ],
-    )
+    if checksum_algo:
+        if checksum_algo is "crc32c":
+            algo = "crc32-c"
+        else:
+            algo = checksum_algo
+        command = aws_auth.command(
+            operation="upload-part",
+            params=[
+                f"--bucket {bucket_name} --key {key_name} --part-number {part_number} --upload-id {upload_id}"
+                f" --body {body} --endpoint-url {end_point} --checksum-algorithm {checksum_algo} --checksum-{algo} {checksum}",
+            ],
+        )
+    else:
+        command = aws_auth.command(
+            operation="upload-part",
+            params=[
+                f"--bucket {bucket_name} --key {key_name} --part-number {part_number} --upload-id {upload_id}"
+                f" --body {body} --endpoint-url {end_point}",
+            ],
+        )
     try:
         response = utils.exec_shell_cmd(command)
         if not response:
@@ -205,6 +231,43 @@ def put_object(aws_auth, bucket_name, object_name, end_point):
         return create_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
+
+
+def put_object_checksum(
+    aws_auth, bucket_name, object_name, end_point, checksum_algorithm, checksum=None
+):
+    """
+    Put/uploads object to the bucket with provided checksum value
+    Ex: /usr/local/bin/aws s3api put-object --bucket <bucket_name> --key <object_name> --body <content> --endpoint <endpoint_url>
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        object_name(str): Name of the object/file
+        end_point(str): endpoint
+        checksum_algorithm: one of sha1,sha256,crc32,crc-32c
+        checksum
+    Return:
+
+    """
+    if checksum_algorithm is "crc32c":
+        algo = "crc32-c"
+    else:
+        algo = checksum_algorithm
+    command = aws_auth.command(
+        operation="put-object",
+        params=[
+            f"--bucket {bucket_name} --key {object_name} --body {object_name} --endpoint-url {end_point} --checksum-algorithm {checksum_algorithm} --checksum-{algo} {checksum}",
+        ],
+    )
+
+    out = utils.exec_shell_cmd(command, return_err=True)
+    if out:
+        log.info(f"Output : {out}")
+        if "not iterable" in out:
+            log.info("Upload failed as expected for wrong checksum")
+        else:
+            log.info(f"Upload successful for {algo}")
+    else:
+        raise AssertionError("Upload failed")
 
 
 def delete_object(aws_auth, bucket_name, object_name, end_point, versionid=None):
@@ -365,6 +428,7 @@ def upload_multipart_aws(
     config,
     append_data=False,
     append_msg=None,
+    checksum_algo=None,
 ):
     """
     Args:
@@ -380,7 +444,7 @@ def upload_multipart_aws(
     """
     log.info("Create multipart upload")
     create_mp_upload_resp = create_multipart_upload(
-        aws_auth, bucket_name, key_name, endpoint
+        aws_auth, bucket_name, key_name, endpoint, checksum_algo
     )
     upload_id = json.loads(create_mp_upload_resp)["UploadId"]
 
@@ -502,5 +566,52 @@ def list_objects(aws_auth, bucket_name, endpoint, marker=None):
     try:
         get_response = utils.exec_shell_cmd(command)
         return get_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def calculate_checksum(algo, file):
+    """
+    Return the base64 encoded checksum for the provided algorithm
+    """
+    log.info("Install Rhash program")
+    utils.exec_shell_cmd(
+        "rpm -ivh https://rpmfind.net/linux/epel/9/Everything/x86_64/Packages/r/rhash-1.4.2-1.el9.x86_64.rpm"
+    )
+    time.sleep(2)
+    if algo is "sha1" or "sha256":
+        checksum = utils.exec_shell_cmd(f"rhash --sha1 --base64 {file}").split(" ", 1)[
+            0
+        ]
+        return checksum
+    elif algo is "crc32":
+        checksum = utils.exec_shell_cmd(f"rhash --crc32 --base64 {file}").split(" ", 1)[
+            1
+        ]
+        return checksum
+    elif algo is "crc32c":
+        utils.exec_shell_cmd("sudo pip install botocore[crt]")
+        checksum = utils.exec_shell_cmd(f"rhash --crc32c --base64 {file}").split(
+            " ", 1
+        )[0]
+        return checksum
+
+
+def get_object_attributes(aws_auth, bucket_name, key, endpoint):
+    """
+    Return object attributes for a specified key name in a bucket
+    """
+    command = aws_auth.command(
+        operation="get-object-attributes",
+        params=[
+            f"--bucket {bucket_name} --key {key}  --endpoint-url {endpoint} --object-attributes checksum",
+        ],
+    )
+    try:
+        resp = utils.exec_shell_cmd(command)
+        if "Checksum" not in resp:
+            raise Exception(f"get object failed for {bucket_name}")
+        log.info("Checksum is present in object attributes")
+        return resp
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
