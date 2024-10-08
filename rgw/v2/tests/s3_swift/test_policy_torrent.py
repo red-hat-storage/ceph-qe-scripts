@@ -17,6 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
 import json
 import logging
+import time
 import traceback
 
 import botocore.exceptions as boto3exception
@@ -32,7 +33,7 @@ from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import HttpResponseParser
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
 
@@ -52,6 +53,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    rgw_service = RGWService()
 
     # create user
     config.user_count = 2
@@ -91,6 +93,15 @@ def test_exec(config, ssh_con):
         rgw_tenant1_user1,
         tenant1_user1_info,
     )
+    rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_torrent_flag true"
+    )
+    srv_restarted = rgw_service.restart(ssh_con)
+    time.sleep(20)
+    if srv_restarted is False:
+        raise TestExecError("RGW service restart failed")
+    log.info("RGW Torrent flag enabled and service restarted")
 
     if config.test_ops.get("upload_type") == "normal":
         for oc, size in list(config.mapped_sizes.items()):
