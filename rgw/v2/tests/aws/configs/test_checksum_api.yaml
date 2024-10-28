@@ -1,0 +1,14 @@
+# BZ: 2310424
+# Polarian-id: CEPH-83591679
+# Script: ceph-qe-scripts/rgw/v2/tests/aws/test_checksum.py
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  local_file_delete: true
+  user_remove: true
+  objects_size_range:
+    min: 15M
+    max: 30M
+  test_ops:
+    verify_checksum_api: true
