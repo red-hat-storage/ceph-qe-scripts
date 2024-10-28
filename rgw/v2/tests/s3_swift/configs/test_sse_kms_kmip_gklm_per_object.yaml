@@ -11,7 +11,7 @@ config:
  test_ops:
   sse_kms_backend: kmip
   key_management_tool: gklm
-  encrypt_decrypt_key: gkl001a174c2000000000
+  encrypt_decrypt_key: gkl0074e01cb000000001
   create_bucket: true
   create_object: true
   enable_version: false
