@@ -235,8 +235,53 @@ def upload_object(
     return True
 
 
+def put_cors_object(
+    curl_auth,
+    bucket_name,
+    s3_object_name,
+    TEST_DATA_PATH,
+    config,
+    cors_origin,
+):
+    """
+    Upload object using cURL PUT command
+    Args:
+        curl_auth(CURL): CURL object instantiated with access details and endpoint
+        bucket_name(str): Name of the bucket to be created
+        s3_object_name(str): name of the s3 object
+        TEST_DATA_PATH(str): test data path where objects created are stored on ceph-qe-scripts local repo
+        config(dict): config yaml
+        cors origin: origin header on the cors policy
+    """
+    log.info(f"s3 object name: {s3_object_name}")
+    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    log.info(f"s3 object path: {s3_object_path}")
+    s3_object_size = config.obj_size
+    data_info = manage_data.io_generator(s3_object_path, s3_object_size)
+    if data_info is False:
+        TestExecError("data creation failed")
+    log.info(f"uploading s3 object: {s3_object_path}")
+    headers = {"x-amz-content-sha256": "UNSIGNED-PAYLOAD", "Origin": cors_origin}
+    command = curl_auth.command(
+        http_method="PUT",
+        headers=headers,
+        input_file=s3_object_path,
+        url_suffix=f"{bucket_name}/{s3_object_name}",
+    )
+    upload_object_status = utils.exec_shell_cmd(command)
+    if upload_object_status is False:
+        raise TestExecError("object upload failed")
+    log.info(f"object {s3_object_name} uploaded")
+    return True
+
+
 def download_object(
-    curl_auth, bucket_name, s3_object_name, TEST_DATA_PATH, s3_object_path
+    curl_auth,
+    bucket_name,
+    s3_object_name,
+    TEST_DATA_PATH,
+    s3_object_path,
+    cors_origin=None,
 ):
     """
     download object using curl
@@ -251,9 +296,12 @@ def download_object(
     log.info(f"s3 object name to download: {s3_object_name}")
     s3_object_download_name = s3_object_name + "." + "download"
     s3_object_download_path = os.path.join(TEST_DATA_PATH, s3_object_download_name)
-    headers = {
-        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
-    }
+    if cors_origin:
+        headers = {"x-amz-content-sha256": "UNSIGNED-PAYLOAD", "Origin": cors_origin}
+    else:
+        headers = {
+            "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+        }
     command = curl_auth.command(
         http_method="GET",
         headers=headers,
@@ -276,7 +324,7 @@ def download_object(
         raise TestExecError("md5 mismatch")
 
 
-def delete_object(curl_auth, bucket_name, s3_object_name):
+def delete_object(curl_auth, bucket_name, s3_object_name, cors_origin=None):
     """
     delete object using curl
     ex: curl -X DELETE http://10.0.209.142:80/bkt1/obj1
@@ -286,9 +334,12 @@ def delete_object(curl_auth, bucket_name, s3_object_name):
         s3_object_name(str): name of the s3 object
     """
     log.info(f"s3 object to delete: {s3_object_name}")
-    headers = {
-        "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
-    }
+    if cors_origin:
+        headers = {"x-amz-content-sha256": "UNSIGNED-PAYLOAD", "Origin": cors_origin}
+    else:
+        headers = {
+            "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
+        }
     command = curl_auth.command(
         http_method="DELETE",
         headers=headers,
