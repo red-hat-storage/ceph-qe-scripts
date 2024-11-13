@@ -1,0 +1,11 @@
+# Polarion ID : CEPH-83574627
+# Script : s3_swift/test_dynamic_bucket_resharding.py
+config:
+  objects_count: 50
+  objects_size_range:
+    min: 15
+    max: 20
+  sharding_type: manual
+  shards: 97
+  test_ops:
+    bucket_chown: True
