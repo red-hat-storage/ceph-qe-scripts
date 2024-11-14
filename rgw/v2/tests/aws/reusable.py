@@ -570,6 +570,31 @@ def list_objects(aws_auth, bucket_name, endpoint, marker=None):
         raise AWSCommandExecError(message=str(e))
 
 
+def put_bucket_cors(aws_auth, bucket_name, policy_file, endpoint):
+    """
+    Put a CORS policy on the bucket
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        end_point(str): endpoint
+        policy(json): CORS policy to Upload
+    Return:
+    """
+    command = aws_auth.command(
+        operation="put-bucket-cors",
+        params=[
+            f"--bucket {bucket_name} --cors-configuration file://{policy_file} --endpoint-url {endpoint}",
+        ],
+    )
+    try:
+        create_response = utils.exec_shell_cmd(command, debug_info=True)
+        log.info(create_response)
+        if not create_response:
+            raise Exception(f"Put CORS policy failed for {bucket_name}")
+        return create_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
 def calculate_checksum(algo, file):
     """
     Return the base64 encoded checksum for the provided algorithm

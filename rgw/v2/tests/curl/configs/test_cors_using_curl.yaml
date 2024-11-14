@@ -1,0 +1,25 @@
+# script: test_cors_using_curl.py
+# polarion: CEPH-10355
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 25
+  objects_size_range:
+    min: 5
+    max: 15
+  local_file_delete: true
+  test_ops:
+    create_bucket: true
+    create_object: true
+    user_remove: true
+    cors_origin: "http://www.cors-example.com"
+    policy_document:
+      "CORSRules":
+        [
+          {
+            "AllowedOrigins": ["http://www.cors-example.com"],
+            "AllowedHeaders": ["*"],
+            "AllowedMethods": ["PUT", "GET", "DELETE"],
+            "MaxAgeSeconds": 3000,
+          },
+        ]
