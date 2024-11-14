@@ -463,7 +463,7 @@ class NotificationService:
         # verify all the attributes of the event record. if event not received abort testcase
         log.info("verify event record attributes")
         verify = verify_event_record(
-            event, bucket_name, event_record_path, self.ceph_version_name
+            event, bucket_name, event_record_path, self.ceph_version_name, self.config
         )
         if verify is False:
             raise EventRecordDataError(

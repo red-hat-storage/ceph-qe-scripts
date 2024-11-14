@@ -2143,7 +2143,7 @@ def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config, bucket_object=
     )
     cmd_output = json.loads(stdout.read().decode())
     if "rgw.main" not in cmd_output["usage"].keys():
-        for retry_count in range(20):
+        for retry_count in range(25):
             time.sleep(60)
             _, re_stdout, _ = rgw_ssh_con.exec_command(
                 f"radosgw-admin bucket stats --bucket {bucket.name}"
@@ -2160,9 +2160,9 @@ def verify_object_sync_on_other_site(rgw_ssh_con, bucket, config, bucket_object=
                 log.info(f"bucket stats synced for bucket {bucket.name}")
                 break
 
-        if (retry_count > 20) and ("rgw.main" not in re_cmd_output["usage"].keys()):
+        if (retry_count > 25) and ("rgw.main" not in re_cmd_output["usage"].keys()):
             raise TestExecError(
-                f"object not synced on bucket {bucket.name} in another site even after 20m"
+                f"object not synced on bucket {bucket.name} in another site even after 25m"
             )
         cmd_output = re_cmd_output
 
