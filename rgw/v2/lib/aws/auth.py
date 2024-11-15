@@ -40,23 +40,19 @@ def install_aws(ssh_con=None):
         if not os.path.exists(root_path + "credentials"):
             if ssh_con:
                 ssh_con.exec_command(
-                    "curl 'https://s3.amazonaws.com/aws-cli/awscli-bundle-1.18.223.zip' -o 'awscli-bundle.zip'"
+                    "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'"
                 )
                 ssh_con.exec_command("yum install unzip -y")
-                ssh_con.exec_command("unzip awscli-bundle.zip")
-                ssh_con.exec_command(
-                    "sudo awscli-bundle/./install -i /usr/local/aws -b /usr/local/bin/aws"
-                )
+                ssh_con.exec_command("unzip awscliv2.zip")
+                ssh_con.exec_command("sudo aws/./install")
                 ssh_con.exec_command(f"mkdir {root_path}")
             else:
                 utils.exec_shell_cmd(
-                    "curl 'https://s3.amazonaws.com/aws-cli/awscli-bundle-1.18.223.zip' -o 'awscli-bundle.zip'"
+                    "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'"
                 )
                 utils.exec_shell_cmd("yum install unzip -y")
-                utils.exec_shell_cmd("unzip awscli-bundle.zip")
-                utils.exec_shell_cmd(
-                    "sudo awscli-bundle/./install -i /usr/local/aws -b /usr/local/bin/aws"
-                )
+                utils.exec_shell_cmd("unzip awscliv2.zip")
+                utils.exec_shell_cmd("sudo aws/./install")
                 utils.exec_shell_cmd(f"mkdir {root_path}")
     except:
         raise AssertionError("AWS Installation Failed")
