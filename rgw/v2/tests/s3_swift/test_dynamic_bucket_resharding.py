@@ -15,6 +15,7 @@ Usage: test_dynamic_bucket_resharding.py -c <input_yaml>
     multisite_configs/test_bucket_generation.yaml
     multisite_configs/test_resharding_disable_in_zonegroup.yaml
     multisite_configs/test_dynamic_resharding_quota_exceed.yaml
+    multisite_configs/test_bucket_chown_reshard.yaml
 
     configs/test_bucket_index_shards.yaml
     configs/test_dbr_with_custom_objs_per_shard_and_max_dynamic_shard.yaml
@@ -159,6 +160,20 @@ def test_exec(config, ssh_con):
                 s3_object_name, bucket, TEST_DATA_PATH, config, user_info
             )
         objects_created_list.append((s3_object_name, s3_object_path))
+
+    if config.test_ops.get("bucket_chown", False) is True:
+        log.info("Create new user and change bucket ownership")
+        new_user = s3lib.create_users(1)
+        new_user = new_user[0]
+        new_auth = Auth(new_user, ssh_con, ssl=config.ssl)
+        new_conn = new_auth.do_auth()
+        new_name = new_user["user_id"]
+        out = reusable.unlink_bucket(user_info["user_id"], bucket_name)
+        log.info("Bucket unlink successful")
+        out1 = reusable.link_chown_nontenant_to_nontenant(
+            new_user["user_id"], bucket_name
+        )
+        log.info(f"Bucket ownership changed to {new_name}")
 
     if config.test_ops.get("verify_bucket_gen", False) is True:
         bucket_gen_before = reusable.fetch_bucket_gen(bucket.name)
