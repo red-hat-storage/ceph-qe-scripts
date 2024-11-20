@@ -247,6 +247,13 @@ def verify_event_record(
             raise EventRecordDataError("event record not generated! File is empty")
 
     # verify event record for a particular event type
+    ceph_version_id, _ = utils.get_ceph_version()
+    ceph_version_id = ceph_version_id.split("-")
+    ceph_version_id = ceph_version_id[0].split(".")
+    if float(ceph_version_id[0]) >= 19:
+        non_current = "NonCurrent"
+    else:
+        non_current = "Noncurrent"
     notifications_received = False
     events = []
     if "Delete" in event_type:
@@ -265,14 +272,14 @@ def verify_event_record(
     if "LifecycleExpiration" in event_type:
         events = [
             "ObjectLifecycle:Expiration:Current",
-            "ObjectLifecycle:Expiration:Noncurrent",
+            f"ObjectLifecycle:Expiration:{non_current}",
             "ObjectLifecycle:Expiration:DeleteMarker",
             "ObjectLifecycle:Expiration:AbortMultipartUpload",
         ]
     if "LifecycleTransition" in event_type:
         events = [
             "ObjectLifecycle:Transition:Current",
-            "ObjectLifecycle:Transition:Noncurrent",
+            f"ObjectLifecycle:Transition:{non_current}",
         ]
     if "MultisiteReplication" in event_type:
         events = ["ObjectSynced:Create"]
