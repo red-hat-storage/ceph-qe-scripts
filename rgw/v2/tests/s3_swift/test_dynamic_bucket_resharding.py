@@ -16,6 +16,7 @@ Usage: test_dynamic_bucket_resharding.py -c <input_yaml>
     multisite_configs/test_resharding_disable_in_zonegroup.yaml
     multisite_configs/test_dynamic_resharding_quota_exceed.yaml
     multisite_configs/test_bucket_chown_reshard.yaml
+    multisite_configs/test_versioning_objects_suspend_enable.yaml
 
     configs/test_bucket_index_shards.yaml
     configs/test_dbr_with_custom_objs_per_shard_and_max_dynamic_shard.yaml
@@ -44,6 +45,7 @@ import logging
 import time
 import traceback
 
+import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
 from v2.lib.exceptions import RGWBaseException, TestExecError
@@ -55,11 +57,17 @@ from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import quota_management as quota_mgmt
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import RGWService
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
 
 TEST_DATA_PATH = None
+
+VERSIONING_STATUS = {
+    "ENABLED": "enabled",
+    "DISABLED": "disabled",
+    "SUSPENDED": "suspended",
+}
 
 
 def test_exec(config, ssh_con):
@@ -113,8 +121,13 @@ def test_exec(config, ssh_con):
             ssh_con,
         )
 
-        num_shards_expected = config.objects_count / config.max_objects_per_shard
-        log.info("num_shards_expected: %s" % num_shards_expected)
+        object_count = (
+            (config.version_count + 1) * config.objects_count
+            if config.test_ops.get("upload_after_suspend", False)
+            else config.objects_count
+        )
+        num_shards_expected = object_count / config.max_objects_per_shard
+        log.info(f"num_shards_expected: {num_shards_expected}")
     log.info("trying to restart services ")
     srv_restarted = rgw_service.restart(ssh_con)
     time.sleep(30)
@@ -140,10 +153,140 @@ def test_exec(config, ssh_con):
         )
         quota_mgmt.toggle_quota("enable", "bucket", user_info)
 
-    log.info("s3 objects to create: %s" % config.objects_count)
+    if config.test_ops.get("upload_after_suspend", False):
+        log.info("suspending versioning")
+        bucket_versioning = s3lib.resource_op(
+            {
+                "obj": rgw_conn,
+                "resource": "BucketVersioning",
+                "args": [bucket_name],
+            }
+        )
+        # suspend_version_status = s3_ops.resource_op(bucket_versioning, 'suspend')
+        suspend_version_status = s3lib.resource_op(
+            {"obj": bucket_versioning, "resource": "suspend", "args": None}
+        )
+        response = HttpResponseParser(suspend_version_status)
+        if response.status_code == 200:
+            log.info("versioning suspended")
+            write_bucket_io_info.add_versioning_status(
+                user_info["access_key"],
+                bucket.name,
+                VERSIONING_STATUS["SUSPENDED"],
+            )
+        else:
+            raise TestExecError("version suspend failed")
+        # getting all objects in the bucket
+        log.info("getting all objects in the bucket")
+        objects = s3lib.resource_op(
+            {"obj": bucket, "resource": "objects", "args": None}
+        )
+        log.info(f"objects : {objects}")
+        all_objects = s3lib.resource_op(
+            {"obj": objects, "resource": "all", "args": None}
+        )
+        log.info(f"all objects: {all_objects}")
+        log.info(f"all objects2 {bucket.objects.all()}")
+        for obj in all_objects:
+            log.info(f"object_name: {obj.key}")
+            versions = bucket.object_versions.filter(Prefix=obj.key)
+            log.info("displaying all versions of the object")
+            for version in versions:
+                log.info(
+                    f"key_name: {version.object_key} --> version_id: {version.version_id}"
+                )
+        log.info("trying to upload after suspending versioning on bucket")
+        for oc, s3_object_size in list(config.mapped_sizes.items()):
+            # non versioning upload
+            s3_object_name = (
+                utils.gen_s3_object_name(bucket.name, str(oc))
+                + "_after_version_suspending"
+            )
+            log.info(f"s3 object name: {s3_object_name}")
+            s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+            non_version_data_info = manage_data.io_generator(
+                s3_object_path,
+                s3_object_size,
+                op="append",
+                **{"message": "\nhello for non version\n"},
+            )
+            if non_version_data_info is False:
+                TestExecError("data creation failed")
+            log.info(f"uploading s3 object: {s3_object_path}")
+            upload_info = dict(
+                {
+                    "access_key": user_info["access_key"],
+                    "versioning_status": "suspended",
+                },
+                **non_version_data_info,
+            )
+            s3_obj = s3lib.resource_op(
+                {
+                    "obj": bucket,
+                    "resource": "Object",
+                    "args": [s3_object_name],
+                    "extra_info": upload_info,
+                }
+            )
+            object_uploaded_status = s3lib.resource_op(
+                {
+                    "obj": s3_obj,
+                    "resource": "upload_file",
+                    "args": [non_version_data_info["name"]],
+                    "extra_info": upload_info,
+                }
+            )
+
+            if object_uploaded_status is False:
+                raise TestExecError(
+                    f"Resource execution failed: object upload failed {s3_object_name}"
+                )
+            if object_uploaded_status is None:
+                log.info("object uploaded")
+            s3_obj = s3lib.resource_op(
+                {
+                    "obj": rgw_conn,
+                    "resource": "Object",
+                    "args": [bucket.name, s3_object_name],
+                }
+            )
+            log.info(f"version_id: {s3_obj.version_id}")
+            if s3_obj.version_id is None:
+                log.info("Versions are not created after suspending")
+            else:
+                raise TestExecError("Versions are created even after suspending")
+            s3_object_download_path = os.path.join(
+                TEST_DATA_PATH, s3_object_name + ".download"
+            )
+            object_downloaded_status = s3lib.resource_op(
+                {
+                    "obj": bucket,
+                    "resource": "download_file",
+                    "args": [s3_object_name, s3_object_download_path],
+                }
+            )
+            if object_downloaded_status is False:
+                raise TestExecError("Resource execution failed: object download failed")
+            if object_downloaded_status is None:
+                log.info("object downloaded")
+            # checking md5 of the downloaded file
+            s3_object_downloaded_md5 = utils.get_md5(s3_object_download_path)
+            log.info(f"s3_object_downloaded_md5: {s3_object_downloaded_md5}")
+            log.info(f"s3_object_uploaded_md5: {non_version_data_info['md5']}")
+
+        bktstat_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
+        sus_shard_value = json.loads(utils.exec_shell_cmd(bktstat_cmd))["num_shards"]
+        log.info(f"with version suspending number of shards : {sus_shard_value}")
+
+        log.info("enable bucket version and then upload objects")
+        reusable.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
+
+    log.info(f"s3 objects to create: {config.objects_count}")
     for oc, size in list(config.mapped_sizes.items()):
         config.obj_size = size
         s3_object_name = utils.gen_s3_object_name(bucket.name, oc)
+        if config.test_ops.get("upload_after_suspend", False):
+            s3_object_name += "_after_enable_version"
         s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
         if config.test_ops.get("enable_version", False):
             reusable.upload_version_object(
@@ -242,11 +385,25 @@ def test_exec(config, ssh_con):
             log.info(
                 "for dynamic number of shards created should be greater than or equal to number of expected shards"
             )
-            log.info("no_of_shards_expected: %s" % num_shards_expected)
+            log.info(f"no_of_shards_expected: {num_shards_expected}")
             if int(num_shards_created) >= int(num_shards_expected):
                 log.info("Expected number of shards created")
         else:
             raise TestExecError("Expected number of shards not created")
+
+        if config.test_ops.get("upload_after_suspend", False):
+            ena_shard_value = json.loads(utils.exec_shell_cmd(bktstat_cmd))[
+                "num_shards"
+            ]
+            log.info(f"without version suspending number of shards : {ena_shard_value}")
+            if int(ena_shard_value) > int(sus_shard_value):
+                log.info(
+                    "dynamic resharding works as expected with and without suspending versioning"
+                )
+            else:
+                raise TestExecError(
+                    "dynamic resharding failed with and without suspending versioning"
+                )
 
     if config.disable_dynamic_shard:
         log.info("Testing disable of DBR")
