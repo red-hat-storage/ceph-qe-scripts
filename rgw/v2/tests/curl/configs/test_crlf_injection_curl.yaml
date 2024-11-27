@@ -1,0 +1,25 @@
+# script: test_cors_using_curl.py
+# polarion: CEPH-83574745
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 25
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    CRLF_injection: true
+    create_object: true
+    cors_origin: "http://www.cors-example.com"
+    policy_document:
+      "CORSRules":
+        [
+          {
+            "AllowedOrigins": ["http://www.cors-example.com"],
+            "AllowedHeaders": ["Authorization"],
+            "AllowedMethods": ["PUT", "GET"],
+            "ExposeHeaders": ["XXX\rArbitrary: Header\rAccess-Control-Allow-Credentials: true\rSet-Cookie: CRLF=Injection; \npath=/;"],
+            "MaxAgeSeconds": 3000,
+          },
+        ]
