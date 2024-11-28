@@ -268,11 +268,12 @@ def put_cors_object(
         input_file=s3_object_path,
         url_suffix=f"{bucket_name}/{s3_object_name}",
     )
-    upload_object_status = utils.exec_shell_cmd(command)
+    upload_object_status, err = utils.exec_shell_cmd(command, debug_info=True)
+    log.info(upload_object_status)
     if upload_object_status is False:
         raise TestExecError("object upload failed")
     log.info(f"object {s3_object_name} uploaded")
-    return True
+    return upload_object_status
 
 
 def download_object(
