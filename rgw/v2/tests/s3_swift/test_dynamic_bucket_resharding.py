@@ -25,6 +25,7 @@ Usage: test_dynamic_bucket_resharding.py -c <input_yaml>
     configs/test_dynamic_resharding_with_version.yaml
     configs/test_disable_and_enable_dynamic_resharding.yaml
     configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
+    configs/test_dbr_high_default_limit.yaml
 
 Operation:
     Create user
