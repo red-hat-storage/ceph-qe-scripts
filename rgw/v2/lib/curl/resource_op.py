@@ -10,7 +10,7 @@ log = logging.getLogger()
 
 
 class CURL:
-    def __init__(self, user_info, ssh_con, ssl=None):
+    def __init__(self, user_info, ssh_con, curl_silent=True, ssl=None):
         """
         Constructor for curl class
         user_info(dict) : user details
@@ -19,7 +19,10 @@ class CURL:
         self.username = user_info["access_key"]
         self.password = user_info["secret_key"]
         self.endpoint_url = aws_reusable.get_endpoint(ssh_con, ssl)
-        self.prefix = f"curl --show-error --fail-with-body -v -s --aws-sigv4 aws:amz:us-east-1:s3 -u '{self.username}:{self.password}'"
+        if curl_silent:
+            self.prefix = f"curl --show-error --fail-with-body -v -s --aws-sigv4 aws:amz:us-east-1:s3 -u '{self.username}:{self.password}'"
+        else:
+            self.prefix = f"curl --show-error --fail-with-body -v --aws-sigv4 aws:amz:us-east-1:s3 -u '{self.username}:{self.password}'"
         if ssl:
             self.prefix = self.prefix + " --insecure"
 
