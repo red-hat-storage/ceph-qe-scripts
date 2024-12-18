@@ -122,6 +122,8 @@ def test_exec(config, ssh_con):
                 utils.exec_shell_cmd(f"rm -rf  {s3_object_path}")
         if config.user_remove:
             s3_reusable.remove_user(each_user)
+        log.info("deleting the cors configuration file")
+        utils.exec_shell_cmd(f"rm -rf {file_name}")
 
     # check for any crashes during the execution
     crash_info = s3_reusable.check_for_crash()
