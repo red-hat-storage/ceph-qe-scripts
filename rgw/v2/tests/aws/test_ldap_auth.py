@@ -19,6 +19,7 @@ import logging
 import os
 import random
 import sys
+import time
 import traceback
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
@@ -67,6 +68,8 @@ def test_exec(config, ssh_con):
     cmd = f"ceph orch apply -i {file_name}"
     utils.exec_shell_cmd(cmd)
 
+    log.info("Sleep for 60 seconds for RGW to reapply")
+    time.sleep(60)
     # add conf options to ceph
     utils.exec_shell_cmd(
         f"ceph config set client.{rgw_service_name} rgw_ldap_binddn cn=RGW"
@@ -117,12 +120,12 @@ def test_exec(config, ssh_con):
     # Create a bucket on the LDAP user
     for bc in range(config.bucket_count):
         bucket_name = "ldap" + str(bc)
-        cmd = f"AWS_ACCESS_KEY_ID={token_str} AWS_SECRET_ACCESS_KEY=' ' /usr/local/bin/aws s3 mb s3://{bucket_name} --endpoint http://{rgw_ip}:{rgw_port}"
+        cmd = f"AWS_ACCESS_KEY_ID={token_str} AWS_SECRET_ACCESS_KEY=' ' /usr/local/bin/aws s3 mb s3://{bucket_name} --endpoint http://{rgw_ip}:{rgw_port} --region us-east-1"
         out = utils.exec_shell_cmd(cmd)
         log.info("Bucket created: " + bucket_name)
         for obj in range(config.objects_count):
             utils.exec_shell_cmd(f"fallocate -l 1K object{obj}")
-            cmd = f"AWS_ACCESS_KEY_ID={token_str} AWS_SECRET_ACCESS_KEY=' ' /usr/local/bin/aws s3 cp object{obj} s3://{bucket_name}/object{obj} --endpoint http://{rgw_ip}:{rgw_port}"
+            cmd = f"AWS_ACCESS_KEY_ID={token_str} AWS_SECRET_ACCESS_KEY=' ' /usr/local/bin/aws s3 cp object{obj} s3://{bucket_name}/object{obj} --endpoint http://{rgw_ip}:{rgw_port} --region us-east-1"
             out = utils.exec_shell_cmd(cmd)
             log.info("Object created on the bucket owned by LDAP user")
         cmd = f"AWS_ACCESS_KEY_ID={token_str} AWS_SECRET_ACCESS_KEY=' ' /usr/local/bin/aws s3 ls s3://{bucket_name} --endpoint http://{rgw_ip}:{rgw_port}"
