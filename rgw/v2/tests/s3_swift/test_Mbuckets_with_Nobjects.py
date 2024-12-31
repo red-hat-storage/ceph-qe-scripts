@@ -22,6 +22,7 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
     test_Mbuckets_with_Nobjects_get_object_attributes.yaml
     test_Mbuckets_with_Nobjects_get_object_attributes_checksum_sha256.yaml
     test_Mbuckets_with_Nobjects_get_object_attributes_multipart.yaml
+    test_Mbuckets_with_Nobjects_multipart_upload_complete_abort_race.yaml
 
 Operation:
 	Creates M bucket and N objects
@@ -345,6 +346,18 @@ def test_exec(config, ssh_con):
                                     bucket_name=bucket_name_to_create,
                                     s3_object_name=s3_object_name,
                                     object_parts_info=object_parts_info,
+                                )
+                            elif config.test_ops.get(
+                                "test_multipart_race_complete_abort"
+                            ):
+                                reusable.upload_mutipart_object(
+                                    s3_object_name,
+                                    bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                    abort_multipart=abort_multipart,
+                                    complete_abort_race=True,
                                 )
                             else:
                                 reusable.upload_mutipart_object(
@@ -840,6 +853,31 @@ def test_exec(config, ssh_con):
                                 raise AssertionError(
                                     f"bucket check fix did not removed orphan objects on a bucket {bucket.name}"
                                 )
+
+                if config.test_ops.get("test_multipart_race_complete_abort"):
+                    utils.exec_shell_cmd(f"radosgw-admin gc process --include-all")
+                    log.info(
+                        "sleeping for 10 seconds before verifying objects download"
+                    )
+                    time.sleep(10)
+                    log.info(f"downloading all objects in bucket: {bucket.name}")
+                    objects = s3lib.resource_op(
+                        {"obj": bucket, "resource": "objects", "args": None}
+                    )
+                    log.info(f"objects :{objects}")
+                    all_objects = s3lib.resource_op(
+                        {"obj": objects, "resource": "all", "args": None}
+                    )
+                    log.info(f"all objects: {all_objects}")
+                    for obj in all_objects:
+                        log.info(f"object_name: {obj.key}")
+                        reusable.download_object(
+                            obj.key,
+                            bucket,
+                            TEST_DATA_PATH,
+                            f"{TEST_DATA_PATH}/{obj.key}",
+                            config,
+                        )
 
                 if config.test_ops.get("delete_bucket") is True:
                     reusable.delete_bucket(bucket)
