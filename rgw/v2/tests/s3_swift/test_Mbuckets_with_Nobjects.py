@@ -473,6 +473,7 @@ def test_exec(config, ssh_con):
                             log.info(
                                 "Test bucket stats for 'versioning' and num_objects for a colocated archive zone."
                             )
+                            time.sleep(120)
                             reusable.test_bucket_stats_colocated_archive_zone(
                                 bucket_name_to_create, each_user, config
                             )
