@@ -1,0 +1,11 @@
+# Polarian: CEPH-83574625
+# script: test_dynamic_bucket_resharding.py
+config:
+  objects_count: 25
+  objects_size_range:
+    min: 15
+    max: 20
+  test_ops:
+    verify_bucket_gen: true
+    verify_maxgen: true
+    delete_bucket_object: true
