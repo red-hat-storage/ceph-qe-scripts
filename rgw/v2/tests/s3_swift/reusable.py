@@ -510,6 +510,7 @@ def upload_mutipart_object(
     append_data=False,
     append_msg=None,
     abort_multipart=False,
+    complete_abort_race=False,
 ):
     log.info("s3 object name: %s" % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
@@ -606,7 +607,22 @@ def upload_mutipart_object(
     # log.info('parts_info so far: %s'% parts_info)
     if len(parts_list) == part_number:
         log.info("all parts upload completed")
-        mpu.complete(MultipartUpload=parts_info)
+        if complete_abort_race:
+            log.info("triggering complete and abort multipart upload at the same time")
+            t1 = Thread(
+                target=mpu.complete,
+                kwargs={"MultipartUpload": parts_info},
+            )
+            t2 = Thread(target=mpu.abort, kwargs={})
+
+            t1.start()
+            time.sleep(0.01)
+            t2.start()
+
+            t1.join()
+            t2.join()
+        else:
+            mpu.complete(MultipartUpload=parts_info)
         log.info("multipart upload complete for key: %s" % s3_object_name)
     if config.test_ops.get("test_get_object_attributes"):
         return object_parts_info
