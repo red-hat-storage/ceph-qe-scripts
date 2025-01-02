@@ -51,6 +51,7 @@ from v2.lib.s3 import lifecycle_validation as lc_ops
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import s3_object_restore as reusables_s3_restore
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -134,6 +135,7 @@ def test_exec(config, ssh_con):
     for each_user in user_info:
         auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
+        s3_client = auth.do_auth_using_client()
         rgw_conn2 = auth.do_auth_using_client()
         notification = None
 
@@ -284,9 +286,9 @@ def test_exec(config, ssh_con):
                             )
                             rule1_lc_timestamp = upload_end_time + 60 + rule1_lc_seconds
                             expected_storage_class = config.storage_class
-                            config.test_ops[
-                                "expected_storage_class"
-                            ] = expected_storage_class
+                            config.test_ops["expected_storage_class"] = (
+                                expected_storage_class
+                            )
                             lc_ops.validate_prefix_rule(bucket, config)
 
                             rule2_lc_seconds = (
@@ -303,9 +305,9 @@ def test_exec(config, ssh_con):
                                 )
                                 time.sleep(5)
                             expected_storage_class = config.second_storage_class
-                            config.test_ops[
-                                "expected_storage_class"
-                            ] = expected_storage_class
+                            config.test_ops["expected_storage_class"] = (
+                                expected_storage_class
+                            )
                             lc_ops.validate_prefix_rule(bucket, config)
 
                             rule3_lc_seconds = (
@@ -322,9 +324,9 @@ def test_exec(config, ssh_con):
                                 )
                                 time.sleep(5)
                             expected_storage_class = config.storage_class
-                            config.test_ops[
-                                "expected_storage_class"
-                            ] = expected_storage_class
+                            config.test_ops["expected_storage_class"] = (
+                                expected_storage_class
+                            )
                             lc_ops.validate_prefix_rule(bucket, config)
                         else:
                             log.info("sleeping for 30 seconds")
@@ -499,6 +501,49 @@ def test_exec(config, ssh_con):
                 and config.test_ops.get("send_bucket_notifications", False) is True
             ):
                 notification.verify(bucket_name)
+            if config.test_ops.get("test_s3_restore_from_cloud", False):
+                log.info(
+                    f"Test s3 restore of objects transitioned to the cloud for {bucket_name}"
+                )
+                bucket_list_op = utils.exec_shell_cmd(
+                    f"radosgw-admin bucket list --bucket={bucket_name}"
+                )
+                json_doc_list = json.loads(bucket_list_op)
+                log.info(f"the bucket list for {bucket_name}  is {json_doc_list}")
+                objs_total = sum(1 for item in json_doc_list if "instance" in item)
+                log.info(
+                    f"Occurances of verion_ids in bucket list is {objs_total} times"
+                )
+                for i in range(0, objs_total):
+                    if json_doc_list[i]["tag"] != "delete-marker":
+                        object_key = json_doc_list[i]["name"]
+                        version_id = json_doc_list[i]["instance"]
+                        reusables_s3_restore.restore_s3_object(
+                            s3_client,
+                            each_user,
+                            config,
+                            bucket_name,
+                            object_key,
+                            version_id,
+                            days=7,
+                        )
+                # Test restored objects are not available after restore interval
+                log.info(
+                    "Test restored objects are not available after restore interval"
+                )
+                time.sleep(210)
+                for i in range(0, objs_total):
+                    if json_doc_list[i]["tag"] != "delete-marker":
+                        object_key = json_doc_list[i]["name"]
+                        version_id = json_doc_list[i]["instance"]
+                        reusables_s3_restore.check_restore_expiry(
+                            s3_client,
+                            each_user,
+                            config,
+                            bucket_name,
+                            object_key,
+                            version_id,
+                        )
         if config.parallel_lc:
             log.info("Inside parallel lc processing")
             life_cycle_rule = {"Rules": config.lifecycle_conf}
