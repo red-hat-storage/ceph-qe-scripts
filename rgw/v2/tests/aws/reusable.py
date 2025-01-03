@@ -44,6 +44,47 @@ def create_bucket(aws_auth, bucket_name, end_point):
         raise AWSCommandExecError(message=str(e))
 
 
+def put_bkt_acl(aws_auth, bucket_name, end_point, acl):
+    """
+    Put bucket acl
+    ex: /usr/local/bin/aws s3api put-bucket-acl --bucket buck1 --acl public-read-write --endpoint-url http://x.x.x.x:xx
+    Args:
+        bucket_name(str): Name of the bucket
+        acl(str): acl type
+        end_point(str): endpoint
+    """
+    command = aws_auth.command(
+        operation="put-bucket-acl",
+        params=[f"--bucket {bucket_name} --acl {acl} --endpoint-url {end_point}"],
+    )
+    try:
+        acl_put_response = utils.exec_shell_cmd(command)
+        log.info(f"Put acl response is {acl_put_response}")
+        if acl_put_response:
+            raise Exception(f"Put acl failed for bucket {bucket_name}")
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def get_bkt_acl(aws_auth, bucket_name, end_point):
+    """
+    Get bucket acl
+    ex: /usr/local/bin/aws s3api get-bucket-acl --bucket buck1 --endpoint-url http://x.x.x.x:xx
+    Args:
+        bucket_name(str): Name of the bucket
+        end_point(str): endpoint
+    """
+    command = aws_auth.command(
+        operation="get-bucket-acl",
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
+    )
+    try:
+        acl_get_response = utils.exec_shell_cmd(command)
+        log.info(f"Get acl response is {acl_get_response}")
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
 def list_object_versions(aws_auth, bucket_name, end_point):
     """
     Lists object versions for an bucket

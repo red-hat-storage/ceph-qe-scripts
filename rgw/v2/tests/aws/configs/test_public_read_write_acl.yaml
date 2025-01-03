@@ -1,0 +1,9 @@
+# script: test_acl.py
+# BZ: BZ2313480
+# Polarian ID: CEPH-83604473
+config:
+  user_count: 1
+  bucket_count: 1
+  user_remove: true
+  test_ops:
+    acl_type: "public-read-write"
