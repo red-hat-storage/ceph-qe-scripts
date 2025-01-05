@@ -5,6 +5,7 @@ polarion: CEPH-10355, CEPH-83574745
     Note: Following yaml can be used
     test_cors_using_curl.yaml
     test_crlf_injection_curl.yaml
+    test_cors_presigned_put_url_using_curl.yaml
 Operation:
 1. Create bucket and put CORS policy on the bucket.
 2. for the object count mentioned , upload objects using CURL calls with specified ORIGIN
@@ -27,6 +28,7 @@ from v2.lib.aws import auth as aws_auth
 from v2.lib.aws.resource_op import AWS
 from v2.lib.curl.resource_op import CURL
 from v2.lib.exceptions import RGWBaseException, TestExecError
+from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.aws import reusable as aws_reusable
 from v2.tests.curl import reusable as curl_reusable
@@ -53,6 +55,8 @@ def test_exec(config, ssh_con):
     all_users_info = resource_op.create_users(no_of_users_to_create=config.user_count)
 
     for each_user in all_users_info:
+        auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        rgw_s3_client = auth.do_auth_using_client()
         user_name = each_user["user_id"]
         log.info(user_name)
         cli_aws = AWS(ssl=config.ssl)
@@ -71,7 +75,7 @@ def test_exec(config, ssh_con):
             file_name = "cors.json"
             cors_policy = json.dumps(config.test_ops["policy_document"])
             log.info(cors_policy)
-            with open(file_name, "a") as f:
+            with open(file_name, "w") as f:
                 f.write(cors_policy)
             aws_reusable.put_bucket_cors(cli_aws, bucket_name, file_name, endpoint)
             cors_origin = config.test_ops["cors_origin"]
@@ -88,35 +92,58 @@ def test_exec(config, ssh_con):
                 log.info(f"s3 object name: {s3_object_name}")
                 s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
                 log.info(f"s3 object path: {s3_object_path}")
-                out = curl_reusable.put_cors_object(
-                    curl_auth,
-                    bucket_name,
-                    s3_object_name,
-                    TEST_DATA_PATH,
-                    config,
-                    cors_origin,
-                )
-                if config.test_ops.get("CRLF_injection", False):
-                    if "\r" not in out:
-                        log.info("\r is sanitized as expected")
-                    else:
-                        raise TestExecError("\r is still present in curl output")
-                else:
-                    objects_created_list.append(s3_object_name)
-                    curl_reusable.download_object(
+                if config.test_ops.get("cors_presigned_put_url", False):
+                    object_acl = config.test_ops["object_acl"]
+                    presigned_url_for_put = s3_reusable.generate_presigned_url(
+                        rgw_s3_client=rgw_s3_client,
+                        client_method="put_object",
+                        http_method="PUT",
+                        params={
+                            "Bucket": bucket_name,
+                            "Key": "test",
+                        },
+                    )
+                    curl_reusable.upload_object(
                         curl_auth,
                         bucket_name,
                         s3_object_name,
                         TEST_DATA_PATH,
-                        s3_object_path,
-                        cors_origin,
+                        config,
+                        Transfer_Encoding=config.test_ops.get("Transfer_Encoding"),
+                        extra_headers={"Origin": cors_origin, "x-amz-acl": object_acl},
+                        request_options=True,
+                        presigned_url=presigned_url_for_put,
                     )
-                    curl_reusable.delete_object(
+                else:
+                    out = curl_reusable.put_cors_object(
                         curl_auth,
                         bucket_name,
                         s3_object_name,
+                        TEST_DATA_PATH,
+                        config,
                         cors_origin,
                     )
+                    if config.test_ops.get("CRLF_injection", False):
+                        if "\r" not in out:
+                            log.info("\r is sanitized as expected")
+                        else:
+                            raise TestExecError("\r is still present in curl output")
+                    else:
+                        objects_created_list.append(s3_object_name)
+                        curl_reusable.download_object(
+                            curl_auth,
+                            bucket_name,
+                            s3_object_name,
+                            TEST_DATA_PATH,
+                            s3_object_path,
+                            cors_origin,
+                        )
+                        curl_reusable.delete_object(
+                            curl_auth,
+                            bucket_name,
+                            s3_object_name,
+                            cors_origin,
+                        )
             if config.local_file_delete is True:
                 log.info("deleting local file created after the upload")
                 utils.exec_shell_cmd(f"rm -rf  {s3_object_path}")

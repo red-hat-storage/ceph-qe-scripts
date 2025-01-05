@@ -185,6 +185,9 @@ def upload_object(
     append_data=False,
     append_msg=None,
     Transfer_Encoding=None,
+    extra_headers={},
+    request_options=False,
+    presigned_url=None,
 ):
     """
     upload object using curl
@@ -222,11 +225,28 @@ def upload_object(
         headers["Transfer-Encoding"] = Transfer_Encoding
     else:
         headers["Content-Length"] = config.obj_size
+    headers.update(extra_headers)
+    if request_options:
+        log.info("testing requests.options before the actual put request")
+        headers_options = headers.copy()
+        headers_options["Access-Control-Request-Method"] = "PUT"
+        command = curl_auth.command(
+            http_method="OPTIONS",
+            headers=headers_options,
+            input_file=s3_object_path,
+            # url_suffix=f"{bucket_name}/{s3_object_name}",
+            presigned_url=presigned_url,
+        )
+        upload_object_status = utils.exec_shell_cmd(command)
+        if upload_object_status is False:
+            raise TestExecError("requests.options failed for PUT")
+        log.info(f"object {s3_object_name} uploaded")
     command = curl_auth.command(
         http_method="PUT",
         headers=headers,
         input_file=s3_object_path,
         url_suffix=f"{bucket_name}/{s3_object_name}",
+        presigned_url=presigned_url,
     )
     upload_object_status = utils.exec_shell_cmd(command)
     if upload_object_status is False:
