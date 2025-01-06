@@ -17,6 +17,7 @@ Usage: test_dynamic_bucket_resharding.py -c <input_yaml>
     multisite_configs/test_dynamic_resharding_quota_exceed.yaml
     multisite_configs/test_bucket_chown_reshard.yaml
     multisite_configs/test_versioning_objects_suspend_enable.yaml
+    multisite_configs/test_max_generations.yaml
 
     configs/test_bucket_index_shards.yaml
     configs/test_dbr_with_custom_objs_per_shard_and_max_dynamic_shard.yaml
@@ -320,34 +321,48 @@ def test_exec(config, ssh_con):
         log.info(f"Bucket ownership changed to {new_name}")
 
     if config.test_ops.get("verify_bucket_gen", False) is True:
-        bucket_gen_before = reusable.fetch_bucket_gen(bucket.name)
-        log.info(f"Current Bucket generation value is {bucket_gen_before}")
-        bkt_sync_status = reusable.check_bucket_sync_status(bucket.name)
-        log.info(f"Bucket sync status is {bkt_sync_status}")
-        if "failed" in bkt_sync_status or "ERROR" in bkt_sync_status:
-            log.info("checking for any sync error")
-            utils.exec_shell_cmd("sudo radosgw-admin sync error list")
-            raise AssertionError("sync status is in failed or errored state!")
-        bkt_stat_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
-        old_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))["num_shards"]
-        manual_shard_no = old_shard_value + 5
-        cmd_exec = utils.exec_shell_cmd(
-            f"radosgw-admin bucket reshard --bucket={bucket.name} "
-            f"--num-shards={manual_shard_no}"
-        )
-        if not cmd_exec:
-            raise TestExecError("manual resharding command execution failed")
-        new_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))["num_shards"]
-        if new_shard_value == manual_shard_no:
-            log.info("manual reshard succeeded!")
-        bucket_gen_after = reusable.fetch_bucket_gen(bucket.name)
-        log.info(f"Latest generation of a bucket {bucket.name} is :{bucket_gen_after}")
-        if bucket_gen_after > bucket_gen_before:
-            log.info("Bucket generation change success!")
-        else:
-            raise AssertionError("Bucket generation is not changed!")
-        verification = False
-        reusable.check_sync_status()
+        gen_count = 1
+        while gen_count < 4:
+            bucket_gen_before = reusable.fetch_bucket_gen(bucket.name)
+            log.info(f"Current Bucket generation value is {bucket_gen_before}")
+            bkt_sync_status = reusable.check_bucket_sync_status(bucket.name)
+            log.info(f"Bucket sync status is {bkt_sync_status}")
+            if "failed" in bkt_sync_status or "ERROR" in bkt_sync_status:
+                log.info("checking for any sync error")
+                utils.exec_shell_cmd("sudo radosgw-admin sync error list")
+                raise AssertionError("sync status is in failed or errored state!")
+            bkt_stat_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
+            old_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))[
+                "num_shards"
+            ]
+            manual_shard_no = old_shard_value + 5
+            cmd_exec = utils.exec_shell_cmd(
+                f"radosgw-admin bucket reshard --bucket={bucket.name} "
+                f"--num-shards={manual_shard_no}"
+            )
+            if not cmd_exec:
+                raise TestExecError("manual resharding command execution failed")
+            new_shard_value = json.loads(utils.exec_shell_cmd(bkt_stat_cmd))[
+                "num_shards"
+            ]
+            if new_shard_value == manual_shard_no:
+                log.info("manual reshard succeeded!")
+            bucket_gen_after = reusable.fetch_bucket_gen(bucket.name)
+            log.info(
+                f"Latest generation of a bucket {bucket.name} is :{bucket_gen_after}"
+            )
+            if bucket_gen_after > bucket_gen_before:
+                log.info("Bucket generation change success!")
+            else:
+                raise AssertionError("Bucket generation is not changed!")
+            verification = False
+            reusable.check_sync_status()
+            if config.test_ops.get("verify_maxgen", False):
+                log.info("Incrementing Generation count by 1, sleep for 30 sec")
+                time.sleep(30)
+                gen_count += 1
+            else:
+                break
 
     if config.sharding_type == "manual":
         log.info("sharding type is manual")
