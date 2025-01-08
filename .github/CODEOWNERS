@@ -1,0 +1,9 @@
+# The default owners
+*                        @red-hat-storage/ceph-qe-ci
+
+# for RGW
+rgw/                     @mkasturi18 @ckulal @TejasC88
+
+# for rbd
+rbd/                     @Manohar-Murthy @HaruChebrolu
+
