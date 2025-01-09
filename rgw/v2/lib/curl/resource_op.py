@@ -25,6 +25,7 @@ class CURL:
             self.prefix = f"curl --show-error --fail-with-body -v --aws-sigv4 aws:amz:us-east-1:s3 -u '{self.username}:{self.password}'"
         if ssl:
             self.prefix = self.prefix + " --insecure"
+        self.prefix_for_presigned_url = f"curl --show-error --fail-with-body -v -s"
 
     def command(
         self,
@@ -35,6 +36,7 @@ class CURL:
         url_suffix=None,
         raw_data_list=None,
         head_request=None,
+        presigned_url=None,
     ):
         """
         Args:
@@ -47,7 +49,10 @@ class CURL:
             head_request(bool): whether it is a head request or not specified with -I or --head
         Returns: command to be executed
         """
-        cmd = self.prefix
+        if presigned_url:
+            cmd = self.prefix_for_presigned_url
+        else:
+            cmd = self.prefix
 
         if http_method:
             cmd = f"{cmd} -X {http_method}"
@@ -57,7 +62,7 @@ class CURL:
         if headers:
             for key, val in headers.items():
                 # any underscores in the header will automatically be converted to hyphen by curl
-                header_string = f"{header_string} -H '{key}:{val}'"
+                header_string = f"{header_string} -H '{key}: {val}'"
         cmd = f"{cmd} {header_string}"
         if input_file:
             cmd = f"{cmd} -T {input_file}"
@@ -66,10 +71,12 @@ class CURL:
         if raw_data_list:
             for each_str in raw_data_list:
                 cmd = f"{cmd} -d '{each_str}'"
-
-        url = self.endpoint_url
-        if url_suffix:
-            url = f"'{url}/{url_suffix}'"
-        cmd = f"{cmd} {url}"
+        if presigned_url:
+            url = presigned_url
+        else:
+            url = self.endpoint_url
+            if url_suffix:
+                url = f"{url}/{url_suffix}"
+        cmd = f"{cmd} '{url}'"
         log.info(f"CURL command created: {cmd}")
         return cmd

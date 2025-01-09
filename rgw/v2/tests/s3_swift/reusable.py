@@ -2758,3 +2758,14 @@ def get_object_attributes(
         else:
             log.info(f"{attr} verified successfully")
     log.info("GetObjectAttributes verified successfully")
+
+
+def generate_presigned_url(rgw_s3_client, client_method, http_method, params):
+    log.info(
+        f"generating presigned url for client_method {client_method}, http_method {http_method} with params {params}"
+    )
+    presigned_url = rgw_s3_client.generate_presigned_url(
+        ClientMethod=client_method, HttpMethod=http_method, Params=params
+    )
+    log.info(f"presigned_url: {presigned_url}")
+    return presigned_url
