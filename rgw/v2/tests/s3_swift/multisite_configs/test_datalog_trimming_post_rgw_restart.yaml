@@ -1,0 +1,15 @@
+# upload type: non multipart
+# script: test_bilog_trimming.py
+# polarion_id: CEPH-10959
+config:
+  log_trimming: datalog
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    create_object: true
+    datalog_trim_post_rgw_restart: true
