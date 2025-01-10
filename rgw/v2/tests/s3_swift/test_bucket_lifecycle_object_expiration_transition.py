@@ -532,7 +532,7 @@ def test_exec(config, ssh_con):
                 log.info(
                     "Test restored objects are not available after restore interval"
                 )
-                time.sleep(210)
+                time.sleep(240)
                 for i in range(0, objs_total):
                     if json_doc_list[i]["tag"] != "delete-marker":
                         object_key = json_doc_list[i]["name"]
