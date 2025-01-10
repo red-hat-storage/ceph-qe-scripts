@@ -19,6 +19,7 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_transition_with_lc_process.yaml
  test_sse_kms_per_bucket_multipart_object_download_after_transition.yaml
  test_lc_cloud_transition_restore_object.yaml
+ test_lc_process_with_versioning_suspended.yaml
 
 Operation:
 
@@ -412,7 +413,11 @@ def test_exec(config, ssh_con):
                             continue
                         time.sleep(30)
                         lc_ops.validate_and_rule(bucket, config)
-                    elif not config.invalid_date and not config.rgw_enable_lc_threads:
+                    elif (
+                        not config.invalid_date
+                        and not config.rgw_enable_lc_threads
+                        and not config.test_ops.get("lc_process_with_ver_suspended")
+                    ):
                         bucket_before_lc = json.loads(
                             utils.exec_shell_cmd(
                                 f"radosgw-admin bucket stats --bucket={bucket.name}"
@@ -459,6 +464,32 @@ def test_exec(config, ssh_con):
                                     )
                         time.sleep(30)
                         lc_ops.validate_and_rule(bucket, config)
+                    elif config.test_ops.get("lc_process_with_ver_suspended", False):
+                        log.info(
+                            "Test Manual LC Process with versioning suspended on the bucket"
+                        )
+                        reusable.suspend_versioning(
+                            bucket, rgw_conn, each_user, write_bucket_io_info
+                        )
+                        life_cycle_rule = {"Rules": config.lifecycle_conf}
+                        reusable.put_bucket_lifecycle(
+                            bucket,
+                            rgw_conn,
+                            rgw_conn2,
+                            life_cycle_rule,
+                        )
+                        cmd = f"radosgw-admin lc process --bucket {bucket_name}"
+                        out = utils.exec_shell_cmd(cmd)
+                        cmd = f"radosgw-admin lc list"
+                        lc_list = json.loads(utils.exec_shell_cmd(cmd))
+                        for data in lc_list:
+                            if data["bucket"] == bucket_name:
+                                if data["status"] == "UNINITIAL":
+                                    raise TestExecError(
+                                        f"manual lc process for bucket: {bucket_name} failed"
+                                    )
+                        time.sleep(30)
+                        lc_ops.validate_prefix_rule_non_versioned(bucket, config)
                     else:
                         bucket_life_cycle = s3lib.resource_op(
                             {
