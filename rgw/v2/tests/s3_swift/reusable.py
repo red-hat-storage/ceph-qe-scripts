@@ -774,6 +774,29 @@ def enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
         raise TestExecError("version enable failed")
 
 
+def suspend_versioning(bucket, rgw_conn, user_info, write_bucket_io_info):
+    """
+    Method to perform suspend versioning operation
+    bucket: Name of teh bucket
+    rgw_conn: rgw connection
+    user_info: user info
+    """
+    bucket_versioning = s3lib.resource_op(
+        {"obj": rgw_conn, "resource": "BucketVersioning", "args": [bucket.name]}
+    )
+    version_suspended_status = s3lib.resource_op(
+        {"obj": bucket_versioning, "resource": "suspend", "args": None}
+    )
+    suspended_response = HttpResponseParser(version_suspended_status)
+    if suspended_response.status_code == 200:
+        log.info("version Suspended Successfully")
+        write_bucket_io_info.add_versioning_status(
+            user_info["access_key"], bucket.name, "suspended"
+        )
+    else:
+        raise TestExecError("Suspending versioning is failed")
+
+
 def generate_totp(seed):
     cmd = "oathtool -d6 --totp %s" % seed
     totp_token = utils.exec_shell_cmd(cmd)
