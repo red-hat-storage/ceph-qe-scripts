@@ -459,6 +459,8 @@ def upload_object_with_tagging(
     obj_tag,
     append_data=False,
     append_msg=None,
+    verify_tag_retrieval=False,
+    s3_client=None,
 ):
     log.info("s3 object name: %s" % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
@@ -499,6 +501,17 @@ def upload_object_with_tagging(
         raise TestExecError("Resource execution failed: object upload failed")
     if object_uploaded_status is None:
         log.info("object uploaded")
+    if verify_tag_retrieval:
+        log.info("Verify Tag applied is retirievable")
+        log.info(f"object: s3_object_name")
+        get_obj_tagging_result = s3lib.resource_op(
+        {
+            "obj": s3_client,
+            "resource": "get_object_tagging",
+            "kwargs": dict(Bucket=bucket, Key=s3_object_name),
+        }
+    )
+    log.info(f"get_obj_tagging_result: {get_obj_tagging_result}")
 
 
 def upload_mutipart_object(

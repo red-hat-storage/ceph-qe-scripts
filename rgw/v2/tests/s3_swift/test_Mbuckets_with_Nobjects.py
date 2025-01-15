@@ -966,6 +966,25 @@ def test_exec(config, ssh_con):
             if final_op != -1:
                 test_info.failed_status("test failed")
                 sys.exit(1)
+        if config.test_ops.get("multipart_upload_with_tag", False):
+            log.info("Testing tag retrival post multipart upload")
+            # utils.exec_shell_cmd(f"fallocate -l 1g obj1g")
+            # tagging={"key1": "val"}
+            # mp_upload_response = rgw_conn2.upload_file(
+            #             "obj1g", bucket_name, "mp_object", ExtraArgs={"Tagging": parse.urlencode(tagging)}
+            #         )
+            # log.info(f"mp upload with tag response: {mp_upload_response}")
+            obj_tag = "mpupload=mpupload"
+            reusable.upload_object_with_tagging(
+                s3_object_name,
+                bucket,
+                TEST_DATA_PATH,
+                config,
+                each_user,
+                obj_tag,
+                verify_tag_retrieval=True,
+                s3_client=rgw_conn2
+            )
 
     # test async rgw_data_notify_interval_msec=0 does not disable async data notifications
     if config.test_aync_data_notifications:
