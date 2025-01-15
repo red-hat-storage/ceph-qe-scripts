@@ -20,6 +20,8 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_sse_kms_per_bucket_multipart_object_download_after_transition.yaml
  test_lc_cloud_transition_restore_object.yaml
  test_lc_process_with_versioning_suspended.yaml
+ test_lc_date_expire_header.yaml
+ test_lc_days_expire_header.yaml
 
 Operation:
 
@@ -42,7 +44,7 @@ import json
 import logging
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -53,7 +55,6 @@ from v2.lib.s3 import lifecycle_validation as lc_ops
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
-from v2.tests.s3_swift.reusables import s3_object_restore as reusables_s3_restore
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -137,7 +138,6 @@ def test_exec(config, ssh_con):
     for each_user in user_info:
         auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
-        s3_client = auth.do_auth_using_client()
         rgw_conn2 = auth.do_auth_using_client()
         notification = None
 
@@ -176,7 +176,98 @@ def test_exec(config, ssh_con):
             if config.test_ops.get("sse_s3_per_bucket") is True:
                 reusable.put_get_bucket_encryption(rgw_conn2, bucket_name, config)
 
-            if config.test_ops["enable_versioning"] is True:
+            if (
+                config.test_ops.get("lc_expire_header", False) is True
+                and not config.test_ops.get("enable_versioning", False) is True
+            ):
+                log.info(f"perform put and get lifecycle on bucket {bucket.name}")
+                life_cycle_rule = {"Rules": config.lifecycle_conf}
+                reusable.put_bucket_lifecycle(
+                    bucket,
+                    rgw_conn,
+                    rgw_conn2,
+                    life_cycle_rule,
+                )
+                if config.test_ops.get("create_object", False) is True:
+                    log.info(f"perform upload of objects to the bucket {bucket.name}")
+                    month = {
+                        "Jan": "01",
+                        "Feb": "02",
+                        "Mar": "03",
+                        "Apr": "04",
+                        "May": "05",
+                        "Jun": "06",
+                        "Jul": "07",
+                        "Aug": "08",
+                        "Sep": "09",
+                        "Oct": "10",
+                        "Nov": "11",
+                        "Dec": "12",
+                    }
+                    for oc, size in list(config.mapped_sizes.items()):
+                        config.obj_size = size
+                        key = prefix.pop()
+                        prefix.insert(0, key)
+                        s3_object_name = key + "." + bucket.name + "." + str(oc)
+                        obj_list.append(s3_object_name)
+                        log.info(f"s3 objects to create: {config.objects_count}")
+                        reusable.upload_object(
+                            s3_object_name,
+                            bucket,
+                            TEST_DATA_PATH,
+                            config,
+                            each_user,
+                        )
+                        log.info(f"perform head object for object {s3_object_name}")
+                        headresp = rgw_conn2.head_object(
+                            Bucket=bucket.name, Key=s3_object_name
+                        )
+                        log.info(
+                            f"head object response: {headresp} for object {s3_object_name}"
+                        )
+                        if (
+                            headresp["ResponseMetadata"]["HTTPStatusCode"] == 200
+                            and "x-amz-expiration"
+                            not in headresp["ResponseMetadata"]["HTTPHeaders"].keys()
+                        ):
+                            raise TestExecError(
+                                f"Header 'x-amz-expiration' not found for object {s3_object_name} of lc applied bucket {bucket.name}"
+                            )
+                        log.info(
+                            f"Header 'x-amz-expiration' found for object {s3_object_name} of lc applied bucket {bucket.name}"
+                        )
+                        exp_date = headresp["ResponseMetadata"]["HTTPHeaders"].get(
+                            "x-amz-expiration"
+                        )
+                        log.info(f"validate header 'x-amz-expiration' value {exp_date}")
+                        exp_date = exp_date.split(" ")
+                        if exp_date[2] in month.keys():
+                            exp_date[2] = month[exp_date[2]]
+                        expiry_date = f"{exp_date[3]}-{exp_date[2]}-{exp_date[1]}"
+
+                        for rule in config.lifecycle_conf:
+                            if rule.get("Expiration", {}).get("Date", False):
+                                if expiry_date != rule["Expiration"]["Date"]:
+                                    raise TestExecError(
+                                        f"validation of 'x-amz-expiration' value failed, expected {rule['Expiration']['Date']} found {expiry_date}"
+                                    )
+                            else:
+                                current_date = datetime.strptime(
+                                    str(datetime.now()).split(" ")[0], "%Y-%m-%d"
+                                )
+                                expiry_date_from_lc_conf = str(
+                                    current_date
+                                    + timedelta(days=rule["Expiration"]["Days"] + 1)
+                                ).split(" ")[0]
+                                if f"{expiry_date}" != expiry_date_from_lc_conf:
+                                    raise TestExecError(
+                                        f"validation of 'x-amz-expiration' value failed found {expiry_date} expected {expiry_date_from_lc_conf}"
+                                    )
+                    log.info(
+                        f"Sucessfully validated value of header 'x-amz-expiration': {exp_date}"
+                    )
+
+            if config.test_ops.get("enable_versioning", False) is True:
                 reusable.enable_versioning(
                     bucket, rgw_conn, each_user, write_bucket_io_info
                 )
@@ -359,7 +450,9 @@ def test_exec(config, ssh_con):
                 else:
                     buckets.append(bucket)
 
-            if config.test_ops["enable_versioning"] is False:
+            if not config.test_ops.get(
+                "enable_versioning", False
+            ) is True and not config.test_ops.get("lc_expire_header", False):
                 upload_start_time = time.time()
                 if config.test_ops["create_object"] is True:
                     for oc, size in list(config.mapped_sizes.items()):
@@ -585,7 +678,7 @@ def test_exec(config, ssh_con):
                 )
             time.sleep(60)
             for bucket in buckets:
-                if config.test_ops["enable_versioning"] is False:
+                if not config.test_ops.get("enable_versioning", False) is True:
                     lc_ops.validate_prefix_rule_non_versioned(bucket, config)
                 else:
                     lc_ops.validate_prefix_rule(bucket, config)
