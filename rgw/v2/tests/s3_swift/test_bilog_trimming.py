@@ -6,6 +6,10 @@ Usage: test_bilog_trimming.py -c <input_yaml>
 <input_yaml>
     Note: Following yaml can be used
     test_bilog_trimming.yaml
+    test_bilog_trim_archive.yaml
+    test_datalog_trimming.yaml
+    test_mdlog_trimming.yaml
+    test_datalog_trimming_post_rgw_restart.yaml
 
 Operation:
     Create an user
@@ -35,6 +39,7 @@ from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
+from v2.utils.utils import RGWService
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
@@ -82,6 +87,13 @@ def test_exec(config, ssh_con):
                             config,
                             each_user,
                         )
+                if config.test_ops.get("datalog_trim_post_rgw_restart", False) is True:
+                    rgw_service = RGWService()
+                    log.info("trying to restart services")
+                    srv_restarted = rgw_service.restart(ssh_con)
+                    time.sleep(30)
+                    if srv_restarted is False:
+                        raise TestExecError("RGW service restart failed")
 
                 # test log trimming
                 reusable.test_log_trimming(bucket, config)
