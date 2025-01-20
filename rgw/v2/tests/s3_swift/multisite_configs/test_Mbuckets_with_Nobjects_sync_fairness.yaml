@@ -1,0 +1,21 @@
+# Polarion ID : CEPH-83575843
+# script: test_Mbuckets_with_Nobjects.py
+config:
+  user_count: 500
+  bucket_count: 1
+
+  objects_count: 0
+  objects_size_range:
+    min: 5K
+    max: 5M
+  test_ops:
+    create_bucket: true
+    create_object: false
+    download_object: false
+    delete_bucket_object: false
+    sharding:
+      enable: false
+      max_shards: 0
+    compression:
+      enable: false
+      type: zlib
