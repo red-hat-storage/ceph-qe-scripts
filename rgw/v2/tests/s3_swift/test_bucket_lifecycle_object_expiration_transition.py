@@ -55,6 +55,7 @@ from v2.lib.s3 import lifecycle_validation as lc_ops
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import s3_object_restore as reusables_s3_restore
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
