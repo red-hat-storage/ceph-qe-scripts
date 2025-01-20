@@ -80,7 +80,7 @@ def test_exec(config, ssh_con):
                         lock_mode = "GOVERNANCE"
 
                     # defining retain until date for longer
-                    retain_until = "2025-01-01T00:00:00"
+                    retain_until = "2030-01-01T00:00:00"
                     log.info(f"s3 objects to create: {config.objects_count}")
                     for oc, size in list(config.mapped_sizes.items()):
                         s3_object_name = utils.gen_s3_object_name(
