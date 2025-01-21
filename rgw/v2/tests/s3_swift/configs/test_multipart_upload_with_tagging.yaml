@@ -1,0 +1,23 @@
+# script: test_Mbuckets_with_Nobjects.py
+# upload type: Multipart
+# Polarion ID: CEPH-83604857
+# BZ: 2323604
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 1G
+    max: 2G
+  test_ops:
+    create_bucket: true
+    create_object: true
+    download_object: false
+    delete_bucket_object: false
+    multipart_upload_with_tag: true
+    sharding:
+      enable: false
+      max_shards: 0
+    compression:
+      enable: false
+      type: zlib
