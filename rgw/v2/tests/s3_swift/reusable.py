@@ -458,7 +458,7 @@ def upload_object_with_tagging(
     user_info,
     obj_tag,
     append_data=False,
-    append_msg=None
+    append_msg=None,
 ):
     log.info("s3 object name: %s" % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
