@@ -6,6 +6,8 @@ config:
   user_count: 1
   bucket_count: 1
   objects_count: 1
+  abort_multipart: false
+  split_size: 200
   objects_size_range:
     min: 1G
     max: 2G
