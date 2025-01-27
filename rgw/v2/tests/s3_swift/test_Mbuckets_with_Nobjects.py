@@ -978,8 +978,6 @@ def test_exec(config, ssh_con):
                 each_user,
                 abort_multipart=abort_multipart,
                 obj_tag=obj_tag,
-                verify_tag_retrieval=True,
-                s3_client=rgw_conn2,
             )
 
             log.info("Verify Tag applied is retirievable")
