@@ -11,6 +11,7 @@ Usage: test_bucket_listing.py -c <input_yaml>
 	test_bucket_listing_psuedo_only_ordered.yaml
 	test_bucket_listing_pseudo_ordered.yaml	
     test_bucket_listing_pseudo_ordered_dir_only.yaml	
+    test_bucket_listing_fake_mp.yaml
 Operation:
     Create user 
 	create objects as per the object structure mentioned in the yaml
@@ -38,6 +39,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import list_fake_mp as bucket_list_incomplete_mp
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -97,7 +99,31 @@ def test_exec(config, ssh_con):
                 bucket = reusable.create_bucket(
                     bucket_name_to_create, rgw_conn, each_user
                 )
+
                 bucket_created.append(bucket)
+                if config.test_ops.get("test_bucket_list_incomplete_mp", False):
+                    log.info(
+                        "executing the command radosgw-admin bucket reshard to 341 shards"
+                    )
+                    reshard_bucket = utils.exec_shell_cmd(
+                        f"radosgw-admin bucket reshard --bucket {bucket_name_to_create} --num-shards 341"
+                    )
+                    meta_prefix = "_multipart_data/run_9/main/good/298/2024-09-29/50/.part-9a2bf339-2780-46b0-8258-fcd2bb0a3275-0.2~uhJ-QZ5rU2y3bX6Mc6bZoYDfxSRrzMK/object-name-"
+                    num_objects = config.test_ops.get("num_objects")
+                    meta_entries = config.test_ops.get("meta_entries")
+                    object_size = config.test_ops.get("object_size") * 1024
+                    log.info(
+                        f"the num_objects, meta_entries and object_size is {num_objects}, {meta_entries}, {object_size} respectively"
+                    )
+                    bucket_name = bucket_name_to_create
+                    bucket_list_incomplete_mp.test_listing_incomplete_multipart(
+                        rgw_client,
+                        bucket_name,
+                        meta_prefix,
+                        num_objects,
+                        meta_entries,
+                        object_size,
+                    )
                 if config.test_ops.get("enable_version", False):
                     log.info("enable bucket version")
                     reusable.enable_versioning(

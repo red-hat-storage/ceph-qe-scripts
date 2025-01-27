@@ -1,0 +1,17 @@
+#CEPH-83605383
+#bug 2327880
+config:
+     user_count: 1
+     user_remove: false
+     bucket_count: 1
+     objects_count: 100
+     objects_size_range:
+          min: 10
+          max: 10
+     test_ops:
+          create_bucket: true
+          test_bucket_list_incomplete_mp: true
+          radoslist: true
+          meta_entries: 400000
+          num_objects: 200000
+          object_size: 4
