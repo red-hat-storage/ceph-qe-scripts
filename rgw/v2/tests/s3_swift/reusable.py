@@ -511,6 +511,7 @@ def upload_mutipart_object(
     append_msg=None,
     abort_multipart=False,
     complete_abort_race=False,
+    obj_tag=None,
 ):
     log.info("s3 object name: %s" % s3_object_name)
     s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
@@ -550,14 +551,16 @@ def upload_mutipart_object(
         }
     )
     log.info("initiating multipart upload")
-    mpu = s3lib.resource_op(
-        {
-            "obj": s3_obj,
-            "resource": "initiate_multipart_upload",
-            "args": None,
-            "extra_info": upload_info,
-        }
-    )
+    mpu_dict = {
+        "obj": s3_obj,
+        "resource": "initiate_multipart_upload",
+        "args": None,
+        "extra_info": upload_info,
+    }
+    if obj_tag:
+        mpu_dict.update({"kwargs": {"Tagging": obj_tag}})
+
+    mpu = s3lib.resource_op(mpu_dict)
     part_number = 1
     parts_info = {"Parts": []}
     if config.test_ops.get("test_get_object_attributes"):
