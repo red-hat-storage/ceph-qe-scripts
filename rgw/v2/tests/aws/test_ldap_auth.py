@@ -68,8 +68,8 @@ def test_exec(config, ssh_con):
     cmd = f"ceph orch apply -i {file_name}"
     utils.exec_shell_cmd(cmd)
 
-    log.info("Sleep for 60 seconds for RGW to reapply")
-    time.sleep(60)
+    log.info("Sleep for 30 seconds for RGW to reapply")
+    time.sleep(30)
     # add conf options to ceph
     utils.exec_shell_cmd(
         f"ceph config set client.{rgw_service_name} rgw_ldap_binddn cn=RGW"
@@ -110,13 +110,22 @@ def test_exec(config, ssh_con):
     rgw_port = utils.get_radosgw_port_no(ssh_con)
     rgw_host, rgw_ip = utils.get_hostname_ip(ssh_con)
     aws_auth.install_aws()
-    cmd = f"AWS_ACCESS_KEY_ID={token_str} AWS_SECRET_ACCESS_KEY=' ' /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
-    utils.exec_shell_cmd(cmd)
+    count = 0
+    while count < 2:
+        cmd = f"AWS_ACCESS_KEY_ID={token_str} AWS_SECRET_ACCESS_KEY=' ' /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
+        utils.exec_shell_cmd(cmd)
+        time.sleep(5)
+        cmd = f"radosgw-admin user list"
+        users = utils.exec_shell_cmd(cmd)
+        if "ldapuser1" not in users:
+            count += 1
+            if count == 2:
+                raise RGWBaseException("LDAP user not present in RGW user list")
+            log.info("Retrying for LDAP Auth in 30 sec")
+            time.sleep(30)
+        else:
+            break
 
-    cmd = f"radosgw-admin user list"
-    users = utils.exec_shell_cmd(cmd)
-    if "ldapuser1" not in users:
-        raise RGWBaseException("LDAP user not present in RGW user list")
     # Create a bucket on the LDAP user
     for bc in range(config.bucket_count):
         bucket_name = "ldap" + str(bc)
