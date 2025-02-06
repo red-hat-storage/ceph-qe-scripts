@@ -7,6 +7,11 @@ where input-yaml test_bucket_policy_delete.yaml, test_bucket_policy_modify.yaml 
   test_bucket_policy_condition.yaml, test_bucket_policy_condition_explicit_deny.yaml,
   test_bucket_policy_invalid_*.yaml, test_sse_kms_per_bucket_with_bucket_policy.yaml,
   test_bucket_policy_deny_actions.yaml
+  test_public_access_block_pre_bucket_policy.yaml
+  test_public_access_block_post_bucket_policy.yaml
+  test_public_access_block_acl.yaml
+  test_public_access_block_ignore_acl.yaml
+  test_public_access_block_restricted_public_buckets.yaml
 
 Operation:
 - create bucket in tenant1 for user1
@@ -39,6 +44,7 @@ from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.tests.aws import reusable as aws_reusable
 from v2.tests.s3_swift import reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -145,6 +151,88 @@ def test_exec(config, ssh_con):
         rgw_tenant1_user1,
         tenant1_user1_info,
     )
+
+    public_access_block = config.test_ops.get("public_access_block_config", {})
+    rgw_endpoint_url = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
+    if config.test_ops.get("put_public_access_block", False):
+        reusable.put_get_public_access_block(
+            rgw_tenant1_user1_c, t1_u1_bucket1.name, public_access_block
+        )
+
+    if config.test_ops.get("verify_public_acl", False):
+        if public_access_block.get("BlockPublicAcls", False):
+            log.info(f"testing public_access_block BlockPublicAcls")
+            try:
+                reusable.put_get_bucket_acl(
+                    rgw_tenant1_user1_c, t1_u1_bucket1.name, "public-read-write"
+                )
+                raise TestExecError(
+                    "put bucket acl passed even after BlockPublicAcls is set"
+                )
+            except boto3exception.ClientError as e:
+                log.info("put bucket acl failed as excepted as BlockPublicAcls is set")
+
+            log.info(f"upload object obj1 into bucket {t1_u1_bucket1.name}")
+            resp = rgw_tenant1_user1_c.put_object(
+                Bucket=t1_u1_bucket1.name, Key="obj1", Body="randomtext1"
+            )
+            log.info(f"upload object obj1 resp: {resp}")
+            try:
+                reusable.put_get_object_acl(
+                    "obj1", t1_u1_bucket1.name, rgw_tenant1_user1_c, "public-read-write"
+                )
+                raise TestExecError(
+                    "put object acl passed even after BlockPublicAcls is set"
+                )
+            except boto3exception.ClientError as e:
+                log.info("put object acl failed as excepted as BlockPublicAcls is set")
+
+            try:
+                log.info(
+                    f"upload object obj2 with public acl into bucket {t1_u1_bucket1.name}"
+                )
+                resp = rgw_tenant1_user1_c.put_object(
+                    Bucket=t1_u1_bucket1.name,
+                    Key="obj2",
+                    Body="randomtext2",
+                    ACL="public-read-write",
+                )
+                log.info(f"upload object obj2 resp: {resp}")
+                raise TestExecError(
+                    "put object with public acl passed even after BlockPublicAcls is set"
+                )
+            except boto3exception.ClientError as e:
+                log.info(
+                    "put object with public acl failed as excepted as BlockPublicAcls is set"
+                )
+
+        if public_access_block.get("IgnorePublicAcls", False):
+            log.info(f"testing public_access_block IgnorePublicAcls")
+            log.info(
+                f"upload object obj3 with public acl into bucket {t1_u1_bucket1.name}"
+            )
+            resp = rgw_tenant1_user1_c.put_object(
+                Bucket=t1_u1_bucket1.name,
+                Key="obj3",
+                Body="randomtext3",
+                ACL="public-read-write",
+            )
+            log.info(f"upload object obj3 resp: {resp}")
+
+            log.info(f"download object obj3 without auth {t1_u1_bucket1.name}")
+            out = utils.exec_shell_cmd(
+                f"curl --show-error --fail-with-body -v -s -X GET '{rgw_endpoint_url}/{tenant1}:{t1_u1_bucket1.name}/obj3' -o obj3.download"
+            )
+            if out is False:
+                log.info(
+                    "get public object failed as expected as IgnorePublicAcls is set"
+                )
+            else:
+                raise TestExecError(
+                    "get public object passed even after IgnorePublicAcls is set"
+                )
+        return
+
     if not config.test_ops.get("policy_document", False):
         bucket_policy_generated = s3_bucket_policy.gen_bucket_policy(
             tenants_list=[tenant2],
@@ -181,6 +269,11 @@ def test_exec(config, ssh_con):
     )
     log.info("put policy response:%s\n" % put_policy)
     if put_policy is False:
+        if config.test_ops.get("test_public_access_block_pre_bucket_policy", False):
+            log.info(
+                "put bucket policy failed as expected as BlockPublicPolicy is set in public_access_block"
+            )
+            return
         if config.test_ops.get("invalid_policy", False):
             log.info("Invalid bucket policy creation failed as expected")
         else:
@@ -191,6 +284,12 @@ def test_exec(config, ssh_con):
         if put_policy is not None:
             response = HttpResponseParser(put_policy)
             if response.status_code == 200 or response.status_code == 204:
+                if config.test_ops.get(
+                    "test_public_access_block_pre_bucket_policy", False
+                ):
+                    raise TestExecError(
+                        "put bucket policy passed even after BlockPublicPolicy is set in public_access_block"
+                    )
                 if config.test_ops.get("invalid_policy", False):
                     raise TestExecError("Invalid bucket policy creation passed")
                 else:
@@ -198,7 +297,84 @@ def test_exec(config, ssh_con):
             else:
                 raise TestExecError("bucket policy creation failed")
         else:
-            raise TestExecError("bucket policy creation failed")
+            if config.test_ops.get("test_public_access_block_pre_bucket_policy", False):
+                log.info(
+                    "put bucket policy failed as expected as BlockPublicPolicy is set in public_access_block"
+                )
+                return
+            else:
+                raise TestExecError("bucket policy creation failed")
+
+        if config.test_ops.get("put_public_access_block_post_bucket_policy", False):
+            log.info(
+                "setting public_access_block post bucket poliocy is set. the existing bucket policy should still work and should not be blocked"
+            )
+            reusable.put_get_public_access_block(
+                rgw_tenant1_user1_c,
+                t1_u1_bucket1.name,
+                config.test_ops.get("public_access_block_config", False),
+            )
+
+            log.info("sleeping for 5 seconds")
+            time.sleep(5)
+
+            log.info(
+                f"put object obj4 into the public bucket {t1_u1_bucket1.name} without auth"
+            )
+            out = utils.exec_shell_cmd(
+                f"curl --show-error --fail-with-body -v -s -d 'randomdata4' -X PUT '{rgw_endpoint_url}/{tenant1}:{t1_u1_bucket1.name}/obj4'"
+            )
+            if out is False:
+                raise TestExecError(
+                    "public access of a bucket should not fail as the policy is set before BlockPublicPolicy"
+                )
+            else:
+                log.info(
+                    f"public access of a bucket is allowed as expected. put obj4 output: {out}"
+                )
+
+            log.info(f"list objects in the bucket {t1_u1_bucket1.name} without auth")
+            out = utils.exec_shell_cmd(
+                f"curl --show-error --fail-with-body -v -s -X GET '{rgw_endpoint_url}/{tenant1}:{t1_u1_bucket1.name}/'"
+            )
+            if out is False:
+                raise TestExecError(
+                    "public access of a bucket should not fail as the policy is set before BlockPublicPolicy"
+                )
+            else:
+                log.info(
+                    f"public access of a bucket is allowed as expected. list objects output: {out}"
+                )
+
+        if config.test_ops.get("verify_restricted_public_buckets", False):
+            log.info("verify_restricted_public_buckets")
+            log.info(
+                f"verify_restricted_public_buckets: put object obj5 into the public bucket {t1_u1_bucket1.name} without auth"
+            )
+            out = utils.exec_shell_cmd(
+                f"curl --show-error --fail-with-body -v -s -d 'randomdata5' -X PUT '{rgw_endpoint_url}/{tenant1}:{t1_u1_bucket1.name}/obj5'"
+            )
+            if out is False:
+                log.info(
+                    f"public access of a bucket is denied as expected. put obj5 output: {out}"
+                )
+            else:
+                raise TestExecError(
+                    "public access of a bucket should not pass as RestrictPublicBuckets is set"
+                )
+
+            log.info(f"list objects in the bucket {t1_u1_bucket1.name} without auth")
+            out = utils.exec_shell_cmd(
+                f"curl --show-error --fail-with-body -v -s -X GET '{rgw_endpoint_url}/{tenant1}:{t1_u1_bucket1.name}/'"
+            )
+            if out is False:
+                log.info(
+                    f"public access of a bucket is denied as expected. list objects output: {out}"
+                )
+            else:
+                raise TestExecError(
+                    "public access of a bucket should not pass as RestrictPublicBuckets is set"
+                )
 
         if config.test_ops.get("upload_type") == "multipart":
             # verifies bug 1960262 rgw: Crash on multipart upload to bucket with policy
