@@ -2368,6 +2368,29 @@ def resharding_enable_disable_in_zonegroup(enable=True):
         log.info("Resharding feature is successfully modified in zonegroup")
 
 
+def resharding_disable_in_zone(zone_name, disable=True):
+    """
+    Method to disable/re-enable resharding feature in the zone
+    zone_name: specific rgw service name based on zone
+    disable: True if we want to disable dbr feature, False to renable
+    """
+    if disable:
+        log.info("method for disabling resharding feature in zone!")
+        utils.exec_shell_cmd(
+            f"ceph config set client.{zone_name} rgw_dynamic_resharding false"
+        )
+        rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
+        utils.exec_shell_cmd(f"ceph orch restart {rgw_service_name}")
+    else:
+        log.info("method for re-enabling resharding feature in zone!")
+        utils.exec_shell_cmd(
+            f"ceph config set client.{zone_name} rgw_dynamic_resharding true"
+        )
+        rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
+        utils.exec_shell_cmd(f"ceph orch restart {rgw_service_name}")
+    time.sleep(60)
+
+
 def fetch_bucket_gen(bucket):
     log.info(f"fetch bucket gen for the bucket {bucket}")
     json_doc = json.loads(
