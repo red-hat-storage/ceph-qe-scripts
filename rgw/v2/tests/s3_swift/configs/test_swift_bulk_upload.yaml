@@ -1,0 +1,9 @@
+# Polarion ID: CEPH-83607707
+# Bugzilla: BZ2130119, BZ2132481, BZ2132482
+# Script file: tests/s3_swift/test_swift_bulk_upload.py
+config:
+  container_count: 1
+  objects_count: 4
+  objects_size_range:
+    min: 5
+    max: 15
