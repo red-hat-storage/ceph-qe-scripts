@@ -1,14 +1,24 @@
-import os
-import logging
-import socket
 import argparse
+import datetime
+import json
+import logging
+import os
+import socket
+import sys
+import time
+import traceback
+
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
+
+
 from v2.lib import resource_op
 from v2.lib.admin import UserMgmt
-from v2.lib.exceptions import TestExecError
-from v2.lib.rgw_config_opts import CephConfOp
+from v2.lib.exceptions import RGWBaseException, TestExecError
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.lib.s3cmd import auth as s3_auth
+from v2.tests.s3_swift import reusable
 from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils import utils
 from v2.utils.log import configure_logging
@@ -46,36 +56,45 @@ def test_s3cmd_get_on_tertiary_cluster(config, ssh_con):
     s3_auth.do_auth(user_info[0], ip_and_port)
     auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
     rgw_conn = auth.do_auth()
+    for bc in range(config.bucket_count):
+        bucket_name = utils.gen_bucket_name_from_userid(
+            user_info[0]["user_id"], rand_no=bc
+        )
+        s3cmd_reusable.create_bucket(bucket_name)
+        log.info(f"Bucket {bucket_name} created")
+        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+        object_count = config.objects_count // 2
 
-    bucket_name = utils.gen_bucket_name_from_userid(user_info[0]["user_id"], rand_no=0)
-    s3cmd_reusable.create_bucket(bucket_name)
-    log.info(f"Bucket {bucket_name} created on the tertiary cluster")
+        log.info(f"uploading some large objects to bucket {bucket_name}")
+        utils.exec_shell_cmd(f"fallocate -l 20m obj20m")
+        for mobj in range(object_count):
+            cmd = f"{s3cmd_path} put obj20m s3://{bucket_name}/multipart-object-{mobj}"
+            utils.exec_shell_cmd(cmd)
 
-    # Upload a file to the bucket
-    uploaded_file_info = s3cmd_reusable.upload_file(bucket_name, "test_object", test_data_path=TEST_DATA_PATH)
-    log.info(f"Uploaded file {uploaded_file_info['name']} to bucket {bucket_name}")
+        log.info(f"uploading some small objects to bucket {bucket_name}")
+        utils.exec_shell_cmd(f"fallocate -l 4k obj4k")
+        for sobj in range(object_count):
+            cmd = f"{s3cmd_path} put obj4k s3://{bucket_name}/small-object-{sobj}"
+            utils.exec_shell_cmd(cmd)
 
-    # Perform s3cmd GET operation to fetch and download the object
-    s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
-    local_file_path = f"/tmp/{uploaded_file_info['name']}"
-    cmd = f"{s3cmd_path} get s3://{bucket_name}/{uploaded_file_info['name']} {local_file_path}"
-    rc = utils.exec_shell_cmd(cmd)
-    if rc is False:
-        raise AssertionError(f"Failed to download object {uploaded_file_info['name']} from bucket {bucket_name}")
+        log.info(f"perfotm s3cmd get for all objects resides in bucket: {bucket_name}")
+        for sobj in range(object_count):
+            cmd = f"{s3cmd_path} get s3://{bucket_name}/multipart-object-{sobj} {bucket_name}-multipart-object-{sobj}"
+            multi_rc = utils.exec_shell_cmd(cmd)
+            if multi_rc is False:
+                raise AssertionError(
+                    f"Failed to download object multipart-object-{sobj} from bucket {bucket_name}: {multi_rc}"
+                )
 
-    log.info(f"Successfully downloaded object {uploaded_file_info['name']} from bucket {bucket_name}")
+            cmd = f"{s3cmd_path} get s3://{bucket_name}/small-object-{sobj} {bucket_name}-small-object-{sobj}"
+            small_rc = utils.exec_shell_cmd(cmd)
+            if small_rc is False:
+                raise AssertionError(
+                    f"Failed to download object small-object-{sobj} from bucket {bucket_name}: {small_rc}"
+                )
 
-    # Verify that the object was downloaded correctly
-    if not os.path.exists(local_file_path):
-        raise AssertionError(f"Downloaded file {local_file_path} does not exist")
-
-    log.info(f"Verified that the object {uploaded_file_info['name']} was downloaded successfully")
-
-    # Clean up
-    s3cmd_reusable.delete_file(bucket_name, uploaded_file_info["name"])
-    s3cmd_reusable.delete_bucket(bucket_name)
-    log.info(f"Deleted file and bucket {bucket_name} from the tertiary cluster")
-
+    log.info("Remove downloaded objects from cluster")
+    utils.exec_shell_cmd("rm -rf *-object-*")
     # Check for crashes
     crash_info = reusable.check_for_crash()
     if crash_info:
@@ -94,7 +113,9 @@ if __name__ == "__main__":
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
 
-        parser = argparse.ArgumentParser(description="RGW s3cmd GET test on tertiary cluster")
+        parser = argparse.ArgumentParser(
+            description="RGW s3cmd GET test on tertiary cluster"
+        )
         parser.add_argument("-c", dest="config", help="Test configuration YAML file")
         parser.add_argument(
             "-log_level",
