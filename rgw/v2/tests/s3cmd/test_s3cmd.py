@@ -406,6 +406,10 @@ def test_exec(config, ssh_con):
             else:
                 log.info("bucket list is empty as expected")
 
+    skip_test = config.test_ops.get("skip_test", False)  # Get from config, default False
+
+    if skip_test:  # Now use the value from the config
+        log.info("cluster is not primary")  
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
         tenant = "tenant"
