@@ -1058,7 +1058,7 @@ def put_get_bucket_lifecycle_test(
     for rule in config.lifecycle_conf:
         if rule.get("Expiration", {}).get("Date", False):
             # todo: need to get the interval value from yaml file
-            log.info("wait for 60 seconds")
+            log.info(f"wait for 60 seconds")
             time.sleep(60)
         else:
             while time.time() < time_limit:
@@ -1071,10 +1071,11 @@ def put_get_bucket_lifecycle_test(
                     time.sleep(config.rgw_lc_debug_interval)
                 else:
                     raise TestExecError("Objects expired before the expected days")
+    lc_grace_time = config.test_ops.get("lc_grace_time", 90)
     log.info(
-        f"sleeping for {time_diff + 90} seconds so that all objects gets expired/transitioned"
+        f"sleeping for {time_diff + lc_grace_time} seconds so that all objects gets expired/transitioned"
     )
-    time.sleep(time_diff + 90)
+    time.sleep(time_diff + lc_grace_time)
 
     if config.test_ops.get("conflict_exp_days"):
         bucket_stats_op = utils.exec_shell_cmd(
@@ -1095,10 +1096,14 @@ def put_get_bucket_lifecycle_test(
     for i, entry in enumerate(json_doc):
         print(i)
         print(entry["status"])
-        if entry["status"] == "COMPLETE" or entry["status"] == "PROCESSING":
-            log.info("LC is applied on the bucket")
-        else:
-            raise TestExecError("LC is not applied")
+        if bucket.name in entry["bucket"]:
+            if entry["status"] == "COMPLETE" or entry["status"] == "PROCESSING":
+                log.info("LC is applied on the bucket")
+            else:
+                raise TestExecError("LC is not applied")
+            break
+    else:
+        raise TestExecError("bucket not listed in lc list")
     if config.test_ops.get("tenant_name"):
         tenant_name = config.test_ops.get("tenant_name")
         op_lc_get = utils.exec_shell_cmd(
