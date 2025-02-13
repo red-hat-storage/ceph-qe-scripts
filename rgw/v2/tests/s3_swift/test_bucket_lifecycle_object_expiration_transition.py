@@ -82,6 +82,7 @@ def test_exec(config, ssh_con):
         ConfigOpts.rgw_lc_debug_interval,
         str(config.rgw_lc_debug_interval),
         ssh_con,
+        set_to_all=config.test_ops.get("set_ceph_configs_to_all_daemons", False),
     )
     if not config.rgw_enable_lc_threads:
         ceph_conf.set_to_ceph_conf(
@@ -89,12 +90,14 @@ def test_exec(config, ssh_con):
             ConfigOpts.rgw_enable_lc_threads,
             str(config.rgw_enable_lc_threads),
             ssh_con,
+            set_to_all=config.test_ops.get("set_ceph_configs_to_all_daemons", False),
         )
     ceph_conf.set_to_ceph_conf(
         "global",
         ConfigOpts.rgw_lifecycle_work_time,
         str(config.rgw_lifecycle_work_time),
         ssh_con,
+        set_to_all=config.test_ops.get("set_ceph_configs_to_all_daemons", False),
     )
     _, version_name = utils.get_ceph_version()
     if "nautilus" in version_name:
@@ -110,6 +113,72 @@ def test_exec(config, ssh_con):
             option=ConfigOpts.rgw_lc_max_worker,
             value=str(config.rgw_lc_max_worker),
             ssh_con=ssh_con,
+            set_to_all=config.test_ops.get("set_ceph_configs_to_all_daemons", False),
+        )
+    ceph_conf.set_to_ceph_conf(
+        "global",
+        ConfigOpts.rgw_lc_max_wp_worker,
+        str(config.rgw_lc_max_wp_worker),
+        ssh_con,
+        set_to_all=config.test_ops.get("set_ceph_configs_to_all_daemons", False),
+    )
+    log.info(f"test_lc_on_other_site: {config.test_ops.get('test_lc_on_other_site')}")
+    if config.test_ops.get("test_lc_on_other_site", False) is True:
+        log.info(f"other_site_master: {config.test_ops.get('other_site_master')}")
+        other_site_rgw_ip = utils.get_rgw_ip(
+            config.test_ops.get("other_site_master", False)
+        )
+        log.info(f"other_site_rgw_ip: {other_site_rgw_ip}")
+        other_site_ssh_con = utils.connect_remote(other_site_rgw_ip)
+        log.info(f"other_site_ssh_con: {other_site_ssh_con}")
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_lc_debug_interval,
+            str(config.rgw_lc_debug_interval),
+            remote_ssh_con=other_site_ssh_con,
+            set_to_all=config.test_ops.get("set_ceph_configs_to_all_daemons", False),
+        )
+        if not config.rgw_enable_lc_threads:
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_enable_lc_threads,
+                str(config.rgw_enable_lc_threads),
+                remote_ssh_con=other_site_ssh_con,
+                set_to_all=config.test_ops.get(
+                    "set_ceph_configs_to_all_daemons", False
+                ),
+            )
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_lifecycle_work_time,
+            str(config.rgw_lifecycle_work_time),
+            remote_ssh_con=other_site_ssh_con,
+            set_to_all=config.test_ops.get("set_ceph_configs_to_all_daemons", False),
+        )
+        _, version_name = utils.get_ceph_version()
+        if "nautilus" in version_name:
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_lc_max_worker,
+                str(config.rgw_lc_max_worker),
+                remote_ssh_con=other_site_ssh_con,
+            )
+        else:
+            ceph_conf.set_to_ceph_conf(
+                section=None,
+                option=ConfigOpts.rgw_lc_max_worker,
+                value=str(config.rgw_lc_max_worker),
+                remote_ssh_con=other_site_ssh_con,
+                set_to_all=config.test_ops.get(
+                    "set_ceph_configs_to_all_daemons", False
+                ),
+            )
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_lc_max_wp_worker,
+            str(config.rgw_lc_max_wp_worker),
+            ssh_con,
+            set_to_all=config.test_ops.get("set_ceph_configs_to_all_daemons", False),
         )
 
     if config.test_lc_transition:
@@ -120,6 +189,12 @@ def test_exec(config, ssh_con):
 
     log.info("trying to restart services")
     srv_restarted = rgw_service.restart(ssh_con)
+
+    if config.test_ops.get("set_ceph_configs_to_all_daemons", False):
+        utils.restart_rgw(restart_all=True)
+        if config.test_ops.get("test_lc_on_other_site", False):
+            utils.restart_rgw(restart_all=True, ssh_con=other_site_ssh_con)
+
     time.sleep(30)
     if srv_restarted is False:
         raise TestExecError("RGW service restart failed")
@@ -143,7 +218,9 @@ def test_exec(config, ssh_con):
         )
     else:
         log.info(f"user count is {config.user_count}")
-        user_info = s3lib.create_users(config.user_count)
+        user_info = s3lib.create_users(
+            config.user_count, config.user_names, config=config
+        )
     log.info(f"print user info {user_info}")
 
     if config.test_ops.get("send_bucket_notifications", False) is True:
@@ -161,9 +238,12 @@ def test_exec(config, ssh_con):
 
         log.info("no of buckets to create: %s" % config.bucket_count)
         for bc in range(config.bucket_count):
-            bucket_name = utils.gen_bucket_name_from_userid(
-                each_user["user_id"], rand_no=bc
-            )
+            if config.bucket_names:
+                bucket_name = config.bucket_names[bc]
+            else:
+                bucket_name = utils.gen_bucket_name_from_userid(
+                    each_user["user_id"], rand_no=bc
+                )
             obj_list = []
             obj_tag = "suffix1=WMV1"
             bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
@@ -691,10 +771,19 @@ def test_exec(config, ssh_con):
                 reusable.put_bucket_lifecycle(
                     bucket, rgw_conn, rgw_conn2, life_cycle_rule
                 )
+            if config.test_ops.get("lc_grace_time"):
+                log.info(
+                    f"sleeping for lc_grace_time {config.test_ops.get('lc_grace_time')} seconds"
+                )
+                time.sleep(config.test_ops.get("lc_grace_time"))
             time.sleep(60)
             for bucket in buckets:
                 if not config.test_ops.get("enable_versioning", False) is True:
                     lc_ops.validate_prefix_rule_non_versioned(bucket, config)
+                    if config.test_ops.get("test_lc_on_other_site", False):
+                        lc_ops.validate_prefix_rule_non_versioned(
+                            bucket, config, other_site_ssh_con
+                        )
                 else:
                     lc_ops.validate_prefix_rule(bucket, config)
                 if config.test_ops.get("send_bucket_notifications", False) is True:
@@ -706,9 +795,14 @@ def test_exec(config, ssh_con):
             )
             rgw_service.restart()
             time.sleep(30)
+
+        if config.test_ops.get("delete_bucket_object", False):
+            for bucket in buckets:
+                reusable.delete_bucket(bucket)
+
         if config.test_ops.get("test_via_rgw_accounts", False) is True:
             log.info("do not remove user")
-        else:
+        elif config.user_remove:
             reusable.remove_user(each_user)
         # check for any crashes during the execution
         crash_info = reusable.check_for_crash()
