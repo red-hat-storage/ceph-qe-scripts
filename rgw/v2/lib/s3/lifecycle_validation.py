@@ -234,6 +234,8 @@ def validate_prefix_rule_non_versioned(bucket, config):
     objects_count = config.objects_count
     if config.test_lc_transition:
         cmd = utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket.name}")
+        if objects_count > 1000:
+            cmd = f"{cmd} --max-entries {objects_count}"
         json_doc = json.loads(cmd)
         for i in range(0, objects_count):
             storage_class = json_doc[i]["meta"]["storage_class"]
@@ -261,7 +263,7 @@ def validate_and_rule(bucket, config):
     log.info("verification starts")
     op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
     json_doc = json.loads(op)
-    op2 = utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket.name}")
+    op2 = utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket.name}{f' --max-entries {config.objects_count}' if  config.objects_count > 1000 else ''}")
     json_doc2 = json.loads(op2)
     objects = json_doc["usage"]["rgw.main"]["num_objects"]
     if config.test_lc_transition and not config.test_ops.get(

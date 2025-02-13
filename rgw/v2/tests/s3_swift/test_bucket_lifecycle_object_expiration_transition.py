@@ -131,7 +131,7 @@ def test_exec(config, ssh_con):
     log.info(f"user count is {config.user_count}")
     log.info(f"bucket count is {config.bucket_count}")
     # create user
-    user_info = s3lib.create_users(config.user_count)
+    user_info = s3lib.create_users(config.user_count, config.user_names)
 
     if config.test_ops.get("send_bucket_notifications", False) is True:
         utils.add_service2_sdk_extras()
@@ -147,9 +147,12 @@ def test_exec(config, ssh_con):
 
         log.info("no of buckets to create: %s" % config.bucket_count)
         for bc in range(config.bucket_count):
-            bucket_name = utils.gen_bucket_name_from_userid(
-                each_user["user_id"], rand_no=bc
-            )
+            if config.bucket_names:
+                bucket_name = config.bucket_names[bc]
+            else:
+                bucket_name = utils.gen_bucket_name_from_userid(
+                    each_user["user_id"], rand_no=bc
+                )
             obj_list = []
             obj_tag = "suffix1=WMV1"
             bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
@@ -677,6 +680,8 @@ def test_exec(config, ssh_con):
                 reusable.put_bucket_lifecycle(
                     bucket, rgw_conn, rgw_conn2, life_cycle_rule
                 )
+            if config.test_ops.get("lc_grace_time"):
+                log.info(f"sleeping for lc_grace_time {config.test_ops.get('lc_grace_time')}")
             time.sleep(60)
             for bucket in buckets:
                 if not config.test_ops.get("enable_versioning", False) is True:
@@ -692,7 +697,8 @@ def test_exec(config, ssh_con):
             )
             rgw_service.restart()
             time.sleep(30)
-        reusable.remove_user(each_user)
+        if config.user_remove:
+            reusable.remove_user(each_user)
         # check for any crashes during the execution
         crash_info = reusable.check_for_crash()
         if crash_info:

@@ -66,7 +66,7 @@ def test_exec(config, ssh_con):
         utils.add_service2_sdk_extras()
 
     # create user
-    user_info = s3lib.create_users(config.user_count)
+    user_info = s3lib.create_users(config.user_count, config.user_names)
     for each_user in user_info:
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
