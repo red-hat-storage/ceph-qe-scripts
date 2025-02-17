@@ -1,1 +1,9 @@
-rgw_client: s3
+# script: test_storage_policy.py
+# polarion id: CEPH-9337
+config:
+  objects_count: 100
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    rgw_client: s3
