@@ -432,8 +432,15 @@ def test_exec(config, ssh_con):
         else:
             raise AssertionError("Dynamic Re-sharding FAILED!")
 
-        log.info("Disabling resharding in Zonegroup")
-        reusable.resharding_enable_disable_in_zonegroup(enable=False)
+        if config.test_ops.get("disable_dynamic_reshard_zone", False):
+            log.info("Disabling resharding in Zone")
+            rgw_service = utils.exec_shell_cmd("ceph orch ps | grep rgw").split(" ")[0]
+            log.info(f"rgw name : {rgw_service}")
+            reusable.resharding_disable_in_zone(zone_name=rgw_service)
+
+        else:
+            log.info("Disabling resharding in Zonegroup")
+            reusable.resharding_enable_disable_in_zonegroup(enable=False)
 
         config.objects_count = (
             (num_shards_created * config.max_objects_per_shard) + 2 - num_objects
@@ -550,6 +557,8 @@ def test_exec(config, ssh_con):
         else:
             reusable.delete_objects(bucket)
         reusable.delete_bucket(bucket)
+    if config.test_ops.get("disable_dynamic_reshard_zone", False):
+        reusable.resharding_disable_in_zone(zone_name=rgw_service, disable=False)
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
     if crash_info:
