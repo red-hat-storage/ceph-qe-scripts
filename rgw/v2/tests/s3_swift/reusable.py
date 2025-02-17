@@ -152,17 +152,13 @@ def create_bucket_readonly(bucket_name, rgw, user_info):
         log.info("Bucket creation failed as expected")
 
 
-def set_get_object_acl(
-    s3_object_name,
-    bucket_name,
-    rgw_conn2,
-):
+def set_get_object_acl(s3_object_name, bucket_name, rgw_conn2, acl="private"):
     """
     put object acl as private for a given object
     """
     log.info("Set object acl on s3 object name: %s" % s3_object_name)
     put_obj_acl = rgw_conn2.put_object_acl(
-        ACL="private", Bucket=bucket_name, Key=s3_object_name
+        ACL=acl, Bucket=bucket_name, Key=s3_object_name
     )
     if put_obj_acl:
         get_obj_acl = rgw_conn2.get_object_acl(Bucket=bucket_name, Key=s3_object_name)
@@ -2818,3 +2814,29 @@ def generate_presigned_url(rgw_s3_client, client_method, http_method, params):
     )
     log.info(f"presigned_url: {presigned_url}")
     return presigned_url
+
+
+def put_get_public_access_block(rgw_s3_client, bucket_name, public_access_block_config):
+    log.info(
+        f"setting public access block for bucket {bucket_name} with config {public_access_block_config}"
+    )
+    put_response = rgw_s3_client.put_public_access_block(
+        Bucket=bucket_name, PublicAccessBlockConfiguration=public_access_block_config
+    )
+    log.info(f"put response: {put_response}")
+    get_response = rgw_s3_client.get_public_access_block(Bucket=bucket_name)
+    log.info(f"get response: {get_response}")
+    return True
+
+
+def put_get_bucket_acl(rgw_client, bucket_name, acl):
+    """
+    put bucket acl for a given object
+    """
+    log.info(f"Set bucket acl on bucket : {bucket_name}")
+    put_bkt_acl = rgw_client.put_bucket_acl(ACL=acl, Bucket=bucket_name)
+    log.info(f"put bucket acl resp: {put_bkt_acl}")
+
+    get_bkt_acl = rgw_client.get_bucket_acl(Bucket=bucket_name)
+    get_bkt_acl_json = json.dumps(get_bkt_acl, indent=2)
+    log.info(f"get bucket acl response: {get_bkt_acl_json}")
