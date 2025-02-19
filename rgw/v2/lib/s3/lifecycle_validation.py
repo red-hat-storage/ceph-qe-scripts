@@ -66,7 +66,15 @@ def validate_prefix_rule(bucket, config):
         config.objects_count
     )
     objs_diff = objs_total - objs_ncurr
-    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
+    if config.test_ops.get("tenant_name"):
+        tenant_name = config.test_ops.get("tenant_name")
+        op = utils.exec_shell_cmd(
+            f"radosgw-admin bucket stats --bucket {tenant_name}/{bucket.name}"
+        )
+    else:
+        op = utils.exec_shell_cmd(
+            "radosgw-admin bucket stats --bucket=%s" % bucket.name
+        )
     if config.conflict_transition_actions:
         log.info(
             "Transition to latest storage class in lc config taken place"
@@ -76,8 +84,15 @@ def validate_prefix_rule(bucket, config):
 
     if config.conflict_transition_actions or config.test_ops.get("reverse_transition"):
         sleep_till_lc_not_processing(config, bucket)
-
-    op2 = utils.exec_shell_cmd("radosgw-admin bucket list --bucket=%s" % bucket.name)
+    if config.test_ops.get("tenant_name"):
+        tenant_name = config.test_ops.get("tenant_name")
+        op2 = utils.exec_shell_cmd(
+            f"radosgw-admin bucket list --bucket {tenant_name}/{bucket.name}"
+        )
+    else:
+        op2 = utils.exec_shell_cmd(
+            "radosgw-admin bucket list --bucket=%s" % bucket.name
+        )
     json_doc = json.loads(op)
     json_doc2 = json.loads(op2)
     objects = json_doc["usage"]["rgw.main"]["num_objects"]

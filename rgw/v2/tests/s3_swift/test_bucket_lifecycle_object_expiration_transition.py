@@ -1,7 +1,7 @@
 """
 Test bucket lifecycle for object expiration:
 Script tests the s3 object(both versioned and non-versioned) expiration rules based on:
-a) Prefix filters 
+a) Prefix filters
 b) ANDing of Prefix and TAG filters
 
 Usage: test_bucket_lifecycle_object_expiration.py -c configs/<input-yaml>
@@ -22,6 +22,7 @@ where : <input-yaml> are test_lc_date.yaml, test_rgw_enable_lc_threads.yaml, tes
  test_lc_process_with_versioning_suspended.yaml
  test_lc_date_expire_header.yaml
  test_lc_days_expire_header.yaml
+ multisite_configs/test_lc_date_rgw_accounts.yaml
 
 Operation:
 
@@ -130,13 +131,26 @@ def test_exec(config, ssh_con):
 
     log.info(f"user count is {config.user_count}")
     log.info(f"bucket count is {config.bucket_count}")
-    # create user
-    user_info = s3lib.create_users(config.user_count)
+    if config.test_ops.get("test_via_rgw_accounts", False) is True:
+        # create rgw account, account root user, iam user and return iam user details
+        tenant_name = config.test_ops.get("tenant_name")
+        region = config.test_ops.get("region")
+
+        user_info = reusable.create_rgw_account_with_iam_user(
+            config,
+            tenant_name,
+            region,
+        )
+    else:
+        log.info(f"user count is {config.user_count}")
+        user_info = s3lib.create_users(config.user_count)
+    log.info(f"print user info {user_info}")
 
     if config.test_ops.get("send_bucket_notifications", False) is True:
         utils.add_service2_sdk_extras()
 
     for each_user in user_info:
+        log.info(f"print each_user {each_user}")
         auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
@@ -692,7 +706,10 @@ def test_exec(config, ssh_con):
             )
             rgw_service.restart()
             time.sleep(30)
-        reusable.remove_user(each_user)
+        if config.test_ops.get("test_via_rgw_accounts", False) is True:
+            log.info("do not remove user")
+        else:
+            reusable.remove_user(each_user)
         # check for any crashes during the execution
         crash_info = reusable.check_for_crash()
         if crash_info:

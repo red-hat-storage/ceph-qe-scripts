@@ -4,6 +4,7 @@ import os
 import random
 import subprocess
 import sys
+from datetime import datetime
 
 import boto3
 
@@ -35,6 +36,156 @@ from v2.utils.utils import HttpResponseParser, RGWService
 rgw_service = RGWService()
 
 log = logging.getLogger()
+
+
+def json_serial(obj):
+    """JSON serializer for objects not serializable by default json code."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()  # Convert datetime to ISO format string
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+
+def run_command(command):
+    """Runs a shell command and returns JSON output."""
+    process = subprocess.run(command, capture_output=True, text=True, shell=True)
+    if process.returncode != 0 or not process.stdout.strip():
+        return None  # Handle cases where the command fails
+    try:
+        return json.loads(process.stdout)
+    except json.JSONDecodeError:
+        return process.stdout.strip()  # Return raw output if JSON decoding fails
+
+
+def create_rgw_account_with_iam_user(
+    config,
+    tenant_name,
+    region="shared",
+):
+    """
+    Automates the creation of an RGW tenanted account, root user, IAM user, and grants full S3 access.
+
+    Returns:
+        dict: IAM user details, including access/secret keys and RGW IAM user info.
+    """
+    rgw_ip_primary_zone = utils.get_rgw_ip_zone("primary")
+    rgw_port_primary_zone = utils.get_radosgw_port_no()
+    endpoint_url = f"http://{rgw_ip_primary_zone}:{rgw_port_primary_zone}"
+    # Step 1: Check if RGW account exists using account ID
+    existing_accounts = run_command("radosgw-admin account list")
+    account_id = None
+    for account in existing_accounts:
+        account_info = run_command(f"radosgw-admin account get --account-id {account}")
+        if account_info.get("tenant") == tenant_name:
+            logging.info(f"Reusing existing account: {account}")
+            account_id = account
+            break
+    if not account_id:
+        account_id = f"RGW{random.randint(10**16, 10**17 - 1)}"
+        account_name = f"account-{random.randint(1000, 9999)}"
+        account_email = f"{account_name}@email.com"
+        new_account = run_command(
+            f"radosgw-admin account create --account-name {account_name} "
+            f"--tenant {tenant_name} --email {account_email} --account-id {account_id}"
+        )
+        if not new_account:
+            raise RuntimeError("Failed to create account.")
+        logging.info(f"Created new account: {account_id}")
+
+    # Step 2: Check for existing users under this account
+    user_list = run_command(f"radosgw-admin user list --account-id {account_id}")
+    root_user = None
+    iam_user_uid = None
+    if user_list:
+        for user in user_list:
+            if "root" in user:  # Identify root user
+                root_user = user
+            elif user != root_user:  # Identify IAM user (non-root with long UID)
+                iam_user_uid = user
+
+    if root_user:
+        log.info(f"Found existing root user: {root_user}. Fetching credentials...")
+        root_user_info = run_command(
+            f"radosgw-admin user info --uid {root_user.split('$')[-1]} --tenant {tenant_name}"
+        )
+        access_key = root_user_info["keys"][0]["access_key"]
+        secret_key = root_user_info["keys"][0]["secret_key"]
+    else:
+        # Step 4: Create RGW root user if it does not exist
+        root_user_name = f"{account_name}root-user"
+        root_user_info = run_command(
+            f"radosgw-admin user create --uid {root_user_name} --display-name {root_user_name} --tenant {tenant_name} --account-id {account_id} --account-root --gen-secret --gen-access-key"
+        )
+        if not root_user_info:
+            raise RuntimeError(f"Failed to create RGW root user: {root_user_name}")
+        access_key = root_user_info["keys"][0]["access_key"]
+        secret_key = root_user_info["keys"][0]["secret_key"]
+        log.info(f"Created RGW root user: {root_user_name}")
+
+    # Step 5: Establish IAM session using root user's credentials
+    rgw_session = boto3.Session(
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name=region,
+    )
+
+    # Step 6: Create IAM client
+    iam_client = rgw_session.client("iam", endpoint_url=endpoint_url)
+
+    if iam_user_uid:
+        log.info(f"Found existing IAM user UID: {iam_user_uid}. Fetching details...")
+        iam_user_rgw_info = run_command(
+            f"radosgw-admin user info --uid {iam_user_uid.split('$')[-1]} --tenant {tenant_name}"
+        )
+        access_key_data = None  # No need to create new IAM user
+    else:
+        # Step 7: Create IAM user if it does not exist
+        iam_user_name = f"{account_name}iam-user"
+        try:
+            iam_client.create_user(UserName=iam_user_name)
+            access_key_data = iam_client.create_access_key(UserName=iam_user_name)
+            iam_client.attach_user_policy(
+                UserName=iam_user_name,
+                PolicyArn="arn:aws:iam::aws:policy/AmazonS3FullAccess",
+            )
+            log.info(f"Created IAM user: {iam_user_name} with full S3 access")
+        except iam_client.exceptions.EntityAlreadyExistsException:
+            log.info(f"IAM user '{iam_user_name}' already exists.")
+            access_key_data = None  # Skip key creation if user exists
+
+        # Step 8: Get IAM user info
+        user_info = iam_client.get_user(UserName=iam_user_name)
+        log.info(f"Retrieved IAM user info: {user_info}")
+
+        # Step 9: Fetch IAM user details from RGW
+        user_list = run_command(f"radosgw-admin user list --account-id {account_id}")
+        iam_user_uid = next(uid for uid in user_list if uid != root_user_name)
+        iam_user_rgw_info = run_command(
+            f"radosgw-admin user info --uid {iam_user_uid.split('$')[-1]} --tenant {tenant_name}"
+        )
+        log.info(f"Display the iam_user_rgw_info {iam_user_rgw_info}")
+    iam_user_details = [
+        {
+            "user_id": iam_user_rgw_info["user_id"],
+            "display_name": iam_user_rgw_info["display_name"],
+            "access_key": iam_user_rgw_info["keys"][0]["access_key"],
+            "secret_key": iam_user_rgw_info["keys"][0]["secret_key"],
+        }
+    ]
+    write_user_info = AddUserInfo()
+    basic_io_structure = BasicIOInfoStructure()
+    user_info = basic_io_structure.user(
+        **{
+            "user_id": iam_user_rgw_info["user_id"],
+            "access_key": iam_user_rgw_info["keys"][0]["access_key"],
+            "secret_key": iam_user_rgw_info["keys"][0]["secret_key"],
+        }
+    )
+    write_user_info.add_user_info(user_info)
+    lib_dir = "/home/cephuser/rgw-ms-tests/ceph-qe-scripts/rgw/v2/lib"
+    user_detail_file = os.path.join(lib_dir, "user_details.json")
+    with open(user_detail_file, "w") as fout:
+        json.dump(iam_user_details, fout)
+    return iam_user_details
 
 
 def create_bucket(bucket_name, rgw, user_info, location=None):
@@ -948,7 +1099,14 @@ def put_get_bucket_lifecycle_test(
             log.info("LC is applied on the bucket")
         else:
             raise TestExecError("LC is not applied")
-    op_lc_get = utils.exec_shell_cmd(f"radosgw-admin lc get --bucket {bucket.name}")
+    if config.test_ops.get("tenant_name"):
+        tenant_name = config.test_ops.get("tenant_name")
+        op_lc_get = utils.exec_shell_cmd(
+            f"radosgw-admin lc get --bucket {tenant_name}/{bucket.name}"
+        )
+
+    else:
+        op_lc_get = utils.exec_shell_cmd(f"radosgw-admin lc get --bucket {bucket.name}")
     json_doc = json.loads(op_lc_get)
     rule_map = json_doc["rule_map"][0]["rule"]
     if not rule_map:

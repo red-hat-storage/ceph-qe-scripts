@@ -175,13 +175,23 @@ class BucketIoInfo(AddIOInfo):
             bucket_info:
         """
         yaml_data = self.file_op.get_data()
+        log.info(f"Existing users data: {yaml_data.get('users', [])}")
+        log.info(f"Searching for access_key: {access_key}")
         indx = None
-        for i, k in enumerate(yaml_data["users"]):
-            if k["access_key"] == access_key:
+        for i, k in enumerate(yaml_data.get("users", [])):  # Ensure users list exists
+            if k.get("access_key") == access_key:
                 indx = i
                 break
+        if indx is None:
+            raise RuntimeError(
+                f"User with access_key '{access_key}' not found in yaml_data['users']"
+            )
+        log.info(f"User index found: {indx}")
+        if "bucket" not in yaml_data["users"][indx]:
+            yaml_data["users"][indx]["bucket"] = []  # Ensure 'bucket' key exists
         yaml_data["users"][indx]["bucket"].append(bucket_info)
         self.file_op.add_data(yaml_data)
+        log.info(f"Bucket info added successfully for access_key: {access_key}")
 
     def set_bucket_deleted(self, bucket_name):
         """
