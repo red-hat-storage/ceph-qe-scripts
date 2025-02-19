@@ -1072,9 +1072,9 @@ def put_get_bucket_lifecycle_test(
                 else:
                     raise TestExecError("Objects expired before the expected days")
     log.info(
-        f"sleeping for {time_diff + 60} seconds so that all objects gets expired/transitioned"
+        f"sleeping for {time_diff + 90} seconds so that all objects gets expired/transitioned"
     )
-    time.sleep(time_diff + 60)
+    time.sleep(time_diff + 90)
 
     if config.test_ops.get("conflict_exp_days"):
         bucket_stats_op = utils.exec_shell_cmd(
