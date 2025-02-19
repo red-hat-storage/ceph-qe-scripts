@@ -1,0 +1,7 @@
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 100
+  test_ops:
+    s3cmd_get_objects: true
+    skip_test: true
