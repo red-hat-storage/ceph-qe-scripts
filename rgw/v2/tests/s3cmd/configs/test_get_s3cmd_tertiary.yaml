@@ -6,4 +6,4 @@ config:
   objects_count: 100
   test_ops:
     s3cmd_get_objects: true
-    is_not_master_zone: true 
+    is_not_master_zone: true
