@@ -405,10 +405,10 @@ def test_exec(config, ssh_con):
             else:
                 log.info("bucket list is empty as expected")
 
-    skip_test = config.test_ops.get("skip_test", False)
+    is_not_master_zone = config.test_ops.get("is_not_master_zone", False)
 
-    if skip_test:
-        log.info("cluster is not primary")
+    if is_not_master_zone:
+        log.info("This is not the master zone. Skipping tenant user creation.")
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
         tenant = "tenant"
