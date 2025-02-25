@@ -26,6 +26,7 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_sse_s3_per_bucket_with_notifications_dynamic_reshard.yaml
     multisite_configs/test_bucket_notification_kafka_broker_archive_delete_replication_from_pri.yaml
     test_bucket_notification_kafka_broker_rgw_admin_notif_rm.yaml
+    test_bucket_notification_kafka_broker_multipart_with_kafka_acl_config_set.yaml
 Operation:
     create user (tenant/non-tenant)
     Create topic and get topic
@@ -76,6 +77,11 @@ def test_exec(config, ssh_con):
 
     if config.test_ops.get("Filter", False) is False:
         config.test_ops["Filter"] = notification.Filter
+
+    if config.test_ops.get("add_acl_config_in_kafka_properties", False):
+        notification.add_acl_authorizer_config_in_kafka_properties()
+        notification.start_stop_kafka_server("stop")
+        notification.start_stop_kafka_server("start")
 
     if config.enable_resharding and config.sharding_type == "dynamic":
         reusable.set_dynamic_reshard_ceph_conf(config, ssh_con)
