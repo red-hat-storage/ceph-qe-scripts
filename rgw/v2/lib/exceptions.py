@@ -66,6 +66,16 @@ class AWSConfigFileNotFound(RGWBaseException):
         self.message = message
 
 
+class S5CMDonfigFileNotFound(RGWBaseException):
+    # s5cmd file not exists
+    def __init__(
+        self,
+        message=None,
+    ):
+        super().__init__(message)
+        self.message = message
+
+
 class AccessDeniedObjectDeleted(RGWBaseException):
     # Access denied object got deleted
     def __init__(
@@ -98,6 +108,16 @@ class S3CommandExecError(RGWBaseException):
 
 class AWSCommandExecError(RGWBaseException):
     # AWS Command execution error
+    def __init__(
+        self,
+        message=None,
+    ):
+        super().__init__(message)
+        self.message = message
+
+
+class S5CMDCommandExecError(RGWBaseException):
+    # s5cmd Command execution error
     def __init__(
         self,
         message=None,
