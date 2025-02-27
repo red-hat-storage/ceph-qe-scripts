@@ -54,6 +54,19 @@ def start_stop_kafka_server(option):
     log.info(f"kafka and zookeeper servers {option} successful")
 
 
+def add_acl_authorizer_config_in_kafka_properties():
+    """
+    add acl authorizer config in kafka server.properties to configure acl security.
+    """
+    acl_config = "authorizer.class.name=kafka.security.authorizer.AclAuthorizer"
+    log.info(
+        f"adding acl config to {KAFKA_HOME}/config/server.properties : '{acl_config}'"
+    )
+    cmd = f"echo '{acl_config}' >> {KAFKA_HOME}/config/server.properties"
+    utils.exec_shell_cmd(cmd)
+    log.info(f"acl config added successfully to {KAFKA_HOME}/config/server.properties")
+
+
 def start_kafka_broker_consumer(topic_name, event_record_path):
     """
     start kafka consumer
@@ -242,7 +255,10 @@ def verify_event_record(
     """
     if os.path.getsize(event_record_path) == 0:
         if config and config.test_ops.get("test_delete_object_sync_archive", False):
-            log.info("event record not generated! File is empty, excpected behavior")
+            log.info("event record not generated! File is empty, expected behavior")
+        elif config and config.test_ops.get("expected_event_record_empty", False):
+            log.info("event record not generated! File is empty, expected behavior")
+            return
         else:
             raise EventRecordDataError("event record not generated! File is empty")
 
