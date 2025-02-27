@@ -31,15 +31,24 @@ def json_serial(obj):
 def get_rgw_account():
     """Fetches the RGW account ID using radosgw-admin and returns it."""
     command = "radosgw-admin account list"
-    account_list = utils.exec_shell_cmd(command)
+    account_list_output = utils.exec_shell_cmd(command)
 
-    if not account_list:
+    if not account_list_output:
         raise RuntimeError("Failed to fetch RGW account list or no accounts found.")
 
+    try:
+        account_list = json.loads(account_list_output)  # Convert string output to JSON
+    except json.JSONDecodeError:
+        raise ValueError(
+            f"Invalid JSON output from radosgw-admin account list: {account_list_output}"
+        )
+
     if isinstance(account_list, list) and account_list:
-        return account_list[0]  # Assuming there's only one account, return the first ID
+        return account_list[0]  # Assuming there's at least one account
     else:
-        raise ValueError("Unexpected output format from radosgw-admin account list.")
+        raise ValueError(
+            f"Unexpected output format from radosgw-admin account list: {account_list_output}"
+        )
 
 
 def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
@@ -149,6 +158,10 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         region_name=region,
     )
     iam_client = rgw_session.client("iam", endpoint_url=endpoint_url)
+    # Check if `testing_bucket_notification` is enabled
+    testing_bucket_notification = config.test_ops.get(
+        "testing_bucket_notification", False
+    )
 
     # Check if IAM user exists
     iam_user_name = f"{account_name}iam-user"
@@ -159,6 +172,15 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
                 f"radosgw-admin user info --uid {iam_user_uid.split('$')[-1]} --tenant {tenant_name}"
             )
         )
+        # Attach AmazonSNSFullAccess if `testing_bucket_notification` is True
+        if testing_bucket_notification:
+            log.info(
+                f"Attaching AmazonSNSFullAccess to existing IAM user: {iam_user_name}"
+            )
+            iam_client.attach_user_policy(
+                UserName=iam_user_name,
+                PolicyArn="arn:aws:iam::aws:policy/AmazonSNSFullAccess",
+            )
     else:
         # Create IAM user
         try:
@@ -169,6 +191,11 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
                 PolicyArn="arn:aws:iam::aws:policy/AmazonS3FullAccess",
             )
             log.info(f"Created IAM user: {iam_user_name} with full S3 access")
+            if testing_bucket_notification:
+                iam_client.attach_user_policy(
+                    UserName=iam_user_name,
+                    PolicyArn="arn:aws:iam::aws:policy/AmazonSNSFullAccess",
+                )
         except iam_client.exceptions.EntityAlreadyExistsException:
             log.info(f"IAM user '{iam_user_name}' already exists.")
             access_key_data = None
@@ -178,12 +205,31 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         log.info(f"Retrieved IAM user info: {user_info}")
 
         # Step 9: Fetch IAM user details from RGW
-        user_list = run_command(f"radosgw-admin user list --account-id {account_id}")
-        iam_user_uid = next(uid for uid in user_list if uid != root_user_name)
-        iam_user_rgw_info = run_command(
-            f"radosgw-admin user info --uid {iam_user_uid.split('$')[-1]} --tenant {tenant_name}"
+        user_list = utils.exec_shell_cmd(
+            f"radosgw-admin user list --account-id {account_id}"
+        )
+        # Convert the output string to a list
+        try:
+            user_list = json.loads(user_list)
+        except json.JSONDecodeError:
+            raise RuntimeError(f"Failed to parse user list: {user_list}")
+        log.info(f"Parsed user list: {user_list}")
+        iam_user_uid = next((uid for uid in user_list if uid != root_user_name), None)
+        # Extract IAM user ID (remove tenant prefix)
+        iam_user_uid = iam_user_uid.split("$")[-1]
+        iam_user_rgw_info = utils.exec_shell_cmd(
+            f"radosgw-admin user info --uid {iam_user_uid} --tenant {tenant_name}"
         )
         log.info(f"Display the iam_user_rgw_info {iam_user_rgw_info}")
+        # Ensure output is valid JSON
+        try:
+            iam_user_rgw_info = json.loads(iam_user_rgw_info)
+            log.info(f"Parsed IAM user info: {iam_user_rgw_info}")
+        except json.JSONDecodeError:
+            log.error(f"Failed to parse IAM user info: {iam_user_rgw_info}")
+            raise RuntimeError(
+                f"Invalid JSON response for IAM user: {iam_user_rgw_info}"
+            )
     iam_user_details = [
         {
             "user_id": iam_user_rgw_info["user_id"],
@@ -343,17 +389,17 @@ def account_ownership_change(config):
     user2 = "user2"
 
     utils.exec_shell_cmd(
-        f"radosgw-admin user create --uid={root_user1} --display-name='Root User 1' --account-id={account1_id} --account-root --gen-secret --gen-access-key"
+        f"radosgw-admin user create --uid={root_user1} --display-name='Rootuser1' --account-id={account1_id} --account-root --gen-secret --gen-access-key"
     )
     utils.exec_shell_cmd(
-        f"radosgw-admin user create --uid={root_user2} --display-name='Root User 2' --account-id={account2_id} --account-root --gen-secret --gen-access-key"
+        f"radosgw-admin user create --uid={root_user2} --display-name='Rootuser2' --account-id={account2_id} --account-root --gen-secret --gen-access-key"
     )
 
     utils.exec_shell_cmd(
-        f"radosgw-admin user create --uid={user1} --display-name='User 1' --account-id={account1_id} --account-root 0 --gen-secret --gen-access-key"
+        f"radosgw-admin user create --uid={user1} --display-name='User1' --account-id={account1_id} --account-root 0 --gen-secret --gen-access-key"
     )
     utils.exec_shell_cmd(
-        f"radosgw-admin user create --uid={user2} --display-name='User 2' --account-id={account2_id} --account-root 0 --gen-secret --gen-access-key"
+        f"radosgw-admin user create --uid={user2} --display-name='User2' --account-id={account2_id} --account-root 0 --gen-secret --gen-access-key"
     )
 
     log.info(
