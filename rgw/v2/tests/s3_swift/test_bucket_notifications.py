@@ -25,6 +25,7 @@ Usage: test_bucket_notification.py -c <input_yaml>
     test_bucket_notification_kafka_broker_persistent_manual_reshard.yaml
     test_sse_s3_per_bucket_with_notifications_dynamic_reshard.yaml
     multisite_configs/test_bucket_notification_kafka_broker_archive_delete_replication_from_pri.yaml
+    multisite_configs/test_sse_s3_per_bucket_with_notifications_dynamic_reshard_rgw_accounts.yaml
     test_bucket_notification_kafka_broker_rgw_admin_notif_rm.yaml
     test_bucket_notification_kafka_broker_multipart_with_kafka_acl_config_set.yaml
 Operation:
@@ -59,6 +60,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import bucket_notification as notification
+from v2.tests.s3_swift.reusables import rgw_accounts as accounts
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -97,7 +99,18 @@ def test_exec(config, ssh_con):
         config.user_type = "non-tenanted"
 
     # create user
-    if config.user_type == "non-tenanted":
+    if config.test_ops.get("test_via_rgw_accounts", False) is True:
+        # create rgw account, account root user, iam user and return iam user details
+        tenant_name = config.test_ops.get("tenant_name")
+        region = config.test_ops.get("region")
+        all_users_info = accounts.create_rgw_account_with_iam_user(
+            config,
+            tenant_name,
+            region,
+        )
+
+    # create user
+    elif config.user_type == "non-tenanted":
         all_users_info = s3lib.create_users(config.user_count)
     else:
         umgmt = UserMgmt()
@@ -210,7 +223,7 @@ def test_exec(config, ssh_con):
 
                     log.info("get kafka topic using rgw cli")
                     get_rgw_topic = notification.rgw_admin_topic_notif_ops(
-                        op="get", args={"topic": topic_name, **extra_topic_args}
+                        config, op="get", args={"topic": topic_name, **extra_topic_args}
                     )
                     if get_rgw_topic is False:
                         raise TestExecError(
@@ -245,6 +258,7 @@ def test_exec(config, ssh_con):
                         # list rgw topics using rgw admin cli
                         log.info("list topic using rgw cli")
                         topics_list = notification.rgw_admin_topic_notif_ops(
+                            config,
                             op="list",
                             args={**extra_topic_args},
                         )
@@ -271,6 +285,7 @@ def test_exec(config, ssh_con):
                             f"list notifications of bucket {bucket_name_to_create} using rgw admin notification commands"
                         )
                         list_notif = notification.rgw_admin_topic_notif_ops(
+                            config,
                             sub_command="notification",
                             op="list",
                             args={"bucket": bucket_name_to_create, **extra_topic_args},
@@ -285,6 +300,7 @@ def test_exec(config, ssh_con):
                             f"get notification for bucket {bucket_name_to_create} with notification id {notification_name} using rgw admin notification commands"
                         )
                         get_notif = notification.rgw_admin_topic_notif_ops(
+                            config,
                             sub_command="notification",
                             op="get",
                             args={
@@ -432,6 +448,7 @@ def test_exec(config, ssh_con):
                         f"remove all notifications for bucket {bucket_name_to_create}"
                     )
                     rm_notif = notification.rgw_admin_topic_notif_ops(
+                        config,
                         sub_command="notification",
                         op="rm",
                         args={"bucket": bucket_name_to_create, **extra_topic_args},
@@ -449,6 +466,7 @@ def test_exec(config, ssh_con):
                         "verify topic get using rgw cli after put empty notification"
                     )
                     get_rgw_notif_topic = notification.rgw_admin_topic_notif_ops(
+                        config,
                         op="get",
                         args={"topic": bkt_notif_topic_name, **extra_topic_args},
                     )
@@ -469,6 +487,7 @@ def test_exec(config, ssh_con):
                     # refer https://bugzilla.redhat.com/show_bug.cgi?id=1936415
                     log.info("verify get notification topic failure using rgw cli")
                     get_notif_topic = notification.rgw_admin_topic_notif_ops(
+                        config,
                         op="get",
                         args={"topic": bkt_notif_topic_name, **extra_topic_args},
                     )
@@ -480,7 +499,7 @@ def test_exec(config, ssh_con):
                     # delete rgw topic
                     log.info("remove kafka topic using rgw cli")
                     topic_rm = notification.rgw_admin_topic_notif_ops(
-                        op="rm", args={"topic": topic_name, **extra_topic_args}
+                        config, op="rm", args={"topic": topic_name, **extra_topic_args}
                     )
                     if topic_rm is False:
                         raise TestExecError("kafka topic rm using rgw cli failed")

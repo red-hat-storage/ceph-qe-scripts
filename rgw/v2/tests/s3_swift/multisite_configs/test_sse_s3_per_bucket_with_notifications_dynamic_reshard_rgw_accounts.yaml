@@ -1,0 +1,35 @@
+# script: test_bucket_notifications.py
+# polarion id: tier-3 CEPH-83591687
+config:
+ user_count: 1
+ bucket_count: 1
+ objects_count: 25
+ encryption_keys: s3
+ local_file_delete: true
+ enable_resharding: true
+ sharding_type: dynamic
+ max_objects_per_shard: 5
+ objects_size_range:
+  min: 10M
+  max: 20M
+ test_ops:
+  create_bucket: true
+  create_object: true
+  enable_version: false
+  test_via_rgw_accounts: true
+  tenant_name: tenant1
+  testing_bucket_notification: true
+  region: shared
+  sse_s3_per_bucket: true
+  create_topic: true
+  get_topic_info: true
+  endpoint: kafka
+  ack_type: broker
+  put_get_bucket_notification: true
+  event_type:
+   - Multipart
+   - Copy
+   - Delete
+  upload_type: multipart
+  copy_object: true
+  delete_bucket_object: true

@@ -2182,10 +2182,13 @@ def bucket_reshard_dynamic(bucket, config):
         + f"{resharding_sleep_time} seconds"
     )
     time.sleep(resharding_sleep_time)
-
+    bucket_name = f"{bucket.name}"
+    if config.test_ops.get("tenant_name"):
+        tenant_name = config.test_ops.get("tenant_name")
+        bucket_name = f"{tenant_name}/{bucket.name}"
     num_shards_expected = config.objects_count / config.max_objects_per_shard
     log.info("num_shards_expected: %s" % num_shards_expected)
-    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket.name)
+    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket_name)
     json_doc = json.loads(op)
     bucket_id = json_doc["id"]
     num_shards_created = json_doc["num_shards"]
@@ -2207,18 +2210,36 @@ def bucket_reshard_dynamic(bucket, config):
 
 
 def verify_attrs_after_resharding(bucket):
-    log.info("Test acls are preserved after a resharding operation.")
-    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
+    log.info("Test ACLs are preserved after a resharding operation.")
+
+    # Determine if the bucket has a tenant
+    if "tenant" in bucket.name:
+        tenant_name, bucket_short_name = bucket.name.split(".", 1)
+        bucket_stats_name = f"{tenant_name}/{bucket.name}"
+    else:
+        bucket_stats_name = bucket.name
+
+    log.info(f"Fetching stats for bucket: {bucket_stats_name}")
+
+    # Get bucket stats
+    op = utils.exec_shell_cmd(
+        f"radosgw-admin bucket stats --bucket={bucket_stats_name}"
+    )
     json_doc = json.loads(op)
     bucket_id = json_doc["id"]
+
+    # Fetch metadata for the bucket instance
     cmd = utils.exec_shell_cmd(
-        f"radosgw-admin metadata get bucket.instance:{bucket.name}:{bucket_id}"
+        f"radosgw-admin metadata get bucket.instance:{bucket_stats_name}:{bucket_id}"
     )
     json_doc = json.loads(cmd)
+
     log.info("The attrs field should not be empty.")
-    attrs = json_doc["data"]["attrs"][0]
-    if not attrs["key"]:
-        raise TestExecError("Acls lost after bucket resharding, test failure.")
+    attrs = json_doc["data"].get("attrs", [])
+
+    if not attrs or not attrs[0].get("key"):
+        raise TestExecError("ACLs lost after bucket resharding, test failure.")
+
     return True
 
 
