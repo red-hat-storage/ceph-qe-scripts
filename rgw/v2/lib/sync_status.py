@@ -31,14 +31,34 @@ def sync_status(retry=25, delay=60, ssh_con=None):
     if not check_sync_status:
         raise AssertionError("Sync status output is empty")
     log.info(f"sync status op is: {check_sync_status}")
+
     # check for 'failed' or 'ERROR' in sync status.
     if "failed" in check_sync_status or "ERROR" in check_sync_status:
         log.info("checking for any sync error")
-        cmd = "sudo radosgw-admin sync error list"
-        sync_error_list = utils.exec_shell_cmd(cmd)
-        raise SyncFailedError("sync status is in failed or errored state!")
-    else:
-        log.info("No errors or failures in sync status")
+
+        # Wait for 70 seconds before rechecking
+        log.info(
+            "Detected 'failed' in sync status. Waiting for 70 seconds before rechecking..."
+        )
+        time.sleep(70)
+
+        # Recheck sync status after waiting
+        if ssh_con:
+            stdin, stdout, stderr = ssh_con.exec_command(cmd)
+            check_sync_status = stdout.read().decode()
+        else:
+            check_sync_status = utils.exec_shell_cmd(cmd)
+
+        log.info(f"Rechecked sync status after wait: {check_sync_status}")
+
+        if "failed" in check_sync_status or "ERROR" in check_sync_status:
+            cmd = "sudo radosgw-admin sync error list"
+            sync_error_list = utils.exec_shell_cmd(cmd)
+            raise SyncFailedError("sync status is in failed or errored state!")
+        else:
+            log.info(
+                "Sync status recovered after waiting, proceeding with verification."
+            )
 
     log.info(
         f"check if sync is in progress, if sync is in progress retry {retry} times with {delay} secs of sleep between each retry"
