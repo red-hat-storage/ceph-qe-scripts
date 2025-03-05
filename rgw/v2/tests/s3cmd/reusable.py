@@ -267,6 +267,23 @@ def rgw_service_restart(ssh_con):
         raise TestExecError("RGW service restart failed")
 
 
+def rgw_daemon_add(ssh_con):
+    """
+    Add a new RGW daemon on the provided node
+    """
+    log.info("Adding a new RGW daemon on the current port +1")
+    ip_port = get_rgw_ip_and_port(ssh_con)
+    rgw_ip = ip_port.split(":")[0]
+    rgw_port = ip_port.split(":")[1]
+    rgw_port = int(rgw_port) + 1
+    _, stdout, _ = ssh_con.exec_command("hostname")
+    hostname = stdout.readline().strip()
+    cmd = f"ceph orch apply rgw foo --placement {str(hostname)} --port {rgw_port}"
+    log.info(cmd)
+    _, stdout, _ = ssh_con.exec_command(cmd)
+    time.sleep(20)
+
+
 def run_subprocess(cmd):
     """
     :param cmd: command to run
