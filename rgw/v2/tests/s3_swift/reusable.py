@@ -3019,3 +3019,66 @@ def put_get_bucket_acl(rgw_client, bucket_name, acl):
     get_bkt_acl = rgw_client.get_bucket_acl(Bucket=bucket_name)
     get_bkt_acl_json = json.dumps(get_bkt_acl, indent=2)
     log.info(f"get bucket acl response: {get_bkt_acl_json}")
+
+
+def reboot_rgw_nodes():
+    """
+    Method to fetch all the rgw nodes to proceed with reboot
+    """
+    host_ips = utils.exec_shell_cmd("cut -f 1 /etc/hosts | cut -d ' ' -f 3")
+    host_ips = host_ips.splitlines()
+    log.info(f"hosts_ips: {host_ips}")
+    for ip in host_ips:
+        if ip.startswith("10."):
+            log.info(f"ip is {ip}")
+            ssh_con = utils.connect_remote(ip)
+            stdin, stdout, stderr = ssh_con.exec_command(
+                "sudo netstat -nltp | grep radosgw"
+            )
+            netstst_op = stdout.readline().strip()
+            log.info(f"netstat op on node {ip} is:{netstst_op}")
+            if netstst_op:
+                log.info("Entering RGW node")
+                stdin, stdout, stderrt = ssh_con.exec_command("hostname")
+                host = stdout.readline().strip()
+                log.info(f"hostname is {host}")
+                cmd = f"ceph orch ps|grep rgw|grep {host}"
+                out = utils.exec_shell_cmd(cmd)
+                log.info(f"service name is {out.split()[0]}")
+                node_reboot(ssh_con, service_name=out.split()[0])
+
+
+def node_reboot(node, service_name=None, retry=15, delay=60):
+    """
+    Method to reboot single RGW node
+    Node: ssh connection for the node
+    service_name: RGW service name
+    retry: retry to wait foe node/service to come up post reboot
+    delay: sllep time of 1 min between each try
+    """
+    log.debug(f"Peforming reboot of the node : {node}")
+    node.exec_command("sudo reboot")
+    time.sleep(120)
+    log.info(f"checking ceph status")
+    utils.exec_shell_cmd(f"ceph -s")
+    cmd = "ceph orch ps --format json-pretty"
+    out = json.loads(utils.exec_shell_cmd(cmd))
+    for entry in out:
+        if service_name == entry["daemon_name"]:
+            status = entry["status_desc"]
+    if str(status) != "running":
+        for retry_count in range(retry):
+            log.info(f"try {retry_count}")
+            out = json.loads(utils.exec_shell_cmd(cmd))
+            for entry in out:
+                if service_name == entry["daemon_name"]:
+                    status = entry["status_desc"]
+            log.info(f"status is {status}")
+            if str(status) != "running":
+                log.info(f"Node is not in expected state, waiting for {delay} seconds")
+                time.sleep(delay)
+            else:
+                log.info("Node is in expected state")
+                break
+        if retry_count + 1 == retry:
+            raise AssertionError("Node is not in expected state post 15min!!")
