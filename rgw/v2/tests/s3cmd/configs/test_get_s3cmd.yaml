@@ -1,6 +1,7 @@
 # polarion_id: CEPH-83575477
 # script: test_s3cmd.py
 config:
+  haproxy: true
   user_count: 1
   bucket_count: 2
   objects_count: 100

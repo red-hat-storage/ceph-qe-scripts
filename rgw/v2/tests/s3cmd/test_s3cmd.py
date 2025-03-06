@@ -127,7 +127,7 @@ def test_exec(config, ssh_con):
         )
         user_info = resource_op.create_users(no_of_users_to_create=1)
         s3_auth.do_auth(user_info[0], ip_and_port)
-        auth = Auth(user_info[0], ssh_con, ssl=config.ssl)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
         bucket_name = utils.gen_bucket_name_from_userid(
             user_info[0]["user_id"], rand_no=1
@@ -178,7 +178,7 @@ def test_exec(config, ssh_con):
         )
         user_info = resource_op.create_users(no_of_users_to_create=1)
         s3_auth.do_auth(user_info[0], ip_and_port)
-        auth = Auth(user_info[0], ssh_con, ssl=config.ssl)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
         bucket_name = utils.gen_bucket_name_from_userid(
