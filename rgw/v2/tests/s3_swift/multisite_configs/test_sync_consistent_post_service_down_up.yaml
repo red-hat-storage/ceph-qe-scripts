@@ -1,0 +1,7 @@
+# script: test_sync_post_destruptive_services.py
+# Polarion ID: CEPH-83575113
+config:
+  test_ops:
+    rgw_service_name: "rgw.shared.sec.sync"
+    sync_retry: 24
+    sync_delay: 900
