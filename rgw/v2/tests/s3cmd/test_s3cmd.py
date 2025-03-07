@@ -10,6 +10,7 @@ Usage: test_s3cmd.py -c <input_yaml>
     configs/test_disable_and_enable_dynamic_resharding_with_10k_bucket.yaml
     configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
     test_multipart_upload_with_failed_parts_using_s3cmd_and_boto3.yaml
+    multisite_configs/test_sync_error_list.yaml
 
 Operation:
     Create an user
@@ -407,6 +408,36 @@ def test_exec(config, ssh_con):
 
     elif config.test_ops.get("is_not_master_zone", False):
         log.info("This is not the master zone. Skipping tenant user creation.")
+
+    elif config.test_ops.get("sync_error_list", False) is True:
+        is_multisite = utils.is_cluster_multisite()
+        if is_multisite:
+            check_sync_status = utils.exec_shell_cmd("radosgw-admin sync status")
+            if not check_sync_status:
+                raise AssertionError("Sync status output is empty")
+            log.info(f"sync status op is: {check_sync_status}")
+            if "failed" in check_sync_status or "ERROR" in check_sync_status:
+                log.info("sync is in error state")
+            if "behind" in check_sync_status or "recovering" in check_sync_status:
+                log.info("sync is in progress")
+            log.info("check cluster for sync error list")
+            sync_error_list = utils.exec_shell_cmd("sudo radosgw-admin sync error list")
+            sync_error_json = json.loads(sync_error_list)
+            error_exist = False
+            for ent in sync_error_json:
+                if len(ent["entries"]) != 0:
+                    error_exist = True
+                    break
+            if error_exist:
+                log.error(
+                    f"To trim error manullay try running radosgw-admin sync error trim, since error could be an issue. So trim is not recommanded"
+                )
+                log.error(
+                    f"Post clearing sync error trim, run sync error list to verify errors are trimmed"
+                )
+                raise AssertionError(f"Sync error data exist in cluster")
+            else:
+                log.info(f"Sync error list is empty")
 
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
