@@ -1,0 +1,5 @@
+# Script: test_sync_conistent_with_rgw_node_reboot.py
+# Polarion ID: CEPH-83574448
+config:
+  test_ops:
+    rgw_service_name: "rgw.shared.sec"

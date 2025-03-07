@@ -3054,9 +3054,9 @@ def node_reboot(node, service_name=None, retry=15, delay=60):
     Node: ssh connection for the node
     service_name: RGW service name
     retry: retry to wait foe node/service to come up post reboot
-    delay: sllep time of 1 min between each try
+    delay: sleep time of 1 min between each try
     """
-    log.debug(f"Peforming reboot of the node : {node}")
+    log.info(f"Peforming reboot of the node : {node}")
     node.exec_command("sudo reboot")
     time.sleep(120)
     log.info(f"checking ceph status")
