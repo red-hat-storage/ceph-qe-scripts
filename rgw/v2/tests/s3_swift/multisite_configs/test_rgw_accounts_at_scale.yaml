@@ -1,0 +1,24 @@
+# script: test_rgw_account_management.py
+# CEPH-83591689
+config:
+  user_count: 1
+  bucket_count: 3
+  test_ops:
+    enable_versioning: true
+    create_bucket: true
+    create_object: false
+    version_count: 4
+    delete_marker: false
+    test_account_ownership_change: false
+    test_rgwUser_adoption_by_rgwAccount: false
+    test_via_rgw_accounts: true
+    tenant_name: tenant1
+    region: shared
+    objects_per_bucket: 2250
+    object_size: 2K
+    threads: 400
+    enable_version: true
+    put_object_elbencho: true
+    test_bucket_sync: true
+    local_zone_name: primary
+    remote_zone_name: secondary

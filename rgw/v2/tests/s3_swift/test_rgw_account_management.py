@@ -5,7 +5,8 @@ This script test the rgw accounts feature for various account management scenari
 3. Future work : testing the account quota management
 The script is test_rgw_account_management.py
 The Input yamls are
-# test_account_ownership_change_user_adoption.yaml
+# configs/test_account_ownership_change_user_adoption.yaml
+# multisite_configs/test_rgw_accounts_at_scale.yaml
 
 Usage  is test_rgw_account_management.py -c  <path_to_config_file>
 
@@ -26,10 +27,11 @@ import v2.utils.utils as utils
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import quota_management as quota_mgmt
 from v2.tests.s3_swift.reusables import rgw_accounts as accounts
+from v2.tests.s3_swift.reusables import rgw_s3_elbencho as elbencho
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -42,25 +44,41 @@ log = logging.getLogger()
 def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
+    write_bucket_io_info = BucketIoInfo()
+
     io_info_initialize.initialize(basic_io_structure.initial())
 
-    log.info(f"Creating {config.user_count} users")
-    all_users_info = s3lib.create_users(config.user_count)
+    if config.test_ops.get("test_via_rgw_accounts", False) is True:
+        # create rgw account, account root user, iam user and return iam user details
+        tenant_name = config.test_ops.get("tenant_name")
+        region = config.test_ops.get("region")
+        all_users_info = accounts.create_rgw_account_with_iam_user(
+            config,
+            tenant_name,
+            region,
+        )
+    else:
+        log.info(f"Creating {config.user_count} users")
+        all_users_info = s3lib.create_users(config.user_count)
 
     for each_user in all_users_info:
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
         log.info(f"Creating {config.bucket_count} buckets for {each_user['user_id']}")
+        user_buckets = []  # Store buckets for this user
 
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(
                 each_user["user_id"], rand_no=bc
             )
+            user_buckets.append(bucket_name)
             bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
 
             if config.test_ops.get("enable_version", False):
                 log.info("Enable bucket versioning")
-                reusable.enable_versioning(bucket, rgw_conn, each_user)
+                reusable.enable_versioning(
+                    bucket, rgw_conn, each_user, write_bucket_io_info
+                )
 
             # First executor for user adoption
             if config.test_ops.get("test_rgwUser_adoption_by_rgwAccount", False):
@@ -142,12 +160,15 @@ def test_exec(config, ssh_con):
                                 )
 
                 concurrent.futures.wait(futures)
-
             if config.test_ops.get("test_account_ownership_change", False):
                 log.info(
                     "Test RGW account ownership change of 2 RGW users belonging to different accounts."
                 )
                 accounts.account_ownership_change(config)
+
+        if config.test_ops.get("put_object_elbencho", False):
+            time.sleep(30)
+            elbencho.elbencho_run_put_workload(each_user, user_buckets, config)
 
     crash_info = reusable.check_for_crash()
     if crash_info:
