@@ -30,6 +30,7 @@ class ConfigOpts(object):
     rgw_enable_lc_threads = "rgw_enable_lc_threads"
     rgw_lifecycle_work_time = "rgw_lifecycle_work_time"
     rgw_lc_max_worker = "rgw_lc_max_worker"
+    rgw_lc_max_wp_worker = "rgw_lc_max_wp_worker"
     debug_rgw = "debug_rgw"
     log_to_file = "log_to_file"
     rgw_crypt_require_ssl = "rgw_crypt_require_ssl"
@@ -126,12 +127,17 @@ class CephConfFileOP(FileOps, ConfigParse):
 
 
 class CephConfigSet:
-    def set_to_ceph_cli(self, key, value, set_to_all=False):
+    def set_to_ceph_cli(self, key, value, set_to_all=False, remote_ssh_con=None):
         log.info("setting key and value using ceph config set cli")
         self.prefix = "sudo ceph config set"
 
         cmd_ps = "ceph orch ps --daemon_type rgw -f json"
-        out_ps = utils.exec_shell_cmd(cmd_ps)
+        if remote_ssh_con:
+            out_ps = utils.remote_exec_shell_cmd(
+                remote_ssh_con, cmd_ps, return_output=True
+            )
+        else:
+            out_ps = utils.exec_shell_cmd(cmd_ps)
         out = json.loads(out_ps)
         daemon_name_list = []
         for node in out:
@@ -146,7 +152,12 @@ class CephConfigSet:
             log.info(f"got value: {value}")
             cmd_list = [self.prefix, self.who, key, str(value)]
             cmd = " ".join(cmd_list)
-            config_set = utils.exec_shell_cmd(cmd)
+            if remote_ssh_con:
+                config_set = utils.remote_exec_shell_cmd(
+                    remote_ssh_con, cmd, return_output=False
+                )
+            else:
+                config_set = utils.exec_shell_cmd(cmd)
             if config_set is False:
                 raise InvalidCephConfigOption("Invalid ceph config options")
             if not set_to_all:
@@ -158,7 +169,13 @@ class CephConfOp(CephConfFileOP, CephConfigSet):
         super().__init__(ssh_con)
 
     def set_to_ceph_conf(
-        self, section, option, value=None, ssh_con=None, set_to_all=False
+        self,
+        section,
+        option,
+        value=None,
+        ssh_con=None,
+        set_to_all=False,
+        remote_ssh_con=None,
     ):
         version_id, version_name = utils.get_ceph_version()
         log.info(f"ceph version id: {version_id}")
@@ -174,4 +191,6 @@ class CephConfOp(CephConfFileOP, CephConfigSet):
             log.info("using ceph config cli to set the config values")
             log.info(option)
             log.info(value)
-            self.set_to_ceph_cli(option, value, set_to_all=set_to_all)
+            self.set_to_ceph_cli(
+                option, value, set_to_all=set_to_all, remote_ssh_con=remote_ssh_con
+            )
