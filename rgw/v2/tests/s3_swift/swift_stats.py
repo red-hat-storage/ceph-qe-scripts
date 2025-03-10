@@ -66,12 +66,12 @@ def test_exec(config, ssh_con):
             {"obj": rgw, "resource": "put_container", "args": [container_name]}
         )
         if container is False:
-            raise TestExecError("Resource execution failed: container creation faield")
+            raise TestExecError("Resource execution failed: container creation failed")
 
     host, ip = utils.get_hostname_ip(ssh_con)
     port = utils.get_radosgw_port_no(ssh_con)
     hostname = str(ip) + ":" + str(port)
-    cmd = "swift -A http://{hostname}/auth/1.0 -U '{uid}' -K '{key}' stat".format(
+    cmd = "venv/bin/swift -A http://{hostname}/auth/1.0 -U '{uid}' -K '{key}' stat".format(
         hostname=hostname, uid=user_info["user_id"], key=user_info["key"]
     )
     swift_cmd = utils.exec_shell_cmd(cmd)
