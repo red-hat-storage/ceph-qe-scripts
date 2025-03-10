@@ -1,0 +1,190 @@
+# conf for rgw multisite archive baremetal setup using extensa nodes
+---
+globals:
+  - ceph-cluster:
+      name: ceph-pri
+      networks:
+        public: ['10.0.0.0/12']
+      nodes:
+        - hostname: extensa024
+          ip: 10.1.172.124
+          root_password: r
+          role:
+            - _admin
+            - installer
+            - mon
+            - mgr
+            - osd
+            - rgw
+          volumes:
+            - /dev/sda
+            - /dev/sdc
+            - /dev/sdd
+            - /dev/sde
+            - /dev/sdf
+        - hostname: extensa025
+          ip: 10.1.172.125
+          root_password: r
+          role:
+            - mon
+            - mgr
+            - osd
+            - rgw
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdc
+            - /dev/sde
+            - /dev/sdf
+        - hostname: extensa026
+          ip: 10.1.172.126
+          root_password: r
+          role:
+            - mon
+            - mgr
+            - osd
+            - rgw
+            - client
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdc
+            - /dev/sdd
+            - /dev/sde
+        - hostname: extensa027
+          ip: 10.1.172.127
+          root_password: r
+          role:
+            - osd
+            - rgw
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdc
+            - /dev/sdd
+            - /dev/sde
+  - ceph-cluster:
+      name: ceph-sec
+      networks:
+        public: ['10.0.0.0/12']
+      nodes:
+        - hostname: extensa028
+          ip: 10.1.172.128
+          root_password: r
+          role:
+            - _admin
+            - installer
+            - mon
+            - mgr
+            - osd
+            - rgw
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdd
+            - /dev/sde
+            - /dev/sdf
+        - hostname: extensa029
+          ip: 10.1.172.129
+          root_password: r
+          role:
+            - mon
+            - mgr
+            - osd
+            - rgw
+          volumes:
+            - /dev/sdb
+            - /dev/sdc
+            - /dev/sdd
+            - /dev/sde
+            - /dev/sdf
+        - hostname: extensa030
+          ip: 10.1.172.130
+          root_password: r
+          role:
+            - mon
+            - mgr
+            - osd
+            - rgw
+            - client
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdc
+            - /dev/sdd
+            - /dev/sde
+        - hostname: extensa031
+          ip: 10.1.172.131
+          root_password: r
+          role:
+            - osd
+            - rgw
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdc
+            - /dev/sde
+            - /dev/sdf
+  - ceph-cluster:
+      name: ceph-arc
+      networks:
+        public: ['10.0.0.0/12']
+      nodes:
+        -
+          hostname: extensa032
+          ip: 10.1.172.132
+          root_password: r
+          role:
+            - _admin
+            - installer
+            - mon
+            - mgr
+            - osd
+            - rgw
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdd
+            - /dev/sde
+            - /dev/sdf
+        - hostname: extensa033
+          ip: 10.1.172.133
+          root_password: r
+          role:
+            - mon
+            - mgr
+            - osd
+            - rgw
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdd
+            - /dev/sde
+            - /dev/sdf
+        - hostname: extensa034
+          ip: 10.1.172.134
+          root_password: r
+          role:
+            - mon
+            - mgr
+            - osd
+            - rgw
+            - client
+          volumes:
+            - /dev/sda
+            - /dev/sdc
+            - /dev/sdd
+            - /dev/sde
+            - /dev/sdf
+        - hostname: extensa035
+          ip: 10.1.172.135
+          root_password: r
+          role:
+            - osd
+            - rgw
+          volumes:
+            - /dev/sda
+            - /dev/sdb
+            - /dev/sdc
+            - /dev/sdd
+            - /dev/sdf
