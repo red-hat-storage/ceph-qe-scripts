@@ -30,9 +30,7 @@ tests:
        module: install_prereq.py
        name: setup pre-requisites
 
-#perform bootstrap
-
-   - test:
+   - test: # perform bootstrap
        abort-on-fail: true
        clusters:
          ceph-pri:
@@ -83,9 +81,7 @@ tests:
        module: test_cephadm.py
        name: Bootstrap clusters
 
-#enable ptrace and set log to file
-
-   - test:
+   - test: #enable ptrace and set log to file
        abort-on-fail: true
        clusters:
          ceph-pri:
@@ -117,9 +113,7 @@ tests:
        name: setup debugging for containers
        polarion-id: CEPH-10362
 
-#deploy more mons and mgrs
- 
-   - test:
+   - test: #deploy more mons and mgrs
        abort-on-fail: true
        clusters:
          ceph-pri:
@@ -144,7 +138,7 @@ tests:
                    args:
                      placement:
                        label: mon
- 
+
          ceph-sec:
            config:
              verify_cluster_health: true
@@ -167,7 +161,7 @@ tests:
                    args:
                      placement:
                        label: mon
- 
+
          ceph-arc:
            config:
              verify_cluster_health: true
@@ -196,16 +190,14 @@ tests:
        module: test_cephadm.py
        name: deploy more mons and mgrs
 
-# deploy osds 
-
-   - test:
+   - test: # deploy osds
        abort-on-fail: true
        clusters:
          ceph-pri:
            config:
              verify_cluster_health: true
              steps:
-               - config:  
+               - config:
                    command: apply
                    service: osd
                    args:
@@ -233,9 +225,7 @@ tests:
        destroy-cluster: false
        module: test_cephadm.py
 
-#  deploy rgws
-
-   - test:
+   - test: # deploy sync rgws
        abort-on-fail: true
        clusters:
          ceph-pri:
@@ -289,9 +279,7 @@ tests:
        module: test_cephadm.py
        name: sync rgws deploy using cephadm
 
-# # deploy rgws
-
-   - test:
+   - test: # deploy io rgws
        abort-on-fail: true
        clusters:
          ceph-pri:
@@ -433,9 +421,7 @@ tests:
        module: test_cephadm.py
        polarion-id: CEPH-83574727
 
-# # configuring HAproxy on the port '5000'
-
-   - test:
+   - test: # configuring HAproxy on the port '5000'
        abort-on-fail: true
        clusters:
          ceph-pri:
@@ -464,9 +450,7 @@ tests:
        name: "Configure HAproxy"
        polarion-id: CEPH-83572703
 
-# # configuring HAproxy on the port '5000'
-
-   - test:
+   - test: # configuring HAproxy on the port '5000'
        abort-on-fail: true
        clusters:
          ceph-pri:
@@ -495,9 +479,7 @@ tests:
        name: "Configure HAproxy"
        polarion-id: CEPH-83572703
 
- # Setting up primary site in a multisite
-
-   - test:
+   - test:  # Setting up primary site in a multisite
        abort-on-fail: true
        clusters:
          ceph-pri:
@@ -524,9 +506,7 @@ tests:
        name: Setting up primary site in a multisite
        polarion-id: CEPH-10362
 
-# Setting up secondary site in a multisite
-
-   - test:
+   - test: # Setting up secondary site in a multisite
        abort-on-fail: true
        clusters:
          ceph-sec:
@@ -551,9 +531,7 @@ tests:
        name: setup multisite
        polarion-id: CEPH-10362
 
-# Setting up archive site in a multisite
-
-   - test:
+   - test: # Setting up archive site in a multisite
        abort-on-fail: true
        clusters:
          ceph-arc:
