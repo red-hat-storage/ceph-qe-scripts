@@ -83,7 +83,7 @@ def test_exec(config, ssh_con):
     config.user_count = 1
     user_info = s3lib.create_users(config.user_count)
     user_info = user_info[0]
-    auth = Auth(user_info, ssh_con, ssl=config.ssl)
+    auth = Auth(user_info, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
     rgw_conn = auth.do_auth()
     verification = True
     if config.test_with_bucket_index_shards:
@@ -310,7 +310,7 @@ def test_exec(config, ssh_con):
         log.info("Create new user and change bucket ownership")
         new_user = s3lib.create_users(1)
         new_user = new_user[0]
-        new_auth = Auth(new_user, ssh_con, ssl=config.ssl)
+        new_auth = Auth(new_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         new_conn = new_auth.do_auth()
         new_name = new_user["user_id"]
         out = reusable.unlink_bucket(user_info["user_id"], bucket_name)
@@ -545,7 +545,9 @@ def test_exec(config, ssh_con):
         log.info(f"Bucket list output from secondary: {bucket_list_sec}")
 
         # List objects from sec site using boto3 rgw client
-        other_site_auth = Auth(user_info, sec_site_ssh_con, ssl=config.ssl)
+        other_site_auth = Auth(
+            user_info, sec_site_ssh_con, ssl=config.ssl, haproxy=config.haproxy
+        )
         sec_site_rgw_conn = other_site_auth.do_auth_using_client()
         resp = sec_site_rgw_conn.list_objects(Bucket=bucket.name)
         log.info(f"List objects output using rgw client from sec site: {resp}")
