@@ -7,6 +7,7 @@ The script is test_rgw_account_management.py
 The Input yamls are
 # configs/test_account_ownership_change_user_adoption.yaml
 # multisite_configs/test_rgw_accounts_at_scale.yaml
+# multisite_configs/test_scale_aws_transition_retain_true.yaml
 
 Usage  is test_rgw_account_management.py -c  <path_to_config_file>
 
@@ -64,9 +65,17 @@ def test_exec(config, ssh_con):
     for each_user in all_users_info:
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
+        rgw_conn2 = auth.do_auth_using_client()
         log.info(f"Creating {config.bucket_count} buckets for {each_user['user_id']}")
         user_buckets = []  # Store buckets for this user
-
+        if config.test_ops.get("reuse_account_bucket", False) is True:
+            life_cycle_rule = {"Rules": config.lifecycle_conf}
+            reusable.prepare_for_bucket_lc_transition(config)
+            bucket = accounts.reuse_account_bucket(config, rgw_conn, each_user)
+            reusable.configure_rgw_lc_settings()
+            reusable.put_get_bucket_lifecycle_test(
+                bucket, rgw_conn, rgw_conn2, life_cycle_rule, config
+            )
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(
                 each_user["user_id"], rand_no=bc
