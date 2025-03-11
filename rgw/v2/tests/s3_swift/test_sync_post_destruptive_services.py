@@ -5,6 +5,7 @@ test_sync_post_destruptive_services.py
 Usage : test_sync_post_destruptive_services.py -c <input_yaml>
 <input_yaml>
     test_sync_consisitent_post_service_down_up.yaml
+    test_sync_consistent_with_node_reboot.yaml
 """
 
 import os
@@ -41,10 +42,14 @@ def test_exec(config, ssh_con):
         if str(out) != "sync_progress":
             raise AssertionError("sync status is not in progress!!")
         rgw_service_name = config.test_ops.get("rgw_service_name")
-        reusable.bring_down_all_rgws_in_the_site(rgw_service_name)
-        log.info(f"Waiting for 10 min")
-        time.sleep(600)
-        reusable.bring_up_all_rgws_in_the_site(rgw_service_name)
+
+        if config.test_ops.get("test_node_reboot", False):
+            reusable.reboot_rgw_nodes(rgw_service_name)
+        else:
+            reusable.bring_down_all_rgws_in_the_site(rgw_service_name)
+            log.info(f"Waiting for 10 min")
+            time.sleep(600)
+            reusable.bring_up_all_rgws_in_the_site(rgw_service_name)
         retry = config.test_ops.get("sync_retry", 25)
         delay = config.test_ops.get("sync_delay", 60)
         reusable.check_sync_status(retry, delay)
