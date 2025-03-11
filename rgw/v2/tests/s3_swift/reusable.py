@@ -3028,7 +3028,7 @@ def put_get_bucket_acl(rgw_client, bucket_name, acl):
     log.info(f"get bucket acl response: {get_bkt_acl_json}")
 
 
-def reboot_rgw_nodes():
+def reboot_rgw_nodes(rgw_service_name):
     """
     Method to fetch all the rgw nodes to proceed with reboot
     """
@@ -3051,8 +3051,11 @@ def reboot_rgw_nodes():
                 log.info(f"hostname is {host}")
                 cmd = f"ceph orch ps|grep rgw|grep {host}"
                 out = utils.exec_shell_cmd(cmd)
-                log.info(f"service name is {out.split()[0]}")
-                node_reboot(ssh_con, service_name=out.split()[0])
+                service_name = out.split()[0]
+                log.info(f"service name is {service_name}")
+                if rgw_service_name in service_name:
+                    log.info(f"Performing reboot of the node :{ip}")
+                    node_reboot(ssh_con, service_name=out.split()[0])
 
 
 def node_reboot(node, service_name=None, retry=15, delay=60):
@@ -3061,9 +3064,9 @@ def node_reboot(node, service_name=None, retry=15, delay=60):
     Node: ssh connection for the node
     service_name: RGW service name
     retry: retry to wait foe node/service to come up post reboot
-    delay: sllep time of 1 min between each try
+    delay: sleep time of 1 min between each try
     """
-    log.debug(f"Peforming reboot of the node : {node}")
+    log.info(f"Peforming reboot of the node : {node}")
     node.exec_command("sudo reboot")
     time.sleep(120)
     log.info(f"checking ceph status")
