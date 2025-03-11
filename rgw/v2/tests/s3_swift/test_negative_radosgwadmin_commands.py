@@ -1,12 +1,14 @@
 import argparse
 import os
-import sys
 import subprocess
+import sys
+
 import yaml
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import v1.utils.log as log
 from v1.utils.test_desc import AddTestInfo
+
 
 def execute_command(command):
     """Executes a command and returns stdout, stderr, and return code."""
