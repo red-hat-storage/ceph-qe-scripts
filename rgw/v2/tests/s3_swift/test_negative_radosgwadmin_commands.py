@@ -1,3 +1,23 @@
+"""
+
+Test multisite negative scenarios in Ceph RGW
+
+Usage:
+
+test_negative_radosgwadmin_commands.py -c <input_yaml> --rgw-node <rgw_ip>
+<input_yaml>:
+
+multisite_configs/test_negative_radosgw_admin_primary.yaml
+multisite_configs/test_negative_radosgw_admin_secondary.yaml
+Operation:
+
+Create realms, zonegroups, and zones with invalid or boundary values in a multisite environment.
+Test commands like realm creation, zonegroup creation, zone creation, and user creation with missing or incorrect parameters.
+Execute period pull commands with invalid credentials or URL.
+Ensure that errors are returned for each invalid scenario.
+Logs will capture all errors and results, and the script expects failures for each of the test commands.
+
+"""
 import argparse
 import os
 import subprocess
