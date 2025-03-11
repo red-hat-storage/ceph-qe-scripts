@@ -12,7 +12,7 @@ from v2.lib.exceptions import SyncFailedError
 log = logging.getLogger(__name__)
 
 
-def sync_status(retry=25, delay=60, ssh_con=None):
+def sync_status(retry=25, delay=60, ssh_con=None, return_while_sync_inprogress=False):
     """
     verify multisite sync status
     """
@@ -65,6 +65,8 @@ def sync_status(retry=25, delay=60, ssh_con=None):
     )
     if "behind" in check_sync_status or "recovering" in check_sync_status:
         log.info("sync is in progress")
+        if return_while_sync_inprogress:
+            return "sync_progress"
         log.info(f"sleep of {delay} secs for sync to complete")
         for retry_count in range(retry):
             time.sleep(delay)
