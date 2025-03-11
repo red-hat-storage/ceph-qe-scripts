@@ -2,6 +2,7 @@
 # Bugs: 2188557
 # Polarian: CEPH-83575470
 config:
+  haproxy: true
   user_count: 1
   bucket_count: 2
   objects_count: 100
