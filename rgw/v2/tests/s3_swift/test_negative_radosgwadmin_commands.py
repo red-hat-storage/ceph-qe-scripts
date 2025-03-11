@@ -12,10 +12,13 @@ from v1.utils.test_desc import AddTestInfo
 
 def execute_command(command):
     """Executes a command and returns stdout, stderr, and return code."""
-    process = subprocess.Popen(command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    process = subprocess.Popen(
+        command, shell=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE, text=True
+    )
     stdout, stderr = process.communicate()
     return_code = process.returncode
     return return_code, stdout, stderr
+
 
 def test_exec_primary(config, rgw_node):
     test_info = AddTestInfo("test multisite negative primary")
@@ -37,7 +40,9 @@ def test_exec_primary(config, rgw_node):
             log.info(f"Executing command: {command}. Error expected.")
             return_code, stdout, stderr = execute_command(command)
             if return_code == 0:
-                test_info.failed_status(f"Command '{command}' succeeded unexpectedly. Stdout: {stdout}, Stderr: {stderr}, Return Code: {return_code}")
+                test_info.failed_status(
+                    f"Command '{command}' succeeded unexpectedly. Stdout: {stdout}, Stderr: {stderr}, Return Code: {return_code}"
+                )
                 sys.exit(1)
             else:
                 log.info(f"{stderr} failed as expected.")
@@ -48,6 +53,7 @@ def test_exec_primary(config, rgw_node):
         log.error(f"An error occurred: {e}")
         test_info.failed_status(f"An error occurred: {e}")
         sys.exit(1)
+
 
 def test_exec_secondary(config, rgw_node):
     test_info = AddTestInfo("test multisite negative secondary")
@@ -64,11 +70,12 @@ def test_exec_secondary(config, rgw_node):
             log.info(f"Executing command: {command}. Error expected.")
             return_code, stdout, stderr = execute_command(command)
             if return_code == 0:
-                test_info.failed_status(f"Command '{command}' succeeded unexpectedly. Stdout: {stdout}, Stderr: {stderr}, Return Code: {return_code}")
+                test_info.failed_status(
+                    f"Command '{command}' succeeded unexpectedly. Stdout: {stdout}, Stderr: {stderr}, Return Code: {return_code}"
+                )
                 sys.exit(1)
             else:
                 log.info(f"{stderr} failed as expected.")
-
 
         test_info.success_status("Negative tests on ceph-sec completed")
         sys.exit(0)
@@ -76,6 +83,7 @@ def test_exec_secondary(config, rgw_node):
         log.error(f"An error occurred: {e}")
         test_info.failed_status(f"An error occurred: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RGW Multisite Negative Tests")
