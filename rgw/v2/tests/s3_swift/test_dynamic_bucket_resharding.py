@@ -397,14 +397,15 @@ def test_exec(config, ssh_con):
     if config.sharding_type == "dynamic":
         log.info("Verify if resharding list is empty")
         reshard_list_op = json.loads(utils.exec_shell_cmd("radosgw-admin reshard list"))
-        if not reshard_list_op:
-            log.info(
-                "for dynamic number of shards created should be greater than or equal to number of expected shards"
-            )
-            log.info(f"no_of_shards_expected: {num_shards_expected}")
-            if int(num_shards_created) >= int(num_shards_expected):
-                log.info("Expected number of shards created")
-        else:
+        if reshard_list_op:
+            for reshard in reshard_list_op:
+                if reshard["bucket_name"] == bucket.name:
+                    raise TestExecError("bucket still exist in reshard list")
+        log.info(
+            "for dynamic number of shards created should be greater than or equal to number of expected shards"
+        )
+        log.info(f"no_of_shards_expected: {num_shards_expected}")
+        if int(num_shards_created) < int(num_shards_expected):
             raise TestExecError("Expected number of shards not created")
 
         if config.test_ops.get("upload_after_suspend", False):
