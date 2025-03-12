@@ -1,0 +1,590 @@
+# The environment is a multiste archive test setup on baremetal machines.
+# It consists of a multisite configuration with three sites, primary,secondary,archive.
+# The deployment includes a single realm, India, which spans across three RHCS clusters.
+# There is a zonegroup called shared, which also spans both clusters.
+# The master zone (primary) is part of the primary cluster, while the secondary zone is part of the secondary cluster.
+# An archive zone is set up in the archive cluster.
+# The environment is evaluated by running IOs across the different clusters to assess multisite synchronization and overall performance.
+
+# Cluster Nodes:
+
+# Primary Cluster (ceph-pri): Nodes (extensa024, extensa025, extensa026, extensa027)
+# Secondary Cluster (ceph-sec): Nodes (extensa028, extensa029, extensa030, extensa031)
+# Archive Cluster (ceph-arc): Nodes (extensa032, extensa033, extensa034, extensa035)
+
+# IO RGW Placement:
+# Primary Cluster (ceph-pri): Nodes (extensa024, extensa025) - Endpoint: india.io
+# Secondary Cluster (ceph-sec): Nodes (extensa028, extensa029) - Endpoint: india.io
+# Archive Cluster (ceph-arc): Nodes (extensa032, extensa033) - Endpoint: india.io
+# Sync RGW Placement:
+# Primary Cluster (ceph-pri): Nodes (extensa024, extensa025) - Endpoint: india.sync
+# Secondary Cluster (ceph-sec): Nodes (extensa028, extensa029) - Endpoint: india.sync
+# Archive Cluster (ceph-arc): Nodes (extensa032, extensa033) - Endpoint: india.sync
+
+# run pre-requisites
+
+tests:
+   - test:
+       abort-on-fail: true
+       desc: Install software pre-requisites for cluster deployment.
+       module: install_prereq.py
+       name: setup pre-requisites
+
+   - test: # perform bootstrap
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: bootstrap
+                   service: cephadm
+                   args:
+                     registry-url: registry.redhat.io
+                     mon-ip: extensa024
+                     allow-fqdn-hostname: true
+                     orphan-initial-daemons: true
+                     initial-dashboard-password: admin@123
+                     dashboard-password-noupdate: true
+         ceph-sec:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: bootstrap
+                   service: cephadm
+                   args:
+                     registry-url: registry.redhat.io
+                     mon-ip: extensa028
+                     allow-fqdn-hostname: true
+                     orphan-initial-daemons: true
+                     initial-dashboard-password: admin@123
+                     dashboard-password-noupdate: true
+         ceph-arc:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: bootstrap
+                   service: cephadm
+                   args:
+                     registry-url: registry.redhat.io
+                     mon-ip: extensa032
+                     allow-fqdn-hostname: true
+                     orphan-initial-daemons: true
+                     initial-dashboard-password: admin@123
+                     dashboard-password-noupdate: true
+       desc: Bootstrap clusters using cephadm.
+       polarion-id: CEPH-83573386
+       destroy-cluster: false
+       module: test_cephadm.py
+       name: Bootstrap clusters
+
+   - test: #enable ptrace and set log to file
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             cephadm: true
+             commands:
+               - "ceph config set mgr mgr/cephadm/allow_ptrace true"
+               - "ceph config set global log_to_file true"
+               - "ceph config set global mon_cluster_log_to_file true"
+               - "ceph config set mgr mgr/cephadm/container_image_grafana registry-proxy.engineering.redhat.com/rh-osbs/grafana:9.4.7-1"
+         ceph-sec:
+           config:
+             cephadm: true
+             commands:
+               - "ceph config set mgr mgr/cephadm/allow_ptrace true"
+               - "ceph config set global log_to_file true"
+               - "ceph config set global mon_cluster_log_to_file true"
+               - "ceph config set mgr mgr/cephadm/container_image_grafana registry-proxy.engineering.redhat.com/rh-osbs/grafana:9.4.7-1"
+         ceph-arc:
+           config:
+             cephadm: true
+             commands:
+               - "ceph config set mgr mgr/cephadm/allow_ptrace true"
+               - "ceph config set global log_to_file true"
+               - "ceph config set global mon_cluster_log_to_file true"
+               - "ceph config set mgr mgr/cephadm/container_image_grafana registry-proxy.engineering.redhat.com/rh-osbs/grafana:9.4.7-1"
+       desc: setup debugging(ptrace) for containers
+       module: exec.py
+       name: setup debugging for containers
+       polarion-id: CEPH-10362
+
+   - test: #deploy more mons and mgrs
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: add_hosts
+                   service: host
+                   args:
+                     attach_ip_address: true
+                     labels: apply-all-labels
+               - config:
+                   command: apply
+                   service: mgr
+                   args:
+                     placement:
+                       label: mgr
+               - config:
+                   command: apply
+                   service: mon
+                   args:
+                     placement:
+                       label: mon
+
+         ceph-sec:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: add_hosts
+                   service: host
+                   args:
+                     attach_ip_address: true
+                     labels: apply-all-labels
+               - config:
+                   command: apply
+                   service: mgr
+                   args:
+                     placement:
+                       label: mgr
+               - config:
+                   command: apply
+                   service: mon
+                   args:
+                     placement:
+                       label: mon
+
+         ceph-arc:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: add_hosts
+                   service: host
+                   args:
+                     attach_ip_address: true
+                     labels: apply-all-labels
+               - config:
+                   command: apply
+                   service: mgr
+                   args:
+                     placement:
+                       label: mgr
+               - config:
+                   command: apply
+                   service: mon
+                   args:
+                     placement:
+                       label: mon
+       desc: RHCS deploy more mons and mgrs.
+       polarion-id: CEPH-83575222
+       destroy-cluster: false
+       module: test_cephadm.py
+       name: deploy more mons and mgrs
+
+   - test: # deploy osds
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: osd
+                   args:
+                     all-available-devices: true
+         ceph-sec:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: osd
+                   args:
+                     all-available-devices: true
+         ceph-arc:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: osd
+                   args:
+                     all-available-devices: true
+       desc: RHCS deploy osds.
+       polarion-id: CEPH-83575222
+       destroy-cluster: false
+       module: test_cephadm.py
+
+   - test: # deploy sync rgws
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: rgw
+                   pos_args:
+                     - india.sync
+                   args:
+                     port: 80
+                     placement:
+                       nodes:
+                         - extensa024
+                         - extensa025
+         ceph-sec:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: rgw
+                   pos_args:
+                     - india.sync
+                   args:
+                     port: 80
+                     placement:
+                       nodes:
+                         - extensa028
+                         - extensa029
+         ceph-arc:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: rgw
+                   pos_args:
+                     - india.sync
+                   args:
+                     port: 80
+                     placement:
+                       nodes:
+                         - extensa032
+                         - extensa033
+       desc: RHCS sync rgws deploy using cephadm.
+       polarion-id: CEPH-83575222
+       destroy-cluster: false
+       module: test_cephadm.py
+       name: sync rgws deploy using cephadm
+
+   - test: # deploy io rgws
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: rgw
+                   pos_args:
+                     - india.io
+                   args:
+                     port: 80
+                     placement:
+                       nodes:
+                         - extensa026
+                         - extensa027
+         ceph-sec:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: rgw
+                   pos_args:
+                     - india.io
+                   args:
+                     port: 80
+                     placement:
+                       nodes:
+                         - extensa030
+                         - extensa031
+         ceph-arc:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply
+                   service: rgw
+                   pos_args:
+                     - india.io
+                   args:
+                     port: 80
+                     placement:
+                       nodes:
+                         - extensa034
+                         - extensa035
+       desc: RHCS IO rgws deploy using cephadm.
+       polarion-id: CEPH-83575222
+       destroy-cluster: false
+       module: test_cephadm.py
+       name: IO rgws deploy using cephadm
+   - test:
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply_spec
+                   service: orch
+                   validate-spec-services: true
+                   specs:
+                     - service_type: prometheus
+                       placement:
+                         count: 1
+                         nodes:
+                           - extensa024
+                     - service_type: grafana
+                       placement:
+                         nodes:
+                           - extensa024
+                     - service_type: alertmanager
+                       placement:
+                         count: 1
+                     - service_type: node-exporter
+                       placement:
+                         host_pattern: "*"
+                     - service_type: crash
+                       placement:
+                         host_pattern: "*"
+         ceph-sec:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply_spec
+                   service: orch
+                   validate-spec-services: true
+                   specs:
+                     - service_type: prometheus
+                       placement:
+                         count: 1
+                         nodes:
+                           - extensa028
+                     - service_type: grafana
+                       placement:
+                         nodes:
+                           - extensa028
+                     - service_type: alertmanager
+                       placement:
+                         count: 1
+                     - service_type: node-exporter
+                       placement:
+                         host_pattern: "*"
+                     - service_type: crash
+                       placement:
+                         host_pattern: "*"
+         ceph-arc:
+           config:
+             verify_cluster_health: true
+             steps:
+               - config:
+                   command: apply_spec
+                   service: orch
+                   validate-spec-services: true
+                   specs:
+                     - service_type: prometheus
+                       placement:
+                         count: 1
+                         nodes:
+                           - extensa032
+                     - service_type: grafana
+                       placement:
+                         nodes:
+                           - extensa032
+                     - service_type: alertmanager
+                       placement:
+                         count: 1
+                     - service_type: node-exporter
+                       placement:
+                         host_pattern: "*"
+                     - service_type: crash
+                       placement:
+                         host_pattern: "*"
+       name: Monitoring Services deployment
+       desc: Add monitoring services using spec file.
+       module: test_cephadm.py
+       polarion-id: CEPH-83574727
+
+   - test: # configuring HAproxy on the port '5000'
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             haproxy_clients:
+               - extensa024
+             rgw_endpoints:
+               - "extensa024:80"
+               - "extensa025:80"
+         ceph-sec:
+           config:
+             haproxy_clients:
+               - extensa028
+             rgw_endpoints:
+               - "extensa028:80"
+               - "extensa029:80"
+         ceph-arc:
+           config:
+             haproxy_clients:
+               - extensa032
+             rgw_endpoints:
+               - "extensa032:80"
+               - "extensa033:80"
+       desc: "Configure HAproxy for sync rgws"
+       module: haproxy.py
+       name: "Configure HAproxy"
+       polarion-id: CEPH-83572703
+
+   - test: # configuring HAproxy on the port '5000'
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             haproxy_clients:
+               - extensa026
+             rgw_endpoints:
+               - "extensa026:80"
+               - "extensa027:80"
+         ceph-sec:
+           config:
+             haproxy_clients:
+               - extensa030
+             rgw_endpoints:
+               - "extensa030:80"
+               - "extensa031:80"
+         ceph-arc:
+           config:
+             haproxy_clients:
+               - extensa034
+             rgw_endpoints:
+               - "extensa034:80"
+               - "extensa035:80"
+       desc: "Configure HAproxy for IO rgws"
+       module: haproxy.py
+       name: "Configure HAproxy"
+       polarion-id: CEPH-83572703
+
+   - test:  # Setting up primary site in a multisite
+       abort-on-fail: true
+       clusters:
+         ceph-pri:
+           config:
+             cephadm: true
+             commands:
+               - "radosgw-admin realm create --rgw-realm india --default"
+               - "radosgw-admin zonegroup create --rgw-realm india --rgw-zonegroup shared --endpoints http://extensa024:5000 --master --default"
+               - "radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone primary --endpoints http://extensa024:5000 --master --default"
+               - "radosgw-admin period update --rgw-realm india --commit"
+               - "radosgw-admin user create --uid=repuser --display_name='Replication user' --access-key a123 --secret s123 --rgw-realm india --system"
+               - "radosgw-admin zone modify --rgw-realm india --rgw-zonegroup shared --rgw-zone primary --access-key a123 --secret s123"
+               - "radosgw-admin period update --rgw-realm india --commit"
+               - "ceph config set client.rgw.india.sync rgw_realm india"
+               - "ceph config set client.rgw.india.sync rgw_zonegroup shared"
+               - "ceph config set client.rgw.india.sync rgw_zone primary"
+               - "ceph config set client.rgw.india.io rgw_realm india"
+               - "ceph config set client.rgw.india.io rgw_zonegroup shared"
+               - "ceph config set client.rgw.india.io rgw_zone primary"
+               - "ceph orch restart rgw.india.sync"
+               - "ceph orch restart rgw.india.io"
+       desc: Setting up primary site in a multisite.
+       module: exec.py
+       name: Setting up primary site in a multisite
+       polarion-id: CEPH-10362
+
+   - test: # Setting up secondary site in a multisite
+       abort-on-fail: true
+       clusters:
+         ceph-sec:
+           config:
+             cephadm: true
+             commands:
+               - "sleep 120"
+               - "radosgw-admin realm pull --rgw-realm india --url http://extensa024:5000  --access-key a123 --secret s123 --default"
+               - "radosgw-admin period pull --url http://extensa024:5000 --access-key a123 --secret s123"
+               - "radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone secondary --endpoints http://extensa028:5000 --access-key a123 --secret s123"
+               - "radosgw-admin period update --rgw-realm india --commit"
+               - "ceph config set client.rgw.india.sync rgw_realm india"
+               - "ceph config set client.rgw.india.sync rgw_zonegroup shared"
+               - "ceph config set client.rgw.india.sync rgw_zone secondary"
+               - "ceph config set client.rgw.india.io rgw_realm india"
+               - "ceph config set client.rgw.india.io rgw_zonegroup shared"
+               - "ceph config set client.rgw.india.io rgw_zone secondary"
+               - "ceph orch restart rgw.india.sync"
+               - "ceph orch restart rgw.india.io"
+       desc: Setting up RGW multisite replication environment[secondary]
+       module: exec.py
+       name: setup multisite
+       polarion-id: CEPH-10362
+
+   - test: # Setting up archive site in a multisite
+       abort-on-fail: true
+       clusters:
+         ceph-arc:
+           config:
+             cephadm: true
+             commands:
+               - "sleep 120"
+               - "radosgw-admin realm pull --rgw-realm india --url http://extensa024:5000  --access-key a123 --secret s123 --default"
+               - "radosgw-admin period pull --url http://extensa024:5000 --access-key a123 --secret s123"
+               - "radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone archive --endpoints http://extensa032:5000 --access-key a123 --secret s123 --tier-type=archive"
+               - "radosgw-admin zone modify  --rgw-realm india --rgw-zonegroup shared --rgw-zone archive  --sync-from-all false --sync-from-rm secondary --sync-from primary"
+               - "radosgw-admin period update --rgw-realm india --commit"
+               - "ceph config set client.rgw.india.sync rgw_realm india"
+               - "ceph config set client.rgw.india.sync rgw_zonegroup shared"
+               - "ceph config set client.rgw.india.sync rgw_zone archive"
+               - "ceph config set client.rgw.india.io rgw_realm india"
+               - "ceph config set client.rgw.india.io rgw_zonegroup shared"
+               - "ceph config set client.rgw.india.io rgw_zone archive"
+               - "ceph orch restart rgw.india.sync"
+               - "ceph orch restart rgw.india.io"
+               - "radosgw-admin zone modify --rgw-zone archive --sync_from primary --sync_from_all false"
+               - "radosgw-admin period update --commit"
+               - "radosgw-admin period get"
+       desc: Setting up RGW multisite replication environment[archive]
+       module: exec.py
+       name: setup multisite
+       polarion-id: CEPH-10362
+
+   - test:
+       clusters:
+         ceph-pri:
+           config:
+             cephadm: true
+             commands:
+               - "ceph versions"
+               - "radosgw-admin sync status"
+               - "ceph -s"
+               - "radosgw-admin realm list"
+               - "radosgw-admin zonegroup list"
+               - "radosgw-admin zone list"
+               - "radosgw-admin user list"
+         ceph-sec:
+           config:
+             cephadm: true
+             commands:
+               - "ceph versions"
+               - "radosgw-admin sync status"
+               - "ceph -s"
+               - "radosgw-admin realm list"
+               - "radosgw-admin zonegroup list"
+               - "radosgw-admin zone list"
+               - "radosgw-admin user list"
+       desc: Retrieve the configured environment details
+       polarion-id: CEPH-83575227
+       module: exec.py
+       name: get shared realm info
