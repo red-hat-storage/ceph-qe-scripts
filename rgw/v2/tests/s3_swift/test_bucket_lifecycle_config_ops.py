@@ -79,7 +79,7 @@ def test_exec(config, ssh_con):
             log.info("RGW service restarted")
 
     # create user
-    abort_multipart = (config.abort_multipart, False)
+    abort_multipart = config.abort_multipart
     all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
         # authenticate

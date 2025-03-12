@@ -969,14 +969,13 @@ def test_exec(config, ssh_con):
         if config.test_ops.get("multipart_upload_with_tag", False):
             log.info("Testing tag retrival post multipart upload")
             obj_tag = "mpupload=mpupload"
-            abort_multipart = (config.abort_multipart, False)
             object_parts_info = reusable.upload_mutipart_object(
                 s3_object_name,
                 bucket,
                 TEST_DATA_PATH,
                 config,
                 each_user,
-                abort_multipart=abort_multipart,
+                abort_multipart=config.abort_multipart,
                 obj_tag=obj_tag,
             )
 
