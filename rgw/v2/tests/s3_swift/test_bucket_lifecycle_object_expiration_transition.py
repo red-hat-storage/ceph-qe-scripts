@@ -739,7 +739,7 @@ def test_exec(config, ssh_con):
                         object_key = json_doc_list[i]["name"]
                         version_id = json_doc_list[i]["instance"]
                         reusables_s3_restore.restore_s3_object(
-                            s3_client,
+                            rgw_conn2,
                             each_user,
                             config,
                             bucket_name,
@@ -757,7 +757,7 @@ def test_exec(config, ssh_con):
                         object_key = json_doc_list[i]["name"]
                         version_id = json_doc_list[i]["instance"]
                         reusables_s3_restore.check_restore_expiry(
-                            s3_client,
+                            rgw_conn2,
                             each_user,
                             config,
                             bucket_name,
