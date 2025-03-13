@@ -1,6 +1,7 @@
 # script: test_s3select.py
 # polarion-id: CEPH-83575176
 config:
+  haproxy: true
   user_count: 1
   bucket_count: 1
   user_remove: false
