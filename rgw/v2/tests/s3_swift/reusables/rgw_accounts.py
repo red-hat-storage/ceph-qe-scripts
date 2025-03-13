@@ -6,6 +6,7 @@ import time
 
 import boto
 import boto3
+import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
 from v2.lib.exceptions import TestExecError
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
@@ -253,6 +254,71 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
     with open(user_detail_file, "w") as fout:
         json.dump(iam_user_details, fout)
     return iam_user_details
+
+
+def reuse_account_bucket(config, rgw, user_info, location=None):
+    """
+    Reuse an existing bucket for an RGW account if it meets predefined conditions.
+    If the bucket has more than 1M objects, it is selected for reuse.
+    :param rgw: RGW resource connection
+    :param user_info: Dictionary containing user credentials
+    :return: Bucket resource object if criteria met, else None
+    """
+    rgw_account_id = get_rgw_account()
+    log.info(f"Fetching bucket list for RGW account: {rgw_account_id}")
+
+    # Get the list of buckets
+    cmd = f"radosgw-admin bucket list --account-id {rgw_account_id}"
+    bucket_list_json = utils.exec_shell_cmd(cmd)
+
+    if not bucket_list_json:
+        log.error("Failed to retrieve bucket list or received empty response.")
+        return None
+
+    bucket_list = json.loads(bucket_list_json)
+
+    if not bucket_list:
+        log.warning("No buckets found for the given account.")
+        return None
+
+    log.info(f"Found {len(bucket_list)} buckets. Checking stats...")
+
+    for bucket_name in bucket_list:
+        original_bucket_name = bucket_name  # Keep original for logging
+        if "tenant" in bucket_name:
+            tenant_name, bucket_short_name = bucket_name.split(".", 1)
+            bucket_name = f"{tenant_name}/{bucket_name}"
+
+        log.info(f"Checking stats for bucket: {original_bucket_name}")
+
+        # Fetch bucket statistics
+        stats_cmd = f"radosgw-admin bucket stats --bucket {bucket_name}"
+        bucket_stats_json = utils.exec_shell_cmd(stats_cmd)
+
+        if not bucket_stats_json:
+            log.warning(f"Skipping {original_bucket_name}: Failed to retrieve stats.")
+            continue
+
+        bucket_stats = json.loads(bucket_stats_json)
+        num_objects = (
+            bucket_stats.get("usage", {}).get("rgw.main", {}).get("num_objects", 0)
+        )
+
+        log.info(f"Bucket {original_bucket_name} has {num_objects} objects.")
+
+        if num_objects >= 1100000:
+            log.info(
+                f"Bucket {original_bucket_name} meets criteria. Returning for reuse."
+            )
+
+            # Return bucket in the expected format
+            bucket = s3lib.resource_op(
+                {"obj": rgw, "resource": "Bucket", "args": [original_bucket_name]}
+            )
+            return bucket  # Return the first valid bucket
+
+    log.warning("No buckets met the 1M objects criteria.")
+    return None  # No valid bucket found
 
 
 def perform_user_adoption(config, user_info, bucket):

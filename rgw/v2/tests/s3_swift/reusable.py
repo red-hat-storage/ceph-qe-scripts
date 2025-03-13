@@ -1046,36 +1046,78 @@ def put_get_bucket_lifecycle_test(
             raise TestExecError("bucket lifecycle config retrieval failed")
     else:
         raise TestExecError("bucket life cycle retrieved")
-    objs_total = (config.test_ops["version_count"]) * (config.objects_count)
-    if not upload_start_time:
-        upload_start_time = time.time()
-    if not upload_end_time:
-        upload_end_time = time.time()
-    time_diff = math.ceil(upload_end_time - upload_start_time)
-    time_limit = upload_start_time + (
-        config.rgw_lc_debug_interval * config.test_ops.get("actual_lc_days", 20)
-    )
-    for rule in config.lifecycle_conf:
-        if rule.get("Expiration", {}).get("Date", False):
-            # todo: need to get the interval value from yaml file
-            log.info(f"wait for 60 seconds")
-            time.sleep(60)
-        else:
-            while time.time() < time_limit:
-                bucket_stats_op = utils.exec_shell_cmd(
-                    "radosgw-admin bucket stats --bucket=%s" % bucket.name
+    if config.test_ops.get("reuse_account_bucket", False) is True:
+        max_retries = 1500
+        sleep_interval = 30
+        bucket_stats_output = utils.exec_shell_cmd(
+            f"radosgw-admin bucket stats --bucket tenant1/{bucket.name}"
+        )
+        bucket_stats_json = json.loads(bucket_stats_output)
+        objects_before_transition = bucket_stats_json["usage"]["rgw.main"][
+            "num_objects"
+        ]
+        lc_transition_start_time = time.time()
+        for retry in range(max_retries + 2):
+            if retry == 0:
+                time.sleep(
+                    max_retries
+                )  # since value of max_retries is same as rgw_lc_debug_interval
+
+            bucket_stats_output = utils.exec_shell_cmd(
+                f"radosgw-admin bucket stats --bucket tenant1/{bucket.name}"
+            )
+            log.info(f"bucket stats output for {bucket.name}: {bucket_stats_output}")
+            bucket_stats_json = json.loads(bucket_stats_output)
+
+            if (
+                bucket_stats_json["usage"]["rgw.cloudtiered"]["num_objects"]
+                >= objects_before_transition
+                and bucket_stats_json["usage"]["rgw.usage"]["num_objects"] == 0
+            ):
+                log.info(
+                    f" all the objects for bucket successfully cloud transitioned to IBM"
                 )
-                json_doc1 = json.loads(bucket_stats_op)
-                obj_pre_lc = json_doc1["usage"]["rgw.main"]["num_objects"]
-                if obj_pre_lc == objs_total or config.test_lc_transition:
-                    time.sleep(config.rgw_lc_debug_interval)
-                else:
-                    raise TestExecError("Objects expired before the expected days")
-    lc_grace_time = config.test_ops.get("lc_grace_time", 90)
-    log.info(
-        f"sleeping for {time_diff + lc_grace_time} seconds so that all objects gets expired/transitioned"
-    )
-    time.sleep(time_diff + lc_grace_time)
+                break
+            else:
+                log.info(
+                    f"Cloud transition still in progress after {retry} retry, sleep for {sleep_interval} and retry"
+                )
+                time.sleep(sleep_interval)
+        if retry > max_retries:
+            raise AssertionError(
+                f"LC transition to cloud for {objects_before_transition} failed"
+            )
+    else:
+
+        objs_total = (config.test_ops["version_count"]) * (config.objects_count)
+        if not upload_start_time:
+            upload_start_time = time.time()
+        if not upload_end_time:
+            upload_end_time = time.time()
+        time_diff = math.ceil(upload_end_time - upload_start_time)
+        time_limit = upload_start_time + (
+            config.rgw_lc_debug_interval * config.test_ops.get("actual_lc_days", 20)
+        )
+        for rule in config.lifecycle_conf:
+            if rule.get("Expiration", {}).get("Date", False):
+                # todo: need to get the interval value from yaml file
+                log.info("wait for 60 seconds")
+                time.sleep(60)
+            else:
+                while time.time() < time_limit:
+                    bucket_stats_op = utils.exec_shell_cmd(
+                        "radosgw-admin bucket stats --bucket=%s" % bucket.name
+                    )
+                    json_doc1 = json.loads(bucket_stats_op)
+                    obj_pre_lc = json_doc1["usage"]["rgw.main"]["num_objects"]
+                    if obj_pre_lc == objs_total or config.test_lc_transition:
+                        time.sleep(config.rgw_lc_debug_interval)
+                    else:
+                        raise TestExecError("Objects expired before the expected days")
+        log.info(
+            f"sleeping for {time_diff + 90} seconds so that all objects gets expired/transitioned"
+        )
+        time.sleep(time_diff + 90)
 
     if config.test_ops.get("conflict_exp_days"):
         bucket_stats_op = utils.exec_shell_cmd(
@@ -2029,17 +2071,23 @@ def prepare_for_bucket_lc_transition(config):
                     f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
                 )
         else:
-            target_path = "aws-bucket-01"
+            wget_cmd = "curl -o aws_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/aws_cloud_file"
+            utils.exec_shell_cmd(cmd=f"{wget_cmd}")
+            aws_config = configobj.ConfigObj("aws_cloud.env")
+            target_path = aws_config["TARGET"]
+            access = aws_config["ACCESS"]
+            secret = aws_config["SECRET"]
+            endpoint = aws_config["ENDPOINT"]
             utils.exec_shell_cmd(
                 f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class=CLOUDAWS --tier-type=cloud-s3"
             )
             if config.test_ops.get("test_retain_head", False):
                 utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint=http://s3region.amazonaws.com,access_key=awsaccesskey,secret=awssecretkey,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=aws-region"
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=us-east-1"
                 )
             else:
                 utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint=http://s3.aws-region.amazonaws.com,access_key=awsaccesskey,secret=awssecretkey,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=us-east-1"
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=us-east-1"
                 )
     if is_multisite:
         utils.exec_shell_cmd("radosgw-admin period update --commit")
@@ -3172,3 +3220,45 @@ def bring_up_all_rgws_in_the_site(rgw_service_name, retry=10, delay=10):
                             break
                     if retry_count + 1 == retry:
                         raise AssertionError("Node is not in expected state!!")
+
+
+def configure_rgw_lc_settings():
+    """
+    Retrieves RGW services using 'ceph orch ls | grep rgw' and sets LC debug configs.
+    """
+    log.info("Retrieving RGW service names...")
+
+    # Fetch RGW services
+    rgw_services_output = utils.exec_shell_cmd("ceph orch ls | grep rgw")
+
+    if not rgw_services_output:
+        log.error("No RGW services found or failed to retrieve.")
+        return
+
+    # Extract service names from output
+    rgw_services = []
+    for line in rgw_services_output.split("\n"):
+        line = line.strip()
+        if line:  # Ignore empty lines
+            columns = line.split()
+            if columns:  # Ensure there are columns before accessing
+                rgw_services.append(columns[0])
+
+    if not rgw_services:
+        log.warning("No valid RGW services extracted.")
+        return
+
+    log.info(f"Found RGW services: {rgw_services}")
+
+    # Set LC debug interval for each RGW service
+    for service in rgw_services:
+        lc_config_cmd1 = f"ceph config set client.{service} rgw_lc_debug_interval 600"
+        log.info(f"Setting LC config for {service}: {lc_config_cmd1}")
+        utils.exec_shell_cmd(lc_config_cmd1)
+        lc_config_cmd2 = "ceph config set client.{service} rgw_lc_max_worker 10"
+        log.info(f"Setting LC config for {service}: {lc_config_cmd2}")
+        utils.exec_shell_cmd(lc_config_cmd2)
+        ceph_restart_cmd = f"ceph orch restart {service}"
+        utils.exec_shell_cmd(ceph_restart_cmd)
+
+    log.info("RGW LC debug interval settings updated successfully.")
