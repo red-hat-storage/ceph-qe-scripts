@@ -885,6 +885,17 @@ def test_exec(config, ssh_con):
 
         if config.user_reset:
             log.info(f"Verify user reset doesn't throw any error")
+            # Adding work around as per BZ:2167475 i.e: osd_max_write_op_reply_len 128
+
+            out = utils.exec_shell_cmd(
+                "ceph config set global osd_max_write_op_reply_len 128"
+            )
+            out = utils.exec_shell_cmd("ceph config get osd osd_max_write_op_reply_len")
+            if int(out) != 128:
+                raise AssertionError(
+                    f"Config set failed for osd_max_write_op_reply_len"
+                )
+
             bucket_list = utils.exec_shell_cmd(
                 f"radosgw-admin bucket list --uid={each_user['user_id']}"
             )
@@ -897,6 +908,17 @@ def test_exec(config, ssh_con):
             stats_reset = utils.exec_shell_cmd(
                 f"radosgw-admin user stats --uid={each_user['user_id']} --reset-stats"
             )
+            # Reset osd_max_write_op_reply_len back to default
+            log.info(f"Reset back to default value for osd_max_write_op_reply_len")
+            out = utils.exec_shell_cmd(
+                "ceph config rm global osd_max_write_op_reply_len"
+            )
+            out = utils.exec_shell_cmd("ceph config get osd osd_max_write_op_reply_len")
+            if int(out) != 64:
+                raise AssertionError(
+                    f"Config reset to default failed for osd_max_write_op_reply_len"
+                )
+
             if not stats_reset:
                 raise AssertionError(f"user reset failed!!")
 
