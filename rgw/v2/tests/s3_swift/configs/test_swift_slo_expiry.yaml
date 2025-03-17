@@ -1,0 +1,6 @@
+#CEPH-9726
+config:
+  user_type: "non-tenanted"
+  container_count: 1
+  static_large_object_upload: True
+
