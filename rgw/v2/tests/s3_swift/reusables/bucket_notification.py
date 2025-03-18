@@ -361,7 +361,10 @@ def verify_event_record(
             # Determine if the bucket has a tenant
             if "." in bucket and "tenant" in bucket:
                 tenant_name, bucket_short_name = bucket.split(".", 1)
-                bucket_stats_name = f"{tenant_name}/{bucket}"
+                if "/" in bucket:
+                    bucket_stats_name = bucket
+                else:
+                    bucket_stats_name = f"{tenant_name}/{bucket}"
             else:
                 bucket_stats_name = bucket
 
