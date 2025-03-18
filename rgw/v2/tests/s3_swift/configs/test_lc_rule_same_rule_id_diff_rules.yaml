@@ -1,6 +1,7 @@
 #test_bucket_lifecycle_object_expiration_transition.py
 #polarion-id: CEPH-11183
 config:
+  haproxy: true
   bucket_count: 2
   objects_count: 25
   objects_size_range:
