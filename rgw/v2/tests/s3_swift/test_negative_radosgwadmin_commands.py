@@ -45,19 +45,24 @@ def test_exec_primary(config, rgw_node):
     try:
         test_info.started_info()
         commands = [
-            f"radosgw-admin realm create --rgw-realm '' --default",
-            f"radosgw-admin realm create --rgw-realm india --default",
-            f"radosgw-admin zonegroup create --rgw-realm india --rgw-zonegroup '' --endpoints http://{rgw_node}:80 --master --default",
-            f"radosgw-admin zonegroup create --rgw-realm india --endpoints http://{rgw_node}:80 --master --default",
-            f"radosgw-admin zonegroup create --rgw-realm india --rgw-zonegroup shared --endpoints http://{rgw_node}:80 --master --default",
-            f"radosgw-admin zonegroup create --rgw-realm india --rgw-zonegroup shared --endpoints http://{rgw_node}:80 --master --default",
-            f"radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone '' --endpoints http://{rgw_node}:80 --master --default",
-            f"radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone primary --endpoints http://{rgw_node}:80 --master --default",
-            f"radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone primary --endpoints http://{rgw_node}:80 --master --default",
-            f"radosgw-admin user create --uid=repuser --display_name='Replication user' --access-key 21e86bce636c3aa0 --secret cf764951f1fdde5d --rgw-realm india --system",
+            "radosgw-admin realm create --rgw-realm india --default",
+            "radosgw-admin zonegroup create --rgw-realm india --rgw-zonegroup shared --endpoints http://node_ip:node5:80 --master --default",
+            "radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone primary --endpoints http://node_ip:node5:80 --master --default",
+            "radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone primary --endpoints http://node_ip:node5:80 --master --default",
+            "radosgw-admin user create --uid=repuser --display_name='Replication user' --access-key 21e86bce636c3aa0 --secret cf764951f1fdde5d --rgw-realm india --system",
+            "radosgw-admin zonegroup default --rgw-zonegroup non_existent_zonegroup",
+            "radosgw-admin realm default --rgw-realm non_existent_realm",
+            "radosgw-admin zone default --rgw-zone non_existent_zone",
+            "radosgw-admin realm create --rgw-realm '' --default"
+            "radosgw-admin zonegroup add --rgw-zonegroup us --rgw-zone non_existent_zone",
+            "radosgw-admin zonegroup create --rgw-realm india --rgw-zonegroup ''  --endpoints=http://node_ip:node5:80 --master --default",
+            "radosgw-admin zone create --rgw-realm india --rgw-zonegroup shared --rgw-zone ''  --endpoints=http://node_ip:node5:80 --master --default",
+            "radosgw-admin zone create --rgw-realm india --rgw-zonegroup '' --endpoints=http://node_ip:node5:80 --master --defaultt",
+            "radosgw-admin user create --uid=zone --display-name=''",
+            "radosgw-admin user create --uid= --display-name='Zone User1'",
         ]
         for command in commands:
-            log.info(f"Executing command: {command}. Error expected.")
+            log.info(f"Executing command: {command} ")
             return_code, stdout, stderr = execute_command(command)
             if return_code == 0:
                 test_info.failed_status(
@@ -80,14 +85,20 @@ def test_exec_secondary(config, rgw_node):
     try:
         test_info.started_info()
         commands = [
-            f"radosgw-admin period pull --url http://invalidurl:80 --access-key 21e86bce636c3aa0 --secret cf764951f1fdde5d",
-            f"radosgw-admin period pull --url http://{rgw_node}:80 --access-key 21e80 --secret dhejsbjans",
-            f"radosgw-admin period pull --url http://{rgw_node}:80 --access-key 21e86bce636c3aa0 --secret ''",
-            f"radosgw-admin period pull --url http://{rgw_node}:80 --access-key '' --secret ''",
-            f"radosgw-admin period pull --url http://{rgw_node}:80 --access-key '' --secret '' --rgw-realm india --rgw-zonegroup shared --rgw-zone secondary",
+            "radosgw-admin period pull --url http://node_ip:ceph-pri#node5:80 --access-key invalid_key --secret invalid_secret",
+            "radosgw-admin period pull --url http://node_ip:ceph-pri#node5:80 --access-key 21e86bce636c3aa0 --secret ''",
+            "radosgw-admin period pull --url http://node_ip:ceph-pri#node5:80 --access-key '' --secret ''",
+            "radosgw-admin period pull --url http://node_ip:ceph-pri#node5:80 --access-key '' --secret '' --rgw-realm india --rgw-zonegroup shared --rgw-zone secondary",
+            "radosgw-admin realm pull --url=http://node_ip:ceph-pri#node5:80  --access-key=invalid_key --secret=invalid_secret",
+            "radosgw-admin realm pull --url=http://node_ip:ceph-pri#node5:80  --access-key= --secret=",
+            "radosgw-admin realm default --rgw-realm=non_existent_realm",
+            "radosgw-admin zonegroup default --rgw-zonegroup=non_existent_zonegroup",
+            "radosgw-admin zone create --rgw-zonegroup=us --rgw-zone=us-2 --access-key=invalid_key --secret=invalid_secret --endpoints=http://node_ip:ceph-sec#node5:80",
+            "radosgw-admin zone create --rgw-zonegroup=us --rgw-zone=us-2 --access-key= --secret= --endpoints=http://node_ip:ceph-sec#node5:80",
+            "radosgw-admin zone create --rgw-zonegroup=us --rgw-zone=us-2 --access-key=21e86bce636c3aa0 --secret=cf764951f1fdde5d --endpoints=invalid_endpoint",
         ]
         for command in commands:
-            log.info(f"Executing command: {command}. Error expected.")
+            log.info(f"Executing command: {command} ")
             return_code, stdout, stderr = execute_command(command)
             if return_code == 0:
                 test_info.failed_status(
