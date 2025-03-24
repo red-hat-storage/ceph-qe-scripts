@@ -1,0 +1,6 @@
+# script: test_unified_namespace.py
+# polarion-ID: CEPH-83572907
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
