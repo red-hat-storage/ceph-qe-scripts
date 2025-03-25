@@ -16,8 +16,6 @@ Operation:
 """
 
 import glob
-
-# test swift basic ops
 import os
 import sys
 
@@ -29,9 +27,9 @@ import random
 import string
 import time
 import traceback
+from datetime import datetime, timedelta, timezone
 
 import names
-from datetime import datetime, timezone, timedelta
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as swiftlib
 import v2.utils.utils as utils
@@ -45,8 +43,8 @@ from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoIn
 from v2.lib.s3cmd import auth as s3cmd_auth
 from v2.lib.swift.auth import Auth
 from v2.tests.s3_swift import reusable
-from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.tests.s3_swift.reusables import swift_reusable as sr
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -68,31 +66,39 @@ def test_exec(config, ssh_con):
         users_info = []
         user_info = swiftlib.create_users(1)[-1]
         users_info.append(user_info)
-        subuser_info = swiftlib.create_non_tenant_sub_users(config.container_count, user_info)
+        subuser_info = swiftlib.create_non_tenant_sub_users(
+            config.container_count, user_info
+        )
         auth = Auth(subuser_info[-1], ssh_con, config.ssl)
         rgw = auth.do_auth()
 
-
-
     if config.static_large_object_upload == True:
-        container_name = utils.gen_bucket_name_from_userid(user_info['user_id'], rand_no=str(3) + "new")
-        object_name = utils.gen_s3_object_name(f"{user_info['user_id']}.container.{1}", 1)
+        container_name = utils.gen_bucket_name_from_userid(
+            user_info["user_id"], rand_no=str(3) + "new"
+        )
+        object_name = utils.gen_s3_object_name(
+            f"{user_info['user_id']}.container.{1}", 1
+        )
 
         filename_test = "a_large_file" + sr.get_unique_name(3)
         rgw.put_container(container_name)
         sr.create_a_large_file(TEST_DATA_PATH, filename_test)
 
         # Upload segments and create manifest
-        segments = sr.upload_segments(rgw, TEST_DATA_PATH, container_name, object_name, filename_test, segment_size=100)
+        segments = sr.upload_segments(
+            rgw,
+            TEST_DATA_PATH,
+            container_name,
+            object_name,
+            filename_test,
+            segment_size=100,
+        )
         sr.upload_manifest(rgw, container_name, object_name, segments)
 
-    sr.set_expiration(rgw,container_name, object_name,expiration_after=1)
-
+    sr.set_expiration(rgw, container_name, object_name, expiration_after=1)
 
     # Checking the Download
-    metadata = rgw.head_object(
-        container_name, object_name
-    )
+    metadata = rgw.head_object(container_name, object_name)
 
     log.info(f"Metadata : {metadata}")
 
@@ -102,16 +108,13 @@ def test_exec(config, ssh_con):
         TEST_DATA_PATH, swift_object_download_fname
     )
     log.info("download object path: %s" % swift_object_download_path)
-    swift_object_downloaded = rgw.get_object(
-        container_name, object_name
-    )
+    swift_object_downloaded = rgw.get_object(container_name, object_name)
     with open(swift_object_download_path, "wb") as fp:
         fp.write(swift_object_downloaded[1])
 
     log.info(f"md5 of Downloaded object : {utils.get_md5(swift_object_download_path)}")
 
-    sr.verify_expiration(rgw,container_name, object_name)
-
+    sr.verify_expiration(rgw, container_name, object_name)
 
     crash_info = reusable.check_for_crash()
     if crash_info:
