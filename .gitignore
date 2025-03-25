@@ -1,3 +1,6 @@
+#Virtual Environment
+.venv/
+
 # IDE files
 *.idea/
 *.xml
