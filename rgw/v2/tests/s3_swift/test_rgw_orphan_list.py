@@ -9,20 +9,20 @@ This script uses 'rgw-orphan-list', 'radosgw-admin', and 'rados' to verify:
 Fails if orphans are found or index counts mismatch. Provides detailed logging and supports remote execution.
 """
 
-import os
-import sys
-import subprocess
+import argparse
 import json
 import logging
+import os
+import subprocess
+import sys
 import traceback
-import argparse
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
 from v2.lib.resource_op import Config
+from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils import utils
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
