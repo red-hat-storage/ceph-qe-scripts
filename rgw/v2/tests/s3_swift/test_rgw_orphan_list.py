@@ -75,7 +75,9 @@ def check_gc():
         log.error("Error decoding radosgw-admin gc list output. Invalid JSON.")
         sys.exit(1)
     if gc_list:
-        log.error("Error: RGW garbage collection list is not empty. Potential orphans found.")
+        log.error(
+            "Error: RGW garbage collection list is not empty. Potential orphans found."
+        )
         sys.exit(1)
     log.info("GC list is empty. No orphans found in GC.")
 
@@ -99,7 +101,9 @@ def check_orphan_index():
     log.info(f"Orphan index output: {orphan_index_output}")
 
     if "0 potential orphans found" not in orphan_index_output:
-        log.warning("Potential orphans found in default.rgw.buckets.index. Validating bucket indexes...")
+        log.warning(
+            "Potential orphans found in default.rgw.buckets.index. Validating bucket indexes..."
+        )
     else:
         log.info("No orphan indexes found.")
         return
@@ -158,7 +162,7 @@ def check_orphan_index():
             )
             log.error(f"Please check RGW configuration and logs for potential issues.")
             log.error(f"Found indexes: {found_indexes}")
-            sys.exit(1) #fail the test
+            sys.exit(1)  # fail the test
 
     log.info("Bucket index validation completed.")
 
