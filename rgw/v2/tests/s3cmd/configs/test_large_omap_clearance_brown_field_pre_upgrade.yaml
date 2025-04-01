@@ -1,0 +1,11 @@
+# Polarian: CEPH-83591446
+# Script: test_large_omap.py
+config:
+  haproxy: true
+  user_count: 1
+  bucket_count: 1
+  objects_count: 20
+  test_ops:
+    large_omap: true
+    cluster_is: brownfield
+    create_omap: true
