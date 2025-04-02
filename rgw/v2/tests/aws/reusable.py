@@ -717,7 +717,7 @@ def put_keystone_conf(rgw_service_name, user, passw, project, tenant="true"):
     )
     log.info("restart RGW for options to take effect")
     utils.exec_shell_cmd(f"ceph orch restart {rgw_service_name}")
-    time.sleep(10)
+    time.sleep(20)
 
 
 def verify_namespace_swift(bucket, rgw_ip, port, user="admin"):
