@@ -37,24 +37,30 @@ log = logging.getLogger()
 
 
 def test_exec(config, ssh_con):
+
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     umgmt = UserMgmt()
 
+    # preparing data
     user_names = ["max", "scooby", "tubyst"]
     tenant = "tenant"
-    #added a check if the user already exist, removing and recreating if if its existing
+    # added a check if the user already exist, removing and recreating the user
     try:
         cmd = f"radosgw-admin user info --uid={user_names[0]} --tenant={tenant}"
-        process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        process = subprocess.Popen(
+            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         stdout, stderr = process.communicate()
         exit_code = process.returncode
-        user_check = stdout.decode('utf-8')
+        user_check = stdout.decode("utf-8")
         log.info(f"Checking if user exists already:\n{user_check}")
 
         if "user_id" in user_check:  # if User exists
-            log.info(f"User tenant${user_names[0]} already exists, removing and recreating.")
+            log.info(
+                f"User tenant${user_names[0]} already exists, removing and recreating."
+            )
             cmd = f"radosgw-admin user rm --uid={user_names[0]} --tenant={tenant} --purge-data"
             utils.exec_shell_cmd(cmd)
 
