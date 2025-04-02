@@ -14,14 +14,14 @@ Operation:
 """
 
 import os
-import sys
 import subprocess
+import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+import json
 import logging
 import traceback
-import json
 
 import v2.lib.resource_op as swiftlib
 import v2.utils.utils as utils
