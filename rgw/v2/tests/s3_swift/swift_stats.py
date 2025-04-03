@@ -49,24 +49,27 @@ def test_exec(config, ssh_con):
     # added a check if the user already exist, removing and recreating the user
     try:
         cmd = f"radosgw-admin user info --uid={user_names[0]} --tenant={tenant}"
-        process = subprocess.Popen(
-            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
-        stdout, stderr = process.communicate()
-        exit_code = process.returncode
-        user_check = stdout.decode("utf-8")
-        log.info(f"Checking if user exists already:\n{user_check}")
+        user_check = utils.exec_shell_cmd(cmd)
 
-        if "user_id" in user_check:  # if User exists
-            log.info(
-                f"User tenant${user_names[0]} already exists, removing and recreating."
+        log.info(f"User info before check:\n{user_check}")
+
+        if user_check is False:
+            log.info(f"User {user_names[0]} does not exist. Creating user.")
+            tenant_user_info = umgmt.create_tenant_user(
+                tenant_name=tenant, user_id=user_names[0], displayname=user_names[0]
             )
-            cmd = f"radosgw-admin user rm --uid={user_names[0]} --tenant={tenant} --purge-data"
-            utils.exec_shell_cmd(cmd)
-
-        tenant_user_info = umgmt.create_tenant_user(
-            tenant_name=tenant, user_id=user_names[0], displayname=user_names[0]
-        )
+            log.info(f"Tenanted user created")
+        else:
+            if "user_id" in user_check:
+                log.info(
+                    f"User tenant${user_names[0]} already exists, removing and recreating."
+                )
+                cmd = f"radosgw-admin user rm --uid={user_names[0]} --tenant={tenant} --purge-data"
+                utils.exec_shell_cmd(cmd)
+                tenant_user_info = umgmt.create_tenant_user(
+                    tenant_name=tenant, user_id=user_names[0], displayname=user_names[0]
+                )
+                log.info(f"Tenanted user created")
     except RGWBaseException as e:
         log.error(f"Failed to create tenant user: {e}")
         raise e
