@@ -44,7 +44,7 @@ def test_exec(config, ssh_con):
     umgmt = UserMgmt()
 
     # preparing data
-    user_names = ["max", "scooby", "tubyst"]
+    user_names = ["max", "scooby", "tuffy"]
     tenant = "tenant"
     # added a check if the user already exist, removing and recreating the user
     try:
