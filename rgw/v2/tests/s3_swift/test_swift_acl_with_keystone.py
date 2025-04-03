@@ -68,7 +68,7 @@ def create_swift_bucket_with_acl_keystone(bucket_name, rgw_ip, port, user="admin
     cmd = cmd_prefix + f"swift stat {sw_bucket} "
     out = utils.remote_exec_shell_cmd(ssh, cmd, return_output=True)
     print(out)
-    #CHECK THE ACL CHANGES
+    # CHECK THE ACL CHANGES
     if ("Read ACL: .r:*" and "Write ACL: *:*") in out:
         print("SUCCESS")
     else:
@@ -138,9 +138,7 @@ def test_exec(config, ssh_con):
     rgw_port = utils.get_radosgw_port_no(ssh_con)
     rgw_host, rgw_ip = utils.get_hostname_ip(ssh_con)
     put_keystone_conf(rgw_service_name, "admin", "admin123", "admin", "true")
-    create_swift_bucket_with_acl_keystone(
-        bucket_name, rgw_ip, rgw_port, "admin"
-    )
+    create_swift_bucket_with_acl_keystone(bucket_name, rgw_ip, rgw_port, "admin")
     cleanup_keystone()
 
     crash_info = reusable.check_for_crash()
@@ -193,4 +191,3 @@ if __name__ == "__main__":
 
     finally:
         utils.cleanup_test_data_path(TEST_DATA_PATH)
-
