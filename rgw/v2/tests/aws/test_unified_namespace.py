@@ -69,7 +69,7 @@ def test_exec(config, ssh_con):
     utils.exec_shell_cmd(cmd)
     time.sleep(2)
     cmd = f"radosgw-admin user list"
-    users = utils.exec_shell_cmd(cmd)
+    users = json.loads(utils.exec_shell_cmd(cmd))
     if project_demo not in users:
         raise RGWBaseException("Keystone user not present in RGW user list")
     else:
@@ -99,7 +99,7 @@ def test_exec(config, ssh_con):
     utils.exec_shell_cmd(cmd)
     time.sleep(2)
     cmd = f"radosgw-admin user list"
-    users = utils.exec_shell_cmd(cmd)
+    users = json.loads(utils.exec_shell_cmd(cmd))
     for line in users:
         if "$" in line and line.split("$")[0] == line.split("$")[1]:
             tenant1 = line
@@ -135,7 +135,7 @@ def test_exec(config, ssh_con):
     utils.exec_shell_cmd(cmd)
     time.sleep(2)
     cmd = f"radosgw-admin user list"
-    users = utils.exec_shell_cmd(cmd)
+    users = json.loads(utils.exec_shell_cmd(cmd))
     for line in users:
         if "$" in line and line.split("$")[0] == line.split("$")[1]:
             tenant1 = line
