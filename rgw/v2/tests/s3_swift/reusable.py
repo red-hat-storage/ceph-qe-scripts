@@ -1088,7 +1088,6 @@ def put_get_bucket_lifecycle_test(
                 f"LC transition to cloud for {objects_before_transition} failed"
             )
     else:
-
         objs_total = (config.test_ops["version_count"]) * (config.objects_count)
         if not upload_start_time:
             upload_start_time = time.time()
@@ -2986,6 +2985,14 @@ def get_object_attributes(
             if key.startswith("user.rgw.x-amz-checksum-"):
                 checksum_key = f"Checksum{key.split('-')[-1].upper()}"
                 checksum_expected[checksum_key] = val
+                if (
+                    checksum_key == "ChecksumSHA256" or checksum_key == "ChecksumSHA1"
+                ) and object_parts_info:
+                    # checksum_type is COMPOSITE only for multipart objects uploaded with SHA1 or SHA256 algo by default
+                    checksum_expected["ChecksumType"] = "COMPOSITE"
+                else:
+                    checksum_expected["ChecksumType"] = "FULL_OBJECT"
+
         log.info(f"checksum expected: {checksum_expected}")
         if checksum_expected != get_obj_attr_resp["Checksum"]:
             raise TestExecError(f"incorrect Checksum in GetObjectAttributes")
