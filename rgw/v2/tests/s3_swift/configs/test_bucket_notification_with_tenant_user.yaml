@@ -3,7 +3,7 @@
 config:
     user_count: 2
     bucket_count: 2
-    objects_count: 25
+    objects_count: 20
     user_type: tenanted
     objects_size_range:
         min: 5

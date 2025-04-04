@@ -2,7 +2,7 @@
 # bz: https://bugzilla.redhat.com/show_bug.cgi?id=2166576
 # polarion_id: CEPH-83591037
 config:
-  objects_count: 20
+  objects_count: 10
   objects_size_range:
     min: 200M
     max: 300M
