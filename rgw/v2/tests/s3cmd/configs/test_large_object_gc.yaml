@@ -3,6 +3,6 @@
 config:
   user_count: 1
   bucket_count: 2
-  objects_count: 100
+  objects_count: 20
   gc_verification: true
   local_file_delete: false

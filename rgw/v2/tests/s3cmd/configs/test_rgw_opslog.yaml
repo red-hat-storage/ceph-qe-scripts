@@ -5,5 +5,5 @@
 config:
   user_count: 1
   bucket_count: 2
-  objects_count: 100
+  objects_count: 20
   rgw_ops_log: true
