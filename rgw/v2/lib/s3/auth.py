@@ -59,6 +59,7 @@ class Auth(object):
         log.info("endpoint url: %s" % self.endpoint_url)
         log.info("ssl: %s" % self.ssl)
         log.info("session_token: %s" % self.session_token)
+        log.info(f"boto version is {boto3.__version__}")
 
     def do_auth(self, **config):
         """

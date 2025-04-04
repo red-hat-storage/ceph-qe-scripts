@@ -46,6 +46,8 @@ def install_aws(ssh_con=None):
                 ssh_con.exec_command("unzip awscliv2.zip")
                 ssh_con.exec_command("sudo aws/./install")
                 ssh_con.exec_command(f"mkdir {root_path}")
+                log.info(f"AWS version:")
+                ssh_con.exec_command("sudo /usr/local/bin/aws --version")
             else:
                 utils.exec_shell_cmd(
                     "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'"
@@ -54,6 +56,8 @@ def install_aws(ssh_con=None):
                 utils.exec_shell_cmd("unzip awscliv2.zip")
                 utils.exec_shell_cmd("sudo aws/./install")
                 utils.exec_shell_cmd(f"mkdir {root_path}")
+                log.info(f"AWS version:")
+                utils.exec_shell_cmd("sudo /usr/local/bin/aws --version")
     except:
         raise AssertionError("AWS Installation Failed")
 
