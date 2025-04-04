@@ -1,5 +1,6 @@
 #test_bucket_lifecycle_object_expiration_transition.py
 config:
+  haproxy: true
   user_count: 1
   bucket_count: 1
   objects_count: 10

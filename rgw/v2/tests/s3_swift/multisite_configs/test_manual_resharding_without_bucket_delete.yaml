@@ -1,1 +1,9 @@
-../configs/test_manual_resharding_without_bucket_delete.yaml
+config:
+  objects_count: 100
+  objects_size_range:
+    min: 15
+    max: 20
+  sharding_type: manual
+  shards: 97
+  test_ops:
+    delete_bucket_object: false

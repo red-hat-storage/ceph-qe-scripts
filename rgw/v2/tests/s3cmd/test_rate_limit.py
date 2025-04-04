@@ -6,10 +6,13 @@ Usage: test_rate_limit.py -c <input_yaml>
 <input_yaml>
     Note: Following yaml can be used
     test_rate_limit.yaml
+    test_ratelimit_split.yaml
+    test_ratelimit_debt.yaml
 
 Polarion Tests:
 CEPH-83574910
 CEPH-83574913
+CEPH-83574917
 
 Operation:
     Create an user
@@ -201,6 +204,21 @@ def test_exec(config, ssh_con):
     log.info(f"Sleeping for a minute to reset limits")
     sleep(61)
     s3cmd_reusable.rate_limit_write(bucket_name2, max_write_bytes_kb, ssl)
+
+    if config.test_ops.get("daemon_add", False):
+        log.info("Add a RGW daemon to the existing configuration")
+        s3cmd_reusable.rgw_daemon_add(ssh_con)
+        log.info("Verify that the ratelimits should now be halved for each daemon")
+        max_read_ops = math.ceil(max_read_ops / 2)
+        max_write_ops = math.ceil(max_write_ops / 2)
+        # test the read and write ops limit
+        sleep(60)
+        log.info(f"Test the read and write ops limits")
+        s3cmd_reusable.rate_limit_read(bucket_name2, max_read_ops, ssl)
+
+        log.info(f"Sleeping for a minute to reset limits")
+        sleep(61)
+        s3cmd_reusable.rate_limit_write(bucket_name2, max_write_ops, ssl)
 
     if config.test_ops.get("test_debt", False):
         log.info("Test the rate limit debt feature ")

@@ -68,7 +68,9 @@ def resource_op(exec_info):
         return False
 
 
-def create_users(no_of_users_to_create, user_names=None, cluster_name="ceph"):
+def create_users(
+    no_of_users_to_create, user_names=None, cluster_name="ceph", config=None
+):
     """
     This function is to create n users on the cluster
 
@@ -83,11 +85,11 @@ def create_users(no_of_users_to_create, user_names=None, cluster_name="ceph"):
     all_users_details = []
     primary = utils.is_cluster_primary()
     user_detail_file = os.path.join(lib_dir, "user_details.json")
-    if primary:
+    if primary or (config and config.user_names):
         for i in range(no_of_users_to_create):
             if user_names:
                 user_details = admin_ops.create_admin_user(
-                    user_id=user_names,
+                    user_id=user_names[i],
                     displayname=user_names,
                     cluster_name=cluster_name,
                 )
@@ -308,6 +310,7 @@ class Config(object):
             "rgw_lifecycle_work_time", "00:00-06:00"
         )
         self.rgw_lc_max_worker = self.doc["config"].get("rgw_lc_max_worker", 10)
+        self.rgw_lc_max_wp_worker = self.doc["config"].get("rgw_lc_max_wp_worker", 10)
         self.parallel_lc = self.doc["config"].get("parallel_lc", False)
         self.multiple_delete_marker_check = self.doc["config"].get(
             "multiple_delete_marker_check", False
@@ -440,6 +443,8 @@ class Config(object):
         )
         self.user_conflict_write_ops = self.doc["config"].get("user_conflict_write_ops")
         self.permutation_count = self.doc["config"].get("permutation_count")
+        self.user_names = self.doc["config"].get("user_names")
+        self.bucket_names = self.doc["config"].get("bucket_names")
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:

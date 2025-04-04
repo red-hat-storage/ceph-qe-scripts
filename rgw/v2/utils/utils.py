@@ -100,16 +100,20 @@ def connect_remote(rgw_host, user_nm="cephuser", passw="cephuser"):
         return ssh
 
 
-def remote_exec_shell_cmd(ssh, cmd):
+def remote_exec_shell_cmd(ssh, cmd, return_output=False):
     try:
         log.info("executing cmd on remote node: %s" % cmd)
         stdin, stdout, stderr = ssh.exec_command(cmd)
-        cmd_output = stdout.read()
+        cmd_output = stdout.read().decode()
         cmd_error = stderr.read().decode()
-        print(cmd_output)
+        log.info(cmd_output)
         if len(cmd_error) == 0:
-            return True
+            if return_output:
+                return cmd_output
+            else:
+                return True
         else:
+            log.error(cmd_error)
             return False
     except Exception as e:
         log.error("cmd execution failed on remote machine")
@@ -827,8 +831,8 @@ def get_rgw_ip(master_zone=True):
     zonegroup_json = json.loads(out)
     master_zone_id = zonegroup_json["master_zone"]
     for zone in zonegroup_json["zones"]:
-        if (zone["id"] == master_zone_id and master_zone) or (
-            zone["id"] != master_zone_id and master_zone == False
+        if (zone["id"] == master_zone_id and master_zone is True) or (
+            zone["id"] != master_zone_id and master_zone is False
         ):
             rgw_endpoint_url = zone["endpoints"][0]
             parse_result = urlparse(rgw_endpoint_url)
@@ -881,3 +885,26 @@ def search_for_string_in_rgw_logs(search_string, ssh_con):
     if search_string in cmd_output:
         return True
     return False
+
+
+def restart_rgw(restart_all=False, ssh_con=None):
+    """
+    This method restarts all rgw daemons on the specified site
+    """
+    ceph_orch_ls_cmd = "ceph orch ls --service-type rgw -f json"
+    if ssh_con:
+        rgw_orch_ls_out = remote_exec_shell_cmd(
+            ssh_con, ceph_orch_ls_cmd, return_output=True
+        )
+    else:
+        rgw_orch_ls_out = exec_shell_cmd(ceph_orch_ls_cmd)
+    rgw_orch_ls_json = json.loads(rgw_orch_ls_out)
+    for index in range(len(rgw_orch_ls_json)):
+        rgw_service_name = rgw_orch_ls_json[index]["service_name"]
+        restart_cmd = f"ceph orch restart {rgw_service_name}"
+        if ssh_con:
+            remote_exec_shell_cmd(ssh_con, restart_cmd, return_output=False)
+        else:
+            exec_shell_cmd(restart_cmd)
+        if not restart_all:
+            break

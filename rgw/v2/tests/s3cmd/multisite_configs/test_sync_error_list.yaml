@@ -1,0 +1,5 @@
+# script: test_s3cmd.py
+# polarion id: CEPH-83572752
+config:
+    test_ops:
+        sync_error_list: true

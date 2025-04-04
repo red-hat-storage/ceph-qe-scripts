@@ -43,7 +43,7 @@ def test_exec(config, ssh_con):
     rgw_conn = auth.do_auth()
     rgw_conn2 = auth.do_auth_using_client()
     log.info("no of buckets to create: %s" % config.bucket_count)
-    abort_multipart = (config.abort_multipart, False)
+    abort_multipart = config.abort_multipart
     # create buckets
     if config.test_ops["create_bucket"] is True:
         for bc in range(config.bucket_count):

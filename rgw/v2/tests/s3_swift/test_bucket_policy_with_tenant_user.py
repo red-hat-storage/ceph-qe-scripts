@@ -27,6 +27,7 @@ Operation:
 
 
 """
+
 import os
 import sys
 
@@ -227,7 +228,7 @@ def test_exec(config, ssh_con):
                         }
 
                     get_rgw_topic = notification.rgw_admin_topic_notif_ops(
-                        op="get", args={"topic": topic_name, **extra_topic_args}
+                        config, op="get", args={"topic": topic_name, **extra_topic_args}
                     )
                     if get_rgw_topic is False:
                         raise TestExecError(
