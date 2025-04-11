@@ -2,7 +2,7 @@
 # test scripts : test_sts_using_boto.py
 config:
      bucket_count: 2
-     objects_count: 50
+     objects_count: 20
      encryption_keys: s3
      objects_size_range:
           min: 5

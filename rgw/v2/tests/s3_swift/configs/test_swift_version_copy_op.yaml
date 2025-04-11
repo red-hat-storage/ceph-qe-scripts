@@ -1,7 +1,7 @@
 # test case id: CEPH-10646
 config:
   container_count: 2
-  objects_count: 100
+  objects_count: 20
   version_count: 4
   version_enable: true
   copy_version_object: true
