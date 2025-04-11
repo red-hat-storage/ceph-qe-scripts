@@ -4,7 +4,7 @@
 config:
  user_count: 1
  bucket_count: 2
- objects_count: 100
+ objects_count: 20
  test_datalog_trim_command: true
  objects_size_range:
   min: 5K

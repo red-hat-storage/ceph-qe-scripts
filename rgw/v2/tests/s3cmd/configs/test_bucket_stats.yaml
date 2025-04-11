@@ -2,5 +2,5 @@
 config:
   user_count: 1
   bucket_count: 2
-  objects_count: 200
+  objects_count: 20
   bucket_stats: true

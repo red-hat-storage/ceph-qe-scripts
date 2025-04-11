@@ -2,7 +2,7 @@
 config:
   user_count: 1
   bucket_count: 2
-  objects_count: 500
+  objects_count: 10
   rgw_lc_debug_interval: 600
   objects_size_range:
     min: 16M

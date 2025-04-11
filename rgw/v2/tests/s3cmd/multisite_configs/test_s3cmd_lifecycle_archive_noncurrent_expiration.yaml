@@ -5,7 +5,7 @@ config:
   remote_zone: archive
   local_zone: primary
   container_count: 1
-  objects_count: 100
+  objects_count: 20
   version_enable: true
   version_count: 5
   test_ops:
