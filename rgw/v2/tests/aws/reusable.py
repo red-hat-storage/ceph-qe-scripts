@@ -681,3 +681,83 @@ def get_object_attributes(aws_auth, bucket_name, key, endpoint):
         return resp
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
+
+
+def put_keystone_conf(rgw_service_name, user, passw, project, tenant="true"):
+    """
+    Apply the conf options required for keystone integration to rgw service
+    """
+    log.info("Apply keystone conf options")
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_keystone_api_version 3"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_keystone_url http://10.0.209.121:5000"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_keystone_admin_user {user}"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_keystone_admin_password {passw}"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_keystone_admin_domain Default"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_keystone_admin_project {project}"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_keystone_implicit_tenants {tenant}"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_keystone_accepted_roles admin,user"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_s3_auth_use_keystone true"
+    )
+    log.info("restart RGW for options to take effect")
+    utils.exec_shell_cmd(f"ceph orch restart {rgw_service_name}")
+    time.sleep(20)
+
+
+def verify_namespace_swift(bucket, rgw_ip, port, user="admin"):
+    """
+    Verify the unified namespace behaviour from swift
+    """
+    keystone_node = "10.0.209.121"
+    ssh = utils.connect_remote(keystone_node)
+    log.info("Setting up swift endpoints")
+    cmd = f"source /home/cephuser/key_{user}.rc; openstack endpoint create --region RegionOne swift internal http://{rgw_ip}:{port}/swift/v1; openstack endpoint create --region RegionOne swift public http://{rgw_ip}:{port}/swift/v1; openstack endpoint create --region RegionOne swift admin http://{rgw_ip}:{port}/swift/v1"
+    out = utils.remote_exec_shell_cmd(ssh, cmd, return_output=True)
+
+    cmd = f"source /home/cephuser/key_{user}.rc; swift list"
+    out = utils.remote_exec_shell_cmd(ssh, cmd, return_output=True)
+    if bucket in out:
+        log.info("S3 bucket visible to swift")
+    else:
+        raise TestExecError("S3 bucket not visible to swift, diverged namespace")
+    sw_bucket = "swift_bucket"
+    cmd = f"source /home/cephuser/key_{user}.rc; swift post {sw_bucket}"
+    out = utils.remote_exec_shell_cmd(ssh, cmd, return_output=True)
+    return sw_bucket
+
+
+def cleanup_keystone(user="admin"):
+    """
+    Delete the swift endpoints added earlier from the keystone server
+    """
+    keystone_node = "10.0.209.121"
+    ssh = utils.connect_remote(keystone_node)
+    log.info("Deleting the swift endpoints")
+    cmd = f"source /home/cephuser/key_{user}.rc; openstack endpoint list"
+    out = utils.remote_exec_shell_cmd(ssh, cmd, return_output=True)
+    idlist = []
+    for line in out.splitlines():
+        if "swift" in line:
+            idlist.append(line.split("|")[1].strip())
+
+    for endpoint in idlist:
+        cmd = (
+            f"source /home/cephuser/key_{user}.rc; openstack endpoint delete {endpoint}"
+        )
+        out = utils.remote_exec_shell_cmd(ssh, cmd)

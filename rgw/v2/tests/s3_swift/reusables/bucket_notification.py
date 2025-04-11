@@ -9,6 +9,7 @@ from urllib import parse as urlparse
 
 import v2.utils.utils as utils
 from v2.lib.exceptions import EventRecordDataError, TestExecError
+from v2.tests.s3_swift.reusables import rgw_accounts as accounts
 
 log = logging.getLogger()
 
@@ -52,6 +53,19 @@ def start_stop_kafka_server(option):
         log.info("sleeping for 30 seconds")
         time.sleep(30)
     log.info(f"kafka and zookeeper servers {option} successful")
+
+
+def add_acl_authorizer_config_in_kafka_properties():
+    """
+    add acl authorizer config in kafka server.properties to configure acl security.
+    """
+    acl_config = "authorizer.class.name=kafka.security.authorizer.AclAuthorizer"
+    log.info(
+        f"adding acl config to {KAFKA_HOME}/config/server.properties : '{acl_config}'"
+    )
+    cmd = f"echo '{acl_config}' >> {KAFKA_HOME}/config/server.properties"
+    utils.exec_shell_cmd(cmd)
+    log.info(f"acl config added successfully to {KAFKA_HOME}/config/server.properties")
 
 
 def start_kafka_broker_consumer(topic_name, event_record_path):
@@ -149,23 +163,45 @@ def get_topic(client, topic_arn, ceph_version):
             log.info(f"get topic attributes: {get_topic_info_json}")
 
 
-def rgw_admin_topic_notif_ops(op, args, sub_command="topic"):
+def rgw_admin_topic_notif_ops(config, op, args, sub_command="topic"):
     """
-    perform radosgw-admin topic/notification operation with arguments passed
-    args:
-        op: one of get, list, rm
+    Perform radosgw-admin topic/notification operation with arguments passed.
+
+    Args:
+        config: Test configuration object.
+        op: One of get, list, rm.
+        args: Arguments for the command.
+        sub_command: "topic" or "notification" (default: "topic").
     """
-    cmd = f"radosgw-admin {sub_command} {op}"
+
+    if config.test_ops.get("test_via_rgw_accounts", False):
+        # Fetch RGW account ID
+        rgw_account_id = accounts.get_rgw_account()
+        log.info(f"Testing topic {op} with RGW account: {rgw_account_id}")
+        cmd = f"radosgw-admin --account-id {rgw_account_id} {sub_command} {op}"
+    else:
+        cmd = f"radosgw-admin {sub_command} {op}"
+
+    # Modify bucket_name_to_create if tenant_name is present
+    if config.test_ops.get("tenant_name") and "bucket" in args:
+        tenant_name = config.test_ops.get("tenant_name")
+        args["bucket"] = f"{tenant_name}/{args['bucket']}"
+
     for arg, val in args.items():
         cmd = f"{cmd} --{arg} {val}"
+
     out = utils.exec_shell_cmd(cmd)
     log.info(out)
+
     if out is False:
-        log.info(f"{sub_command} {op} using rgw cli failed")
+        log.info(f"{sub_command} {op} using rgw CLI failed")
         return False
-    log.info(f"{sub_command} {op} using rgw cli is successful")
+
+    log.info(f"{sub_command} {op} using rgw CLI is successful")
+
     if out:
         out = json.loads(out)
+
     return out
 
 
@@ -242,7 +278,10 @@ def verify_event_record(
     """
     if os.path.getsize(event_record_path) == 0:
         if config and config.test_ops.get("test_delete_object_sync_archive", False):
-            log.info("event record not generated! File is empty, excpected behavior")
+            log.info("event record not generated! File is empty, expected behavior")
+        elif config and config.test_ops.get("expected_event_record_empty", False):
+            log.info("event record not generated! File is empty, expected behavior")
+            return
         else:
             raise EventRecordDataError("event record not generated! File is empty")
 
@@ -319,15 +358,25 @@ def verify_event_record(
                 log.info(f"eventTime: {eventTime},Timestamp format validated")
             else:
                 raise EventRecordDataError("eventTime: Incorrect timestamp format")
+            # Determine if the bucket has a tenant
+            if "." in bucket and "tenant" in bucket:
+                tenant_name, bucket_short_name = bucket.split(".", 1)
+                if "/" in bucket:
+                    bucket_stats_name = bucket
+                else:
+                    bucket_stats_name = f"{tenant_name}/{bucket}"
+            else:
+                bucket_stats_name = bucket
 
             # fetch bucket details and verify bucket attributes in event record
             bucket_stats = utils.exec_shell_cmd(
-                "radosgw-admin bucket stats --bucket %s" % bucket
+                "radosgw-admin bucket stats --bucket %s" % bucket_stats_name
             )
             bucket_stats_json = json.loads(bucket_stats)
             log.info("verify bucket attributes in event record")
             # verify bucket name in event record
             bucket_name = event_record_json["Records"][0]["s3"]["bucket"]["name"]
+
             bkt_name = bucket.split("/")[-1] if "/" in bucket else bucket
             if bkt_name == bucket_name:
                 log.info(f"Bucket-name: {bucket_name}")

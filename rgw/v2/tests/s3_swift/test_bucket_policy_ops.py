@@ -23,6 +23,7 @@ Operation:
 
 
 """
+
 import os
 import sys
 
@@ -124,8 +125,12 @@ def test_exec(config, ssh_con):
         tenant_name=tenant2, no_of_users_to_create=config.user_count
     )
     tenant2_user1_info = tenant2_user_info[0]
-    tenant1_user1_auth = Auth(tenant1_user1_info, ssh_con, ssl=config.ssl)
-    tenant2_user1_auth = Auth(tenant2_user1_info, ssh_con, ssl=config.ssl)
+    tenant1_user1_auth = Auth(
+        tenant1_user1_info, ssh_con, ssl=config.ssl, haproxy=config.haproxy
+    )
+    tenant2_user1_auth = Auth(
+        tenant2_user1_info, ssh_con, ssl=config.ssl, haproxy=config.haproxy
+    )
     rgw_tenant1_user1 = tenant1_user1_auth.do_auth()
     rgw_tenant1_user1_c = tenant1_user1_auth.do_auth_using_client()
     rgw_tenant2_user1 = tenant2_user1_auth.do_auth()

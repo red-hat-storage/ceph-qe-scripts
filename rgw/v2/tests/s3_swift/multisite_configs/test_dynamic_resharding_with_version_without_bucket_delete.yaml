@@ -1,1 +1,12 @@
-../configs/test_dynamic_resharding_with_version_without_bucket_delete.yaml
+# test case id: CEPH-83571740
+config:
+  objects_count: 100
+  objects_size_range:
+    min: 15
+    max: 20
+  sharding_type: dynamic
+  max_objects_per_shard: 5
+  version_count: 4
+  test_ops:
+    enable_verison: true
+    delete_bucket_object: false

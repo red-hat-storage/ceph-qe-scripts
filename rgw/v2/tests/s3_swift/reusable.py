@@ -1046,35 +1046,77 @@ def put_get_bucket_lifecycle_test(
             raise TestExecError("bucket lifecycle config retrieval failed")
     else:
         raise TestExecError("bucket life cycle retrieved")
-    objs_total = (config.test_ops["version_count"]) * (config.objects_count)
-    if not upload_start_time:
-        upload_start_time = time.time()
-    if not upload_end_time:
-        upload_end_time = time.time()
-    time_diff = math.ceil(upload_end_time - upload_start_time)
-    time_limit = upload_start_time + (
-        config.rgw_lc_debug_interval * config.test_ops.get("actual_lc_days", 20)
-    )
-    for rule in config.lifecycle_conf:
-        if rule.get("Expiration", {}).get("Date", False):
-            # todo: need to get the interval value from yaml file
-            log.info("wait for 60 seconds")
-            time.sleep(60)
-        else:
-            while time.time() < time_limit:
-                bucket_stats_op = utils.exec_shell_cmd(
-                    "radosgw-admin bucket stats --bucket=%s" % bucket.name
+    if config.test_ops.get("reuse_account_bucket", False) is True:
+        max_retries = 1500
+        sleep_interval = 30
+        bucket_stats_output = utils.exec_shell_cmd(
+            f"radosgw-admin bucket stats --bucket tenant1/{bucket.name}"
+        )
+        bucket_stats_json = json.loads(bucket_stats_output)
+        objects_before_transition = bucket_stats_json["usage"]["rgw.main"][
+            "num_objects"
+        ]
+        lc_transition_start_time = time.time()
+        for retry in range(max_retries + 2):
+            if retry == 0:
+                time.sleep(
+                    max_retries
+                )  # since value of max_retries is same as rgw_lc_debug_interval
+
+            bucket_stats_output = utils.exec_shell_cmd(
+                f"radosgw-admin bucket stats --bucket tenant1/{bucket.name}"
+            )
+            log.info(f"bucket stats output for {bucket.name}: {bucket_stats_output}")
+            bucket_stats_json = json.loads(bucket_stats_output)
+
+            if (
+                bucket_stats_json["usage"]["rgw.cloudtiered"]["num_objects"]
+                >= objects_before_transition
+                and bucket_stats_json["usage"]["rgw.usage"]["num_objects"] == 0
+            ):
+                log.info(
+                    f" all the objects for bucket successfully cloud transitioned to IBM"
                 )
-                json_doc1 = json.loads(bucket_stats_op)
-                obj_pre_lc = json_doc1["usage"]["rgw.main"]["num_objects"]
-                if obj_pre_lc == objs_total or config.test_lc_transition:
-                    time.sleep(config.rgw_lc_debug_interval)
-                else:
-                    raise TestExecError("Objects expired before the expected days")
-    log.info(
-        f"sleeping for {time_diff + 90} seconds so that all objects gets expired/transitioned"
-    )
-    time.sleep(time_diff + 90)
+                break
+            else:
+                log.info(
+                    f"Cloud transition still in progress after {retry} retry, sleep for {sleep_interval} and retry"
+                )
+                time.sleep(sleep_interval)
+        if retry > max_retries:
+            raise AssertionError(
+                f"LC transition to cloud for {objects_before_transition} failed"
+            )
+    else:
+        objs_total = (config.test_ops["version_count"]) * (config.objects_count)
+        if not upload_start_time:
+            upload_start_time = time.time()
+        if not upload_end_time:
+            upload_end_time = time.time()
+        time_diff = math.ceil(upload_end_time - upload_start_time)
+        time_limit = upload_start_time + (
+            config.rgw_lc_debug_interval * config.test_ops.get("actual_lc_days", 20)
+        )
+        for rule in config.lifecycle_conf:
+            if rule.get("Expiration", {}).get("Date", False):
+                # todo: need to get the interval value from yaml file
+                log.info("wait for 60 seconds")
+                time.sleep(60)
+            else:
+                while time.time() < time_limit:
+                    bucket_stats_op = utils.exec_shell_cmd(
+                        "radosgw-admin bucket stats --bucket=%s" % bucket.name
+                    )
+                    json_doc1 = json.loads(bucket_stats_op)
+                    obj_pre_lc = json_doc1["usage"]["rgw.main"]["num_objects"]
+                    if obj_pre_lc == objs_total or config.test_lc_transition:
+                        time.sleep(config.rgw_lc_debug_interval)
+                    else:
+                        raise TestExecError("Objects expired before the expected days")
+        log.info(
+            f"sleeping for {time_diff + 90} seconds so that all objects gets expired/transitioned"
+        )
+        time.sleep(time_diff + 90)
 
     if config.test_ops.get("conflict_exp_days"):
         bucket_stats_op = utils.exec_shell_cmd(
@@ -1095,10 +1137,14 @@ def put_get_bucket_lifecycle_test(
     for i, entry in enumerate(json_doc):
         print(i)
         print(entry["status"])
-        if entry["status"] == "COMPLETE" or entry["status"] == "PROCESSING":
-            log.info("LC is applied on the bucket")
-        else:
-            raise TestExecError("LC is not applied")
+        if bucket.name in entry["bucket"]:
+            if entry["status"] == "COMPLETE" or entry["status"] == "PROCESSING":
+                log.info("LC is applied on the bucket")
+            else:
+                raise TestExecError("LC is not applied")
+            break
+    else:
+        raise TestExecError("bucket not listed in lc list")
     if config.test_ops.get("tenant_name"):
         tenant_name = config.test_ops.get("tenant_name")
         op_lc_get = utils.exec_shell_cmd(
@@ -1629,13 +1675,20 @@ def time_to_list_via_boto(bucket_name, rgw):
     return time_taken
 
 
-def check_sync_status(retry=None, delay=None):
+def check_sync_status(retry=25, delay=60, return_while_sync_inprogress=False):
     """
     Check sync status if its a multisite cluster
     """
     is_multisite = utils.is_cluster_multisite()
     if is_multisite:
-        sync_status()
+        if return_while_sync_inprogress:
+            out = sync_status(
+                retry, delay, return_while_sync_inprogress=return_while_sync_inprogress
+            )
+            return out
+        sync_status(
+            retry, delay, return_while_sync_inprogress=return_while_sync_inprogress
+        )
 
 
 def check_bucket_sync_status(bkt=None):
@@ -2017,17 +2070,23 @@ def prepare_for_bucket_lc_transition(config):
                     f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
                 )
         else:
-            target_path = "aws-bucket-01"
+            wget_cmd = "curl -o aws_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/aws_cloud_file"
+            utils.exec_shell_cmd(cmd=f"{wget_cmd}")
+            aws_config = configobj.ConfigObj("aws_cloud.env")
+            target_path = aws_config["TARGET"]
+            access = aws_config["ACCESS"]
+            secret = aws_config["SECRET"]
+            endpoint = aws_config["ENDPOINT"]
             utils.exec_shell_cmd(
                 f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class=CLOUDAWS --tier-type=cloud-s3"
             )
             if config.test_ops.get("test_retain_head", False):
                 utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint=http://s3region.amazonaws.com,access_key=awsaccesskey,secret=awssecretkey,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=aws-region"
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=us-east-1"
                 )
             else:
                 utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint=http://s3.aws-region.amazonaws.com,access_key=awsaccesskey,secret=awssecretkey,target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=us-east-1"
+                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=us-east-1"
                 )
     if is_multisite:
         utils.exec_shell_cmd("radosgw-admin period update --commit")
@@ -2182,10 +2241,13 @@ def bucket_reshard_dynamic(bucket, config):
         + f"{resharding_sleep_time} seconds"
     )
     time.sleep(resharding_sleep_time)
-
+    bucket_name = f"{bucket.name}"
+    if config.test_ops.get("tenant_name"):
+        tenant_name = config.test_ops.get("tenant_name")
+        bucket_name = f"{tenant_name}/{bucket.name}"
     num_shards_expected = config.objects_count / config.max_objects_per_shard
     log.info("num_shards_expected: %s" % num_shards_expected)
-    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket.name)
+    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket %s" % bucket_name)
     json_doc = json.loads(op)
     bucket_id = json_doc["id"]
     num_shards_created = json_doc["num_shards"]
@@ -2207,18 +2269,36 @@ def bucket_reshard_dynamic(bucket, config):
 
 
 def verify_attrs_after_resharding(bucket):
-    log.info("Test acls are preserved after a resharding operation.")
-    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
+    log.info("Test ACLs are preserved after a resharding operation.")
+
+    # Determine if the bucket has a tenant
+    if "tenant" in bucket.name:
+        tenant_name, bucket_short_name = bucket.name.split(".", 1)
+        bucket_stats_name = f"{tenant_name}/{bucket.name}"
+    else:
+        bucket_stats_name = bucket.name
+
+    log.info(f"Fetching stats for bucket: {bucket_stats_name}")
+
+    # Get bucket stats
+    op = utils.exec_shell_cmd(
+        f"radosgw-admin bucket stats --bucket={bucket_stats_name}"
+    )
     json_doc = json.loads(op)
     bucket_id = json_doc["id"]
+
+    # Fetch metadata for the bucket instance
     cmd = utils.exec_shell_cmd(
-        f"radosgw-admin metadata get bucket.instance:{bucket.name}:{bucket_id}"
+        f"radosgw-admin metadata get bucket.instance:{bucket_stats_name}:{bucket_id}"
     )
     json_doc = json.loads(cmd)
+
     log.info("The attrs field should not be empty.")
-    attrs = json_doc["data"]["attrs"][0]
-    if not attrs["key"]:
-        raise TestExecError("Acls lost after bucket resharding, test failure.")
+    attrs = json_doc["data"].get("attrs", [])
+
+    if not attrs or not attrs[0].get("key"):
+        raise TestExecError("ACLs lost after bucket resharding, test failure.")
+
     return True
 
 
@@ -2905,6 +2985,14 @@ def get_object_attributes(
             if key.startswith("user.rgw.x-amz-checksum-"):
                 checksum_key = f"Checksum{key.split('-')[-1].upper()}"
                 checksum_expected[checksum_key] = val
+                if (
+                    checksum_key == "ChecksumSHA256" or checksum_key == "ChecksumSHA1"
+                ) and object_parts_info:
+                    # checksum_type is COMPOSITE only for multipart objects uploaded with SHA1 or SHA256 algo by default
+                    checksum_expected["ChecksumType"] = "COMPOSITE"
+                else:
+                    checksum_expected["ChecksumType"] = "FULL_OBJECT"
+
         log.info(f"checksum expected: {checksum_expected}")
         if checksum_expected != get_obj_attr_resp["Checksum"]:
             raise TestExecError(f"incorrect Checksum in GetObjectAttributes")
@@ -2998,3 +3086,186 @@ def put_get_bucket_acl(rgw_client, bucket_name, acl):
     get_bkt_acl = rgw_client.get_bucket_acl(Bucket=bucket_name)
     get_bkt_acl_json = json.dumps(get_bkt_acl, indent=2)
     log.info(f"get bucket acl response: {get_bkt_acl_json}")
+
+
+def reboot_rgw_nodes(rgw_service_name):
+    """
+    Method to fetch all the rgw nodes to proceed with reboot
+    """
+    host_ips = utils.exec_shell_cmd("cut -f 1 /etc/hosts | cut -d ' ' -f 3")
+    host_ips = host_ips.splitlines()
+    log.info(f"hosts_ips: {host_ips}")
+    for ip in host_ips:
+        if ip.startswith("10."):
+            log.info(f"ip is {ip}")
+            ssh_con = utils.connect_remote(ip)
+            stdin, stdout, stderr = ssh_con.exec_command(
+                "sudo netstat -nltp | grep radosgw"
+            )
+            netstst_op = stdout.readline().strip()
+            log.info(f"netstat op on node {ip} is:{netstst_op}")
+            if netstst_op:
+                log.info("Entering RGW node")
+                stdin, stdout, stderrt = ssh_con.exec_command("hostname")
+                host = stdout.readline().strip()
+                log.info(f"hostname is {host}")
+                cmd = f"ceph orch ps|grep rgw|grep {host}"
+                out = utils.exec_shell_cmd(cmd)
+                service_name = out.split()[0]
+                log.info(f"service name is {service_name}")
+                if rgw_service_name in service_name:
+                    log.info(f"Performing reboot of the node :{ip}")
+                    node_reboot(ssh_con, service_name=out.split()[0])
+
+
+def node_reboot(node, service_name=None, retry=15, delay=60):
+    """
+    Method to reboot single RGW node
+    Node: ssh connection for the node
+    service_name: RGW service name
+    retry: retry to wait foe node/service to come up post reboot
+    delay: sleep time of 1 min between each try
+    """
+    log.info(f"Peforming reboot of the node : {node}")
+    node.exec_command("sudo reboot")
+    time.sleep(120)
+    log.info(f"checking ceph status")
+    utils.exec_shell_cmd(f"ceph -s")
+    cmd = "ceph orch ps --format json-pretty"
+    out = json.loads(utils.exec_shell_cmd(cmd))
+    for entry in out:
+        if service_name == entry["daemon_name"]:
+            status = entry["status_desc"]
+    if str(status) != "running":
+        for retry_count in range(retry):
+            log.info(f"try {retry_count}")
+            out = json.loads(utils.exec_shell_cmd(cmd))
+            for entry in out:
+                if service_name == entry["daemon_name"]:
+                    status = entry["status_desc"]
+            log.info(f"status is {status}")
+            if str(status) != "running":
+                log.info(f"Node is not in expected state, waiting for {delay} seconds")
+                time.sleep(delay)
+            else:
+                log.info("Node is in expected state")
+                break
+        if retry_count + 1 == retry:
+            raise AssertionError("Node is not in expected state post 15min!!")
+
+
+def bring_down_all_rgws_in_the_site(rgw_service_name, retry=10, delay=10):
+    """
+    Method to bring down rgw services in all the nodes
+    rgw_service_name: RGW service name
+    """
+    cmd = f"ceph orch stop {rgw_service_name}"
+    utils.exec_shell_cmd(cmd)
+    cmd = "ceph orch ps --format json-pretty"
+    out = json.loads(utils.exec_shell_cmd(cmd))
+    for entry in out:
+        daemon = entry["daemon_name"].split(".")[0]
+        log.info(f"daemon type is {daemon}")
+        if daemon == "rgw":
+            service_name = entry["daemon_name"]
+            log.info(f"daemon is {service_name}")
+            if rgw_service_name in service_name:
+                status = entry["status_desc"]
+                if str(status) == "running":
+                    log.info(f"enter loop of retry")
+                    for retry_count in range(retry):
+                        log.info(f"try {retry_count}")
+                        out = json.loads(utils.exec_shell_cmd(cmd))
+                        for entry in out:
+                            if service_name == entry["daemon_name"]:
+                                status = entry["status_desc"]
+                        log.info(f"status is {status}")
+                        if str(status) == "running":
+                            log.info(
+                                f"Node is not in expected state, waiting for {delay} seconds"
+                            )
+                            time.sleep(delay)
+                        else:
+                            log.info(f"Node {service_name} is in expected state")
+                            break
+                    if retry_count + 1 == retry:
+                        raise AssertionError("Node is not in expected state!!")
+
+
+def bring_up_all_rgws_in_the_site(rgw_service_name, retry=10, delay=10):
+    """
+    Method to bring up rgw services in all the nodes
+    """
+    cmd = f"ceph orch start {rgw_service_name}"
+    utils.exec_shell_cmd(cmd)
+    cmd = "ceph orch ps --format json-pretty"
+    out = json.loads(utils.exec_shell_cmd(cmd))
+    for entry in out:
+        daemon = entry["daemon_name"].split(".")[0]
+        log.info(f"daemon type is {daemon}")
+        if daemon == "rgw":
+            service_name = entry["daemon_name"]
+            log.info(f"daemon is {service_name}")
+            if rgw_service_name in service_name:
+                status = entry["status_desc"]
+                if str(status) != "running":
+                    log.info(f"enter loop of retry")
+                    for retry_count in range(retry):
+                        log.info(f"try {retry_count}")
+                        out = json.loads(utils.exec_shell_cmd(cmd))
+                        for entry in out:
+                            if service_name == entry["daemon_name"]:
+                                status = entry["status_desc"]
+                        log.info(f"status is {status}")
+                        if str(status) != "running":
+                            log.info(
+                                f"Node is not in expected state, waiting for {delay} seconds"
+                            )
+                            time.sleep(delay)
+                        else:
+                            log.info(f"Node {service_name} is in expected state")
+                            break
+                    if retry_count + 1 == retry:
+                        raise AssertionError("Node is not in expected state!!")
+
+
+def configure_rgw_lc_settings():
+    """
+    Retrieves RGW services using 'ceph orch ls | grep rgw' and sets LC debug configs.
+    """
+    log.info("Retrieving RGW service names...")
+
+    # Fetch RGW services
+    rgw_services_output = utils.exec_shell_cmd("ceph orch ls | grep rgw")
+
+    if not rgw_services_output:
+        log.error("No RGW services found or failed to retrieve.")
+        return
+
+    # Extract service names from output
+    rgw_services = []
+    for line in rgw_services_output.split("\n"):
+        line = line.strip()
+        if line:  # Ignore empty lines
+            columns = line.split()
+            if columns:  # Ensure there are columns before accessing
+                rgw_services.append(columns[0])
+
+    if not rgw_services:
+        log.warning("No valid RGW services extracted.")
+        return
+
+    log.info(f"Found RGW services: {rgw_services}")
+
+    # Set LC debug interval for each RGW service
+    for service in rgw_services:
+        lc_config_cmd1 = f"ceph config set client.{service} rgw_lc_debug_interval 600"
+        log.info(f"Setting LC config for {service}: {lc_config_cmd1}")
+        utils.exec_shell_cmd(lc_config_cmd1)
+        lc_config_cmd2 = "ceph config set client.{service} rgw_lc_max_worker 10"
+        log.info(f"Setting LC config for {service}: {lc_config_cmd2}")
+        utils.exec_shell_cmd(lc_config_cmd2)
+        ceph_restart_cmd = f"ceph orch restart {service}"
+        utils.exec_shell_cmd(ceph_restart_cmd)
+
+    log.info("RGW LC debug interval settings updated successfully.")

@@ -176,7 +176,6 @@ def validate_prefix_rule(bucket, config):
                         f"Lifecycle cloud transition validation failed with retain_head_object_false for bucket {bucket.name}"
                     )
         else:
-
             log.info("Start the validation of LC pool transition")
             curr = 0
             ncurr = 0
@@ -244,21 +243,28 @@ def validate_prefix_rule(bucket, config):
                 )
 
 
-def validate_prefix_rule_non_versioned(bucket, config):
+def validate_prefix_rule_non_versioned(bucket, config, ssh_con=None):
     log.info("verification starts")
     objects_count = config.objects_count
     if config.test_lc_transition:
-        cmd = utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket.name}")
+        cmd = utils.exec_shell_cmd(
+            f"radosgw-admin bucket list --bucket {bucket.name}{f' --max-entries {config.objects_count}' if  config.objects_count > 1000 else ''}"
+        )
         json_doc = json.loads(cmd)
-        for i in range(0, objects_count):
+        obj_count = (
+            config.objects_count if config.objects_count < 1000 else len(json_doc)
+        )
+        for i in range(0, obj_count):
             storage_class = json_doc[i]["meta"]["storage_class"]
             log.info(f"object has transitioned to {storage_class}")
             if storage_class != config.storage_class:
                 raise AssertionError("lc validation for object transition failed")
     else:
-        op = utils.exec_shell_cmd(
-            "radosgw-admin bucket stats --bucket=%s" % bucket.name
-        )
+        bkt_stats_cmd = f"radosgw-admin bucket stats --bucket {bucket.name}"
+        if ssh_con:
+            op = utils.remote_exec_shell_cmd(ssh_con, bkt_stats_cmd, return_output=True)
+        else:
+            op = utils.exec_shell_cmd(bkt_stats_cmd)
         json_doc = json.loads(op)
         objects = json_doc["usage"]["rgw.main"]["num_objects"]
         if objects != 0:
@@ -276,13 +282,18 @@ def validate_and_rule(bucket, config):
     log.info("verification starts")
     op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
     json_doc = json.loads(op)
-    op2 = utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket.name}")
+    op2 = utils.exec_shell_cmd(
+        f"radosgw-admin bucket list --bucket {bucket.name}{f' --max-entries {config.objects_count}' if  config.objects_count > 1000 else ''}"
+    )
     json_doc2 = json.loads(op2)
     objects = json_doc["usage"]["rgw.main"]["num_objects"]
     if config.test_lc_transition and not config.test_ops.get(
         "conflict_btw_exp_transition"
     ):
-        for i in range(0, config.objects_count):
+        obj_count = (
+            config.objects_count if config.objects_count < 1000 else len(json_doc2)
+        )
+        for i in range(0, obj_count):
             storage_class = json_doc2[i]["meta"]["storage_class"]
             if storage_class != config.storage_class:
                 raise AssertionError("LC transition for AND filters failed")

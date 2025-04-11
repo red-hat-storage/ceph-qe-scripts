@@ -14,10 +14,12 @@ Operation:
 """
 
 import os
+import subprocess
 import sys
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+import json
 import logging
 import traceback
 
@@ -42,15 +44,35 @@ def test_exec(config, ssh_con):
     umgmt = UserMgmt()
 
     # preparing data
-    user_names = ["tuffy", "scooby", "max"]
+    user_names = ["max", "scooby", "tuffy"]
     tenant = "tenant"
-    tenant_user_info = umgmt.create_tenant_user(
-        tenant_name=tenant, user_id=user_names[0], displayname=user_names[0]
-    )
-    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[0])
-    cmd = "radosgw-admin quota enable --quota-scope=user --uid={uid} --tenant={tenant}".format(
-        uid=user_names[0], tenant=tenant
-    )
+    # added a check if the user already exist, removing and recreating the user
+    try:
+        cmd = f"radosgw-admin user info --uid={user_names[0]} --tenant={tenant}"
+        user_check = utils.exec_shell_cmd(cmd)
+
+        log.info(f"User info before check:\n{user_check}")
+
+        if user_check is False:
+            log.info(f"User {user_names[0]} does not exist. Creating user.")
+            tenant_user_info = umgmt.create_tenant_user(
+                tenant_name=tenant, user_id=user_names[0], displayname=user_names[0]
+            )
+            log.info(f"Tenanted user created")
+        else:
+            if "user_id" in user_check:
+                log.info(
+                    f"User tenant${user_names[0]} already exists, removing and recreating."
+                )
+                cmd = f"radosgw-admin user rm --uid={user_names[0]} --tenant={tenant} --purge-data"
+                utils.exec_shell_cmd(cmd)
+                tenant_user_info = umgmt.create_tenant_user(
+                    tenant_name=tenant, user_id=user_names[0], displayname=user_names[0]
+                )
+                log.info(f"Tenanted user created")
+    except RGWBaseException as e:
+        log.error(f"Failed to create tenant user: {e}")
+        raise e
     enable_user_quota = utils.exec_shell_cmd(cmd)
     cmd = "radosgw-admin quota set --quota-scope=user --uid={uid} --tenant={tenant} --max_buckets=2000".format(
         uid=user_names[0], tenant=tenant
@@ -66,12 +88,12 @@ def test_exec(config, ssh_con):
             {"obj": rgw, "resource": "put_container", "args": [container_name]}
         )
         if container is False:
-            raise TestExecError("Resource execution failed: container creation faield")
+            raise TestExecError("Resource execution failed: container creation failed")
 
     host, ip = utils.get_hostname_ip(ssh_con)
     port = utils.get_radosgw_port_no(ssh_con)
     hostname = str(ip) + ":" + str(port)
-    cmd = "swift -A http://{hostname}/auth/1.0 -U '{uid}' -K '{key}' stat".format(
+    cmd = "venv/bin/swift -A http://{hostname}/auth/1.0 -U '{uid}' -K '{key}' stat".format(
         hostname=hostname, uid=user_info["user_id"], key=user_info["key"]
     )
     swift_cmd = utils.exec_shell_cmd(cmd)

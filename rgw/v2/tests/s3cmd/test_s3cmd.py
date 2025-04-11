@@ -10,6 +10,7 @@ Usage: test_s3cmd.py -c <input_yaml>
     configs/test_disable_and_enable_dynamic_resharding_with_10k_bucket.yaml
     configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
     test_multipart_upload_with_failed_parts_using_s3cmd_and_boto3.yaml
+    multisite_configs/test_sync_error_list.yaml
 
 Operation:
     Create an user
@@ -19,7 +20,6 @@ Operation:
     Delete bucket
     Verification of CEPH-83574806: multiple delete marker not created during object deletion in versioned bucket through s3cmd
 """
-
 
 import argparse
 import datetime
@@ -128,7 +128,7 @@ def test_exec(config, ssh_con):
         )
         user_info = resource_op.create_users(no_of_users_to_create=1)
         s3_auth.do_auth(user_info[0], ip_and_port)
-        auth = Auth(user_info[0], ssh_con, ssl=config.ssl)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
         bucket_name = utils.gen_bucket_name_from_userid(
             user_info[0]["user_id"], rand_no=1
@@ -179,7 +179,7 @@ def test_exec(config, ssh_con):
         )
         user_info = resource_op.create_users(no_of_users_to_create=1)
         s3_auth.do_auth(user_info[0], ip_and_port)
-        auth = Auth(user_info[0], ssh_con, ssl=config.ssl)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
         bucket_name = utils.gen_bucket_name_from_userid(
@@ -405,6 +405,39 @@ def test_exec(config, ssh_con):
                 )
             else:
                 log.info("bucket list is empty as expected")
+
+    elif config.test_ops.get("is_not_master_zone", False):
+        log.info("This is not the master zone. Skipping tenant user creation.")
+
+    elif config.test_ops.get("sync_error_list", False) is True:
+        is_multisite = utils.is_cluster_multisite()
+        if is_multisite:
+            check_sync_status = utils.exec_shell_cmd("radosgw-admin sync status")
+            if not check_sync_status:
+                raise AssertionError("Sync status output is empty")
+            log.info(f"sync status op is: {check_sync_status}")
+            if "failed" in check_sync_status or "ERROR" in check_sync_status:
+                log.info("sync is in error state")
+            if "behind" in check_sync_status or "recovering" in check_sync_status:
+                log.info("sync is in progress")
+            log.info("check cluster for sync error list")
+            sync_error_list = utils.exec_shell_cmd("sudo radosgw-admin sync error list")
+            sync_error_json = json.loads(sync_error_list)
+            error_exist = False
+            for ent in sync_error_json:
+                if len(ent["entries"]) != 0:
+                    error_exist = True
+                    break
+            if error_exist:
+                log.error(
+                    f"To trim error manullay try running radosgw-admin sync error trim, since error could be an issue. So trim is not recommanded"
+                )
+                log.error(
+                    f"Post clearing sync error trim, run sync error list to verify errors are trimmed"
+                )
+                raise AssertionError(f"Sync error data exist in cluster")
+            else:
+                log.info(f"Sync error list is empty")
 
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
