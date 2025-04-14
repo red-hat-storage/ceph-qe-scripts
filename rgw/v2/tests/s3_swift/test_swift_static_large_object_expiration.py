@@ -4,7 +4,7 @@ test_swift_static_large_object_expiration.py - Test expiration a Static large ob
 Usage: test_swift_static_large_object_expiration.py -c <input_yaml>
 
 <input_yaml>
-        swift_slo_expiry.yaml
+        test_swift_slo_expiry.yaml
 
 Operation:
     Test expiration of a static large object. check after it got deleted.

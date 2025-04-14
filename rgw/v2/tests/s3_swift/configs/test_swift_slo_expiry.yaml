@@ -1,4 +1,5 @@
 #CEPH-9726
+#script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_swift_static_large_object_expiration.py
 config:
   user_type: "non-tenanted"
   container_count: 1
