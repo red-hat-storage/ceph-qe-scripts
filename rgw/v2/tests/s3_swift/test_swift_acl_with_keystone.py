@@ -1,3 +1,11 @@
+"""
+test_swift_acl_with_keystone.py - Test Swift acl with Keystone
+
+Usage: test_swift_acl_with_keystone.py -c <input_yaml>
+<input_yaml>
+    configs/test_swift_acl_with_keystone.yaml
+
+"""
 import argparse
 import logging
 import os
