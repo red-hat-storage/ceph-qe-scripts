@@ -13,6 +13,8 @@ import sys
 import time
 import traceback
 
+sys.path.append(os.path.abspath(os.path.join(__file__, "../../../../")))
+
 from v2.lib import resource_op
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.tests.s3_swift import reusable
@@ -23,10 +25,7 @@ from v2.utils.test_desc import AddTestInfo
 
 log = logging.getLogger()
 
-sys.path.append(os.path.abspath(os.path.join(__file__, "../../../../")))
-
 TEST_DATA_PATH = None
-
 
 def create_swift_bucket_with_acl_keystone(bucket_name, rgw_ip, port, user="admin"):
     """
