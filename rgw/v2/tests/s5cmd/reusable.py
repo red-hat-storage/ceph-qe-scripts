@@ -22,6 +22,8 @@ import v2.utils.utils as utils
 from v2.lib.exceptions import S5CMDCommandExecError, TestExecError
 from v2.lib.manage_data import io_generator
 
+s5cmd = "/home/cephuser/venv/bin/s5cmd"
+
 
 def create_bucket(bucket_name, end_point):
     """
@@ -31,7 +33,7 @@ def create_bucket(bucket_name, end_point):
         bucket_name(str): Name of the bucket to be created
         end_point(str): endpoint
     """
-    cmd = f"s5cmd --endpoint-url {end_point} mb s3://{bucket_name}"
+    cmd = f"{s5cmd} --endpoint-url {end_point} mb s3://{bucket_name}"
     try:
         create_response = utils.exec_shell_cmd(cmd)
         log.info(f"bucket creation response is {create_response}")
@@ -75,7 +77,7 @@ def put_object_via_copy(bucket_name, end_point, object_name, local_file_path):
     Return:
         Response of put-object operation
     """
-    cmd = f"s5cmd --endpoint-url {end_point} cp {local_file_path} s3://{bucket_name}/{object_name}"
+    cmd = f"{s5cmd} --endpoint-url {end_point} cp {local_file_path} s3://{bucket_name}/{object_name}"
     try:
         copy_response = utils.exec_shell_cmd(cmd)
         log.info(copy_response)
@@ -98,7 +100,7 @@ def list_objects(end_point, bucket_name=None):
         Returns details of every object in the bucket post the marker
     """
     bucket_param = f" s3://{bucket_name}" if bucket_name else ""
-    cmd = f"s5cmd --endpoint-url {end_point} ls{bucket_param}"
+    cmd = f"{s5cmd} --endpoint-url {end_point} ls{bucket_param}"
     try:
         list_response = utils.exec_shell_cmd(cmd)
     except Exception as e:
@@ -137,7 +139,7 @@ def delete_bucket(bucket_name, end_point):
     Return:
         Response of delete-object operation
     """
-    cmd = f"s5cmd --endpoint-url {end_point} rb s3://{bucket_name}"
+    cmd = f"{s5cmd} --endpoint-url {end_point} rb s3://{bucket_name}"
     try:
         delete_response = utils.exec_shell_cmd(cmd)
         log.info(f"bucket removal response is {create_response}")

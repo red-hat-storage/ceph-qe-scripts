@@ -78,7 +78,7 @@ def test_exec(config, ssh_con):
 
     # create user
     if config.dbr_scenario == "brownfield":
-        user_brownfiled = "brownfield_user"
+        user_brownfiled = ["brownfield_user"]
         all_users_info = s3lib.create_users(config.user_count, user_brownfiled)
     else:
         if config.user_type == "tenanted":

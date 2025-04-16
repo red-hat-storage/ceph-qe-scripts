@@ -52,8 +52,8 @@ def test_exec(config, ssh_con):
     rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
     log.info(f"rgw service name is {rgw_service_name}")
 
-    # Put keystone conf options
-    aws_reusable.put_keystone_conf(rgw_service_name)
+    # Put keystone conf options for user demo
+    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "demo1", "demo")
 
     access_demo = "f1363a717f8c470e8971bd644576011d"
     secret_demo = "42c450221cf044d9a0867b0e4acd52d3"
@@ -97,7 +97,7 @@ def test_exec(config, ssh_con):
 
 if __name__ == "__main__":
 
-    test_info = AddTestInfo("Test to verify LDAP authentication from RGW")
+    test_info = AddTestInfo("Test to verify Keystone authentication from RGW")
 
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
@@ -107,8 +107,8 @@ if __name__ == "__main__":
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
-        parser = argparse.ArgumentParser(description="RGW S3 bucket creation using AWS")
-        parser.add_argument("-c", dest="config", help="RGW S3 bucket stats using s3cmd")
+        parser = argparse.ArgumentParser(description="RGW Keystone Auth using AWS")
+        parser.add_argument("-c", dest="config", help="RGW Keystone Auth using AWS")
         parser.add_argument(
             "-log_level",
             dest="log_level",

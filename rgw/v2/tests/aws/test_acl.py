@@ -45,10 +45,12 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    user_name = (config.test_ops.get("user_name"), None)
+    user_names = [user_name] if type(user_name) != list else user_name
     if config.test_ops.get("user_name", False):
         user_info = resource_op.create_users(
             no_of_users_to_create=config.user_count,
-            user_names=config.test_ops["user_name"],
+            user_names=user_names,
         )
     else:
         user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
