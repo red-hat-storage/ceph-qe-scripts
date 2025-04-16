@@ -6,6 +6,7 @@ Usage: test_swift_acl_with_keystone.py -c <input_yaml>
     configs/test_swift_acl_with_keystone.yaml
 
 """
+
 import argparse
 import logging
 import os
@@ -26,6 +27,7 @@ from v2.utils.test_desc import AddTestInfo
 log = logging.getLogger()
 
 TEST_DATA_PATH = None
+
 
 def create_swift_bucket_with_acl_keystone(bucket_name, rgw_ip, port, user="admin"):
     """
