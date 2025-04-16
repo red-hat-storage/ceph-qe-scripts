@@ -73,10 +73,11 @@ def test_exec(config, ssh_con):
     except RGWBaseException as e:
         log.error(f"Failed to create tenant user: {e}")
         raise e
-    enable_user_quota = utils.exec_shell_cmd(cmd)
     cmd = "radosgw-admin quota set --quota-scope=user --uid={uid} --tenant={tenant} --max_buckets=2000".format(
         uid=user_names[0], tenant=tenant
     )
+    user_info = umgmt.create_subuser(tenant_name=tenant, user_id=user_names[0])
+    enable_user_quota = utils.exec_shell_cmd(cmd)
     max_bucket = utils.exec_shell_cmd(cmd)
     auth = Auth(user_info, ssh_con)
     rgw = auth.do_auth()
