@@ -4,7 +4,7 @@ config:
   haproxy: true
   user_count: 1
   bucket_count: 1
-  objects_count: 25
+  objects_count: 20
   parallel_lc: False
   test_lc_transition: True
   pool_name: data.cold

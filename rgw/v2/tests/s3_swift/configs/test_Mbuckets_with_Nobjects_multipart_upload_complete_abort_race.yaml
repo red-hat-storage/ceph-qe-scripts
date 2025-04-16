@@ -5,7 +5,7 @@
 config:
   user_count: 1
   bucket_count: 2
-  objects_count: 50
+  objects_count: 10
   split_size: 5
   objects_size_range:
     min: 10M

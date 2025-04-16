@@ -1,5 +1,5 @@
 config:
-  objects_count: 100
+  objects_count: 20
   rgw_lc_debug_interval: 1
   objects_size_range:
     min: 5

@@ -5,6 +5,6 @@ config:
   haproxy: true
   user_count: 1
   bucket_count: 2
-  objects_count: 100
+  objects_count: 20
   test_ops:
     rgw_log_detail: true

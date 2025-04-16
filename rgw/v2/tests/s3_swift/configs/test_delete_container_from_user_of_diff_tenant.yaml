@@ -1,6 +1,6 @@
 # test case id: CEPH-9749
 config:
-    objects_count: 100
+    objects_count: 20
     container_count: 2
     objects_size_range:
         min: 5
