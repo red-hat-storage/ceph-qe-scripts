@@ -1,0 +1,6 @@
+#POLARION ID : CEPH-83572657
+#script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_swift_acl_with_keystone.py
+config:
+  user_type: "non-tenanted"
+  container_count: 1
+  static_large_object_upload: True
