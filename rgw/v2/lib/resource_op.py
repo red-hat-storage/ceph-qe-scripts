@@ -89,8 +89,8 @@ def create_users(
         for i in range(no_of_users_to_create):
             if user_names:
                 user_details = admin_ops.create_admin_user(
-                    user_id=user_names[i],
-                    displayname=user_names,
+                    user_id=user_names[i][0],
+                    displayname=user_names[i][0],
                     cluster_name=cluster_name,
                 )
                 all_users_details.append(user_details)
