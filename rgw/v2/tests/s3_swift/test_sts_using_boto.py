@@ -73,12 +73,8 @@ def test_exec(config, ssh_con):
     ceph_config_set.set_to_ceph_conf(
         "global", ConfigOpts.rgw_s3_auth_use_sts, "True", ssh_con
     )
-    srv_restarted = rgw_service.restart(ssh_con)
-    time.sleep(30)
-    if srv_restarted is False:
-        raise TestExecError("RGW service restart failed")
-    else:
-        log.info("RGW service restarted")
+
+    reusable.restart_and_wait_until_daemons_up(ssh_con)
 
     auth = Auth(user1, ssh_con, ssl=config.ssl)
     iam_client = auth.do_auth_iam_client()
