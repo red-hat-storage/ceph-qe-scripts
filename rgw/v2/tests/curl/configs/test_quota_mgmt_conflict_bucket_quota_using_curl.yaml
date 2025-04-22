@@ -20,18 +20,18 @@ config:
     bucket_quota:
       "enabled": true
       "check_on_raw": true
-      "max_size_kb": 2000
-      "max_size": 2048000
-      "max_objects": 200
+      "max_size_kb": 400
+      "max_size": 409600
+      "max_objects": 40
     individual_bucket_quota:
       "enabled": true
       "check_on_raw": true
-      "max_size_kb": 1000
-      "max_size": 1024000
-      "max_objects": 100
+      "max_size_kb": 200
+      "max_size": 204800
+      "max_objects": 20
     head_bucket:
       X-RGW-Quota-User-Size: -1
       X-RGW-Quota-User-Objects: -1
-      X-RGW-Quota-Max-Buckets: 1000
-      X-RGW-Quota-Bucket-Size: 1024000
-      X-RGW-Quota-Bucket-Objects: 100
+      X-RGW-Quota-Max-Buckets: 200
+      X-RGW-Quota-Bucket-Size: 204800
+      X-RGW-Quota-Bucket-Objects: 20
