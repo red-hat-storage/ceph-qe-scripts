@@ -1581,6 +1581,32 @@ def set_gc_conf(ceph_conf, conf):
         utils.exec_shell_cmd("rados rm gc.%d -p %s -N gc" % (i, pool_name))
 
 
+def restart_and_wait_until_daemons_up(ssh_con):
+    log.info("trying to restart services")
+    srv_restarted = rgw_service.restart(ssh_con)
+    if srv_restarted is False:
+        raise TestExecError("RGW service restart failed")
+    else:
+        log.info("RGW service restarted")
+    rgw_serv = json.loads(
+        utils.exec_shell_cmd("ceph orch ls --service_type=rgw --format json-pretty")
+    )
+
+    if int(rgw_serv[0]["status"]["running"]) != (rgw_serv[0]["status"]["size"]):
+        for retry_count in range(12):
+            time.sleep(5)
+            re_rgw_serv = json.loads(
+                utils.exec_shell_cmd("ceph orch ls --service_type=rgw --format json")
+            )
+            if re_rgw_serv[0]["status"]["running"] != re_rgw_serv[0]["status"]["size"]:
+                log.info("wait for 5 sec until all daemon are up and running")
+            else:
+                log.info("RGW daemons are up and running")
+                break
+    else:
+        log.info("RGW daemons are up and running")
+
+
 def verify_gc():
     op = utils.exec_shell_cmd("radosgw-admin gc list")
     # op variable will capture command output such as entire gc list or error like ERROR: failed to list objs: (22) Invalid argument
