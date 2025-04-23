@@ -18,6 +18,6 @@ config:
     bucket_quota:
       "enabled": true
       "check_on_raw": true
-      "max_size_kb": 1000
-      "max_size": 1024000
-      "max_objects": 100
+      "max_size_kb": 200
+      "max_size": 204800
+      "max_objects": 20
