@@ -65,18 +65,25 @@ def test_exec(config, ssh_con):
     rgw_host, rgw_ip = utils.get_hostname_ip(ssh_con)
     aws_auth.install_aws()
 
-    cmd = f"AWS_ACCESS_KEY_ID={access_demo} AWS_SECRET_ACCESS_KEY={secret_demo} /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
-    utils.exec_shell_cmd(cmd)
-    time.sleep(2)
-    cmd = f"radosgw-admin user list"
-    users = json.loads(utils.exec_shell_cmd(cmd))
-    if project_demo not in users:
-        raise RGWBaseException("Keystone user not present in RGW user list")
-    else:
-        for line in users:
-            if "$" in line and line.split("$")[0] == line.split("$")[1]:
-                raise RGWBaseException("Tenanted user is exposed by keystone")
-        log.info("Non tenanted keystone user as expected")
+    count = 0
+    while count < 2:
+        cmd = f"AWS_ACCESS_KEY_ID={access_demo} AWS_SECRET_ACCESS_KEY={secret_demo} /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
+        utils.exec_shell_cmd(cmd)
+        time.sleep(5)
+        cmd = f"radosgw-admin user list"
+        users = json.loads(utils.exec_shell_cmd(cmd))
+        if project_demo not in users:
+            count += 1
+            if count == 2:
+                raise RGWBaseException("Keystone user not present in RGW user list")
+            log.info("Retrying to get keystone user in 20 seconds")
+            time.sleep(20)
+        else:
+            for line in users:
+                if "$" in line and line.split("$")[0] == line.split("$")[1]:
+                    raise RGWBaseException("Tenanted user is exposed by keystone")
+            log.info("Non tenanted keystone user as expected")
+            break
 
     # Create a bucket on the Keystone user
     for bc in range(config.bucket_count):
