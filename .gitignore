@@ -1,6 +1,3 @@
-#Virtual Environment
-.venv/
-
 # IDE files
 *.idea/
 *.xml
@@ -10,4 +7,8 @@
 # Byte-compiled
 __pycache__/
 *.py[cod]
+
+#Virtual Environment
+.venv/
+
 
