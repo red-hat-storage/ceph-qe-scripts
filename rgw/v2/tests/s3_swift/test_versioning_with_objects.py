@@ -73,11 +73,11 @@ def test_exec(config, ssh_con):
     # create user
     all_users_info = s3lib.create_users(config.user_count)
     extra_user = s3lib.create_users(1)[0]
-    extra_user_auth = Auth(extra_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+    extra_user_auth = reusable.get_auth(extra_user, ssh_con, config.ssl, config.haproxy)
     extra_user_conn = extra_user_auth.do_auth()
     for each_user in all_users_info:
         # authenticate
-        auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        auth = reusable.get_auth(each_user, ssh_con, config.ssl, config.haproxy)
         rgw_conn = auth.do_auth()
         s3_object_names = []
         # create buckets

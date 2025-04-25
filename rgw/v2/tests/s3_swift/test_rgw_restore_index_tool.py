@@ -54,7 +54,7 @@ def test_exec(config, ssh_con):
     log.info("starting IO")
     user_info = s3lib.create_users(config.user_count)
     user_info = user_info[0]
-    auth = Auth(user_info, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+    auth = reusable.get_auth(user_info, ssh_con, config.ssl, config.haproxy)
     rgw_conn = auth.do_auth()
     objects_created_list = []
     bucket_name = utils.gen_bucket_name_from_userid(user_info["user_id"], rand_no=1)

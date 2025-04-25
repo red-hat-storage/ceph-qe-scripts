@@ -58,11 +58,11 @@ def test_exec(config, ssh_con):
         users_info = s3lib.create_users(config.user_count)
         # user1 is the owner
         user1, user2 = users_info[0], users_info[1]
-        auth1 = Auth(user1, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        auth1 = reusable.get_auth(user1, ssh_con, config.ssl, config.haproxy)
         rgw_conn1 = auth1.do_auth()
         s3_client1 = auth1.do_auth_using_client()
         # user2 auth
-        auth2 = Auth(user2, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        auth2 = reusable.get_auth(user2, ssh_con, config.ssl, config.haproxy)
         rgw_conn2 = auth2.do_auth()
         s3_client2 = auth2.do_auth_using_client()
         # get ceph version

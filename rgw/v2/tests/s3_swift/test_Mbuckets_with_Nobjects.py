@@ -118,7 +118,7 @@ def test_exec(config, ssh_con):
             log.info("RGW service restarted")
     for each_user in all_users_info:
         # authenticate
-        auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        auth = reusable.get_auth(each_user, ssh_con, config.ssl, config.haproxy)
         if config.use_aws4 is True:
             rgw_conn = auth.do_auth(**{"signature_version": "s3v4"})
         else:

@@ -51,9 +51,9 @@ def test_exec(config, ssh_con):
         user_name = user["user_id"]
         log.info(user_name)
         S5CMD(ssl=config.ssl)
-        endpoint = s5cmd_reusable.get_endpoint(
-            ssh_con, haproxy=config.haproxy, ssl=config.ssl
-        )
+        rgw_service_port = s3_reusable.check_rgw_service()
+        haproxy = False if rgw_service_port == 443 else config.haproxy
+        endpoint = s5cmd_reusable.get_endpoint(ssh_con, haproxy=haproxy, ssl=config.ssl)
         s5cmd_auth.do_auth_s5cmd(user)
 
         if config.test_ops.get("create_bucket", False):

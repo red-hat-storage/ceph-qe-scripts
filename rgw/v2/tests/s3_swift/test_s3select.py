@@ -53,7 +53,7 @@ def test_exec(config, ssh_con):
 
     for each_user in all_users_info:
         # authenticate
-        auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        auth = reusable.get_auth(each_user, ssh_con, config.ssl, config.haproxy)
         rgw_conn = auth.do_auth()
 
         # authenticate with s3 client

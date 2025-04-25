@@ -55,7 +55,7 @@ def test_exec(config, ssh_con):
     all_users_info = resource_op.create_users(no_of_users_to_create=config.user_count)
 
     for each_user in all_users_info:
-        auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        auth = s3_reusable.get_auth(each_user, ssh_con, config.ssl, config.haproxy)
         rgw_s3_client = auth.do_auth_using_client()
         user_name = each_user["user_id"]
         log.info(user_name)

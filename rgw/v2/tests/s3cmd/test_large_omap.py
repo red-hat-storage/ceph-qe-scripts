@@ -74,8 +74,9 @@ def test_exec(config, ssh_con):
     ceph_conf = CephConfOp()
     rgw_service = RGWService()
 
+    rgw_service_port = reusable.get_rgw_service_port()
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
-    if config.haproxy:
+    if config.haproxy and rgw_service_port != 443:
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)
         port = 5000
@@ -117,7 +118,7 @@ def test_exec(config, ssh_con):
                 no_of_users_to_create=config.user_count
             )
             s3_auth.do_auth(user_info[0], ip_and_port)
-            auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+            auth = reusable.get_auth(user_info[0], ssh_con, config.ssl, config.haproxy)
             rgw_conn = auth.do_auth()
             for bc in range(config.bucket_count):
                 bucket_name = utils.gen_bucket_name_from_userid(

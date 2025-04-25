@@ -2775,8 +2775,8 @@ def test_object_download_at_replicated_site(
         # Download objects from remote site using boto3 rgw client
         remote_ip = utils.get_rgw_ip_zone(zone_name)
         remote_site_ssh_conn = utils.connect_remote(remote_ip)
-        remote_site_auth = Auth(
-            each_user, remote_site_ssh_conn, ssl=config.ssl, haproxy=config.haproxy
+        remote_site_auth = get_auth(
+            each_user, remote_site_ssh_conn, config.ssl, config.haproxy
         )
         remote_s3_client = remote_site_auth.do_auth_using_client()
         if zone_name == "archive":
@@ -3295,3 +3295,18 @@ def configure_rgw_lc_settings():
         utils.exec_shell_cmd(ceph_restart_cmd)
 
     log.info("RGW LC debug interval settings updated successfully.")
+
+
+def get_rgw_service_port():
+    log.info("checking rgw service")
+    rgw_serv = json.loads(
+        utils.exec_shell_cmd("ceph orch ls --service_type=rgw --format json")
+    )
+    rgw_serv_port = rgw_serv[0]["status"]["ports"][0]
+    return rgw_serv_port
+
+
+def get_auth(user_info, ssh_con, ssl, haproxy):
+    rgw_service_port = get_rgw_service_port()
+    haproxy = False if rgw_service_port == 443 else haproxy
+    return Auth(user_info, ssh_con, ssl=ssl, haproxy=haproxy)
