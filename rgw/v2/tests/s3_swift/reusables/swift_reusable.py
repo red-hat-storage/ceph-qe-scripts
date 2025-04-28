@@ -24,7 +24,6 @@ def get_unique_name(length=7):
 
 def create_a_large_file(TEST_DATA_PATH, filename):
     file_path = os.path.join(TEST_DATA_PATH, filename)
-    # data_info = manage_data.io_generator(file_path, 1073741824) #1GB File Creation
     data_info = manage_data.io_generator(file_path, 10000)  # small File Creation
     # Container and object detail
     log.info(f"md5 of uploading large file :{utils.get_md5(file_path)}")

@@ -355,6 +355,9 @@ class Config(object):
         self.large_object_download = self.doc["config"].get(
             "large_object_download", False
         )
+        self.static_large_object_upload = self.doc["config"].get(
+            "static_large_object_upload", False
+        )
         self.local_file_delete = self.doc["config"].get("local_file_delete", False)
         self.sts = self.doc["config"].get("sts")
         self.ceph_conf = self.doc["config"].get("ceph_conf")
