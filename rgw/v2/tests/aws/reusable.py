@@ -177,11 +177,14 @@ def upload_part(
             algo = "crc32-c"
         else:
             algo = checksum_algo
+        cmd = f"--body {body} --endpoint-url {end_point} --checksum-algorithm {checksum_algo}"
+        if checksum:
+            cmd = cmd + f" --checksum-{algo} {checksum}"
         command = aws_auth.command(
             operation="upload-part",
             params=[
                 f"--bucket {bucket_name} --key {key_name} --part-number {part_number} --upload-id {upload_id}"
-                f" --body {body} --endpoint-url {end_point} --checksum-algorithm {checksum_algo} --checksum-{algo} {checksum}",
+                f" {cmd}",
             ],
         )
     else:
@@ -533,6 +536,7 @@ def upload_multipart_aws(
                 upload_id,
                 each_part,
                 endpoint,
+                checksum_algo=checksum_algo,
             )
         )
         part_info = {"PartNumber": part_number, "ETag": upload_part_resp["ETag"]}
