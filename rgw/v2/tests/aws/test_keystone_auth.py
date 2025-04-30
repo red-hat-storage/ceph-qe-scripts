@@ -62,7 +62,6 @@ def test_exec(config, ssh_con):
     # Do a awscli query with keystone credentials
     rgw_port = utils.get_radosgw_port_no(ssh_con)
     rgw_host, rgw_ip = utils.get_hostname_ip(ssh_con)
-    aws_auth.install_aws()
 
     cmd = f"AWS_ACCESS_KEY_ID={access_demo} AWS_SECRET_ACCESS_KEY={secret_demo} /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
     utils.exec_shell_cmd(cmd)
