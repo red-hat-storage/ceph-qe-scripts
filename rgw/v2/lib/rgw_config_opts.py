@@ -141,7 +141,7 @@ class CephConfigSet:
         out = json.loads(out_ps)
         daemon_name_list = []
         for node in out:
-            daemon_name = node.get("daemon_name")
+            daemon_name = node.get("service_name")
             daemon_name_list.append(daemon_name)
 
         for daemon in daemon_name_list:
