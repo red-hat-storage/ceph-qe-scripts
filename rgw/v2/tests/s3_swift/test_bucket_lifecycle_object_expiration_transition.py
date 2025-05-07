@@ -228,7 +228,7 @@ def test_exec(config, ssh_con):
 
     for each_user in user_info:
         log.info(f"print each_user {each_user}")
-        auth = Auth(each_user, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        auth = reusable.get_auth(each_user, ssh_con, config.ssl, config.haproxy)
         rgw_conn = auth.do_auth()
         rgw_conn2 = auth.do_auth_using_client()
         notification = None
