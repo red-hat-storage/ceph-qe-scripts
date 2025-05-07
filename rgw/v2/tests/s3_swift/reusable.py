@@ -3295,3 +3295,12 @@ def configure_rgw_lc_settings():
         utils.exec_shell_cmd(ceph_restart_cmd)
 
     log.info("RGW LC debug interval settings updated successfully.")
+
+
+def list_bucket_objects(rgw_s3_client, bucket_name):
+    """
+    returns all of the objects in the bucket
+    """
+    resp = rgw_s3_client.list_objects(Bucket=bucket_name)
+    log.info(f"list bucket objects response: {resp}")
+    return resp["Contents"]
