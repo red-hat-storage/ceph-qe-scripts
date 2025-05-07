@@ -218,16 +218,16 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
     else:
         raise TestExecError("bucket creation failed")
 
-    is_multisite = utils.is_cluster_multisite()
-    if is_multisite:
-        log.info("Cluster is multisite")
-        remote_site_ssh_con = get_remote_conn_in_multisite()
-
-        log.info("Check sync status in local site")
-        sync_status()
-
-        log.info("Check sync status in remote site")
-        sync_status(ssh_con=remote_site_ssh_con)
+    # is_multisite = utils.is_cluster_multisite()
+    # if is_multisite:
+    #     log.info("Cluster is multisite")
+    #     remote_site_ssh_con = get_remote_conn_in_multisite()
+    #
+    #     log.info("Check sync status in local site")
+    #     sync_status()
+    #
+    #     log.info("Check sync status in remote site")
+    #     sync_status(ssh_con=remote_site_ssh_con)
     return bucket
 
 

@@ -35,7 +35,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
-from v2.tests.s3_swift.reusables import bucket_notification as notification
+from v2.tests.s3_swift.reusables import server_access_logging as bkt_logging
 from v2.tests.s3_swift.reusables import rgw_accounts as accounts
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -55,7 +55,7 @@ def test_exec(config, ssh_con):
     rgw_service = RGWService()
 
     # add service2 sdk extras so that bucket logging api's and respective fields are supported
-    utils.add_service2_sdk_extras()
+    utils.add_service2_sdk_extras(sdk_file_location="https://github.com/ceph/ceph/blob/main/examples/rgw/boto3/service-2.sdk-extras.json?raw=true")
 
     if config.enable_resharding and config.sharding_type == "dynamic":
         reusable.set_dynamic_reshard_ceph_conf(config, ssh_con)
@@ -100,9 +100,6 @@ def test_exec(config, ssh_con):
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         rgw_conn = auth.do_auth()
 
-        # authenticate sns client.
-        rgw_sns_conn = auth.do_auth_sns_client()
-
         # authenticate with s3 client
         rgw_s3_client = auth.do_auth_using_client()
 
@@ -142,7 +139,7 @@ def test_exec(config, ssh_con):
                 log.info(f"bucket_policy_generated: {bucket_policy_generated}")
                 bucket_policy_obj = s3lib.resource_op(
                     {
-                        "obj": rgw_s3_client,
+                        "obj": rgw_conn,
                         "resource": "BucketPolicy",
                         "args": [dest_bucket_name],
                     }
@@ -183,12 +180,12 @@ def test_exec(config, ssh_con):
                         raise TestExecError("put bucket policy failed")
 
                 # put bucket logging
-                rgw_s3_client.put_bucket_logging(
+                bkt_logging.put_bucket_logging(
                     rgw_s3_client, src_bucket_name, dest_bucket_name, config
                 )
 
                 # get bucket logging
-                rgw_s3_client.get_bucket_logging(rgw_s3_client, src_bucket_name)
+                bkt_logging.get_bucket_logging(rgw_s3_client, src_bucket_name)
 
                 if config.enable_resharding:
                     if config.sharding_type == "manual":
@@ -228,30 +225,32 @@ def test_exec(config, ssh_con):
                                 each_user,
                             )
 
-                # copy objects
-                if config.test_ops.get("copy_object", False):
-                    log.info("copy object")
-                    obj_name = "copy_of_object" + obj_name_temp
-                    status = rgw_s3_client.copy_object(
-                        Bucket=src_bucket_name,
-                        Key=obj_name,
-                        CopySource={
-                            "Bucket": src_bucket_name,
-                            "Key": s3_object_name,
-                        },
-                    )
-                    if status is None:
-                        raise TestExecError("copy object failed")
+                        # copy objects
+                        if config.test_ops.get("copy_object", False):
+                            obj_name = "copy_of_object" + obj_name_temp
+                            log.info(f"copy object {s3_object_name} to {obj_name}")
+                            status = rgw_s3_client.copy_object(
+                                Bucket=src_bucket_name,
+                                Key=obj_name,
+                                CopySource={
+                                    "Bucket": src_bucket_name,
+                                    "Key": s3_object_name,
+                                },
+                            )
+                            if status is None:
+                                raise TestExecError("copy object failed")
 
                 # delete objects
                 if config.test_ops.get("delete_bucket_object", False):
                     if config.test_ops.get("enable_version", False):
                         for name, path in objects_created_list:
                             reusable.delete_version_object(
-                                src_bucket_name, name, path, rgw_conn, each_user
+                                src_bucket, name, path, rgw_conn, each_user
                             )
                     else:
-                        reusable.delete_objects(src_bucket_name)
+                        reusable.delete_objects(src_bucket)
+
+                bkt_logging.verify_log_records(rgw_s3_client, each_user['user_id'], src_bucket_name, dest_bucket_name, config)
 
                 # delete bucket and verify if associated topic is also deleted
                 if config.test_ops.get("delete_bucket_object", False):

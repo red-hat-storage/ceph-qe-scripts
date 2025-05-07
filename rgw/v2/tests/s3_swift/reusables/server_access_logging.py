@@ -73,7 +73,7 @@ def put_bucket_logging(rgw_s3_client, src_bucket, dest_bucket, config):
         }
     }
 
-    log.info(f"put bucket logging for the bucket {src_bucket}")
+    log.info(f"put bucket logging for the bucket {src_bucket} with logging conf:{logging_conf}")
     put_bkt_logging_response = rgw_s3_client.put_bucket_logging(
         Bucket=src_bucket, BucketLoggingStatus=logging_conf
     )
@@ -96,7 +96,7 @@ def post_bucket_logging(rgw_s3_client, bucket_name):
     """
     post bucket logging for a given bucket to flush out the log records as an object to target bucket
     """
-    post_bkt_logging = rgw_s3_client.get_bucket_logging(Bucket=bucket_name)
+    post_bkt_logging = rgw_s3_client.post_bucket_logging(Bucket=bucket_name)
     log.info(f"post_bucket_logging response: {post_bkt_logging}")
     if post_bkt_logging is False:
         raise TestExecError(f"failed to post bucket logging for bucket : {bucket_name}")
@@ -104,6 +104,7 @@ def post_bucket_logging(rgw_s3_client, bucket_name):
         "sleeping for 5 seconds so that the log object is flushed to target bucket"
     )
     time.sleep(5)
+    log.info("sleeping for 10 seconds so that log object is flushed")
 
 
 def verify_journal_logs(log_records, src_user_name, src_bucket_name, config):
@@ -113,9 +114,9 @@ def verify_journal_logs(log_records, src_user_name, src_bucket_name, config):
         fields = record.split(" ")
         bucket_owner = fields[0]
         bucket_name = fields[1]
-        timestamp = fields[2] + fields[3]
-        key = fields[4]
-        op = fields[5]
+        timestamp = f"{fields[2]} {fields[3]}"
+        op = fields[4]
+        key = fields[5]
         size = fields[6]
         version_id = fields[7]
         etag = fields[8]
@@ -124,7 +125,7 @@ def verify_journal_logs(log_records, src_user_name, src_bucket_name, config):
             put_count = put_count + 1
         elif op == "REST.POST.UPLOAD":
             mpu_count = mpu_count + 1
-        elif op == "REST.DELETE.OBJECT":
+        elif op == "REST.DELETE.OBJECT" or op == "REST.POST.DELETE_MULTI_OBJECT":
             delete_count = delete_count + 1
         elif op == "REST.COPY.OBJECT_GET":
             copy_count = copy_count + 1
@@ -143,9 +144,9 @@ def verify_journal_logs(log_records, src_user_name, src_bucket_name, config):
             r"\[\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2} [-+]\d{4}\]"
         )
         if not timestamp_regex.match(timestamp):
-            raise Exception("timestamp format not matched")
+            raise Exception(f"timestamp {timestamp} format not matched")
 
-        if size == "-" and op != "REST.POST.UPLOAD":
+        if (size == "-" or size == "0") and op != "REST.POST.UPLOAD":
             raise Exception("object size not populated")
         if config.test_ops.get("enable_version") and op != "REST.POST.UPLOAD":
             if version_id == "-":
@@ -188,7 +189,7 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
         fields = re.split(r'"([^"]*)"', record)
         bucket_owner = fields[0]
         bucket_name = fields[1]
-        timestamp = fields[2] + fields[3]
+        timestamp = f"{fields[2]} {fields[3]}"
         client_ip = fields[4]
         user_name_or_account = fields[5]
         request_id = fields[6]
@@ -332,13 +333,16 @@ def verify_log_records(
 
     objects_list = reusable.list_bucket_objects(rgw_s3_client, dest_bucket_name)
     total_log_records = []
+    log.info("fetching all log objects content")
     for obj in objects_list:
-        response = rgw_s3_client.get_object(Bucket=dest_bucket_name, Key=obj)
-        content = response["Body"].read()
+        key = obj["Key"]
+        response = rgw_s3_client.get_object(Bucket=dest_bucket_name, Key=key)
+        content = response["Body"].read().decode("utf-8").strip()
+        log.info(f"log object {key} content: {content}")
         obj_records = content.split("\n")
-        total_log_records.append(obj_records)
+        total_log_records.extend(obj_records)
 
-    if config.test_ops.get("logging_type") is "Standard":
+    if config.test_ops.get("logging_type") == "Standard":
         verify_standard_logs(total_log_records, src_user_name, src_bucket_name, config)
-    elif config.test_ops.get("logging_type") is "Journal":
+    elif config.test_ops.get("logging_type") == "Journal":
         verify_journal_logs(total_log_records, src_user_name, src_bucket_name, config)
