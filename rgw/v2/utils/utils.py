@@ -898,7 +898,7 @@ def disable_async_data_notifications():
     return False
 
 
-def add_service2_sdk_extras():
+def add_service2_sdk_extras(sdk_file_location=None):
     """
     download service-2.sdk-extras.json into botocore python module path
     """
@@ -910,11 +910,12 @@ def add_service2_sdk_extras():
     extras_json_path = (
         f"{botocore_paths[0]}/data/s3/2006-03-01/service-2.sdk-extras.json"
     )
-    exec_shell_cmd(
-        f"sudo curl -o {extras_json_path} -L https://github.com/boto/botocore/blob/develop/botocore/data/s3/2006-03-01/service-2.json?raw=true"
-    )
+    if sdk_file_location is None:
+        sdk_file_location = "https://github.com/boto/botocore/blob/develop/botocore/data/s3/2006-03-01/service-2.json?raw=true"
+    exec_shell_cmd(f"sudo curl -o {extras_json_path} -L {sdk_file_location}")
     log.info(f"service-2.sdk-extras.json is downloaded to {extras_json_path}")
-    time.sleep(10)
+    log.info("sleeping for 5 seconds")
+    time.sleep(5)
     return True
 
 
