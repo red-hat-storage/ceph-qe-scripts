@@ -2,23 +2,24 @@ import json
 import logging
 import os
 import random
+import re
+import shlex
 import time
 import timeit
 import uuid
-import re
 from urllib import parse as urlparse
 
 import v2.utils.utils as utils
 from v2.lib.exceptions import EventRecordDataError, TestExecError
-from v2.tests.s3_swift.reusables import rgw_accounts as accounts
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import rgw_accounts as accounts
 
 log = logging.getLogger()
 
 
 def rgw_admin_logging_info(bucket_name):
     """
-    Perform radosgw-admin topic/notification operation with arguments passed.
+    Perform radosgw-admin bucket logging info --bucket <bucket_name>
 
     Args:
         config: Test configuration object.
@@ -26,35 +27,14 @@ def rgw_admin_logging_info(bucket_name):
         args: Arguments for the command.
         sub_command: "topic" or "notification" (default: "topic").
     """
-
-    if config.test_ops.get("test_via_rgw_accounts", False):
-        # Fetch RGW account ID
-        rgw_account_id = accounts.get_rgw_account()
-        log.info(f"Testing topic {op} with RGW account: {rgw_account_id}")
-        cmd = f"radosgw-admin --account-id {rgw_account_id} {sub_command} {op}"
-    else:
-        cmd = f"radosgw-admin {sub_command} {op}"
-
-    # Modify bucket_name_to_create if tenant_name is present
-    if config.test_ops.get("tenant_name") and "bucket" in args:
-        tenant_name = config.test_ops.get("tenant_name")
-        args["bucket"] = f"{tenant_name}/{args['bucket']}"
-
-    for arg, val in args.items():
-        cmd = f"{cmd} --{arg} {val}"
-
+    cmd = f"radosgw-admin bucket logging info --bucket {bucket_name}"
     out = utils.exec_shell_cmd(cmd)
     log.info(out)
-
     if out is False:
-        log.info(f"{sub_command} {op} using rgw CLI failed")
+        log.info(f"bucket logging info failed")
         return False
-
-    log.info(f"{sub_command} {op} using rgw CLI is successful")
-
     if out:
         out = json.loads(out)
-
     return out
 
 
@@ -73,7 +53,9 @@ def put_bucket_logging(rgw_s3_client, src_bucket, dest_bucket, config):
         }
     }
 
-    log.info(f"put bucket logging for the bucket {src_bucket} with logging conf:{logging_conf}")
+    log.info(
+        f"put bucket logging for the bucket {src_bucket} with logging conf:{logging_conf}"
+    )
     put_bkt_logging_response = rgw_s3_client.put_bucket_logging(
         Bucket=src_bucket, BucketLoggingStatus=logging_conf
     )
@@ -185,8 +167,11 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
     ) = complete_mpu_count = copy_count = delete_count = other_ops_count = 0
     _, local_ip = utils.get_hostname_ip()
     for record in log_records:
+        log.info(f"verifying record: {record}")
         # fields = record.split(" ")
-        fields = re.split(r'"([^"]*)"', record)
+        # fields = re.split(r'"([^"]*)"', record)
+        fields = shlex.split(record)
+        log.info(f"fields: {fields}")
         bucket_owner = fields[0]
         bucket_name = fields[1]
         timestamp = f"{fields[2]} {fields[3]}"
@@ -215,9 +200,13 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
         acl_flag = fields[26]
 
         if bucket_owner != src_user_name:
-            raise Exception("bucket_owner not matched")
+            raise Exception(
+                f"bucket_owner not matched. Expected {src_user_name}, received {bucket_owner}"
+            )
         if bucket_name != src_bucket_name:
-            raise Exception("bucket_name not matched")
+            raise Exception(
+                f"bucket_name not matched. Expected {src_bucket_name}, received {bucket_name}"
+            )
 
         timestamp_regex = re.compile(
             r"\[\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2} [-+]\d{4}\]"
@@ -226,10 +215,14 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
             raise Exception("timestamp format not matched")
 
         if client_ip != local_ip:
-            raise Exception("client_ip not matched")
+            raise Exception(
+                f"client_ip not matched. Expected {local_ip}, received {client_ip}"
+            )
 
         if user_name_or_account != src_user_name:
-            raise Exception("user field who performed the operation not matched")
+            raise Exception(
+                f"user field who performed the operation not matched. . Expected {src_user_name}, received {user_name_or_account}"
+            )
 
         if request_id == "-":
             raise Exception("request_id not populated")
@@ -242,22 +235,31 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
             complete_mpu_count = complete_mpu_count + 1
         elif op == "REST.DELETE.OBJECT":
             delete_count = delete_count + 1
+        elif op == "REST.POST.DELETE_MULTI_OBJECT" and key != "-":
+            delete_count = delete_count + 1
         elif op == "REST.COPY.OBJECT_GET":
             copy_count = copy_count + 1
         else:
-            other_ops = other_ops + 1
+            other_ops_count = other_ops_count + 1
 
-        if key == "-":
-            raise Exception("object name not populated")
+        if key == "-" and ("OBJECT" in op or "UPLOAD" in op):
+            if op == "REST.POST.DELETE_MULTI_OBJECT":
+                log.info(
+                    f"one extra log record is sent for REST.POST.DELETE_MULTI_OBJECT operation without object name populated"
+                )
+            else:
+                raise Exception("object name not populated")
 
         if request_uri == "-":
             raise Exception("request_uri not populated")
 
-        if http_status.startswith("20"):
-            raise Exception("http_status is not success")
+        if not http_status.startswith("20"):
+            raise Exception(
+                f"http_status received is {http_status}, its not in success range"
+            )
 
-        if size == "-" and op != "REST.POST.UPLOAD":
-            raise Exception("object size not populated")
+        if size == "-" and ("OBJECT" in op or "UPLOAD" in op):
+            raise Exception(f"object size not populated for {op}")
 
         if total_time != "-":
             raise Exception(f"unsupported field total_time populated with {total_time}")
@@ -273,20 +275,26 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
                 raise Exception("version id not populated")
 
         if signature_version != "SigV4":
-            raise Exception(f"signature_version not equal to SigV4")
+            raise Exception(
+                f"signature_version received {signature_version}, but expected SigV4"
+            )
 
         if cipher_suite != "TLS_AES_256_GCM_SHA384":
-            raise Exception(f"cipher_suite not equal to TLS_AES_256_GCM_SHA384")
+            raise Exception(
+                f"cipher_suite received {cipher_suite}, but expected TLS_AES_256_GCM_SHA384"
+            )
 
-        if authentication_type != "TLS_AES_256_GCM_SHA384":
-            raise Exception(f"authentication_type not equal to TLS_AES_256_GCM_SHA384")
+        if authentication_type != "AuthHeader":
+            raise Exception(
+                f"authentication_type received {authentication_type}, but expected  TLS_AES_256_GCM_SHA384"
+            )
 
         # todo: host_header field verification
 
         if tls_version != "TLSv1.3":
-            raise Exception(f"tls_version not equal to TLSv1.3")
+            raise Exception(f"tls_version received {tls_version}, but expected TLSv1.3")
 
-        if access_point_arn == "-":
+        if access_point_arn != "-":
             raise Exception(
                 f"unsupported access_point_arn total_time populated with {access_point_arn}"
             )
@@ -305,21 +313,21 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
     log.info(f"other_ops_count: {other_ops_count}")
     if copy_count != objects_count:
         raise Exception(
-            "expected number of log records not populated for copy operation"
+            f"expected number of log records not populated for copy operation. expected {objects_count}, received {copy_count}"
         )
-    if delete_count != objects_count:
+    if delete_count != (objects_count * 2):
         raise Exception(
-            "expected number of log records not populated for delete operation"
+            f"expected number of log records not populated for delete operation. expected {objects_count * 2}, received {delete_count}"
         )
     if config.test_ops.get("upload_type") == "normal":
-        if put_count != objects_count:
+        if put_count != (objects_count * 2):
             raise Exception(
-                "expected number of log records not populated for put object operation"
+                f"expected number of log records not populated for put object operation. expected {objects_count * 2}, received {put_count}"
             )
     if config.test_ops.get("upload_type") == "multipart":
         if create_mpu_count != objects_count and complete_mpu_count != objects_count:
             raise Exception(
-                "expected number of log records not populated for multipart object upload operation"
+                f"expected number of log records not populated for multipart object upload operation. expected create_mpu_count is {objects_count}, received {create_mpu_count}. expected complete_mpu_count is {objects_count}, received {complete_mpu_count}"
             )
 
 

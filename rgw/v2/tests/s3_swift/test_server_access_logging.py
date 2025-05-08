@@ -35,12 +35,11 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
-from v2.tests.s3_swift.reusables import server_access_logging as bkt_logging
 from v2.tests.s3_swift.reusables import rgw_accounts as accounts
+from v2.tests.s3_swift.reusables import server_access_logging as bkt_logging
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils.utils import RGWService
-from v2.utils.utils import HttpResponseParser
+from v2.utils.utils import HttpResponseParser, RGWService
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
@@ -55,7 +54,9 @@ def test_exec(config, ssh_con):
     rgw_service = RGWService()
 
     # add service2 sdk extras so that bucket logging api's and respective fields are supported
-    utils.add_service2_sdk_extras(sdk_file_location="https://github.com/ceph/ceph/blob/main/examples/rgw/boto3/service-2.sdk-extras.json?raw=true")
+    utils.add_service2_sdk_extras(
+        sdk_file_location="https://github.com/ceph/ceph/blob/main/examples/rgw/boto3/service-2.sdk-extras.json?raw=true"
+    )
 
     if config.enable_resharding and config.sharding_type == "dynamic":
         reusable.set_dynamic_reshard_ceph_conf(config, ssh_con)
@@ -156,26 +157,15 @@ def test_exec(config, ssh_con):
                 log.info(f"put policy response on {dest_bucket_name}: {put_policy}")
                 if put_policy is False:
                     raise TestExecError(
-                        "Resource execution failed: put bucket policy faield"
+                        "Resource execution failed: put bucket policy failed"
                     )
                 else:
                     if put_policy is not None:
                         response = HttpResponseParser(put_policy)
                         if response.status_code == 200 or response.status_code == 204:
-                            if config.test_ops.get(
-                                "test_public_access_block_pre_bucket_policy", False
-                            ):
-                                raise TestExecError(
-                                    "put bucket policy passed even after BlockPublicPolicy is set in public_access_block"
-                                )
-                            if config.test_ops.get("invalid_policy", False):
-                                raise TestExecError(
-                                    "Invalid bucket policy creation passed"
-                                )
-                            else:
-                                log.info("bucket policy created")
+                            log.info("put bucket policy successful")
                         else:
-                            raise TestExecError("bucket policy creation failed")
+                            raise TestExecError("put bucket policy failed")
                     else:
                         raise TestExecError("put bucket policy failed")
 
@@ -186,6 +176,17 @@ def test_exec(config, ssh_con):
 
                 # get bucket logging
                 bkt_logging.get_bucket_logging(rgw_s3_client, src_bucket_name)
+
+                # get bucket logging with radosgw-admin command
+                log.info(
+                    f"radosgw-admin bucket logging info on source bucket: {src_bucket_name}"
+                )
+                bkt_logging.rgw_admin_logging_info(src_bucket_name)
+
+                log.info(
+                    f"radosgw-admin bucket logging info on target bucket: {dest_bucket_name}"
+                )
+                bkt_logging.rgw_admin_logging_info(dest_bucket_name)
 
                 if config.enable_resharding:
                     if config.sharding_type == "manual":
@@ -250,12 +251,28 @@ def test_exec(config, ssh_con):
                     else:
                         reusable.delete_objects(src_bucket)
 
-                bkt_logging.verify_log_records(rgw_s3_client, each_user['user_id'], src_bucket_name, dest_bucket_name, config)
+                bkt_logging.verify_log_records(
+                    rgw_s3_client,
+                    each_user["user_id"],
+                    src_bucket_name,
+                    dest_bucket_name,
+                    config,
+                )
 
                 # delete bucket and verify if associated topic is also deleted
                 if config.test_ops.get("delete_bucket_object", False):
                     reusable.delete_bucket(src_bucket)
-                    # todo: get bucket logging on dest bucket
+
+                    log.info(
+                        f"test radosgw-admin bucket logging info on target bucket is empty after source bucket deletion"
+                    )
+                    out = bkt_logging.rgw_admin_logging_info(dest_bucket_name)
+                    if out:
+                        raise Exception(
+                            "radosgw-admin bucket logging info on target bucket is not empty after source bucket deletion"
+                        )
+
+                    reusable.delete_objects(dest_bucket)
                     reusable.delete_bucket(dest_bucket)
 
     # check sync status if a multisite cluster
