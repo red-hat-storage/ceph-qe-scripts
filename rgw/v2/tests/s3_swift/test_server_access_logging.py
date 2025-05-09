@@ -3,7 +3,10 @@ test_server_access_logging - Test Server Access Logging feature
 Usage: test_server_access_logging.py -c <input_yaml>
 <input_yaml>
     Note: any one of these yamls can be used
-    test_bucket_notification_kafka_broker_persistent_delete.yaml
+    test_bucket_logging_journal_mode.yaml
+    test_bucket_logging_journal_mode_multipart.yaml
+    test_bucket_logging_standard_mode.yaml
+    test_bucket_logging_standard_mode_multipart.yaml
 Operation:
     create user (tenant/non-tenant)
     Create topic and get topic
@@ -181,12 +184,16 @@ def test_exec(config, ssh_con):
                 log.info(
                     f"radosgw-admin bucket logging info on source bucket: {src_bucket_name}"
                 )
-                bkt_logging.rgw_admin_logging_info(src_bucket_name)
+                out = bkt_logging.rgw_admin_logging_info(src_bucket_name)
+                if not out:
+                    raise Exception("radosgw-admin bucket logging info on source bucket failed")
 
                 log.info(
                     f"radosgw-admin bucket logging info on target bucket: {dest_bucket_name}"
                 )
-                bkt_logging.rgw_admin_logging_info(dest_bucket_name)
+                out = bkt_logging.rgw_admin_logging_info(dest_bucket_name)
+                if not out:
+                    raise Exception("radosgw-admin bucket logging info on target bucket failed")
 
                 if config.enable_resharding:
                     if config.sharding_type == "manual":

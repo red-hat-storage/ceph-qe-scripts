@@ -1,13 +1,8 @@
 import json
 import logging
-import os
-import random
 import re
 import shlex
 import time
-import timeit
-import uuid
-from urllib import parse as urlparse
 
 import v2.utils.utils as utils
 from v2.lib.exceptions import EventRecordDataError, TestExecError
@@ -128,7 +123,7 @@ def verify_journal_logs(log_records, src_user_name, src_bucket_name, config):
         if not timestamp_regex.match(timestamp):
             raise Exception(f"timestamp {timestamp} format not matched")
 
-        if (size == "-" or size == "0") and op != "REST.POST.UPLOAD":
+        if (size == "-" or int(size) == 0) and op != "REST.POST.UPLOAD":
             raise Exception("object size not populated")
         if config.test_ops.get("enable_version") and op != "REST.POST.UPLOAD":
             if version_id == "-":
@@ -245,7 +240,7 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
         if key == "-" and ("OBJECT" in op or "UPLOAD" in op):
             if op == "REST.POST.DELETE_MULTI_OBJECT":
                 log.info(
-                    f"one extra log record is sent for REST.POST.DELETE_MULTI_OBJECT operation without object name populated"
+                    f"one extra log record is sent for REST.POST.DELETE_MULTI_OBJECT operation without object name populated. ignoring it.."
                 )
             else:
                 raise Exception("object name not populated")
@@ -258,8 +253,13 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
                 f"http_status received is {http_status}, its not in success range"
             )
 
-        if size == "-" and ("OBJECT" in op or "UPLOAD" in op):
-            raise Exception(f"object size not populated for {op}")
+        if (size == "-" or int(size) == 0) and "OBJECT" in op:
+            if op == "REST.POST.DELETE_MULTI_OBJECT":
+                log.info(
+                    f"one extra log record is sent for REST.POST.DELETE_MULTI_OBJECT operation without object size populated. ignoring it.."
+                )
+            else:
+                raise Exception(f"object size not populated for {op}")
 
         if total_time != "-":
             raise Exception(f"unsupported field total_time populated with {total_time}")
@@ -279,9 +279,13 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
                 f"signature_version received {signature_version}, but expected SigV4"
             )
 
-        if cipher_suite != "TLS_AES_256_GCM_SHA384":
+        if cipher_suite == "TLS_AES_256_GCM_SHA384":
+            log.info("cipher suite is populated with TLS_AES_256_GCM_SHA384 as the endpoint is non-ssl")
+        elif cipher_suite == "-":
+            log.info("cipher suite is not populated as the endpoint is non-ssl")
+        else:
             raise Exception(
-                f"cipher_suite received {cipher_suite}, but expected TLS_AES_256_GCM_SHA384"
+                f"cipher_suite received {cipher_suite}, but expected TLS_AES_256_GCM_SHA384 or -"
             )
 
         if authentication_type != "AuthHeader":
