@@ -10,7 +10,7 @@ log = logging.getLogger()
 def check_gc():
     """Checks RGW garbage collection and exits if orphans are found."""
     log.info("Running radosgw-admin gc process...")
-    utils.exec_shell_cmd("radosgw-admin gc process")
+    utils.exec_shell_cmd("radosgw-admin gc process --include-all")
 
     log.info("Running radosgw-admin gc list...")
     gc_list_output = utils.exec_shell_cmd("radosgw-admin gc list")
