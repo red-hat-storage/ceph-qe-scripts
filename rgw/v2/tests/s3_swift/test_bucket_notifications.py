@@ -264,7 +264,18 @@ def test_exec(config, ssh_con):
                         )
                         topic_listed = False
                         notif_topic_listed = False
-                        for topic_dict in topics_list["topics"]:
+
+                        # workaround for 8.1 to fetch topics from topic list output.
+                        # see bz: https://bugzilla.redhat.com/show_bug.cgi?id=2360425
+                        if (
+                            float(ceph_version_id[0]) == 19
+                            and float(ceph_version_id[1]) == 2
+                            and float(ceph_version_id[2]) >= 1
+                        ):
+                            topics_list_workaround = topics_list
+                        else:
+                            topics_list_workaround = topics_list["topics"]
+                        for topic_dict in topics_list_workaround:
                             if topic_dict["name"] == topic_name:
                                 topic_listed = True
                             if topic_dict["name"] == bkt_notif_topic_name:
