@@ -58,47 +58,61 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     user_info = s3lib.create_users(config.user_count)
 
-    # Create a NFS cluster without ingress
-    rgw_host, _ = utils.get_hostname_ip(ssh_con)
-    cluster_id = "rgw-nfs"
-    cluster_info = nfs.create_nfs_cluster(cluster_id, rgw_host)
-    sleep(5)
-    # check cluster details
-    cluster_info = utils.exec_shell_cmd(f"ceph nfs cluster info {cluster_id}")
+    if config.test_ops.get("create_mount", False):
+        log.info("Creating mount point")
+        cmd = "sudo mkdir /mnt/nfs1"
+        utils.exec_shell_cmd(cmd)
+        cmd = "ceph nfs cluster info rgw-nfs"
+        out = json.loads(utils.exec_shell_cmd(cmd))
+        ip = out["rgw-nfs"]["backend"][0]["ip"]
+        log.info(ip)
+        cmd = f"mount -t nfs -o nfsvers=4,noauto,soft,sync,proto=tcp {ip}:/ /mnt/nfs1"
+        err = utils.exec_shell_cmd(cmd, return_err=True)
+        if err:
+            raise AssertionError("Mount creation failed")
 
-    # If multi cluster scenario is defined
-    if config.test_ops.get("multi_cluster", False):
-        cluster_id2 = "rgw-nfs2"
-        nfs.create_nfs_cluster(cluster_id2)
-        utils.exec_shell_cmd(f"ceph nfs cluster info {cluster_id2}")
+    else:
+        # Create a NFS cluster without ingress
+        rgw_host, _ = utils.get_hostname_ip(ssh_con)
+        cluster_id = "rgw-nfs"
+        cluster_info = nfs.create_nfs_cluster(cluster_id, rgw_host)
+        sleep(5)
+        # check cluster details
+        cluster_info = utils.exec_shell_cmd(f"ceph nfs cluster info {cluster_id}")
 
-    # create user export for each user and bucket export for each bucket under
-    if config.test_ops["create_user_export"]:
-        for each_user in user_info:
-            auth = Auth(each_user, ssh_con, ssl=config.ssl)
-            rgw_conn = auth.do_auth()
-            uid = each_user["user_id"]
-            pseudo = f"/{uid}"
-            export_type = "user"
-            user_exp = nfs.create_nfs_export(cluster_id, pseudo, export_type, uid)
-            if config.test_ops["create_bucket_export"]:
-                for bc in range(config.bucket_count):
-                    bucket_name = utils.gen_bucket_name_from_userid(
-                        each_user["user_id"], rand_no=bc
-                    )
-                    buck = reusable.create_bucket(bucket_name, rgw_conn, each_user)
-                    pseudo_buck = f"/{bucket_name}"
-                    export_type = "bucket"
-                    buck_exp = nfs.create_nfs_export(
-                        cluster_id, pseudo_buck, export_type, uid, bucket_name
-                    )
+        # If multi cluster scenario is defined
+        if config.test_ops.get("multi_cluster", False):
+            cluster_id2 = "rgw-nfs2"
+            nfs.create_nfs_cluster(cluster_id2)
+            utils.exec_shell_cmd(f"ceph nfs cluster info {cluster_id2}")
 
-    if config.test_ops.get("remove_export", False):
-        nfs.remove_nfs_export(cluster_id)
+        # create user export for each user and bucket export for each bucket under
+        if config.test_ops["create_user_export"]:
+            for each_user in user_info:
+                auth = Auth(each_user, ssh_con, ssl=config.ssl)
+                rgw_conn = auth.do_auth()
+                uid = each_user["user_id"]
+                pseudo = f"/{uid}"
+                export_type = "user"
+                user_exp = nfs.create_nfs_export(cluster_id, pseudo, export_type, uid)
+                if config.test_ops["create_bucket_export"]:
+                    for bc in range(config.bucket_count):
+                        bucket_name = utils.gen_bucket_name_from_userid(
+                            each_user["user_id"], rand_no=bc
+                        )
+                        buck = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+                        pseudo_buck = f"/{bucket_name}"
+                        export_type = "bucket"
+                        buck_exp = nfs.create_nfs_export(
+                            cluster_id, pseudo_buck, export_type, uid, bucket_name
+                        )
 
-    if config.test_ops["delete_cluster"]:
-        for cluster in cluster_id, cluster_id2:
-            nfs.remove_nfs_cluster(cluster)
+        if config.test_ops.get("remove_export", False):
+            nfs.remove_nfs_export(cluster_id)
+
+        if config.test_ops["delete_cluster"]:
+            for cluster in cluster_id, cluster_id2:
+                nfs.remove_nfs_cluster(cluster)
 
 
 if __name__ == "__main__":
