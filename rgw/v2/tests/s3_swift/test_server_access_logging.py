@@ -186,14 +186,18 @@ def test_exec(config, ssh_con):
                 )
                 out = bkt_logging.rgw_admin_logging_info(src_bucket_name)
                 if not out:
-                    raise Exception("radosgw-admin bucket logging info on source bucket failed")
+                    raise Exception(
+                        "radosgw-admin bucket logging info on source bucket failed"
+                    )
 
                 log.info(
                     f"radosgw-admin bucket logging info on target bucket: {dest_bucket_name}"
                 )
                 out = bkt_logging.rgw_admin_logging_info(dest_bucket_name)
                 if not out:
-                    raise Exception("radosgw-admin bucket logging info on target bucket failed")
+                    raise Exception(
+                        "radosgw-admin bucket logging info on target bucket failed"
+                    )
 
                 if config.enable_resharding:
                     if config.sharding_type == "manual":
@@ -233,6 +237,8 @@ def test_exec(config, ssh_con):
                                 each_user,
                             )
 
+                        objects_created_list.append((s3_object_name, s3_object_path))
+
                         # copy objects
                         if config.test_ops.get("copy_object", False):
                             obj_name = "copy_of_object" + obj_name_temp
@@ -247,6 +253,18 @@ def test_exec(config, ssh_con):
                             )
                             if status is None:
                                 raise TestExecError("copy object failed")
+                            objects_created_list.append((obj_name, s3_object_path))
+
+                # download objects
+                if config.test_ops.get("download_object", False):
+                    for name, path in objects_created_list:
+                        reusable.download_object(
+                            name,
+                            src_bucket,
+                            TEST_DATA_PATH,
+                            path,
+                            config,
+                        )
 
                 # delete objects
                 if config.test_ops.get("delete_bucket_object", False):
