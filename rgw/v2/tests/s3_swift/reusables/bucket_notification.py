@@ -325,6 +325,27 @@ def verify_event_record(
     log.info(f"verifying event record for event type {event_type}")
     log.info(f"valid event names are :{events}")
 
+    # Determine if the bucket has a tenant
+    if "." in bucket and "tenant" in bucket:
+        tenant_name, bucket_short_name = bucket.split(".", 1)
+        if "/" in bucket:
+            bucket_stats_name = bucket
+        else:
+            bucket_stats_name = f"{tenant_name}/{bucket}"
+    else:
+        bucket_stats_name = bucket
+
+    # fetch bucket details and verify bucket attributes in event record
+    bucket_stats = utils.exec_shell_cmd(
+        "radosgw-admin bucket stats --bucket %s" % bucket_stats_name
+    )
+    bucket_stats_json = json.loads(bucket_stats)
+
+    # to verify the zonegroup with awsregion in event record
+    zonegroup_get = utils.exec_shell_cmd("radosgw-admin zonegroup get")
+    zonegroup_get_json = json.loads(zonegroup_get)
+    zonegroup_name = zonegroup_get_json["name"]
+
     # read the file event_record
     with open(event_record_path, "r") as records:
         for record in records:
@@ -358,21 +379,7 @@ def verify_event_record(
                 log.info(f"eventTime: {eventTime},Timestamp format validated")
             else:
                 raise EventRecordDataError("eventTime: Incorrect timestamp format")
-            # Determine if the bucket has a tenant
-            if "." in bucket and "tenant" in bucket:
-                tenant_name, bucket_short_name = bucket.split(".", 1)
-                if "/" in bucket:
-                    bucket_stats_name = bucket
-                else:
-                    bucket_stats_name = f"{tenant_name}/{bucket}"
-            else:
-                bucket_stats_name = bucket
 
-            # fetch bucket details and verify bucket attributes in event record
-            bucket_stats = utils.exec_shell_cmd(
-                "radosgw-admin bucket stats --bucket %s" % bucket_stats_name
-            )
-            bucket_stats_json = json.loads(bucket_stats)
             log.info("verify bucket attributes in event record")
             # verify bucket name in event record
             bucket_name = event_record_json["Records"][0]["s3"]["bucket"]["name"]
@@ -393,10 +400,6 @@ def verify_event_record(
 
             # verify bucket owner in event record
             bucket_owner = bucket_stats_json["owner"]
-
-            ceph_version_id, _ = utils.get_ceph_version()
-            ceph_version_id = ceph_version_id.split("-")
-            ceph_version_id = ceph_version_id[0].split(".")
 
             if "$" in bucket_owner and int(ceph_version_id[0]) < 19:
                 bucket_owner = bucket_owner.split("$")[-1]
@@ -424,10 +427,6 @@ def verify_event_record(
                 log.info(f"size: {size}")
             log.info(f"size: {size}")
 
-            # verify the zonegroup in event record
-            zonegroup_get = utils.exec_shell_cmd("radosgw-admin zonegroup get")
-            zonegroup_get_json = json.loads(zonegroup_get)
-            zonegroup_name = zonegroup_get_json["name"]
             awsRegion = event_record_json["Records"][0]["awsRegion"]
             # verify awsRegion in event record is the zonegroup ref BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2004171
             if awsRegion == zonegroup_name:
