@@ -15,6 +15,7 @@ from re import S
 from urllib.parse import urlparse
 
 import botocore
+import configobj
 import paramiko
 import yaml
 from v2.lib.exceptions import SyncFailedError
@@ -908,3 +909,38 @@ def restart_rgw(restart_all=False, ssh_con=None):
             exec_shell_cmd(restart_cmd)
         if not restart_all:
             break
+
+
+def setup_and_access_rgw_config(filename):
+    """Clone, unlock, and access secret file."""
+    RGW_CONFIG_REPO = "https://gitlab.cee.redhat.com/rhcs-qe/rgw-cluster-configs.git"
+    GIT_CRYPT_KEY_URL = "http://magna002.ceph.redhat.com/cephci-jenkins/git-crypt-key"
+    REPO_DIR = "rgw-cluster-configs"
+    cwd = os.getcwd()
+    repo_path = os.path.join(cwd, REPO_DIR)
+
+    exec_shell_cmd(
+        "yum install -y "
+        "https://cbs.centos.org/kojifiles/packages/git-crypt/0.6.0/12.el9/"
+        "x86_64/git-crypt-0.6.0-12.el9.x86_64.rpm"
+    )
+
+    if not os.path.exists(repo_path):
+        log.info("Clone the repository")
+        exec_shell_cmd(f"git clone {RGW_CONFIG_REPO}")
+
+    os.chdir(repo_path)
+    exec_shell_cmd(
+        f"curl -o git-crypt-key {GIT_CRYPT_KEY_URL} && "
+        "git-crypt unlock git-crypt-key"
+    )
+
+    secret_files = exec_shell_cmd(f"ls {repo_path}/secrets").split("\n")
+    log.info(f"secret files output: {secret_files}")
+    os.chdir(cwd)
+
+    if filename in secret_files:
+        file_path = os.path.join(REPO_DIR, "secrets", filename)
+        config_data = configobj.ConfigObj(file_path)
+        return config_data
+    return None

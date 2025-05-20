@@ -2077,9 +2077,7 @@ def prepare_for_bucket_lc_transition(config):
                 )
     else:
         if config.test_ops.get("test_ibm_cloud_transition", False):
-            wget_cmd = "curl -o ibm_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/ibm_cloud_file"
-            utils.exec_shell_cmd(cmd=f"{wget_cmd}")
-            ibm_config = configobj.ConfigObj("ibm_cloud.env")
+            ibm_config = utils.setup_and_access_rgw_config("ibm_cloud_file")
             target_path = ibm_config["TARGET"]
             access = ibm_config["ACCESS"]
             secret = ibm_config["SECRET"]
