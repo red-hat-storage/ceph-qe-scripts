@@ -788,3 +788,15 @@ def cleanup_keystone(user="admin"):
             f"source /home/cephuser/key_{user}.rc; openstack endpoint delete {endpoint}"
         )
         out = utils.remote_exec_shell_cmd(ssh, cmd)
+
+
+def perform_gc_process_and_list():
+    """
+    Method to Perform GC process and validate GC list post process
+    """
+    utils.exec_shell_cmd("radosgw-admin gc list --include-all")
+    utils.exec_shell_cmd("radosgw-admin gc process --include-all")
+    out = utils.exec_shell_cmd("radosgw-admin gc list --include-all")
+    gc_list = json.loads(out)
+    if len(gc_list) != 0:
+        raise AssertionError("GC process does not emptied the GC list")

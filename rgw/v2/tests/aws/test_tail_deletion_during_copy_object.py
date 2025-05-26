@@ -3,10 +3,15 @@ Usage: test_tail_deletion_during_copy_object.py -c <input_yaml>
 
 <input_yaml>
     Note: Following yaml can be used
+    ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_1g.yaml
+    ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_10m.yaml
+    ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_6m.yaml
     
 
 Operation:
-
+    Verifies tail object not deleted post performing copy_objject
+    GC process
+    object download is performed
 """
 
 
@@ -23,12 +28,12 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
 from v2.lib import resource_op
 from v2.lib.aws import auth as aws_auth
-from v2.lib.s3cmd import auth as s3_auth
 from v2.lib.aws.resource_op import AWS
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
-from v2.tests.s3_swift import reusable
+from v2.lib.s3cmd import auth as s3_auth
 from v2.tests.aws import reusable as aws_reusable
+from v2.tests.s3_swift import reusable
 from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils import utils
 from v2.utils.log import configure_logging
@@ -70,20 +75,20 @@ def test_exec(config, ssh_con):
             utils.exec_shell_cmd(cmd)
             utils.exec_shell_cmd(f"{s3cmd_path} ls s3://{bucket_name}")
             out1 = aws_reusable.copy_object(cli_aws, bucket_name, "object1", endpoint)
-            utils.exec_shell_cmd("radosgw-admin gc list --include-all")
-            utils.exec_shell_cmd("radosgw-admin gc process --include-all")
-            utils.exec_shell_cmd("radosgw-admin gc list --include-all")
+            aws_reusable.perform_gc_process_and_list()
             out2 = aws_reusable.get_object(cli_aws, bucket_name, "object1", endpoint)
-            log.info(f"out1 is {out1}")
-            log.info(f"out2 is {out2}")
             md5sum_out = utils.exec_shell_cmd(f"md5sum 'out_object'").split(" ")[0]
             md5sum_in = utils.exec_shell_cmd(f"md5sum 'object1'").split(" ")[0]
             if md5sum_out != md5sum_in:
                 raise AssertionError("md5sum mismatch with downloaded object")
         reusable.remove_user(user)
+
+
 if __name__ == "__main__":
 
-    test_info = AddTestInfo("test bucket creation through awscli")
+    test_info = AddTestInfo(
+        "Test tail object not deleted post performing copy_objject through awscli"
+    )
 
     try:
         project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
@@ -93,9 +98,13 @@ if __name__ == "__main__":
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
             os.makedirs(TEST_DATA_PATH)
-        parser = argparse.ArgumentParser(description="RGW S3 bucket creation using AWS")
+        parser = argparse.ArgumentParser(
+            description="Test tail object not deleted post performing copy_objject using AWS"
+        )
         parser.add_argument(
-            "-c", dest="config", help="RGW S3 bucket creation using AWS"
+            "-c",
+            dest="config",
+            help="Test tail object not deleted post performing copy_objject",
         )
         parser.add_argument(
             "-log_level",
@@ -116,8 +125,6 @@ if __name__ == "__main__":
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = resource_op.Config(yaml_file)
         config.read()
-        # if config.mapped_sizes is None:
-        #     config.mapped_sizes = utils.make_mapped_sizes(config)
         test_exec(config, ssh_con)
         test_info.success_status("test passed")
         sys.exit(0)
