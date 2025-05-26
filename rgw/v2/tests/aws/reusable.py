@@ -588,6 +588,29 @@ def get_object(aws_auth, bucket_name, object_name, end_point):
         raise AWSCommandExecError(message=str(e))
 
 
+def copy_object(aws_auth, bucket_name, object_name, end_point):
+    """
+    Does a copy object from the bucket
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        object_name(str): Name of the object/file
+        end_point(str): endpoint
+    Return:
+        Response of get object operation
+    """
+    command = aws_auth.command(
+        operation="copy-object",
+        params=[
+            f"--copy-source {bucket_name}/{object_name} --bucket {bucket_name} --key {object_name}  --metadata-directive 'REPLACE' --content-type 'text/plain' --endpoint-url {end_point}",
+        ],
+    )
+    try:
+        copy_response = utils.exec_shell_cmd(command)
+        return copy_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
 def list_objects(aws_auth, bucket_name, endpoint, marker=None):
     """
     List all the objects in the bucket
