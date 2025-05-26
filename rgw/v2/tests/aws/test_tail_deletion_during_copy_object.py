@@ -23,12 +23,12 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
 from v2.lib import resource_op
 from v2.lib.aws import auth as aws_auth
-from v2.lib.s3cmd import auth as s3_auth
 from v2.lib.aws.resource_op import AWS
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
-from v2.tests.s3_swift import reusable
+from v2.lib.s3cmd import auth as s3_auth
 from v2.tests.aws import reusable as aws_reusable
+from v2.tests.s3_swift import reusable
 from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils import utils
 from v2.utils.log import configure_logging
@@ -81,6 +81,8 @@ def test_exec(config, ssh_con):
             if md5sum_out != md5sum_in:
                 raise AssertionError("md5sum mismatch with downloaded object")
         reusable.remove_user(user)
+
+
 if __name__ == "__main__":
 
     test_info = AddTestInfo("test bucket creation through awscli")
