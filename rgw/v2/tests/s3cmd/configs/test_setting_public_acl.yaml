@@ -1,0 +1,8 @@
+# script: ceph-qe-scripts/rgw/v2/tests/s3cmd/test_s3cmd.py
+# Polarion ID: CEPH-83619036
+# BZ: BZ2338149, tracker: 69527
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    set_public_acl: true

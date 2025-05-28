@@ -11,6 +11,8 @@ Usage: test_s3cmd.py -c <input_yaml>
     configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
     test_multipart_upload_with_failed_parts_using_s3cmd_and_boto3.yaml
     multisite_configs/test_sync_error_list.yaml
+    configs/test_setting_public_acl.yaml
+
 
 Operation:
     Create an user
@@ -19,6 +21,7 @@ Operation:
     Delete uploaded object
     Delete bucket
     Verification of CEPH-83574806: multiple delete marker not created during object deletion in versioned bucket through s3cmd
+    Verify setting public acl to the bucket doesn't result in error
 """
 
 import argparse
@@ -406,6 +409,26 @@ def test_exec(config, ssh_con):
                 )
             else:
                 log.info("bucket list is empty as expected")
+
+    elif config.test_ops.get("set_public_acl", False):
+        log.info("Verify setting public acl to the bucket doesn't result in error")
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        rgw_conn = auth.do_auth()
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info[0]["user_id"], rand_no=bc
+            )
+            s3cmd_reusable.create_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} created")
+            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+            cmd = f"{s3cmd_path} setacl --acl-public s3://{bucket_name}"
+            err = utils.exec_shell_cmd(cmd, return_err=True)
+            if "ERROR:" in err:
+                raise AssertionError(
+                    f"setting public acl for bucket {bucket_name} failed with err {err}"
+                )
 
     elif config.test_ops.get("is_not_master_zone", False):
         log.info("This is not the master zone. Skipping tenant user creation.")
