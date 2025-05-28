@@ -1,0 +1,10 @@
+# script: test_s3cmd.py
+# 8.1 https://bugzilla.redhat.com/show_bug.cgi?id=2336983
+# 8.0: https://bugzilla.redhat.com/show_bug.cgi?id=2368828
+# 7.1: https://bugzilla.redhat.com/show_bug.cgi?id=2349723
+# polarion-ID: CEPH-83620440
+config:
+  haproxy: true
+  user_count: 1
+  test_ops:
+    create_existing_bucket: true
