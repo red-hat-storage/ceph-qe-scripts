@@ -11,6 +11,8 @@ Usage: test_s3cmd.py -c <input_yaml>
     configs/test_disable_and_enable_dynamic_resharding_with_1k_bucket.yaml
     test_multipart_upload_with_failed_parts_using_s3cmd_and_boto3.yaml
     multisite_configs/test_sync_error_list.yaml
+    configs/test_setting_public_acl.yaml
+    configs/test_create_bucket_for_existing_bucket.yaml
 
 Operation:
     Create an user
@@ -19,6 +21,7 @@ Operation:
     Delete uploaded object
     Delete bucket
     Verification of CEPH-83574806: multiple delete marker not created during object deletion in versioned bucket through s3cmd
+    Verify setting public acl to the bucket doesn't result in error
 """
 
 import argparse
@@ -407,6 +410,26 @@ def test_exec(config, ssh_con):
             else:
                 log.info("bucket list is empty as expected")
 
+    elif config.test_ops.get("set_public_acl", False):
+        log.info("Verify setting public acl to the bucket doesn't result in error")
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        auth = Auth(user_info[0], ssh_con, ssl=config.ssl, haproxy=config.haproxy)
+        rgw_conn = auth.do_auth()
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info[0]["user_id"], rand_no=bc
+            )
+            s3cmd_reusable.create_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} created")
+            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+            cmd = f"{s3cmd_path} setacl --acl-public s3://{bucket_name}"
+            err = utils.exec_shell_cmd(cmd, return_err=True)
+            if "ERROR:" in err:
+                raise AssertionError(
+                    f"setting public acl for bucket {bucket_name} failed with err {err}"
+                )
+
     elif config.test_ops.get("is_not_master_zone", False):
         log.info("This is not the master zone. Skipping tenant user creation.")
 
@@ -439,6 +462,62 @@ def test_exec(config, ssh_con):
                 raise AssertionError(f"Sync error data exist in cluster")
             else:
                 log.info(f"Sync error list is empty")
+
+    elif config.test_ops.get("create_existing_bucket", False):
+        log.info(
+            "Verify with and without rgw_bucket_eexist_override set bucket creation"
+        )
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        auth = reusable.get_auth(user_info[0], ssh_con, config.ssl, config.haproxy)
+        rgw_conn = auth.do_auth_using_client()
+        bucket_name = utils.gen_bucket_name_from_userid(
+            user_info[0]["user_id"], rand_no=0
+        )
+        s3cmd_reusable.create_bucket(bucket_name)
+        log.info(f"Bucket {bucket_name} created")
+        log.info(f"list bucket under user {user_info[0]['user_id']}")
+        resp = utils.exec_shell_cmd("/home/cephuser/venv/bin/s3cmd ls")
+        log.info(f"bucket list s3mcd ls data {resp}")
+        log.info(f"Create bucket {bucket_name} which is alreday exist")
+        s3cmd_reusable.create_bucket(bucket_name)
+        log.info("BucketAlreadyExists error not seen as expected")
+        log.info("set config rgw_bucket_eexist_override for rgw daemon service")
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_bucket_eexist_override,
+            str(config.rgw_bucket_eexist_override),
+            ssh_con,
+        )
+        reusable.restart_and_wait_until_daemons_up(ssh_con)
+
+        log.info(f"Create existing bucket {bucket_name} post enabling config")
+        try:
+            resp = utils.exec_shell_cmd(
+                f"/home/cephuser/venv/bin/s3cmd mb s3://{bucket_name}", return_err=True
+            )
+        except Exception as e:
+            log.info(f"cmd execution failed as expected {resp}")
+        log.info(f"cmd execution failed as expected {resp}")
+        if "409" not in resp:
+            raise TestExecError(
+                "with config, expected error code 409 for creation ofexiting bucket for same user"
+            )
+        if "BucketAlreadyExists" not in resp:
+            raise TestExecError(
+                "with config, expected error msg BucketAlreadyExists for creation ofexiting bucket for same user"
+            )
+        log.info("Error seen as expected for creting existing bucket from same owner")
+        log.info(
+            "reset config rgw_bucket_eexist_override to default for rgw daemon service"
+        )
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_bucket_eexist_override,
+            "False",
+            ssh_con,
+        )
+        reusable.restart_and_wait_until_daemons_up(ssh_con)
 
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]

@@ -28,6 +28,7 @@ class ConfigOpts(object):
     rgw_reshard_thread_interval = "rgw_reshard_thread_interval"
     rgw_lc_debug_interval = "rgw_lc_debug_interval"
     rgw_enable_lc_threads = "rgw_enable_lc_threads"
+    rgw_bucket_eexist_override = "rgw_bucket_eexist_override"
     rgw_lifecycle_work_time = "rgw_lifecycle_work_time"
     rgw_lc_max_worker = "rgw_lc_max_worker"
     rgw_lc_max_wp_worker = "rgw_lc_max_wp_worker"
