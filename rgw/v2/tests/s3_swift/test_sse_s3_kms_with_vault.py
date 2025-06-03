@@ -264,6 +264,12 @@ def test_exec(config, ssh_con):
                 if config.test_ops.get(
                     "delete_bucket_object", False
                 ) or config.test_ops.get("delete_bucket_object_version", False):
+                    log.info("Check for bucket sync status")
+                    is_multisite = utils.is_cluster_multisite()
+                    if is_multisite:
+                        out = utils.wait_till_bucket_synced(bucket.name)
+                        if not out:
+                            log.error("Bucket sync is not caught up with source.")
                     reusable.delete_bucket(bucket)
     # check sync status if a multisite cluster
     reusable.check_sync_status()
