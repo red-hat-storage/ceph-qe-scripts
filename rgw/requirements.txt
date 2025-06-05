@@ -12,7 +12,7 @@ s5cmd
 simplejson
 swiftly
 paramiko
-pandas
+pandas==2.2.3
 pyarrow
 
 # for v1
