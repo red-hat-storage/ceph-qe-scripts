@@ -2116,6 +2116,7 @@ def prepare_for_bucket_lc_transition(config):
                 )
     if is_multisite:
         utils.exec_shell_cmd("radosgw-admin period update --commit")
+        time.sleep(70)
         if config.test_ops.get("test_ibm_cloud_transition", False):
             # CEPH-83581977, test cloud transition of encrypted and compressed objects
             utils.exec_shell_cmd(
@@ -2705,7 +2706,7 @@ def test_bucket_stats_across_sites(bucket_name_to_create, config):
     is_multisite = utils.is_cluster_multisite()
     if is_multisite:
         log.info(
-            f"Test sync is consistenct via bucket stats for {bucket_name_to_create}"
+            f"Test sync is consistent via bucket stats for {bucket_name_to_create}"
         )
         is_primary = utils.is_cluster_primary()
         if is_primary:
@@ -2714,30 +2715,71 @@ def test_bucket_stats_across_sites(bucket_name_to_create, config):
             zone_name = "primary"
         if config.remote_zone == "archive":
             zone_name = config.remote_zone
+
+        # Try bucket stats at local site with fallback
         cmd_bucket_stats = (
             f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
         )
-        log.info(f"collect bucket stats for {bucket_name_to_create} at local site")
-        local_bucket_stats = json.loads(utils.exec_shell_cmd(cmd_bucket_stats))
+        log.info(f"Collecting bucket stats for {bucket_name_to_create} at local site")
+        try:
+            local_output = utils.exec_shell_cmd(cmd_bucket_stats)
+            local_bucket_stats = json.loads(local_output)
+        except Exception as e:
+            log.warning(
+                f"Bucket stats failed for {bucket_name_to_create}, trying with tenant0 prefix"
+            )
+            cmd_bucket_stats = (
+                f"radosgw-admin bucket stats --bucket tenant0/{bucket_name_to_create}"
+            )
+            local_output = utils.exec_shell_cmd(cmd_bucket_stats)
+            local_bucket_stats = json.loads(local_output)
+
         local_num_objects = local_bucket_stats["usage"]["rgw.main"]["num_objects"]
         local_size = local_bucket_stats["usage"]["rgw.main"]["size"]
 
-        log.info(f"remote zone is {zone_name}")
+        log.info(f"Remote zone is {zone_name}")
         remote_ip = utils.get_rgw_ip_zone(zone_name)
         remote_site_ssh_con = utils.connect_remote(remote_ip)
+
         log.info(
-            f"collect bucket stats for {bucket_name_to_create} at remote site {zone_name}"
+            f"Collecting bucket stats for {bucket_name_to_create} at remote site {zone_name}"
         )
         if config.test_ops.get("download_object_at_remote_site", False):
             log.info("We have already waited for the sync lease period")
         else:
             log.info("We have to wait for sync lease period")
             time.sleep(1200)
-        stdin, stdout, stderr = remote_site_ssh_con.exec_command(cmd_bucket_stats)
+
+        # Try bucket stats at remote site with fallback
+        stdin, stdout, stderr = remote_site_ssh_con.exec_command(
+            f"radosgw-admin bucket stats --bucket {bucket_name_to_create}"
+        )
         cmd_output = stdout.read().decode()
-        stats_remote = json.loads(cmd_output)
+        err_output = stderr.read().decode()
+        if cmd_output.strip():
+            stats_remote = json.loads(cmd_output)
+        elif "failure: (2002) Unknown error 2002:" in err_output:
+            log.warning(
+                f"Bucket stats failed for {bucket_name_to_create} at remote, trying with tenant0 prefix"
+            )
+            stdin, stdout, stderr = remote_site_ssh_con.exec_command(
+                f"radosgw-admin bucket stats --bucket tenant0/{bucket_name_to_create}"
+            )
+            cmd_output = stdout.read().decode()
+            err_output = stderr.read().decode()
+            if cmd_output.strip():
+                stats_remote = json.loads(cmd_output)
+            else:
+                raise TestExecError(
+                    f"Bucket stats failed for {bucket_name_to_create} at remote site {zone_name}: {err_output}"
+                )
+        else:
+            raise TestExecError(
+                f"Bucket stats failed for {bucket_name_to_create} at remote site {zone_name}: {err_output}"
+            )
+
         log.info(
-            f"bucket stats at remote site {zone_name} for {bucket_name_to_create} is {stats_remote}"
+            f"Bucket stats at remote site {zone_name} for {bucket_name_to_create} is {stats_remote}"
         )
         log.info(
             "Verify num_objects and size is consistent across local and remote site"
