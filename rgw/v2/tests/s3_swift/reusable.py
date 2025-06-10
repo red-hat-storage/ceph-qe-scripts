@@ -1241,10 +1241,23 @@ def get_multisite_info():
     return zone_names, realm_name
 
 
-def update_commit():
+def period_update_commit(validate_policy=False, pipe_op=None):
     _, realm_name = get_multisite_info()
     cmd_realm = f"radosgw-admin period update --rgw-realm={realm_name} --commit"
-    utils.exec_shell_cmd(cmd_realm)
+    op = utils.exec_shell_cmd(cmd_realm)
+    json_doc = json.loads(op)
+    if validate_policy:
+        sync_policy = json_doc["period_map"]["zonegroups"][0]["sync_policy"]["groups"]
+        if pipe_op == "create" and len(sync_policy) == 0:
+            raise TestExecError(
+                "Failed to set policy as period update does not contain details of policy"
+            )
+        elif pipe_op == "remove" and len(sync_policy) != 0:
+            raise TestExecError(
+                "Failed to remove policy as period update does contain details of policy"
+            )
+        else:
+            utils.exec_shell_cmd("radosgw-admin sync policy get")
 
 
 def unlink_bucket(curr_uid, bucket, tenant=False):
@@ -2552,7 +2565,7 @@ def pipe_operation(
 
     utils.exec_shell_cmd(cmd)
     if bucket_name is None:
-        update_commit()
+        period_update_commit(True, pipe_op)
 
     return pipe_id
 
