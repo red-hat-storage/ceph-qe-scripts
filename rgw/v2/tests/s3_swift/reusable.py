@@ -188,9 +188,92 @@ def create_rgw_account_with_iam_user(
     return iam_user_details
 
 
+def check_rgw_daemons_status(retry_attempts=8, retry_delay=15):
+
+    # Check if all RGW daemons are running using 'ceph orch ps' and 'ceph -s' with retry logic.
+
+    log.info("Checking RGW daemon status before bucket creation")
+
+    for attempt in range(retry_attempts):
+        try:
+            # Step 1: Check RGW daemons via 'ceph orch ps'
+            orch_ps_cmd = "ceph orch ps --daemon_type=rgw --format json"
+            orch_ps_output = json.loads(utils.exec_shell_cmd(orch_ps_cmd))
+            running_daemons = sum(
+                1 for daemon in orch_ps_output if daemon["status_desc"] == "running"
+            )
+            log.info(f"Running RGW daemons from ceph orch ps: {running_daemons}")
+
+            # Step 2: Check RGW service details via 'ceph orch ls'
+            orch_ls_cmd = "ceph orch ls --service_type=rgw --format json"
+            orch_ls_output = json.loads(utils.exec_shell_cmd(orch_ls_cmd))
+            if not orch_ls_output:
+                log.warning("No RGW services found in ceph orch ls")
+                raise TestExecError("No RGW services found")
+
+            expected_daemons = orch_ls_output[0]["status"]["size"]
+            running_daemons_from_ls = orch_ls_output[0]["status"]["running"]
+            log.info(
+                f"Expected RGW daemons: {expected_daemons}, Running: {running_daemons_from_ls}"
+            )
+
+            # Step 3: Check RGW daemons via 'ceph -s'
+            ceph_s_output = utils.exec_shell_cmd("ceph -s")
+            rgw_line = next(
+                (line for line in ceph_s_output.split("\n") if "rgw:" in line), None
+            )
+            if not rgw_line:
+                log.warning("RGW service not found in ceph -s output")
+                raise TestExecError("RGW service not found in ceph -s")
+
+            # Extract the number of active RGW daemons from ceph -s (e.g., "4 daemons active")
+            match = re.search(r"(\d+)\s+daemons\s+active", rgw_line)
+            if not match:
+                log.warning("Could not parse RGW daemon count from ceph -s")
+                raise TestExecError("Failed to parse RGW daemon count from ceph -s")
+
+            ceph_s_daemons = int(match.group(1))
+            log.info(f"RGW daemons from ceph -s: {ceph_s_daemons}")
+
+            # Verify that the number of running daemons matches the expected count
+            if (
+                running_daemons == expected_daemons
+                and running_daemons_from_ls == expected_daemons
+                and ceph_s_daemons == expected_daemons
+            ):
+                log.info("All RGW daemons are running and counts match across commands")
+                return True
+            else:
+                log.warning(
+                    f"Daemon count mismatch: orch_ps={running_daemons}, orch_ls={running_daemons_from_ls}, ceph_s={ceph_s_daemons}, expected={expected_daemons}"
+                )
+                raise TestExecError("RGW daemon count mismatch")
+
+        except (json.JSONDecodeError, TestExecError) as e:
+            log.warning(f"Attempt {attempt + 1}/{retry_attempts} failed: {str(e)}")
+            if attempt < retry_attempts - 1:
+                log.info(f"Retrying after {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                log.error(
+                    "All retry attempts exhausted. RGW daemons are not fully running."
+                )
+                raise TestExecError("RGW daemons are not running after retries")
+
+    return False
+
+
 def create_bucket(bucket_name, rgw, user_info, location=None):
-    log.info("creating bucket with name: %s" % bucket_name)
-    # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
+    # Ensure all RGW daemons are running before bucket creation
+    if not check_rgw_daemons_status():
+        log.error(
+            " Bucket creation failed because of inconsistent or not running rgw daemons "
+        )
+        raise TestExecError(
+            "Cannot proceed with bucket creation due to RGW daemon issues"
+        )
+
+    log.info(f"Creating bucket with name: {bucket_name}")
     bucket = s3lib.resource_op(
         {"obj": rgw, "resource": "Bucket", "args": [bucket_name]}
     )
@@ -206,18 +289,21 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
             "extra_info": {"access_key": user_info["access_key"]},
         }
     )
-    log.info(f"bucket creation data: {created}")
+    log.info(f"Bucket creation data: {created}")
+
     if created is False:
         raise TestExecError("Resource execution failed: bucket creation failed")
+
     if created is not None:
         response = HttpResponseParser(created)
         if response.status_code == 200:
-            log.info("bucket created")
+            log.info("Bucket created")
         else:
-            raise TestExecError("bucket creation failed")
+            raise TestExecError("Bucket creation failed")
     else:
-        raise TestExecError("bucket creation failed")
+        raise TestExecError("Bucket creation failed")
 
+    # Multisite sync status check
     is_multisite = utils.is_cluster_multisite()
     if is_multisite:
         log.info("Cluster is multisite")
@@ -228,6 +314,7 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
 
         log.info("Check sync status in remote site")
         sync_status(ssh_con=remote_site_ssh_con)
+
     return bucket
 
 
