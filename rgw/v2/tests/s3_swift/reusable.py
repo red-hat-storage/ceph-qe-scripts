@@ -273,7 +273,8 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
             "Cannot proceed with bucket creation due to RGW daemon issues"
         )
 
-    log.info(f"Creating bucket with name: {bucket_name}")
+   log.info("creating bucket with name: %s" % bucket_name)
+    # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
     bucket = s3lib.resource_op(
         {"obj": rgw, "resource": "Bucket", "args": [bucket_name]}
     )
@@ -297,11 +298,11 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
     if created is not None:
         response = HttpResponseParser(created)
         if response.status_code == 200:
-            log.info("Bucket created")
+            log.info("bucket created")
         else:
-            raise TestExecError("Bucket creation failed")
+            raise TestExecError("bucket creation failed")
     else:
-        raise TestExecError("Bucket creation failed")
+        raise TestExecError("bucket creation failed")
 
     # Multisite sync status check
     is_multisite = utils.is_cluster_multisite()
