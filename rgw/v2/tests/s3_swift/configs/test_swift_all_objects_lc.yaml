@@ -1,0 +1,5 @@
+#CEPH-11193
+#script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_swift_all_objects_lc.py
+config:
+  user_type: "non-tenanted"
+  container_count: 1
