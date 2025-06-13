@@ -273,7 +273,7 @@ def create_bucket(bucket_name, rgw, user_info, location=None):
             "Cannot proceed with bucket creation due to RGW daemon issues"
         )
 
-   log.info("creating bucket with name: %s" % bucket_name)
+    log.info("creating bucket with name: %s" % bucket_name)
     # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
     bucket = s3lib.resource_op(
         {"obj": rgw, "resource": "Bucket", "args": [bucket_name]}
