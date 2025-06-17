@@ -93,8 +93,33 @@ def test_exec(config, ssh_con):
                 )
 
             if config.test_ops.get("verify_quota_head_bucket") is True:
+                expected_header = config.test_ops.get("head_bucket")
+                ceph_version_id, ceph_version_name = utils.get_ceph_version()
+                ceph_version_id = ceph_version_id.split("-")
+                ceph_version_id = ceph_version_id[0].split(".")
+                if (
+                    (float(ceph_version_id[0]) >= 19)
+                    and (float(ceph_version_id[1]) >= 2)
+                    and (float(ceph_version_id[2]) >= 1)
+                ):
+                    log.info("Remove default headers from expected headers")
+                    log.info(f"expected_header : {expected_header}")
+                    if config.test_ops.get("bucket_quota", False):
+                        key_to_remove = [
+                            "X-RGW-Quota-User-Size",
+                            "X-RGW-Quota-User-Objects",
+                            "X-RGW-Quota-Max-Buckets",
+                        ]
+                    if config.test_ops.get("user_quota", False):
+                        key_to_remove = [
+                            "X-RGW-Quota-Bucket-Size",
+                            "X-RGW-Quota-Bucket-Objects",
+                            "X-RGW-Quota-Max-Buckets",
+                        ]
+                    for key in key_to_remove:
+                        expected_header.pop(key, None)
                 curl_reusable.verify_quota_head_bucket(
-                    curl_auth, bucket_name, config.test_ops.get("head_bucket")
+                    curl_auth, bucket_name, expected_header
                 )
 
             # create objects
