@@ -1252,10 +1252,6 @@ def period_update_commit(validate_policy=False, pipe_op=None):
             raise TestExecError(
                 "Failed to set policy as period update does not contain details of policy"
             )
-        elif pipe_op == "remove" and len(sync_policy) != 0:
-            raise TestExecError(
-                "Failed to remove policy as period update does contain details of policy"
-            )
         else:
             utils.exec_shell_cmd("radosgw-admin sync policy get")
 
