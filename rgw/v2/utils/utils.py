@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 import botocore
 import paramiko
 import yaml
-from v2.lib.exceptions import SyncFailedError
+from v2.lib.exceptions import SyncFailedError, TestExecError
 
 BUCKET_NAME_PREFIX = "bucky" + "-" + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = "key"
@@ -361,7 +361,6 @@ class CephOrchRGWSrv:
 
 
 def rgw_daemons_status(retry_attempts=8, retry_delay=15):
-
     for attempt in range(retry_attempts):
         try:
             # Step 1: Check RGW daemons via 'ceph orch ps'
@@ -447,21 +446,35 @@ class RGWService:
 
     def restart(self, ssh_con=None):
         """
-        restarts the service
+        Restarts the RGW service and verifies daemon status post-restart.
+        
+        Args:
+            ssh_con: SSH connection for remote execution.
+        
+        Returns:
+            bool: True if restart and daemon status check succeed, False otherwise.
         """
-        log.info("restarting service")
-        cmd = self.srv.cmd("restart")
         try:
+            log.info("Restarting RGW service")
+            cmd = self.srv.cmd("restart")
             if ssh_con is not None:
-                return remote_exec_shell_cmd(ssh_con, cmd)
+                log.info("Executing restart on remote node")
+                if not remote_exec_shell_cmd(ssh_con, cmd):
+                    log.error("Failed to restart RGW service on remote node")
+                    return False
             else:
-                return exec_shell_cmd(cmd)
-
+                log.info("Executing restart on local node")
+                if not exec_shell_cmd(cmd):
+                    log.error("Failed to restart RGW service on local node")
+                    return False
+            
             # Verify RGW daemon status after restart
             log.info("Verifying RGW daemon status after restart")
             if not rgw_daemons_status():
                 log.error("RGW daemons not fully running after restart")
                 return False
+            
+            log.info("RGW service restarted and daemons verified successfully")
             return True
         except Exception as e:
             log.error(f"Error during RGW restart or status check: {str(e)}")
@@ -742,7 +755,7 @@ def get_sync_status_info(search_param):
     lines = list(op.split("\n"))
     for line in lines:
         if search_param in line:
-            resp_name = line[line.find("(") + 1 : line.find(")")]
+            resp_name = line[line.find("(") + 1 : l.find(")")]
             break
     return resp_name
 
