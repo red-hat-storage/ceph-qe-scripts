@@ -23,6 +23,7 @@ BUCKET_NAME_PREFIX = "bucky" + "-" + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = "key"
 log = logging.getLogger()
 
+
 def exec_long_running_shell_cmd(cmd):
     try:
         log.info("executing cmd: %s" % cmd)
@@ -358,14 +359,17 @@ class CephOrchRGWSrv:
         cmd = self.ceph_orch.cmd([option, self.unit])
         return cmd
 
+
 def rgw_daemons_status(retry_attempts=8, retry_delay=15):
-    
+
     for attempt in range(retry_attempts):
         try:
             # Step 1: Check RGW daemons via 'ceph orch ps'
             orch_ps_cmd = "ceph orch ps --daemon_type=rgw --format json"
             orch_ps_output = json.loads(exec_shell_cmd(orch_ps_cmd))
-            running_daemons = sum(1 for daemon in orch_ps_output if daemon["status_desc"] == "running")
+            running_daemons = sum(
+                1 for daemon in orch_ps_output if daemon["status_desc"] == "running"
+            )
             log.info(f"Running RGW daemons from ceph orch ps: {running_daemons}")
 
             # Step 2: Check RGW service details via 'ceph orch ls'
@@ -377,7 +381,9 @@ def rgw_daemons_status(retry_attempts=8, retry_delay=15):
 
             expected_daemons = orch_ls_output[0]["status"]["size"]
             running_daemons_from_ls = orch_ls_output[0]["status"]["running"]
-            log.info(f"Expected RGW daemons: {expected_daemons}, Running: {running_daemons_from_ls}")
+            log.info(
+                f"Expected RGW daemons: {expected_daemons}, Running: {running_daemons_from_ls}"
+            )
 
             # Step 3: Check RGW daemons via 'ceph -s --format json' with jq
             ceph_s_json_cmd = r"""ceph -s --format json | jq -r '.servicemap.services.rgw.daemons | to_entries | map(select(.key != "summary")) | .[] | .value.metadata.id'"""
@@ -392,15 +398,23 @@ def rgw_daemons_status(retry_attempts=8, retry_delay=15):
                 raise TestExecError("No RGW daemons found in ceph -s")
 
             # Count unique RGW daemon IDs (each line is a daemon ID)
-            ceph_s_daemons = len([line for line in ceph_s_output.strip().split("\n") if line.strip()])
+            ceph_s_daemons = len(
+                [line for line in ceph_s_output.strip().split("\n") if line.strip()]
+            )
             log.info(f"RGW daemons from ceph -s --format json: {ceph_s_daemons}")
 
             # Verify that the number of running daemons matches the expected count
-            if running_daemons == expected_daemons and running_daemons_from_ls == expected_daemons and ceph_s_daemons == expected_daemons:
+            if (
+                running_daemons == expected_daemons
+                and running_daemons_from_ls == expected_daemons
+                and ceph_s_daemons == expected_daemons
+            ):
                 log.info("All RGW daemons are running and counts match across commands")
                 return True
             else:
-                log.warning(f"Daemon count mismatch: orch_ps={running_daemons}, orch_ls={running_daemons_from_ls}, ceph_s={ceph_s_daemons}, expected={expected_daemons}")
+                log.warning(
+                    f"Daemon count mismatch: orch_ps={running_daemons}, orch_ls={running_daemons_from_ls}, ceph_s={ceph_s_daemons}, expected={expected_daemons}"
+                )
                 raise TestExecError("RGW daemon count mismatch")
 
         except (json.JSONDecodeError, TestExecError) as e:
@@ -409,7 +423,9 @@ def rgw_daemons_status(retry_attempts=8, retry_delay=15):
                 log.info(f"Retrying after {retry_delay} seconds...")
                 time.sleep(retry_delay)
             else:
-                log.error("All retry attempts exhausted. RGW daemons are not fully running.")
+                log.error(
+                    "All retry attempts exhausted. RGW daemons are not fully running."
+                )
                 raise TestExecError("RGW daemons are not running after retries")
 
     return False
@@ -440,7 +456,7 @@ class RGWService:
                 return remote_exec_shell_cmd(ssh_con, cmd)
             else:
                 return exec_shell_cmd(cmd)
-            
+
             # Verify RGW daemon status after restart
             log.info("Verifying RGW daemon status after restart")
             if not rgw_daemons_status():
