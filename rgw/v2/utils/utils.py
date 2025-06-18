@@ -755,7 +755,7 @@ def get_sync_status_info(search_param):
     lines = list(op.split("\n"))
     for line in lines:
         if search_param in line:
-            resp_name = line[line.find("(") + 1 : l.find(")")]
+            resp_name = line[line.find("(") + 1 : line.find(")")]
             break
     return resp_name
 
