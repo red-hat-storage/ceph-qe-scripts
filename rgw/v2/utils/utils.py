@@ -447,10 +447,10 @@ class RGWService:
     def restart(self, ssh_con=None):
         """
         Restarts the RGW service and verifies daemon status post-restart.
-        
+
         Args:
             ssh_con: SSH connection for remote execution.
-        
+
         Returns:
             bool: True if restart and daemon status check succeed, False otherwise.
         """
@@ -467,13 +467,13 @@ class RGWService:
                 if not exec_shell_cmd(cmd):
                     log.error("Failed to restart RGW service on local node")
                     return False
-            
+
             # Verify RGW daemon status after restart
             log.info("Verifying RGW daemon status after restart")
             if not rgw_daemons_status():
                 log.error("RGW daemons not fully running after restart")
                 return False
-            
+
             log.info("RGW service restarted and daemons verified successfully")
             return True
         except Exception as e:
