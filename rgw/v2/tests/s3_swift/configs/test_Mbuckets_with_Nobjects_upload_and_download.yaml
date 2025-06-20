@@ -1,3 +1,5 @@
+# script-name: test_Mbuckets_with_Nobjects.py
+# polarion-id: CEPH-9789
 config:
   user_count: 1
   bucket_count: 1
