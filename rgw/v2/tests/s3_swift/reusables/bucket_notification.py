@@ -83,8 +83,10 @@ def start_kafka_broker_consumer(topic_name, event_record_path):
         t = utils.exec_shell_cmd(cmd)
         print("path exists :", t)
 
+    local_ip = utils.get_localhost_ip_address()
+
     # start kafka consumer
-    cmd = f"sudo {KAFKA_HOME}/bin/kafka-console-consumer.sh --bootstrap-server kafka://localhost:9092 --from-beginning --topic {topic_name} --timeout-ms 30000 >> {event_record_path}"
+    cmd = f"sudo {KAFKA_HOME}/bin/kafka-console-consumer.sh --bootstrap-server kafka://{local_ip}:9092 --from-beginning --topic {topic_name} --timeout-ms 30000 >> {event_record_path}"
     start_consumer_kafka = utils.exec_shell_cmd(cmd)
     return start_consumer_kafka
 
@@ -102,18 +104,19 @@ def create_topic(
     to create topic with specified endpoint , ack_level
     return: topic ARN
     """
+    local_ip = utils.get_localhost_ip_address()
     if security_type == "PLAINTEXT":
         endpoint_args = (
             "push-endpoint="
             + endpoint
-            + "://localhost:9092&use-ssl=false&verify-ssl=false&kafka-ack-level="
+            + f"://{local_ip}:9092&use-ssl=false&verify-ssl=false&kafka-ack-level="
             + ack_type
         )
     elif security_type == "SSL":
         endpoint_args = (
             "push-endpoint="
             + endpoint
-            + "://localhost:9093&use-ssl=true&verify-ssl=false&kafka-ack-level="
+            + f"://{local_ip}:9093&use-ssl=true&verify-ssl=false&kafka-ack-level="
             + ack_type
             + "&ca-location=/usr/local/kafka/y-ca.crt"
         )
@@ -121,7 +124,7 @@ def create_topic(
         endpoint_args = (
             "push-endpoint="
             + endpoint
-            + "://alice:alice-secret@localhost:9094&use-ssl=true&verify-ssl=false&kafka-ack-level="
+            + f"://alice:alice-secret@{local_ip}:9094&use-ssl=true&verify-ssl=false&kafka-ack-level="
             + ack_type
             + "&ca-location=/usr/local/kafka/y-ca.crt&mechanism="
             + mechanism
@@ -130,7 +133,7 @@ def create_topic(
         endpoint_args = (
             "push-endpoint="
             + endpoint
-            + "://alice:alice-secret@localhost:9095&use-ssl=false&verify-ssl=false&kafka-ack-level="
+            + f"://alice:alice-secret@{local_ip}:9095&use-ssl=false&verify-ssl=false&kafka-ack-level="
             + ack_type
             + "&mechanism="
             + mechanism
