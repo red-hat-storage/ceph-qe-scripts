@@ -908,3 +908,45 @@ def restart_rgw(restart_all=False, ssh_con=None):
             exec_shell_cmd(restart_cmd)
         if not restart_all:
             break
+
+
+def get_rgw_endpoint_url(ssh_con=None):
+    """
+    This method returns endpoint url of rgw daemon in the form of https://hostname:port
+    """
+    "ceph orch ls --service_type=rgw --format json"
+    ceph_orch_ls_cmd = "ceph orch ls --service-type rgw -f json"
+    if ssh_con:
+        rgw_orch_ls_out = remote_exec_shell_cmd(
+            ssh_con, ceph_orch_ls_cmd, return_output=True
+        )
+    else:
+        rgw_orch_ls_out = exec_shell_cmd(ceph_orch_ls_cmd)
+    rgw_orch_ls_json = json.loads(rgw_orch_ls_out)
+    rgw_service_json = rgw_orch_ls_json[0]
+    if rgw_service_json.get("spec", {}).get("ssl", False):
+        endpoint_proto = "https"
+    else:
+        endpoint_proto = "http"
+    endpoint_port = rgw_service_json["status"]["ports"][0]
+
+    if rgw_service_json["placement"].get("hosts"):
+        endpoint_hostname_or_ip = rgw_service_json["placement"].get("hosts")[0]
+    elif rgw_service_json["placement"].get("label"):
+        ceph_orch_host_ls_cmd = f"ceph orch host ls --label {rgw_service_json['placement'].get('label', 'rgw')} -f json"
+        if ssh_con:
+            rgw_orch_host_ls_out = remote_exec_shell_cmd(
+                ssh_con, ceph_orch_host_ls_cmd, return_output=True
+            )
+        else:
+            rgw_orch_host_ls_out = exec_shell_cmd(ceph_orch_host_ls_cmd)
+        rgw_orch_host_ls_json = json.loads(rgw_orch_host_ls_out)
+        endpoint_hostname_or_ip = rgw_orch_host_ls_json[0]["addr"]
+    else:
+        raise Exception(
+            "not found either label or host under placement in ceph orch ls output"
+        )
+
+    endpoint_url = f"{endpoint_proto}://{endpoint_hostname_or_ip}:{endpoint_port}"
+    log.info(f"RGW endpoint url from ceph orch ls: {endpoint_url}")
+    return endpoint_url

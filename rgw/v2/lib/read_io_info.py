@@ -120,12 +120,8 @@ class ReadIOInfo(object):
         log.info("***************Starting Verification*****************")
         data = self.file_op.get_data()
         users = data["users"]
-        is_secure = True if utils.is_rgw_secure() else False
-        host = socket.gethostbyname(socket.gethostname())
-
-        endpoint_proto = "https" if is_secure else "http"
-        endpoint_port = utils.get_radosgw_port_no()
-        endpoint_url = f"{endpoint_proto}://{host}:{endpoint_port}"
+        endpoint_url = utils.get_rgw_endpoint_url()
+        is_secure = True if endpoint_url.startswith("https") else False
 
         for each_user in users:
             if each_user["deleted"] is False:
