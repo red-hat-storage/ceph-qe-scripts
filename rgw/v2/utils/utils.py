@@ -17,7 +17,7 @@ from urllib.parse import urlparse
 import botocore
 import paramiko
 import yaml
-from v2.lib.exceptions import SyncFailedError
+from v2.lib.exceptions import SyncFailedError, TestExecError
 
 BUCKET_NAME_PREFIX = "bucky" + "-" + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = "key"
@@ -360,6 +360,76 @@ class CephOrchRGWSrv:
         return cmd
 
 
+def rgw_daemons_status(retry_attempts=8, retry_delay=15):
+    for attempt in range(retry_attempts):
+        try:
+            # Step 1: Check RGW daemons via 'ceph orch ps'
+            orch_ps_cmd = "ceph orch ps --daemon_type=rgw --format json"
+            orch_ps_output = json.loads(exec_shell_cmd(orch_ps_cmd))
+            running_daemons = sum(
+                1 for daemon in orch_ps_output if daemon["status_desc"] == "running"
+            )
+            log.info(f"Running RGW daemons from ceph orch ps: {running_daemons}")
+
+            # Step 2: Check RGW service details via 'ceph orch ls'
+            orch_ls_cmd = "ceph orch ls --service_type=rgw --format json"
+            orch_ls_output = json.loads(exec_shell_cmd(orch_ls_cmd))
+            if not orch_ls_output:
+                log.warning("No RGW services found in ceph orch ls")
+                raise TestExecError("No RGW services found")
+
+            expected_daemons = orch_ls_output[0]["status"]["size"]
+            running_daemons_from_ls = orch_ls_output[0]["status"]["running"]
+            log.info(
+                f"Expected RGW daemons: {expected_daemons}, Running: {running_daemons_from_ls}"
+            )
+
+            # Step 3: Check RGW daemons via 'ceph -s --format json' with jq
+            ceph_s_json_cmd = r"""ceph -s --format json | jq -r '.servicemap.services.rgw.daemons | to_entries | map(select(.key != "summary")) | .[] | .value.metadata.id'"""
+            try:
+                ceph_s_output = exec_shell_cmd(ceph_s_json_cmd)
+            except Exception as e:
+                log.error(f"Failed to execute ceph -s command: {str(e)}")
+                raise TestExecError(f"ceph -s command failed: {str(e)}")
+
+            if not ceph_s_output or ceph_s_output.isspace():
+                log.warning("No RGW daemons found in ceph -s --format json output")
+                raise TestExecError("No RGW daemons found in ceph -s")
+
+            # Count unique RGW daemon IDs (each line is a daemon ID)
+            ceph_s_daemons = len(
+                [line for line in ceph_s_output.strip().split("\n") if line.strip()]
+            )
+            log.info(f"RGW daemons from ceph -s --format json: {ceph_s_daemons}")
+
+            # Verify that the number of running daemons matches the expected count
+            if (
+                running_daemons == expected_daemons
+                and running_daemons_from_ls == expected_daemons
+                and ceph_s_daemons == expected_daemons
+            ):
+                log.info("All RGW daemons are running and counts match across commands")
+                return True
+            else:
+                log.warning(
+                    f"Daemon count mismatch: orch_ps={running_daemons}, orch_ls={running_daemons_from_ls}, ceph_s={ceph_s_daemons}, expected={expected_daemons}"
+                )
+                raise TestExecError("RGW daemon count mismatch")
+
+        except (json.JSONDecodeError, TestExecError) as e:
+            log.warning(f"Attempt {attempt + 1}/{retry_attempts} failed: {str(e)}")
+            if attempt < retry_attempts - 1:
+                log.info(f"Retrying after {retry_delay} seconds...")
+                time.sleep(retry_delay)
+            else:
+                log.error(
+                    "All retry attempts exhausted. RGW daemons are not fully running."
+                )
+                raise TestExecError("RGW daemons are not running after retries")
+
+    return False
+
+
 class RGWService:
     """
     Implements RGW service operation
@@ -376,14 +446,39 @@ class RGWService:
 
     def restart(self, ssh_con=None):
         """
-        restarts the service
+        Restarts the RGW service and verifies daemon status post-restart.
+
+        Args:
+            ssh_con: SSH connection for remote execution.
+
+        Returns:
+            bool: True if restart and daemon status check succeed, False otherwise.
         """
-        log.info("restarting service")
-        cmd = self.srv.cmd("restart")
-        if ssh_con is not None:
-            return remote_exec_shell_cmd(ssh_con, cmd)
-        else:
-            return exec_shell_cmd(cmd)
+        try:
+            log.info("Restarting RGW service")
+            cmd = self.srv.cmd("restart")
+            if ssh_con is not None:
+                log.info("Executing restart on remote node")
+                if not remote_exec_shell_cmd(ssh_con, cmd):
+                    log.error("Failed to restart RGW service on remote node")
+                    return False
+            else:
+                log.info("Executing restart on local node")
+                if not exec_shell_cmd(cmd):
+                    log.error("Failed to restart RGW service on local node")
+                    return False
+
+            # Verify RGW daemon status after restart
+            log.info("Verifying RGW daemon status after restart")
+            if not rgw_daemons_status():
+                log.error("RGW daemons not fully running after restart")
+                return False
+
+            log.info("RGW service restarted and daemons verified successfully")
+            return True
+        except Exception as e:
+            log.error(f"Error during RGW restart or status check: {str(e)}")
+            return False
 
     def stop(self, ssh_con=None):
         """
