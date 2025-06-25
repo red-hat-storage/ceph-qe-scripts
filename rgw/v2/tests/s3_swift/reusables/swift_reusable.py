@@ -20,9 +20,9 @@ def get_unique_name(length=7):
     return "".join(random.choices(characters, k=length))
 
 
-def create_a_large_file(TEST_DATA_PATH, filename):
+def create_a_large_file(TEST_DATA_PATH, filename, filesize=10000):
     file_path = os.path.join(TEST_DATA_PATH, filename)
-    data_info = manage_data.io_generator(file_path, 10000)  # small File Creation
+    data_info = manage_data.io_generator(file_path, filesize)  # File Creation
     # Container and object detail
     log.info(f"md5 of uploading large file :{utils.get_md5(file_path)}")
     log.info(f"DATA INFO :: {data_info}")
@@ -88,7 +88,7 @@ def set_expiration(rgw, container_name, object_name, expiration_after=30):
         container_name, object_name, headers={"X-Delete-At": expiration_time}
     )
     log.info(
-        f"SLO '{object_name}' will expire at {datetime.fromtimestamp(int(expiration_time), tz=timezone.utc)} UTC."
+        f" '{object_name}' will expire at {datetime.fromtimestamp(int(expiration_time), tz=timezone.utc)} UTC."
     )
 
 
@@ -150,13 +150,13 @@ def upload_regular_object(rgw, container_name, TEST_DATA_PATH):
     print("Regular object uploaded.")
 
 
-def upload_dlo(rgw, container_name, TEST_DATA_PATH):
+def upload_dlo(rgw, container_name, TEST_DATA_PATH, filesize=10000):
     # Upload DLO (Dynamic Large Object)
     segment_prefix = "dlo_segments/segment"
     segment_size = 1024 * 1024  # 1MB per segment
     object_name = "dlo_object"
     filename_test = "a_large_file" + get_unique_name(3)
-    create_a_large_file(TEST_DATA_PATH, filename_test)
+    create_a_large_file(TEST_DATA_PATH, filename_test, filesize)
     with open(os.path.join(TEST_DATA_PATH, filename_test), "rb") as f:
         i = 0
         while True:
@@ -175,14 +175,14 @@ def upload_dlo(rgw, container_name, TEST_DATA_PATH):
     print("DLO uploaded.")
 
 
-def upload_slo(rgw, container_name, TEST_DATA_PATH):
+def upload_slo(rgw, container_name, TEST_DATA_PATH, filesize=10000):
     # Upload SLO (Static Large Object)
     segment_prefix = "slo_segments/segment"
     segment_size = 1024 * 1024
     manifest = []
 
     filename_test = "a_large_file" + get_unique_name(3)
-    create_a_large_file(TEST_DATA_PATH, filename_test)
+    create_a_large_file(TEST_DATA_PATH, filename_test, filesize)
     with open(os.path.join(TEST_DATA_PATH, filename_test), "rb") as f:
         i = 0
         while True:
@@ -212,7 +212,7 @@ def upload_slo(rgw, container_name, TEST_DATA_PATH):
 
 def upload_multipart(rgw, container_name, TEST_DATA_PATH):
     # Multipart upload - SLO
-    upload_slo(rgw, container_name, TEST_DATA_PATH)
+    upload_slo(rgw, container_name, TEST_DATA_PATH, filesize=10000)
     print("Multipart (SLO) uploaded.")
 
 
