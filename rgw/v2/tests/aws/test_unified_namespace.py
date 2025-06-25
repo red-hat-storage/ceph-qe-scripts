@@ -52,13 +52,17 @@ def test_exec(config, ssh_con):
     rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
     log.info(f"rgw service name is {rgw_service_name}")
 
+    keystone_url = utils.exec_shell_cmd("ceph config dump | grep keystone_url").split()[
+        3
+    ]
+    keystone_server = keystone_url.replace("http://", "").split(":")[0]
     # Put keystone conf options for user demo and implicit tenants Swift only
     log.info("Interating with Keystone for implicit tenants Swift only")
     aws_reusable.put_keystone_conf(rgw_service_name, "demo", "demo1", "demo", "swift")
 
-    access_demo = "f1363a717f8c470e8971bd644576011d"
-    secret_demo = "42c450221cf044d9a0867b0e4acd52d3"
-    project_demo = "83ea1f0a366a4e799b8458f2353cb36b"
+    access_demo, secret_demo, project_demo = aws_reusable.get_ec2_details(
+        keystone_server, "demo"
+    )
 
     # Do a awscli query with keystone credentials
     rgw_port = utils.get_radosgw_port_no(ssh_con)
@@ -134,21 +138,29 @@ def test_exec(config, ssh_con):
         rgw_service_name, "admin", "admin123", "admin", "true"
     )
 
-    acc_admin = "15e6b98174974805be36c68c9be0921b"
-    sec_admin = "ea7037473db74cc984bc13c29e087fff"
-    project_admin = "eb6d383a12b34457aef25d3846499e01"
+    acc_admin, sec_admin, project_admin = aws_reusable.get_ec2_details(
+        keystone_server, "admin"
+    )
 
-    cmd = f"AWS_ACCESS_KEY_ID={acc_admin} AWS_SECRET_ACCESS_KEY={sec_admin} /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
-    utils.exec_shell_cmd(cmd)
-    time.sleep(2)
-    cmd = f"radosgw-admin user list"
-    users = json.loads(utils.exec_shell_cmd(cmd))
-    for line in users:
-        if "$" in line and line.split("$")[0] == line.split("$")[1]:
-            tenant1 = line
-            log.info("Tenanted user created as expected")
-    if not tenant1:
-        raise RGWBaseException("Keystone user not present in RGW user list")
+    count = 0
+    while count < 2:
+        cmd = f"AWS_ACCESS_KEY_ID={acc_admin} AWS_SECRET_ACCESS_KEY={sec_admin} /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
+        utils.exec_shell_cmd(cmd)
+        time.sleep(3)
+        cmd = f"radosgw-admin user list"
+        users = json.loads(utils.exec_shell_cmd(cmd))
+        for line in users:
+            if "$" in line and line.split("$")[0] == project_admin:
+                tenant1 = line
+                log.info("Tenanted user created as expected")
+        if tenant1:
+            break
+        else:
+            count += 1
+            if count == 2:
+                raise RGWBaseException("Keystone user not present in RGW user list")
+            log.info("Retrying to get keystone user in 20 seconds")
+            time.sleep(20)
 
     # Create a bucket on the Keystone user
     for bc in range(config.bucket_count):
@@ -169,7 +181,7 @@ def test_exec(config, ssh_con):
         "Check if the S3 bucket created on implicit_tenant=true is accessible on swift also and vice versa"
     )
     sw_bucket = aws_reusable.verify_namespace_swift(
-        bucket_name, rgw_ip, rgw_port, "admin"
+        keystone_server, bucket_name, rgw_ip, rgw_port, "admin"
     )
     cmd = f"AWS_ACCESS_KEY_ID={acc_admin} AWS_SECRET_ACCESS_KEY={sec_admin} /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
     out = utils.exec_shell_cmd(cmd)
@@ -179,7 +191,7 @@ def test_exec(config, ssh_con):
         raise TestExecError("Swift bucket not visible to S3, diverged namespace")
 
     # cleanup swift endpoints
-    aws_reusable.cleanup_keystone()
+    aws_reusable.cleanup_keystone(keystone_server)
 
     # check for any crashes during the execution
     crash_info = s3_reusable.check_for_crash()
@@ -214,9 +226,13 @@ if __name__ == "__main__":
         parser.add_argument(
             "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
         )
+        parser.add_argument(
+            "--cloud-type", dest="cloud_type", help="IBMC or RHOSD", default="openstack"
+        )
         args = parser.parse_args()
         yaml_file = args.config
         rgw_node = args.rgw_node
+        cloud_type = args.cloud_type
         ssh_con = None
         if rgw_node != "127.0.0.1":
             ssh_con = utils.connect_remote(rgw_node)
