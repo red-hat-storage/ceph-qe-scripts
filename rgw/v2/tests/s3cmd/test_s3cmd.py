@@ -486,7 +486,7 @@ def test_exec(config, ssh_con):
         ceph_conf.set_to_ceph_conf(
             "global",
             ConfigOpts.rgw_bucket_eexist_override,
-            str(config.rgw_bucket_eexist_override),
+            "True",
             ssh_con,
         )
         reusable.restart_and_wait_until_daemons_up(ssh_con)
