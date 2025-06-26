@@ -84,9 +84,6 @@ def test_exec(config, ssh_con):
         f"ceph config set client.{rgw_service_name} rgw_ldap_secret /etc/bindpass"
     )
     utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_ldap_uri ldap://10.0.209.121:389"
-    )
-    utils.exec_shell_cmd(
         f"ceph config set client.{rgw_service_name} rgw_s3_auth_use_ldap true"
     )
 
