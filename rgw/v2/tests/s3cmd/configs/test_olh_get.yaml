@@ -1,0 +1,7 @@
+#script: ceph-qe-scripts/rgw/v2/tests/s3cmd/test_s3cmd.py
+#polarion:
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    test_olh_get: true
