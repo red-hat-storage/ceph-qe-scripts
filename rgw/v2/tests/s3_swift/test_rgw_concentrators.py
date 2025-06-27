@@ -41,7 +41,7 @@ log = logging.getLogger()
 
 
 def test_exec(config, ssh_con, rgw_node):
-    # Now call the functions from the imported module, similar to how orphan_utils is called:
+    # Now call the functions from the imported module:
     if config.test_ops.get("rgw_with_concentrators", False):
         log.info("Running RGW and HAProxy colocation check")
         # Call the function and check its return value directly
