@@ -1,19 +1,20 @@
-import os
-import sys
 import json
-import time
 import logging
-import traceback
-import subprocess
-import urllib.parse
+import os
 import re
+import subprocess
+import sys
+import time
+import traceback
+import urllib.parse
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+
 from v2.lib.resource_op import Config
+from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils import utils
 
 log = logging.getLogger()
 
