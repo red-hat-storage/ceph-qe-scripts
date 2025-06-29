@@ -204,6 +204,9 @@ def test_exec(config, ssh_con):
                     if config.test_ops.get("persistent_flag", False):
                         log.info("topic with peristent flag enabled")
                         persistent = config.test_ops.get("persistent_flag")
+                    # create topic at kafka side
+                    notification.create_topic_from_kafka_broker(topic_name)
+                    # create topic at rgw side
                     topic = notification.create_topic(
                         rgw_sns_conn,
                         endpoint,
