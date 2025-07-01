@@ -74,7 +74,7 @@ def test_exec(config, ssh_con, rgw_node, test_info_obj):
         log.info(
             f"Ceph version {ceph_version_name} detected. Required version is >= 19.2.1."
         )
-        # Using the exact message phrasing requested by the user for skipping the test
+        #  skipping the test as the ceph version in < 19.2.1
         log.info(
             f"Skipping tests: This feature is not valid for version less than 8.1."
         )
