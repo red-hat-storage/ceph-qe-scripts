@@ -7,3 +7,4 @@ config:
     test_haproxy_restart: true
     test_rgw_service_removal: true
     traffic_test_requests: 20
+    perform_s3_operations: false
