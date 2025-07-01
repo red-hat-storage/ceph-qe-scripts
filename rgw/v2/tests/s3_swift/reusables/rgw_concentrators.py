@@ -10,14 +10,15 @@ import urllib.parse
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
+
 import v2.lib.resource_op as s3lib
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
-from v2.lib.s3.auth import Auth
 from v2.lib.resource_op import Config
+from v2.lib.s3.auth import Auth
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
+from v2.tests.s3_swift import reusable
 from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.tests.s3_swift import reusable
 
 log = logging.getLogger()
 

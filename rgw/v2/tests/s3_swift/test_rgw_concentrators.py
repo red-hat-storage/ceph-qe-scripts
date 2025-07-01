@@ -25,24 +25,24 @@ import argparse
 import json
 import logging
 import os
+import shutil
+import stat
 import subprocess
 import sys
 import traceback
+
 import yaml
-import stat
-import shutil
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
 import v2.lib.resource_op as s3lib
+from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
+from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import rgw_concentrators as concentrator_tests
+from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.utils import utils
-from v2.lib.exceptions import RGWBaseException, TestExecError
-from v2.tests.s3_swift import reusable
-
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
