@@ -1,5 +1,3 @@
-# test_rgw_concentrators.py (main script)
-
 """test_rgw_concentrators.py - Test if RGW and HAProxy are on the same node and concentrator behavior
 
 Usage: test_rgw_concentrators.py -c <input_yaml>
