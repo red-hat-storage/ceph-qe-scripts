@@ -3352,3 +3352,17 @@ def get_auth(user_info, ssh_con, ssl, haproxy):
     rgw_service_port = get_rgw_service_port()
     haproxy = False if rgw_service_port == 443 else haproxy
     return Auth(user_info, ssh_con, ssl=ssl, haproxy=haproxy)
+
+
+def verify_object_accessibility(s3_client, bucket_name, object_key):
+    try:
+        response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+            log.info(f"Object {object_key} is accessible post reshard.")
+        else:
+            log.error(
+                f"Object {object_key} not accessible. Status: {response['ResponseMetadata']['HTTPStatusCode']}"
+            )
+    except Exception as e:
+        log.error(f"Failed to access object {object_key}: {e}")
+        raise
