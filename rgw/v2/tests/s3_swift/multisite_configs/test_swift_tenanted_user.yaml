@@ -1,0 +1,5 @@
+#CEPH-10734
+#script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_swift_tenanted_user.py
+config:
+  user_type: "tenanted"
+  container_count: 1
