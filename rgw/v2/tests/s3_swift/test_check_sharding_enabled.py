@@ -7,6 +7,7 @@ Usage: test_check_sharding_enabled.py -c <input_yaml>
 	test_check_sharding_enabled_brownfield.yaml
     test_check_sharding_enabled_greenfield.yaml
     test_zone_deletion.yaml
+    test_realm_deletion.yaml
     test_realm_rename.yaml
     test_zonegroup_rename.yaml
     test_zone_rename.yaml
@@ -126,6 +127,45 @@ def test_exec(config, ssh_con):
         zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
         if zone_name in zone_list["zones"]:
             raise TestExecError(f"Zone {zone_name} still exist")
+
+    if config.test_ops.get("realm_delete", False) is True:
+        log.info("Test realm deletion")
+        utils.exec_shell_cmd("radosgw-admin sync status")
+        realm_name = "rmrealm"
+        log.info(
+            f"Create new default realm {realm_name}, before creation check {realm_name} does not exist"
+        )
+        realm_data = json.loads(utils.exec_shell_cmd("radosgw-admin realm list"))
+        if realm_name in realm_data["realms"]:
+            raise TestExecError(f"Realm {realm_name} already exist")
+        if realm_data["default_info"] != "":
+            raise TestExecError(
+                f"Realm default_info found {realm_data['default_info']}, expected empty"
+            )
+        realm_data = json.loads(
+            utils.exec_shell_cmd(
+                f"radosgw-admin realm create --rgw-realm {realm_name} --default"
+            )
+        )
+        realm_list = json.loads(utils.exec_shell_cmd("radosgw-admin realm list"))
+        realm_id = realm_list["default_info"]
+        if realm_id != realm_data["id"]:
+            raise TestExecError(
+                f"Realm default_info is not as expected, found {realm_id} expected {realm_data['id']}"
+            )
+        log.info(f"Remove new default realm {realm_name}")
+        utils.exec_shell_cmd(f"radosgw-admin realm rm --rgw-realm {realm_name}")
+        log.info(f"post deletion of realm {realm_name}, verify realm does not exist")
+        list_realm = json.loads(utils.exec_shell_cmd("radosgw-admin realm list"))
+        if realm_name in list_realm["realms"]:
+            raise TestExecError(
+                f"Realm {realm_name} still exist even after its deletion"
+            )
+        if list_realm["default_info"] != "":
+            raise TestExecError(
+                f"Realm default_info found as :{list_realm['default_info']}, expected empty post deletion of realm"
+            )
+        utils.exec_shell_cmd("radosgw-admin sync status")
 
     if config.test_ops.get("realm_rename", False) is True:
         log.info("Test realm rename")
