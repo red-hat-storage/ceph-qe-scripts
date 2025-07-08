@@ -360,7 +360,7 @@ class CephOrchRGWSrv:
         return cmd
 
 
-def rgw_daemons_status(retry_attempts=8, retry_delay=15):
+def rgw_daemons_status(retry_attempts=10, retry_delay=15):
     for attempt in range(retry_attempts):
         try:
             # Step 1: Check RGW daemons via 'ceph orch ps'
