@@ -431,7 +431,7 @@ def rgw_daemons_status(retry_attempts=10, retry_delay=15):
             )
             log.info(f"Daemon IDs: {ceph_s_daemons_list}")
 
-            # Final verification
+            # Verify that the number of running daemons matches the expected count
             if (
                 running_daemons == expected_daemons
                 and running_daemons_from_ls == expected_daemons
