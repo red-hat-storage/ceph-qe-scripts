@@ -12,6 +12,7 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
 	test_Mbuckets_with_Nobjects_enc.yaml
 	test_Mbuckets_with_Nobjects_multipart.yaml
 	test_Mbuckets_with_Nobjects_sharding.yaml
+    test_bucket_instance_delete.yaml
 	test_gc_list.yaml
 	test_multisite_manual_resharding_greenfield.yaml
 	test_multisite_dynamic_resharding_greenfield.yaml
@@ -36,6 +37,7 @@ Operation:
 	Verify gc command
 	Verify eTag
  	Verify bi put on incomplete multipart upload
+    Verify bucket instance shards are deleted from index pool post bucket delete
 """
 # test basic creation of buckets with objects
 import os
@@ -881,7 +883,31 @@ def test_exec(config, ssh_con):
                         )
 
                 if config.test_ops.get("delete_bucket") is True:
-                    reusable.delete_bucket(bucket)
+                    if config.test_ops.get("instance_shard_verify", False):
+                        # Verify bucket instance shards are deleted from index pool
+                        bucket_stats = utils.exec_shell_cmd(
+                            f"radosgw-admin bucket stats --bucket {bucket.name}"
+                        )
+                        bucket_id = json.loads(bucket_stats)["id"]
+                        reusable.delete_objects(bucket)
+                        reusable.delete_bucket(bucket)
+                        time.sleep(30)
+                        log.info(
+                            f"Verify that the bucket instance shards for {bucket.name} are not there in index pool"
+                        )
+                        index_pool_list = utils.exec_shell_cmd(
+                            f"rados ls -p default.rgw.buckets.index"
+                        ).split("\n")
+                        index_pool_list.pop()
+                        log.info(f"bucket id is {bucket_id}")
+                        for shard_id in index_pool_list:
+                            if bucket_id in shard_id:
+                                raise TestExecError(
+                                    "Shard objects for deleted bucket still present"
+                                )
+                        log.info("Bucket index shard objects deleted as expected")
+                    else:
+                        reusable.delete_bucket(bucket)
 
         if config.user_reset:
             log.info(f"Verify user reset doesn't throw any error")
