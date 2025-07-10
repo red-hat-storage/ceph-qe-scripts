@@ -70,7 +70,7 @@ def test_exec(config, ssh_con):
     aws_auth.install_aws()
 
     # cleanup any stale swift endpoints
-    aws_reusable.cleanup_keystone()
+    aws_reusable.cleanup_keystone(keystone_server)
 
     count = 0
     while count < 2:
