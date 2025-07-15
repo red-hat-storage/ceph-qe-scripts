@@ -104,42 +104,54 @@ def create_topic(
     to create topic with specified endpoint , ack_level
     return: topic ARN
     """
-    local_ip = utils.get_localhost_ip_address()
+    brokers_list = get_kafka_brokers_list()
+    kafka_ip = brokers_list[0]
+    kafka_port = 9092
     if security_type == "PLAINTEXT":
         endpoint_args = (
             "push-endpoint="
             + endpoint
-            + f"://{local_ip}:9092&use-ssl=false&verify-ssl=false&kafka-ack-level="
+            + f"://{kafka_ip}:9092&use-ssl=false&verify-ssl=false&kafka-ack-level="
             + ack_type
         )
+        kafka_port = 9092
     elif security_type == "SSL":
         endpoint_args = (
             "push-endpoint="
             + endpoint
-            + f"://{local_ip}:9093&use-ssl=true&verify-ssl=false&kafka-ack-level="
+            + f"://{kafka_ip}:9093&use-ssl=true&verify-ssl=false&kafka-ack-level="
             + ack_type
             + "&ca-location=/usr/local/kafka/y-ca.crt"
         )
+        kafka_port = 9093
     elif security_type == "SASL_SSL":
         endpoint_args = (
             "push-endpoint="
             + endpoint
-            + f"://alice:alice-secret@{local_ip}:9094&use-ssl=true&verify-ssl=false&kafka-ack-level="
+            + f"://alice:alice-secret@{kafka_ip}:9094&use-ssl=true&verify-ssl=false&kafka-ack-level="
             + ack_type
             + "&ca-location=/usr/local/kafka/y-ca.crt&mechanism="
             + mechanism
         )
+        kafka_port = 9094
     elif security_type == "SASL_PLAINTEXT":
         endpoint_args = (
             "push-endpoint="
             + endpoint
-            + f"://alice:alice-secret@{local_ip}:9095&use-ssl=false&verify-ssl=false&kafka-ack-level="
+            + f"://alice:alice-secret@{kafka_ip}:9095&use-ssl=false&verify-ssl=false&kafka-ack-level="
             + ack_type
             + "&mechanism="
             + mechanism
         )
+        kafka_port = 9095
     if persistent_flag:
         endpoint_args = endpoint_args + "&persistent=true"
+    if len(brokers_list) > 1:
+        brokers_with_port_list = [f"{ip}:{kafka_port}" for ip in brokers_list]
+        kafka_brokers_string = ", ".join(brokers_with_port_list)
+        kafka_brokers_string = f"[{kafka_brokers_string}]"
+        log.info(f"kafka_brokers_list: {kafka_brokers_string}")
+        endpoint_args = f"{endpoint_args}&kafka-brokers='{kafka_brokers_string}'"
     attributes = {
         nvp[0]: nvp[1]
         for nvp in urlparse.parse_qsl(endpoint_args, keep_blank_values=True)
@@ -206,6 +218,53 @@ def rgw_admin_topic_notif_ops(config, op, args, sub_command="topic"):
         out = json.loads(out)
 
     return out
+
+
+def get_kafka_brokers_list():
+    """
+    returns kafka brokers ip as list based on 'zookeepers.connect' config in server.properties
+    """
+    log.info(
+        "get kafka brokers list from server.properties based on zookeeper.connect config"
+    )
+    local_ip = utils.get_localhost_ip_address()
+    cmd = "cat /usr/local/kafka/config/server.properties | grep 'zookeeper.connect='"
+    zookeeper_connect_string = utils.exec_shell_cmd(cmd)
+    zookeeper_connect_string = zookeeper_connect_string.strip()
+    zookeeper_connect_string = zookeeper_connect_string.replace(
+        "zookeeper.connect=", "", 1
+    )
+    ip_and_port_list = zookeeper_connect_string.split(",")
+    kafka_brokers_list = []
+    for ip_and_port in ip_and_port_list:
+        kafka_broker_ip = ip_and_port.replace(":2181", "")
+        if kafka_broker_ip == "localhost":
+            kafka_broker_ip = local_ip
+        kafka_brokers_list.append(kafka_broker_ip)
+    return kafka_brokers_list
+
+
+def create_topic_from_kafka_broker(topic_name, partitions=2, replication_factor=2):
+    """
+    delete topic from kafka broker
+    """
+    log.info(f"create partitioned topic {topic_name} using kafka-cli")
+    kafka_brokers = get_kafka_brokers_list()
+    kafka_broker1_ip = kafka_brokers[0]
+    cmd = f"/usr/local/kafka/bin/kafka-topics.sh --create --topic {topic_name} --bootstrap-server kafka://{kafka_broker1_ip}:9092"
+    if len(kafka_brokers) > 1:
+        cmd = (
+            f"{cmd} --partitions {partitions} --replication-factor {replication_factor}"
+        )
+    out = utils.exec_shell_cmd(cmd)
+    log.info(f"create topic response: {out}")
+    if out is False:
+        raise TestExecError(f"create topic using kafka-cli failed")
+    cmd = f"/usr/local/kafka/bin/kafka-topics.sh --describe --topic {topic_name} --bootstrap-server kafka://{kafka_broker1_ip}:9092"
+    out = utils.exec_shell_cmd(cmd)
+    log.info(f"describe topic response: {out}")
+    if out is False:
+        raise TestExecError(f"describe topic using kafka-cli failed")
 
 
 def del_topic_from_kafka_broker(topic_name):
