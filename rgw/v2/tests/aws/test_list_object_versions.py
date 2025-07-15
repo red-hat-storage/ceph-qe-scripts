@@ -8,28 +8,28 @@ import json
 import logging
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import botocore
+import v2.utils.utils as utils
+from botocore.exceptions import ClientError
 from v2.lib import resource_op
 from v2.lib.aws import auth as aws_auth
 from v2.lib.aws.resource_op import AWS
-import v2.utils.utils as utils
-from botocore.exceptions import ClientError
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
-from v2.tests.s3_swift import reusable
 from v2.tests.aws import reusable as aws_reusable
+from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import list_fake_mp as bucket_list_incomplete_mp
 from v2.tests.s3_swift.reusables import (
     upload_object_via_s3client as put_object_s3client,
 )
-from v2.tests.s3_swift.reusables import list_fake_mp as bucket_list_incomplete_mp
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 log = logging.getLogger()
 TEST_DATA_PATH = None
@@ -113,15 +113,13 @@ def test_exec(config, ssh_con):
         raise AssertionError(f"Failed to perform object version listing: {err}")
 
     # Check for any crashes during the execution
-    crash_info = (
-        reusable.check_for_crash()
-    )
+    crash_info = reusable.check_for_crash()
     if crash_info:
         raise TestExecError("ceph daemon crash found!")
 
 
 if __name__ == "__main__":
-    test_info = AddTestInfo("Listing objects of a bucket via radosgw-admin and boto")
+    test_info = AddTestInfo("Listing objects of a bucket via aws")
     test_info.started_info()
 
     try:
