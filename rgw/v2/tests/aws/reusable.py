@@ -36,10 +36,32 @@ def create_bucket(aws_auth, bucket_name, end_point):
         params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
     )
     try:
-        create_response = utils.exec_shell_cmd(command)
+        create_response = utils.exec_shell_cmd(command, return_err=True)
         log.info(f"bucket creation response is {create_response}")
         if create_response:
             raise Exception(f"Create bucket failed for {bucket_name}")
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def list_buckets(aws_auth, endpoint):
+    """
+    List all the buckets the user ownes
+    Args:
+        aws_auth: user auth details
+        end_point(str): endpoint
+    Return:
+        Returns details of buckets
+    """
+    command = aws_auth.command(
+        operation="list-buckets",
+        params=[
+            f"--endpoint-url {endpoint}",
+        ],
+    )
+    try:
+        get_response = utils.exec_shell_cmd(command)
+        return get_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
 
@@ -382,7 +404,7 @@ def put_get_bucket_versioning(aws_auth, bucket_name, end_point, status="Enabled"
         raise AWSCommandExecError(message=str(e))
 
 
-def get_endpoint(ssh_con=None, ssl=None):
+def get_endpoint(ssh_con=None, ssl=None, haproxy=None):
     """
     Returns RGW ip and port in <ip>:<port> format
     Returns: RGW ip and port
@@ -397,6 +419,8 @@ def get_endpoint(ssh_con=None, ssl=None):
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)
         port = utils.get_radosgw_port_no()
+    if haproxy:
+        port = 5000
     ip_and_port = f"http://{ip}:{port}"
     if ssl:
         ip_and_port = f"https://{ip}:{port}"
