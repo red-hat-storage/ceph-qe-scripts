@@ -448,6 +448,12 @@ class Config(object):
         self.permutation_count = self.doc["config"].get("permutation_count")
         self.user_names = self.doc["config"].get("user_names")
         self.bucket_names = self.doc["config"].get("bucket_names")
+        self.rgw_dynamic_resharding_reduction_wait = self.doc["config"].get(
+            "rgw_dynamic_resharding_reduction_wait"
+        )
+        self.rgw_reshard_debug_interval = self.doc["config"].get(
+            "rgw_reshard_debug_interval", 120
+        )
         ceph_version_id, ceph_version_name = utils.get_ceph_version()
         # todo: improve Frontend class
         if ceph_version_name in ["luminous", "nautilus"]:

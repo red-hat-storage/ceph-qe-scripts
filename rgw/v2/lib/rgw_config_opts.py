@@ -55,6 +55,8 @@ class ConfigOpts(object):
     rgw_crypt_sse_s3_vault_secret_engine = "rgw_crypt_sse_s3_vault_secret_engine"
     rgw_enable_static_website = "rgw_enable_static_website"
     rgw_swift_url_prefix = "rgw_swift_url_prefix"
+    rgw_dynamic_resharding_reduction_wait = "rgw_dynamic_resharding_reduction_wait"
+    rgw_reshard_debug_interval = "rgw_reshard_debug_interval"
 
 
 class CephConfFileOP(FileOps, ConfigParse):

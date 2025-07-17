@@ -1,0 +1,14 @@
+# Polarion ID: CEPH-83604505
+# Script : test_dynamic_bucket_resharding.py
+config:
+  objects_count: 55
+  objects_size_range:
+    min: 15
+    max: 20
+  sharding_type: dynamic
+  max_objects_per_shard: 10
+  rgw_reshard_thread_interval: 120
+  rgw_dynamic_resharding_reduction_wait: 48
+  test_ops:
+    delete_bucket_object: true
+    downshard: true
