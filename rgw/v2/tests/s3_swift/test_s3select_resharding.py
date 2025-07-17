@@ -1,3 +1,17 @@
+"""
+test_s3select_resharding.py - Test s3-select
+Usage: test_s3select_resharding.py -c <input_yaml>
+<input_yaml>
+    Note: Following yaml can be used
+    test_s3select_parquet_resharding.yaml
+
+Operation:
+    create user, bucket
+    upload parquet files to objects so it triggers a reshard
+    manually reshard a bucket with objects uploaded with parquet files
+    verify that objects are accessible after resharding
+"""
+
 import os
 import sys
 import time
@@ -46,6 +60,13 @@ def test_exec(config, ssh_con):
         # authenticate with s3 client
         rgw_s3_client = auth.do_auth_using_client()
 
+        input_serialization = {
+            "Parquet": {},
+            "CompressionType": "NONE",
+        }
+
+        output_serialization = {"CSV": {}}
+
         if config.test_ops.get("create_bucket", False):
             objects_created_list = []
             log.info("no of buckets to create: %s" % config.bucket_count)
@@ -75,6 +96,26 @@ def test_exec(config, ssh_con):
 
                         objects_created_list.append((s3_object_name, s3_object_path))
 
+                        result = s3select.execute_s3select_query(
+                            rgw_s3_client,
+                            bucket_name,
+                            s3_object_name,
+                            "select * from s3object;",
+                            input_serialization,
+                            output_serialization,
+                        )
+                        log.info(f"Result: {result}\n")
+
+                        result = s3select.execute_s3select_query(
+                            rgw_s3_client,
+                            bucket_name,
+                            s3_object_name,
+                            "select count(*) from s3object;",
+                            input_serialization,
+                            output_serialization,
+                        )
+                        log.info(f"Result: {result}\n")
+
         bucket_stat_cmd = f"radosgw-admin bucket stats --bucket {bucket_name}"
         json_doc = json.loads(utils.exec_shell_cmd(bucket_stat_cmd))
         num_shards_created = json_doc["num_shards"]
@@ -86,7 +127,7 @@ def test_exec(config, ssh_con):
     log.info(objects_created_list)
     log.info("Verify object accessibility post-dynamic reshard")
     for obj_name, _ in objects_created_list:
-        verify_object_accessibility(rgw_s3_client, bucket_name, obj_name)
+        reusable.verify_object_accessibility(rgw_s3_client, bucket_name, obj_name)
 
     if config.sharding_type == "manual":
         log.info("sharding type is manual")
@@ -112,6 +153,26 @@ def test_exec(config, ssh_con):
         log.info("Verify object accessibility post-manual reshard:")
         for obj_name, _ in objects_created_list:
             reusable.verify_object_accessibility(rgw_s3_client, bucket_name, obj_name)
+
+            result = s3select.execute_s3select_query(
+                rgw_s3_client,
+                bucket_name,
+                obj_name,
+                "select * from s3object;",
+                input_serialization,
+                output_serialization,
+            )
+            log.info(f"Result: {result}\n")
+
+            result = s3select.execute_s3select_query(
+                rgw_s3_client,
+                bucket_name,
+                obj_name,
+                "select count(*) from s3object;",
+                input_serialization,
+                output_serialization,
+            )
+            log.info(f"Result: {result}\n")
 
 
 if __name__ == "__main__":

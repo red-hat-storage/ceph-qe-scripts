@@ -3363,8 +3363,10 @@ def get_auth(user_info, ssh_con, ssl, haproxy):
     return Auth(user_info, ssh_con, ssl=ssl, haproxy=haproxy)
 
 
-
 def verify_object_accessibility(s3_client, bucket_name, object_key):
+    """
+    Verify if the object can be accessed from the bucket.
+    """
     try:
         response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
         if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
@@ -3377,6 +3379,7 @@ def verify_object_accessibility(s3_client, bucket_name, object_key):
         log.error(f"Failed to access object {object_key}: {e}")
         raise
 
+
 def list_bucket_objects(rgw_s3_client, bucket_name):
     """
     returns all of the objects in the bucket
@@ -3384,4 +3387,3 @@ def list_bucket_objects(rgw_s3_client, bucket_name):
     resp = rgw_s3_client.list_objects(Bucket=bucket_name)
     log.info(f"list bucket objects response: {resp}")
     return resp["Contents"]
-
