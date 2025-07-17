@@ -3361,3 +3361,12 @@ def get_auth(user_info, ssh_con, ssl, haproxy):
     rgw_service_port = get_rgw_service_port()
     haproxy = False if rgw_service_port == 443 else haproxy
     return Auth(user_info, ssh_con, ssl=ssl, haproxy=haproxy)
+
+
+def list_bucket_objects(rgw_s3_client, bucket_name):
+    """
+    returns all of the objects in the bucket
+    """
+    resp = rgw_s3_client.list_objects(Bucket=bucket_name)
+    log.info(f"list bucket objects response: {resp}")
+    return resp["Contents"]
