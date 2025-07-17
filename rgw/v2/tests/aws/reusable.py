@@ -36,10 +36,32 @@ def create_bucket(aws_auth, bucket_name, end_point):
         params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
     )
     try:
-        create_response = utils.exec_shell_cmd(command)
+        create_response = utils.exec_shell_cmd(command, return_err=True)
         log.info(f"bucket creation response is {create_response}")
         if create_response:
             raise Exception(f"Create bucket failed for {bucket_name}")
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def list_buckets(aws_auth, endpoint):
+    """
+    List all the buckets the user ownes
+    Args:
+        aws_auth: user auth details
+        end_point(str): endpoint
+    Return:
+        Returns details of buckets
+    """
+    command = aws_auth.command(
+        operation="list-buckets",
+        params=[
+            f"--endpoint-url {endpoint}",
+        ],
+    )
+    try:
+        get_response = utils.exec_shell_cmd(command)
+        return get_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
 
@@ -382,7 +404,7 @@ def put_get_bucket_versioning(aws_auth, bucket_name, end_point, status="Enabled"
         raise AWSCommandExecError(message=str(e))
 
 
-def get_endpoint(ssh_con=None, ssl=None):
+def get_endpoint(ssh_con=None, ssl=None, haproxy=None):
     """
     Returns RGW ip and port in <ip>:<port> format
     Returns: RGW ip and port
@@ -397,6 +419,8 @@ def get_endpoint(ssh_con=None, ssl=None):
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)
         port = utils.get_radosgw_port_no()
+    if haproxy:
+        port = 5000
     ip_and_port = f"http://{ip}:{port}"
     if ssl:
         ip_and_port = f"https://{ip}:{port}"
@@ -588,6 +612,29 @@ def get_object(aws_auth, bucket_name, object_name, end_point):
         raise AWSCommandExecError(message=str(e))
 
 
+def copy_object(aws_auth, bucket_name, object_name, end_point):
+    """
+    Does a copy object from the bucket
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        object_name(str): Name of the object/file
+        end_point(str): endpoint
+    Return:
+        Response of get object operation
+    """
+    command = aws_auth.command(
+        operation="copy-object",
+        params=[
+            f"--copy-source {bucket_name}/{object_name} --bucket {bucket_name} --key {object_name}  --metadata-directive 'REPLACE' --content-type 'text/plain' --endpoint-url {end_point}",
+        ],
+    )
+    try:
+        copy_response = utils.exec_shell_cmd(command)
+        return copy_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
 def list_objects(aws_auth, bucket_name, endpoint, marker=None):
     """
     List all the objects in the bucket
@@ -696,9 +743,6 @@ def put_keystone_conf(rgw_service_name, user, passw, project, tenant="true"):
         f"ceph config set client.{rgw_service_name} rgw_keystone_api_version 3"
     )
     utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_keystone_url http://10.0.209.121:5000"
-    )
-    utils.exec_shell_cmd(
         f"ceph config set client.{rgw_service_name} rgw_keystone_admin_user {user}"
     )
     utils.exec_shell_cmd(
@@ -724,12 +768,11 @@ def put_keystone_conf(rgw_service_name, user, passw, project, tenant="true"):
     time.sleep(20)
 
 
-def verify_namespace_swift(bucket, rgw_ip, port, user="admin"):
+def verify_namespace_swift(keystone_server, bucket, rgw_ip, port, user="admin"):
     """
     Verify the unified namespace behaviour from swift
     """
-    keystone_node = "10.0.209.121"
-    ssh = utils.connect_remote(keystone_node)
+    ssh = utils.connect_remote(keystone_server)
     log.info("Setting up swift endpoints")
     cmd = f"source /home/cephuser/key_{user}.rc; openstack endpoint create --region RegionOne swift internal http://{rgw_ip}:{port}/swift/v1; openstack endpoint create --region RegionOne swift public http://{rgw_ip}:{port}/swift/v1; openstack endpoint create --region RegionOne swift admin http://{rgw_ip}:{port}/swift/v1"
     out = utils.remote_exec_shell_cmd(ssh, cmd, return_output=True)
@@ -746,12 +789,26 @@ def verify_namespace_swift(bucket, rgw_ip, port, user="admin"):
     return sw_bucket
 
 
-def cleanup_keystone(user="admin"):
+def get_ec2_details(keystone_server, sw_user):
+    """Get EC2 credentials and project details for swift user"""
+    ssh = utils.connect_remote(keystone_server)
+    cmd = f"source /home/cephuser/key_{sw_user}.rc; openstack ec2 credentials list"
+    out = utils.remote_exec_shell_cmd(ssh, cmd, return_output=True)
+    line = out.splitlines()[3]
+    if not line:
+        log.info("Ec2 user not created for this project")
+        raise TestExecError
+    access = line.split("|")[1].strip()
+    secret = line.split("|")[2].strip()
+    project = line.split("|")[3].strip()
+    return access, secret, project
+
+
+def cleanup_keystone(keystone_server, user="admin"):
     """
     Delete the swift endpoints added earlier from the keystone server
     """
-    keystone_node = "10.0.209.121"
-    ssh = utils.connect_remote(keystone_node)
+    ssh = utils.connect_remote(keystone_server)
     log.info("Deleting the swift endpoints")
     cmd = f"source /home/cephuser/key_{user}.rc; openstack endpoint list"
     out = utils.remote_exec_shell_cmd(ssh, cmd, return_output=True)
@@ -765,3 +822,15 @@ def cleanup_keystone(user="admin"):
             f"source /home/cephuser/key_{user}.rc; openstack endpoint delete {endpoint}"
         )
         out = utils.remote_exec_shell_cmd(ssh, cmd)
+
+
+def perform_gc_process_and_list():
+    """
+    Method to Perform GC process and validate GC list post process
+    """
+    utils.exec_shell_cmd("radosgw-admin gc list --include-all")
+    utils.exec_shell_cmd("radosgw-admin gc process --include-all")
+    out = utils.exec_shell_cmd("radosgw-admin gc list --include-all")
+    gc_list = json.loads(out)
+    if len(gc_list) != 0:
+        raise AssertionError("GC process does not emptied the GC list")

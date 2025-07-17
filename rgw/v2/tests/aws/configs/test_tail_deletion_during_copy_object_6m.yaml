@@ -1,0 +1,7 @@
+#script: test_tail_deletion_during_copy_object.py
+#Polarion: CEPH-83622325
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    file_size: 6291456

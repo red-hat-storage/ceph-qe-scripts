@@ -9,6 +9,7 @@ Usage: test_aws.py -c <input_yaml>
     configs/test_aws_buckets_creation.yaml
     configs/test_complete_multipart_upload_etag_not_empty.yaml
     configs/test_versioned_list_marker.yaml
+    configs/test_aws_create_bucket_for_existing_bucket.yaml
 
 Operation:
 
@@ -30,12 +31,14 @@ from v2.lib import resource_op
 from v2.lib.aws import auth as aws_auth
 from v2.lib.aws.resource_op import AWS
 from v2.lib.exceptions import RGWBaseException, TestExecError
+from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.aws import reusable as aws_reusable
 from v2.tests.s3_swift import reusable as s3_reusable
 from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
+from v2.utils.utils import RGWService
 
 log = logging.getLogger(__name__)
 TEST_DATA_PATH = None
@@ -50,8 +53,15 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ceph_conf = CephConfOp()
+    rgw_service = RGWService()
+
     user_name = (config.test_ops.get("user_name"), None)
     user_names = [user_name] if type(user_name) != list else user_name
+
+    endpoint = aws_reusable.get_endpoint(
+        ssh_con, ssl=config.ssl, haproxy=config.haproxy
+    )
 
     if config.test_ops.get("user_name", False):
         user_info = resource_op.create_users(
@@ -65,7 +75,6 @@ def test_exec(config, ssh_con):
         user_name = user["user_id"]
         log.info(user_name)
         cli_aws = AWS(ssl=config.ssl)
-        endpoint = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
         aws_auth.do_auth_aws(user)
 
         for bc in range(config.bucket_count):
@@ -146,6 +155,54 @@ def test_exec(config, ssh_con):
                 if obj["Key"] == "1.txt":
                     raise Exception(f"Marker is being listed in the list objects")
             log.info("Marker entry not found")
+
+        if config.test_ops.get("create_existing_bucket", False):
+            log.info(
+                "Verify with and without rgw_bucket_eexist_override set bucket creation"
+            )
+            log.info(
+                f"Bucket {bucket_name} already exist, try craetion of bucket with same name"
+            )
+            response = json.loads(aws_reusable.list_buckets(cli_aws, endpoint))
+            log.info(f"bucket list data {response}")
+            log.info(f"Create bucket {bucket_name} which is alreday exist")
+            aws_reusable.create_bucket(cli_aws, bucket_name, endpoint)
+            log.info("BucketAlreadyExists error not seen as expected")
+            log.info("set config rgw_bucket_eexist_override for rgw daemon service")
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_bucket_eexist_override,
+                "True",
+                ssh_con,
+            )
+            s3_reusable.restart_and_wait_until_daemons_up(ssh_con)
+
+            log.info(f"Create existing bucket {bucket_name} post enabling config")
+            try:
+                resp = utils.exec_shell_cmd(
+                    f"/usr/local/bin/aws s3api create-bucket --bucket {bucket_name} --endpoint-url {endpoint}",
+                    return_err=True,
+                )
+            except Exception as e:
+                log.info(f"cmd execution failed as expected {resp}")
+            log.info(f"cmd execution failed as expected {resp}")
+            if "BucketAlreadyExists" not in resp:
+                raise TestExecError(
+                    "with config, expected error msg BucketAlreadyExists for creation ofexiting bucket for same user"
+                )
+            log.info(
+                "Error seen as expected for creting existing bucket from same owner"
+            )
+            log.info(
+                "reset config rgw_bucket_eexist_override to default for rgw daemon service"
+            )
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_bucket_eexist_override,
+                "False",
+                ssh_con,
+            )
+            s3_reusable.restart_and_wait_until_daemons_up(ssh_con)
 
         if config.user_remove is True:
             s3_reusable.remove_user(user)

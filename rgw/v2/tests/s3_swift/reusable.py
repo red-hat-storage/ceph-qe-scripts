@@ -1241,10 +1241,19 @@ def get_multisite_info():
     return zone_names, realm_name
 
 
-def update_commit():
+def period_update_commit(validate_policy=False, pipe_op=None):
     _, realm_name = get_multisite_info()
     cmd_realm = f"radosgw-admin period update --rgw-realm={realm_name} --commit"
-    utils.exec_shell_cmd(cmd_realm)
+    op = utils.exec_shell_cmd(cmd_realm)
+    json_doc = json.loads(op)
+    if validate_policy:
+        sync_policy = json_doc["period_map"]["zonegroups"][0]["sync_policy"]["groups"]
+        if pipe_op == "create" and len(sync_policy) == 0:
+            raise TestExecError(
+                "Failed to set policy as period update does not contain details of policy"
+            )
+        else:
+            utils.exec_shell_cmd("radosgw-admin sync policy get")
 
 
 def unlink_bucket(curr_uid, bucket, tenant=False):
@@ -2552,7 +2561,7 @@ def pipe_operation(
 
     utils.exec_shell_cmd(cmd)
     if bucket_name is None:
-        update_commit()
+        period_update_commit(True, pipe_op)
 
     return pipe_id
 
@@ -3354,6 +3363,7 @@ def get_auth(user_info, ssh_con, ssl, haproxy):
     return Auth(user_info, ssh_con, ssl=ssl, haproxy=haproxy)
 
 
+
 def verify_object_accessibility(s3_client, bucket_name, object_key):
     try:
         response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
@@ -3366,3 +3376,12 @@ def verify_object_accessibility(s3_client, bucket_name, object_key):
     except Exception as e:
         log.error(f"Failed to access object {object_key}: {e}")
         raise
+
+def list_bucket_objects(rgw_s3_client, bucket_name):
+    """
+    returns all of the objects in the bucket
+    """
+    resp = rgw_s3_client.list_objects(Bucket=bucket_name)
+    log.info(f"list bucket objects response: {resp}")
+    return resp["Contents"]
+

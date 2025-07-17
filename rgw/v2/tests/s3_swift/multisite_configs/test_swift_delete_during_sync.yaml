@@ -1,0 +1,5 @@
+#CEPH-9544
+#script: ceph-qe-scripts/rgw/v2/tests/s3_swift/multisite_configs/test_swift_delete_during_sync.py
+config:
+  user_type: "non-tenanted"
+  container_count: 1

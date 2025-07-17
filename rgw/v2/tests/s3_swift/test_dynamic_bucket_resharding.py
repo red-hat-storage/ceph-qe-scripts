@@ -11,6 +11,7 @@ Usage: test_dynamic_bucket_resharding.py -c <input_yaml>
         test_dynamic_resharding_without_bucket_delete.yaml
         test_manual_resharding_without_bucket_delete.yaml
         test_dynamic_resharding_with_version_without_bucket_delete.yaml
+        test_downshard.yaml
 
     multisite_configs/test_bucket_generation.yaml
     multisite_configs/test_resharding_disable_in_zonegroup.yaml
@@ -85,6 +86,7 @@ def test_exec(config, ssh_con):
     user_info = user_info[0]
     auth = reusable.get_auth(user_info, ssh_con, config.ssl, config.haproxy)
     rgw_conn = auth.do_auth()
+    s3_client = auth.do_auth_using_client()
     verification = True
     if config.test_with_bucket_index_shards:
         utils.exec_shell_cmd(
@@ -306,6 +308,53 @@ def test_exec(config, ssh_con):
             )
         objects_created_list.append((s3_object_name, s3_object_path))
 
+    if config.test_ops.get("downshard", False) is True:
+        log.info("Verify downsharding happens as expected on the above created bucket")
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_dynamic_resharding_reduction_wait,
+            str(config.rgw_dynamic_resharding_reduction_wait),
+            ssh_con,
+        )
+        ceph_conf.set_to_ceph_conf(
+            "global",
+            ConfigOpts.rgw_reshard_debug_interval,
+            str(config.rgw_reshard_debug_interval),
+            ssh_con,
+        )
+        srv_restarted = rgw_service.restart(ssh_con)
+        time.sleep(30)
+        if srv_restarted is False:
+            raise TestExecError("RGW service restart failed")
+        else:
+            log.info("RGW service restarted")
+        log.info("Reshard the bucket to 50 shards")
+        cmd_exec = utils.exec_shell_cmd(
+            f"radosgw-admin bucket reshard --bucket={bucket.name} --num-shards=50"
+        )
+        time.sleep(5)
+        log.info("Delete some objects on the bucket, and it should trigger downshard")
+        for i in range(10):
+            s3_obj_name, _ = objects_created_list.pop()
+            log.info(f"Object delete {s3_obj_name}")
+            s3_client.delete_object(
+                Bucket=bucket.name,
+                Key=s3_obj_name,
+            )
+        log.info(f"wait for 5 minutes for downshard to trigger")
+        time.sleep(310)
+        json_doc = json.loads(
+            utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket.name}")
+        )
+        bucket_id = json_doc["id"]
+        num_shards_present = json_doc["num_shards"]
+        log.info(f"number of shards at present: {num_shards_present}")
+        verification = False
+        if num_shards_present < 50:
+            log.info("Downshard has happened to less than 50")
+        else:
+            raise TestExecError("Downshard unsuccessful, num shards is till at 50")
+
     if config.test_ops.get("bucket_chown", False) is True:
         log.info("Create new user and change bucket ownership")
         new_user = s3lib.create_users(1)
@@ -395,32 +444,37 @@ def test_exec(config, ssh_con):
             raise TestExecError("expected number of shards not created")
         log.info("Expected number of shards created")
     if config.sharding_type == "dynamic":
-        log.info("Verify if resharding list is empty")
-        reshard_list_op = json.loads(utils.exec_shell_cmd("radosgw-admin reshard list"))
-        if reshard_list_op:
-            for reshard in reshard_list_op:
-                if reshard["bucket_name"] == bucket.name:
-                    raise TestExecError("bucket still exist in reshard list")
-        log.info(
-            "for dynamic number of shards created should be greater than or equal to number of expected shards"
-        )
-        log.info(f"no_of_shards_expected: {num_shards_expected}")
-        if int(num_shards_created) < int(num_shards_expected):
-            raise TestExecError("Expected number of shards not created")
+        if not config.test_ops.get("downshard", False):
+            log.info("Verify if resharding list is empty")
+            reshard_list_op = json.loads(
+                utils.exec_shell_cmd("radosgw-admin reshard list")
+            )
+            if reshard_list_op:
+                for reshard in reshard_list_op:
+                    if reshard["bucket_name"] == bucket.name:
+                        raise TestExecError("bucket still exist in reshard list")
+            log.info(
+                "for dynamic number of shards created should be greater than or equal to number of expected shards"
+            )
+            log.info(f"no_of_shards_expected: {num_shards_expected}")
+            if int(num_shards_created) < int(num_shards_expected):
+                raise TestExecError("Expected number of shards not created")
 
-        if config.test_ops.get("upload_after_suspend", False):
-            ena_shard_value = json.loads(utils.exec_shell_cmd(bktstat_cmd))[
-                "num_shards"
-            ]
-            log.info(f"without version suspending number of shards : {ena_shard_value}")
-            if int(ena_shard_value) > int(sus_shard_value):
+            if config.test_ops.get("upload_after_suspend", False):
+                ena_shard_value = json.loads(utils.exec_shell_cmd(bktstat_cmd))[
+                    "num_shards"
+                ]
                 log.info(
-                    "dynamic resharding works as expected with and without suspending versioning"
+                    f"without version suspending number of shards : {ena_shard_value}"
                 )
-            else:
-                raise TestExecError(
-                    "dynamic resharding failed with and without suspending versioning"
-                )
+                if int(ena_shard_value) > int(sus_shard_value):
+                    log.info(
+                        "dynamic resharding works as expected with and without suspending versioning"
+                    )
+                else:
+                    raise TestExecError(
+                        "dynamic resharding failed with and without suspending versioning"
+                    )
 
     if config.disable_dynamic_shard:
         log.info("Testing disable of DBR")
@@ -600,6 +654,7 @@ if __name__ == "__main__":
         log_f_name = os.path.basename(os.path.splitext(yaml_file)[0])
         configure_logging(f_name=log_f_name, set_level=args.log_level.upper())
         config = Config(yaml_file)
+        ceph_conf = CephConfOp(ssh_con)
         config.read(ssh_con)
         if config.mapped_sizes is None:
             config.mapped_sizes = utils.make_mapped_sizes(config)

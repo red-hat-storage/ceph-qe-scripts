@@ -13,6 +13,7 @@ Usage: test_s3cmd.py -c <input_yaml>
     multisite_configs/test_sync_error_list.yaml
     configs/test_setting_public_acl.yaml
     configs/test_create_bucket_for_existing_bucket.yaml
+    configs/test_olh_get.yaml
 
 Operation:
     Create an user
@@ -22,6 +23,7 @@ Operation:
     Delete bucket
     Verification of CEPH-83574806: multiple delete marker not created during object deletion in versioned bucket through s3cmd
     Verify setting public acl to the bucket doesn't result in error
+    Verfy olh get on versioned object doesn't throw any error
 """
 
 import argparse
@@ -486,7 +488,7 @@ def test_exec(config, ssh_con):
         ceph_conf.set_to_ceph_conf(
             "global",
             ConfigOpts.rgw_bucket_eexist_override,
-            str(config.rgw_bucket_eexist_override),
+            "True",
             ssh_con,
         )
         reusable.restart_and_wait_until_daemons_up(ssh_con)
@@ -518,6 +520,53 @@ def test_exec(config, ssh_con):
             ssh_con,
         )
         reusable.restart_and_wait_until_daemons_up(ssh_con)
+
+    elif config.test_ops.get("test_olh_get", False):
+        log.info("Verifying decode olh info while performing radosgw-admin olh get")
+        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        auth = reusable.get_auth(user_info[0], ssh_con, config.ssl, config.haproxy)
+        rgw_conn = auth.do_auth()
+
+        for bc in range(config.bucket_count):
+            bucket_name = utils.gen_bucket_name_from_userid(
+                user_info[0]["user_id"], rand_no=bc
+            )
+            # Create bucket
+            s3cmd_reusable.create_bucket(bucket_name)
+            log.info(f"Bucket {bucket_name} created")
+
+            # Enable versioning
+            s3cmd_reusable.enable_versioning_for_a_bucket(
+                user_info[0], bucket_name, ip_and_port, ssl=None
+            )
+
+            object_name = "obj5m"
+            utils.exec_shell_cmd(f"fallocate -l 5m {object_name}")
+            log.info(f"Now Upload the objects to the bucket {bucket_name}")
+
+            log.info(
+                f"Now Upload 2 versions of the object: {object_name} to the bucket:{bucket_name}"
+            )
+            for i in range(2):
+                cmd = f"{s3cmd_path} put {object_name} s3://{bucket_name}/{object_name}"
+                out = utils.exec_shell_cmd(cmd)
+            stat = json.loads(
+                utils.exec_shell_cmd(
+                    f"radosgw-admin bucket stats --bucket {bucket_name}"
+                )
+            )
+            if int(stat["usage"]["rgw.main"]["num_objects"]) != 2:
+                raise AssertionError(f"Objects upload is not consisitent")
+
+            olh_out = utils.exec_shell_cmd(
+                f"radosgw-admin olh get --bucket {bucket_name} --object {object_name}",
+                return_err=True,
+            )
+
+            if "ERROR: failed reading olh:" in str(olh_out):
+                raise AssertionError(f"olh decode failed for object {object_name}")
 
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]

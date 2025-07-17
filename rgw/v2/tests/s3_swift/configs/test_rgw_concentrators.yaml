@@ -1,0 +1,12 @@
+#polarian id: CEPH-83607420
+#script name:: test_rgw_concentrators.py
+config:
+  test_ops:
+    rgw_with_concentrators: true
+    test_concentrator_behavior: true
+    test_single_rgw_stop: true
+    test_haproxy_stop: true
+    test_haproxy_restart: true
+    test_rgw_service_removal: true
+    traffic_test_requests: 20
+    perform_s3_operations: false

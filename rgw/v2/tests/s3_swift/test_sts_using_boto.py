@@ -75,6 +75,8 @@ def test_exec(config, ssh_con):
     )
 
     reusable.restart_and_wait_until_daemons_up(ssh_con)
+    log.info("sleeping for 30 seconds after rgw restart")
+    time.sleep(30)
 
     auth = Auth(user1, ssh_con, ssl=config.ssl)
     iam_client = auth.do_auth_iam_client()

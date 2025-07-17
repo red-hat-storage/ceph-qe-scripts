@@ -57,7 +57,7 @@ config:
                     {
                          "Action": ["sns:CreateTopic", "sns:DeleteTopic"],
                          "Resource": "*",
-                         "Effect": "deny",
+                         "Effect": "Deny",
                          "Sid": "statement1",
                     },
                ]

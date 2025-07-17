@@ -52,12 +52,17 @@ def test_exec(config, ssh_con):
     rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
     log.info(f"rgw service name is {rgw_service_name}")
 
+    keystone_url = utils.exec_shell_cmd("ceph config dump | grep keystone_url").split()[
+        3
+    ]
+    keystone_server = keystone_url.replace("http://", "").split(":")[0]
+    log.info(f"keystone URL is {keystone_server}")
     # Put keystone conf options for user demo
-    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "demo1", "demo")
+    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "demo1", "demo", "true")
 
-    access_demo = "f1363a717f8c470e8971bd644576011d"
-    secret_demo = "42c450221cf044d9a0867b0e4acd52d3"
-    project_demo = "83ea1f0a366a4e799b8458f2353cb36b"
+    access_demo, secret_demo, project_demo = aws_reusable.get_ec2_details(
+        keystone_server, "demo"
+    )
 
     # Do a awscli query with keystone credentials
     rgw_port = utils.get_radosgw_port_no(ssh_con)
@@ -117,9 +122,13 @@ if __name__ == "__main__":
         parser.add_argument(
             "--rgw-node", dest="rgw_node", help="RGW Node", default="127.0.0.1"
         )
+        parser.add_argument(
+            "--cloud-type", dest="cloud_type", help="IBMC or RHOSD", default="openstack"
+        )
         args = parser.parse_args()
         yaml_file = args.config
         rgw_node = args.rgw_node
+        cloud_type = args.cloud_type
         ssh_con = None
         if rgw_node != "127.0.0.1":
             ssh_con = utils.connect_remote(rgw_node)
