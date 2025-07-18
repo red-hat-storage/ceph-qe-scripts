@@ -3363,6 +3363,23 @@ def get_auth(user_info, ssh_con, ssl, haproxy):
     return Auth(user_info, ssh_con, ssl=ssl, haproxy=haproxy)
 
 
+def verify_object_accessibility(s3_client, bucket_name, object_key):
+    """
+    Verify if the object can be accessed from the bucket.
+    """
+    try:
+        response = s3_client.get_object(Bucket=bucket_name, Key=object_key)
+        if response["ResponseMetadata"]["HTTPStatusCode"] == 200:
+            log.info(f"Object {object_key} is accessible post reshard.")
+        else:
+            log.error(
+                f"Object {object_key} not accessible. Status: {response['ResponseMetadata']['HTTPStatusCode']}"
+            )
+    except Exception as e:
+        log.error(f"Failed to access object {object_key}: {e}")
+        raise
+
+
 def list_bucket_objects(rgw_s3_client, bucket_name):
     """
     returns all of the objects in the bucket
