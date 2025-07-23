@@ -9,12 +9,11 @@ log = logging.getLogger()
 
 
 class AWS:
-    def __init__(self, options=None, ssl=None):
+    def __init__(self, options=None, ssl=None, bin_path="/usr/local/bin/"):
         """
         Constructor for aws class
         options(list): Optional options for the command
         """
-        bin_path = "/usr/local/bin/"
         self.prefix = bin_path + "aws s3api"
         if ssl:
             self.prefix = self.prefix + " --no-verify-ssl"
