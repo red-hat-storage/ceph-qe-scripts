@@ -168,6 +168,56 @@ def create_multipart_upload(
         raise AWSCommandExecError(message=str(e))
 
 
+def upload_part_copy(
+    aws_auth,
+    bucket_name,
+    key_name,
+    part_number,
+    upload_id,
+    version_id,
+    endpoint,
+    ignore_error=False,
+):
+    """
+    Method to perform upload part copy operation using awscli
+    Ex: /usr/local/bin/aws s3api upload-part-copy --bucket <bucket_name> --key <object_name> --copy-source <source_version>
+        --part-number <part_number> --upload-id <upload_id> --endpoint <endpoint>
+    Args:
+        bucket_name(str): Name of the bucket
+        key_name(str): Name of teh object
+        part_number(int): part number
+        upload_id(str): upload id of initiated multipart upload
+        version_id(str): version id of the object to be copied
+        end_point(str): endpoint
+    Return:
+        Response of upload_part_copy operation
+
+    """
+    command = aws_auth.command(
+        operation="upload-part-copy",
+        params=[
+            f"--bucket {bucket_name} --key {key_name} --copy-source '{bucket_name}/{key_name}?versionId={version_id}' --part-number {part_number} --upload-id {upload_id}"
+            f" --endpoint {endpoint}",
+        ],
+    )
+    try:
+        response = utils.exec_shell_cmd(command, return_err=True)
+        if not response:
+            if ignore_error:
+                log.info(
+                    f"Uploading part copy with source failed for bucket {bucket_name} with key {key_name} and upload id {upload_id}"
+                )
+                return response
+            else:
+                raise Exception(
+                    f"Uploading part copy with source failed for bucket {bucket_name} with key {key_name} and upload id"
+                    f" {upload_id}"
+                )
+        return response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
 def upload_part(
     aws_auth,
     bucket_name,
