@@ -1,0 +1,14 @@
+# script: test_rate_limit.py
+# Polarion: CEPH-83574910
+# BZ: 2325438, 2278599, 2262919
+config:
+  user_count: 1
+  bucket_count: 1
+  user_type: non-tenanted
+  version_enable: False
+  bucket_max_read_ops: 2
+  bucket_max_read_bytes: 4096
+  bucket_max_write_ops: 2
+  bucket_max_write_bytes: 4096
+  test_ops:
+    test_user_link_with_ratelimit: true
