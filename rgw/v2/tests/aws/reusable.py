@@ -3,6 +3,7 @@ Reusable methods for aws
 """
 
 
+import base64
 import glob
 import json
 import logging
@@ -13,6 +14,8 @@ import sys
 import time
 from configparser import RawConfigParser
 from pathlib import Path
+
+import awscrt.checksums
 
 log = logging.getLogger()
 
@@ -40,6 +43,28 @@ def create_bucket(aws_auth, bucket_name, end_point):
         log.info(f"bucket creation response is {create_response}")
         if create_response:
             raise Exception(f"Create bucket failed for {bucket_name}")
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def delete_bucket(aws_auth, bucket_name, end_point):
+    """
+    deletes bucket
+    ex: /usr/local/bin/aws s3api delete-bucket --bucket verbkt1 --endpoint-url http://x.x.x.x:xx
+    Args:
+        aws_auth: user auth details
+        bucket_name(str): Name of the bucket to be created
+        end_point(str): endpoint
+    """
+    command = aws_auth.command(
+        operation="delete-bucket",
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
+    )
+    try:
+        delete_response = utils.exec_shell_cmd(command, return_err=True)
+        log.info(f"bucket deletion response is {delete_response}")
+        if delete_response:
+            raise Exception(f"delete bucket failed for {bucket_name}")
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
 
@@ -245,7 +270,7 @@ def upload_part(
         Response of uplaod_part i.e Etag
     """
     if checksum_algo:
-        if checksum_algo is "crc32c":
+        if checksum_algo == "crc32c":
             algo = "crc32-c"
         else:
             algo = checksum_algo
@@ -314,7 +339,7 @@ def complete_multipart_upload(
         response = utils.exec_shell_cmd(command)
         if not response:
             raise Exception(
-                f"creating multipart upload failed for bucket {bucket_name} with key {key_name} and"
+                f"complete multipart upload failed for bucket {bucket_name} with key {key_name} and"
                 f" upload id {upload_id}"
             )
         return response
@@ -350,7 +375,14 @@ def put_object(aws_auth, bucket_name, object_name, end_point):
 
 
 def put_object_checksum(
-    aws_auth, bucket_name, object_name, end_point, checksum_algorithm, checksum=None
+    aws_auth,
+    bucket_name,
+    object_name,
+    end_point,
+    checksum_algorithm,
+    checksum=None,
+    s3_object_path=None,
+    failure_expected=False,
 ):
     """
     Put/uploads object to the bucket with provided checksum value
@@ -361,29 +393,35 @@ def put_object_checksum(
         end_point(str): endpoint
         checksum_algorithm: one of sha1,sha256,crc32,crc-32c
         checksum
+        s3_object_path
+        failure_expected
     Return:
 
     """
-    if checksum_algorithm is "crc32c":
+    if checksum_algorithm == "crc32c":
         algo = "crc32-c"
+    elif checksum_algorithm == "crc64nvme":
+        algo = "crc64-nvme"
     else:
         algo = checksum_algorithm
     command = aws_auth.command(
         operation="put-object",
         params=[
-            f"--bucket {bucket_name} --key {object_name} --body {object_name} --endpoint-url {end_point} --checksum-algorithm {checksum_algorithm} --checksum-{algo} {checksum}",
+            f"--bucket {bucket_name} --key {object_name} --body {s3_object_path if s3_object_path else object_name} --endpoint-url {end_point} --checksum-algorithm {checksum_algorithm} --checksum-{algo} {checksum}",
         ],
     )
 
-    out = utils.exec_shell_cmd(command, return_err=True)
-    if out:
-        log.info(f"Output : {out}")
-        if "not iterable" in out:
+    out = utils.exec_shell_cmd(command)
+    log.info(f"Output : {out}")
+    if out is False:
+        if failure_expected:
             log.info("Upload failed as expected for wrong checksum")
         else:
-            log.info(f"Upload successful for {algo}")
+            raise Exception(f"put object with checksum failed for {bucket_name}")
+
     else:
-        raise AssertionError("Upload failed")
+        log.info(f"Upload successful for {algo}")
+        return out
 
 
 def delete_object(aws_auth, bucket_name, object_name, end_point, versionid=None):
@@ -415,7 +453,8 @@ def delete_object(aws_auth, bucket_name, object_name, end_point, versionid=None)
         )
     try:
         delete_response = utils.exec_shell_cmd(command)
-        if not delete_response:
+        log.info(f"delete object response: {delete_response}")
+        if delete_response is False:
             raise Exception(f"delete object failed for {bucket_name}")
         return delete_response
     except Exception as e:
@@ -637,7 +676,9 @@ def upload_multipart_aws(
         return complete_multipart_upload_resp
 
 
-def get_object(aws_auth, bucket_name, object_name, end_point):
+def get_object(
+    aws_auth, bucket_name, object_name, end_point, download_path="out_object"
+):
     """
     Does a get object from the bucket
     Args:
@@ -650,7 +691,7 @@ def get_object(aws_auth, bucket_name, object_name, end_point):
     command = aws_auth.command(
         operation="get-object",
         params=[
-            f"--bucket {bucket_name} --key {object_name} out_object --endpoint-url {end_point}",
+            f"--bucket {bucket_name} --key {object_name} {download_path} --endpoint-url {end_point}",
         ],
     )
     try:
@@ -662,24 +703,27 @@ def get_object(aws_auth, bucket_name, object_name, end_point):
         raise AWSCommandExecError(message=str(e))
 
 
-def copy_object(aws_auth, bucket_name, object_name, end_point):
+def copy_object(aws_auth, bucket_name, object_name, end_point, dest_obj_name=None):
     """
     Does a copy object from the bucket
     Args:
         bucket_name(str): Name of the bucket from which object needs to be listed
         object_name(str): Name of the object/file
         end_point(str): endpoint
+        dest_obj_name(str): destination object name
     Return:
         Response of get object operation
     """
     command = aws_auth.command(
         operation="copy-object",
         params=[
-            f"--copy-source {bucket_name}/{object_name} --bucket {bucket_name} --key {object_name}  --metadata-directive 'REPLACE' --content-type 'text/plain' --endpoint-url {end_point}",
+            f"--copy-source {bucket_name}/{object_name} --bucket {bucket_name} --key {dest_obj_name if dest_obj_name else object_name} {'--metadata-directive REPLACE' if dest_obj_name is None else ''} --content-type 'text/plain' --endpoint-url {end_point}",
         ],
     )
     try:
         copy_response = utils.exec_shell_cmd(command)
+        if copy_response is False:
+            raise Exception(f"copy object failed for {object_name}")
         return copy_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
@@ -696,13 +740,13 @@ def list_objects(aws_auth, bucket_name, endpoint, marker=None):
         Returns details of every object in the bucket post the marker
     """
     if marker:
-        marker_param = marker
+        marker_param = f"--marker {marker}"
     else:
         marker_param = " "
     command = aws_auth.command(
         operation="list-objects",
         params=[
-            f"--bucket {bucket_name} --marker {marker_param} --endpoint-url {endpoint}",
+            f"--bucket {bucket_name} {marker_param} --endpoint-url {endpoint}",
         ],
     )
     try:
@@ -741,26 +785,29 @@ def calculate_checksum(algo, file):
     """
     Return the base64 encoded checksum for the provided algorithm
     """
-    log.info("Install Rhash program")
-    utils.exec_shell_cmd(
-        "rpm -ivh https://rpmfind.net/linux/epel/9/Everything/x86_64/Packages/r/rhash-1.4.2-1.el9.x86_64.rpm"
-    )
-    time.sleep(2)
-    if algo is "sha1" or "sha256":
-        checksum = utils.exec_shell_cmd(f"rhash --sha1 --base64 {file}").split(" ", 1)[
-            0
-        ]
+
+    if algo == "sha1" or algo == "sha256":
+        checksum = utils.exec_shell_cmd(f"rhash --{algo} --base64 {file}").split(
+            " ", 1
+        )[0]
         return checksum
-    elif algo is "crc32":
-        checksum = utils.exec_shell_cmd(f"rhash --crc32 --base64 {file}").split(" ", 1)[
-            1
-        ]
+    elif algo == "crc32":
+        checksum = (
+            utils.exec_shell_cmd(f"rhash --crc32 --base64 {file}")
+            .strip()
+            .split("\n")[-1]
+            .split(" ")[1]
+        )
         return checksum
-    elif algo is "crc32c":
-        utils.exec_shell_cmd("sudo pip install botocore[crt]")
+    elif algo == "crc32c":
         checksum = utils.exec_shell_cmd(f"rhash --crc32c --base64 {file}").split(
             " ", 1
         )[0]
+        return checksum
+    elif algo == "crc64nvme":
+        checksum = base64.b64encode(
+            awscrt.checksums.crc64nvme(open(file, "rb").read()).to_bytes(8, "big")
+        ).decode()
         return checksum
 
 
@@ -779,9 +826,39 @@ def get_object_attributes(aws_auth, bucket_name, key, endpoint):
         if "Checksum" not in resp:
             raise Exception(f"get object failed for {bucket_name}")
         log.info("Checksum is present in object attributes")
+        resp = json.loads(resp)
         return resp
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
+
+
+def verify_checksum(response, checksum_algo, checksum, upload_type):
+    """
+    verifying checksum fields (checksum and checksum_type) in the response
+    """
+    log.info("verifying checksum fields in the response")
+    checksum_key = f"Checksum{str(checksum_algo).upper()}"
+    checksum_type = response["ChecksumType"]
+
+    checksum_type_expected = "FULL_OBJECT"
+    if checksum_algo == "sha1" or checksum_algo == "sha256":
+        if upload_type == "multipart":
+            checksum_type_expected = "COMPOSITE"
+    if checksum_type != checksum_type_expected:
+        raise AssertionError(
+            f"Checksum not same as expected in the response. Expected {checksum_type_expected}, but received {checksum_type}"
+        )
+    else:
+        log.info("checksum_type verified successfully")
+
+    if response[checksum_key] != checksum:
+        if checksum_type == "COMPOSITE":
+            log.info(
+                f"As it is a COMPOSITE checksum, checksum is different than locally calculated entire object checksum '{checksum}'"
+            )
+        else:
+            raise AssertionError("Checksum not same as expected in the response")
+    log.info(f"{checksum_key} verified successfully")
 
 
 def put_keystone_conf(rgw_service_name, user, passw, project, tenant="true"):
