@@ -124,7 +124,7 @@ def test_exec(config, ssh_con):
                 bucket_name = utils.gen_bucket_name_from_userid(
                     user_info[0]["user_id"], rand_no=bc
                 )
-                s3cmd_reusable.create_bucket(bucket_name)
+                s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
                 log.info(f"Bucket {bucket_name} created")
                 s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
                 object_count = config.objects_count // 2

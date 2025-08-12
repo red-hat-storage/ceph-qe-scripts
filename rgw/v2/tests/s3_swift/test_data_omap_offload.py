@@ -1,16 +1,16 @@
 """
-test_data_omap_offload - Test data omap offload 
+test_data_omap_offload - Test data omap offload
 Usage: test_data_omap_offload.py -c <input_yaml>
 <input_yaml>
     Note: any one of these yamls can be used
-	test_data_omap_offload.yaml 
-	test_data_omap_offload_change_datatype_to_omap.yaml
-	test_data_omap_offload_change_datatype_to_fifo.yaml
-	test_data_omap_offload_multipart.yaml 
-	test_data_omap_offload_versioned_bucket.yaml
+        test_data_omap_offload.yaml
+        test_data_omap_offload_change_datatype_to_omap.yaml
+        test_data_omap_offload_change_datatype_to_fifo.yaml
+        test_data_omap_offload_multipart.yaml
+        test_data_omap_offload_versioned_bucket.yaml
 Operation:
-    with default datalog_backing verify 
-	change the default datalog_backing and verify [applicable to nautilus]
+    with default datalog_backing verify
+        change the default datalog_backing and verify [applicable to nautilus]
 """
 
 import os
@@ -30,6 +30,7 @@ from v2.lib.rgw_config_opts import CephConfOp
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -46,6 +47,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # check the default data log backing
     default_data_log = reusable.get_default_datalog_type()
@@ -88,7 +90,7 @@ def test_exec(config, ssh_con):
                 )
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
                 bucket = reusable.create_bucket(
-                    bucket_name_to_create, rgw_conn, each_user
+                    bucket_name_to_create, rgw_conn, each_user, ip_and_port
                 )
                 if config.test_ops.get("enable_version", False):
                     log.info("enable bucket version")

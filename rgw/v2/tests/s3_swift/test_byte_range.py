@@ -10,6 +10,7 @@ Operation:
     Download the object created above with a negative byte range and check whether the whole object is returned
     Download the object created above with a negative to positive byte range and check whether the whole object is returned
 """
+
 # test basic creation of buckets with objects
 import os
 import sys
@@ -25,6 +26,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -39,6 +41,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     test_info.started_info()
     # create user
@@ -54,7 +57,9 @@ def test_exec(config, ssh_con):
             bucket_name = utils.gen_bucket_name_from_userid(
                 each_user["user_id"], rand_no=1
             )
-            bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+            bucket = reusable.create_bucket(
+                bucket_name, rgw_conn, each_user, ip_and_port
+            )
             # uploading data
             log.info("s3 objects to create: %s" % config.objects_count)
             for oc, size in config.mapped_sizes.items():

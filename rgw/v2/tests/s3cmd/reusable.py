@@ -35,7 +35,7 @@ home_path = os.path.expanduser("~cephuser")
 s3cmd_path = home_path + "/venv/bin/s3cmd"
 
 
-def create_bucket(bucket_name, ssl=None):
+def create_bucket(bucket_name, endpoint, ssl=None, retries=3, wait_time=5):
     """
     Creates bucket
     Args:
@@ -47,6 +47,22 @@ def create_bucket(bucket_name, ssl=None):
     else:
         ssl_param = ""
     command = mb_method.command(params=[f"s3://{bucket_name}", ssl_param])
+
+    # Retry until endpoint is reachable or max retries reached
+    for attempt in range(1, retries + 1):
+        output = exec_shell_cmd(f"curl -k --connect-timeout 10 {endpoint}")
+        if output:
+            log.info(f"Endpoint {endpoint} is reachable on attempt {attempt}.")
+            break
+        else:
+            log.warning(
+                f"Attempt {attempt}: Endpoint {endpoint} not reachable, retrying in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+    else:
+        log.error(f"Endpoint {endpoint} is not reachable after {retries} attempts.")
+        return
+
     try:
         mb_response = exec_shell_cmd(command)
         log.debug(f"Response for create bucket command: {mb_response}")

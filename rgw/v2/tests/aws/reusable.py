@@ -2,7 +2,6 @@
 Reusable methods for aws
 """
 
-
 import glob
 import json
 import logging
@@ -23,7 +22,7 @@ from v2.lib.exceptions import AWSCommandExecError, TestExecError
 from v2.lib.manage_data import io_generator
 
 
-def create_bucket(aws_auth, bucket_name, end_point):
+def create_bucket(aws_auth, bucket_name, end_point, retries=3, wait_time=5):
     """
     Creates bucket
     ex: /usr/local/bin/aws s3api create-bucket --bucket verbkt1 --endpoint-url http://x.x.x.x:xx
@@ -31,6 +30,21 @@ def create_bucket(aws_auth, bucket_name, end_point):
         bucket_name(str): Name of the bucket to be created
         end_point(str): endpoint
     """
+
+    for attempt in range(1, retries + 1):
+        output = utils.exec_shell_cmd(f"curl -k --connect-timeout 10 {end_point}")
+        if output:
+            log.info(f"Endpoint {end_point} is reachable on attempt {attempt}.")
+            break
+        else:
+            log.warning(
+                f"Attempt {attempt}: Endpoint {end_point} not reachable, retrying in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+    else:
+        log.error(f"Endpoint {end_point} is not reachable after {retries} attempts.")
+        return
+
     command = aws_auth.command(
         operation="create-bucket",
         params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
@@ -163,6 +177,56 @@ def create_multipart_upload(
             raise Exception(
                 f"creating multipart upload failed for bucket {bucket_name} with object name {key_name}"
             )
+        return response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def upload_part_copy(
+    aws_auth,
+    bucket_name,
+    key_name,
+    part_number,
+    upload_id,
+    version_id,
+    endpoint,
+    ignore_error=False,
+):
+    """
+    Method to perform upload part copy operation using awscli
+    Ex: /usr/local/bin/aws s3api upload-part-copy --bucket <bucket_name> --key <object_name> --copy-source <source_version>
+        --part-number <part_number> --upload-id <upload_id> --endpoint <endpoint>
+    Args:
+        bucket_name(str): Name of the bucket
+        key_name(str): Name of teh object
+        part_number(int): part number
+        upload_id(str): upload id of initiated multipart upload
+        version_id(str): version id of the object to be copied
+        end_point(str): endpoint
+    Return:
+        Response of upload_part_copy operation
+
+    """
+    command = aws_auth.command(
+        operation="upload-part-copy",
+        params=[
+            f"--bucket {bucket_name} --key {key_name} --copy-source '{bucket_name}/{key_name}?versionId={version_id}' --part-number {part_number} --upload-id {upload_id}"
+            f" --endpoint {endpoint}",
+        ],
+    )
+    try:
+        response = utils.exec_shell_cmd(command, return_err=True)
+        if not response:
+            if ignore_error:
+                log.info(
+                    f"Uploading part copy with source failed for bucket {bucket_name} with key {key_name} and upload id {upload_id}"
+                )
+                return response
+            else:
+                raise Exception(
+                    f"Uploading part copy with source failed for bucket {bucket_name} with key {key_name} and upload id"
+                    f" {upload_id}"
+                )
         return response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))

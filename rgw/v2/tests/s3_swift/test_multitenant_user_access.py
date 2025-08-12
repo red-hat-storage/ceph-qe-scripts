@@ -7,7 +7,7 @@ Operation:
 1. We have to first create a user with same name in 2 different tenants.
 2. Then we have to create a bucket say b1 and an object say o1 in the bucket via both the users.
 3. We then have to create another user say test2 in tenant2 and retrieve the bucket and object via this user (test2).
-    
+
     So, in this test we check two things:
 
     1. if the bucket and object with same name is created using same user names but in different tenants.
@@ -15,6 +15,7 @@ Operation:
 
 
 """
+
 import os
 import sys
 
@@ -32,6 +33,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -57,6 +59,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # preparing data
     user_names = ["user1", "user2", "user3"]
@@ -71,10 +74,16 @@ def test_exec(config, ssh_con):
     t2_u1_auth = Auth(t2_u1_info, ssh_con, ssl=config.ssl)
     t2_u1 = t2_u1_auth.do_auth()
     t1_u1_b1 = reusable.create_bucket(
-        bucket_name=Bucket_names[0], rgw=t1_u1, user_info=t1_u1_info
+        bucket_name=Bucket_names[0],
+        rgw=t1_u1,
+        user_info=t1_u1_info,
+        endpoint=ip_and_port,
     )
     t2_u1_b1 = reusable.create_bucket(
-        bucket_name=Bucket_names[0], rgw=t2_u1, user_info=t2_u1_info
+        bucket_name=Bucket_names[0],
+        rgw=t2_u1,
+        user_info=t2_u1_info,
+        endpoint=ip_and_port,
     )
     obj_sizes = list(config.mapped_sizes.values())
     config.obj_size = obj_sizes[0]

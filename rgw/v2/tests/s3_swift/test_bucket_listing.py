@@ -4,18 +4,18 @@ Usage: test_bucket_listing.py -c <input_yaml>
 <input_yaml>
     Note: any one of these yamls can be used
     test_bucket_listing_flat_ordered_versionsing.yaml
-	test_bucket_listing_flat_ordered.yaml
-	test_bucket_listing_flat_unordered.yaml
-	test_bucket_listing_flat_ordered_benchmark.yaml
-	test_bucket_listing_pseudo_ordered_benchmark.yaml
-	test_bucket_listing_psuedo_only_ordered.yaml
-	test_bucket_listing_pseudo_ordered.yaml	
-    test_bucket_listing_pseudo_ordered_dir_only.yaml	
+        test_bucket_listing_flat_ordered.yaml
+        test_bucket_listing_flat_unordered.yaml
+        test_bucket_listing_flat_ordered_benchmark.yaml
+        test_bucket_listing_pseudo_ordered_benchmark.yaml
+        test_bucket_listing_psuedo_only_ordered.yaml
+        test_bucket_listing_pseudo_ordered.yaml
+    test_bucket_listing_pseudo_ordered_dir_only.yaml
     test_bucket_listing_fake_mp.yaml
 Operation:
-    Create user 
-	create objects as per the object structure mentioned in the yaml
-   	list the objects using boto and radosgw-admin command.
+    Create user
+        create objects as per the object structure mentioned in the yaml
+        list the objects using boto and radosgw-admin command.
 """
 
 import os
@@ -40,6 +40,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import list_fake_mp as bucket_list_incomplete_mp
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -57,6 +58,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -97,7 +99,7 @@ def test_exec(config, ssh_con):
                 )
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
                 bucket = reusable.create_bucket(
-                    bucket_name_to_create, rgw_conn, each_user
+                    bucket_name_to_create, rgw_conn, each_user, ip_and_port
                 )
 
                 bucket_created.append(bucket)

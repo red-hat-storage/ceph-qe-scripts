@@ -108,7 +108,7 @@ def test_exec(config, ssh_con):
         s3cmd_reusable.create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl)
     else:
         ssl = config.ssl
-        s3cmd_reusable.create_bucket(bucket_name, ssl)
+        s3cmd_reusable.create_bucket(bucket_name, ip_and_port, ssl)
 
     if config.user_type == "tenanted":
         bucket_name = f"tenant1/{bucket_name}"
@@ -215,6 +215,7 @@ def test_exec(config, ssh_con):
         utils.exec_shell_cmd(
             f"radosgw-admin ratelimit disable --ratelimit-scope=bucket --bucket={bucket_name}"
         )
+
         limset = utils.exec_shell_cmd(
             f"radosgw-admin ratelimit set --ratelimit-scope=user --uid={user_name}"
             + f" --max-read-ops={max_read_ops} --max-read-bytes={max_read_bytes}"

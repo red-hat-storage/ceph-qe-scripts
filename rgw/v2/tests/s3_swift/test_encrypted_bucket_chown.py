@@ -10,7 +10,7 @@ Operation:
     Create 2 users and create a bucket with user1 credentials
     enable per-bucket sse-s3 encryption with vault backend
     change the ownership of the bucket to user2 and then upload objects
-    test objects uploaded are encrypted with AES256. 
+    test objects uploaded are encrypted with AES256.
 
 """
 
@@ -37,6 +37,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -52,6 +53,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     if config.user_count is 2:
@@ -77,7 +79,9 @@ def test_exec(config, ssh_con):
                         user1["user_id"], rand_no=bc
                     )
                     log.info(f"creating bucket with name: {bucket_name}")
-                    bucket = reusable.create_bucket(bucket_name, rgw_conn1, user1)
+                    bucket = reusable.create_bucket(
+                        bucket_name, rgw_conn1, user1, ip_and_port
+                    )
                     if config.test_ops.get("enable_version", False):
                         log.info("enable bucket version")
                         reusable.enable_versioning(
@@ -109,7 +113,9 @@ def test_exec(config, ssh_con):
                     tenant = "default"
                     bucket = bucket_name
                     reusable.link_chown_nontenant_to_nontenant(new_uid, bucket)
-                    bucket = reusable.create_bucket(bucket_name, rgw_conn2, user2)
+                    bucket = reusable.create_bucket(
+                        bucket_name, rgw_conn2, user2, ip_and_port
+                    )
                     # create objects
                 if config.test_ops["create_object"] is True:
                     # uploading data
@@ -153,7 +159,9 @@ def test_exec(config, ssh_con):
                         user1["user_id"], rand_no=bc
                     )
                     log.info(f"creating bucket with name: {bucket_name}")
-                    bucket = reusable.create_bucket(bucket_name, rgw_conn1, user1)
+                    bucket = reusable.create_bucket(
+                        bucket_name, rgw_conn1, user1, ip_and_port
+                    )
                     if config.test_ops.get("enable_version", False):
                         log.info("enable bucket version")
                         reusable.enable_versioning(
@@ -173,7 +181,9 @@ def test_exec(config, ssh_con):
                     tenant = "default"
                     bucket = bucket_name
                     reusable.link_chown_nontenant_to_nontenant(new_uid, bucket)
-                    bucket = reusable.create_bucket(bucket_name, rgw_conn2, user2)
+                    bucket = reusable.create_bucket(
+                        bucket_name, rgw_conn2, user2, ip_and_port
+                    )
 
                     # enable per bucket encryption on the bucket
                     log.info(

@@ -5,7 +5,7 @@ Usage: test_user_bucket_rename.py -c <input_yaml>
 <input_yaml>
         Note: any one of these yamls can be used
         test_user_bucket_rename.yaml
-        test_user_rename.yaml 
+        test_user_rename.yaml
 
 Operation:
     Create tenanted and non tenanted user
@@ -14,6 +14,7 @@ Operation:
         Bucket unlink and link from non tenanted to tenanted users
         Bucket unlink and link from tenanted to non tenanted users
 """
+
 import os
 import sys
 
@@ -28,6 +29,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -47,6 +49,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     non_ten_buckets = {}
     ten_buckets = {}
@@ -77,7 +80,9 @@ def test_exec(config, ssh_con):
         rgw_conn = auth.do_auth()
         bucket_name_to_create1 = utils.gen_bucket_name_from_userid(user["user_id"])
         log.info("creating bucket with name: %s" % bucket_name_to_create1)
-        bucket = reusable.create_bucket(bucket_name_to_create1, rgw_conn, user)
+        bucket = reusable.create_bucket(
+            bucket_name_to_create1, rgw_conn, user, ip_and_port
+        )
         non_ten_buckets[user["user_id"]] = bucket_name_to_create1
         if config.test_ops["rename_buckets"] is True:
             bucket_new_name1 = "new" + bucket_name_to_create1
@@ -94,7 +99,9 @@ def test_exec(config, ssh_con):
         rgw_conn = auth.do_auth()
         bucket_name_to_create2 = utils.gen_bucket_name_from_userid(ten_user["user_id"])
         log.info("creating bucket with name: %s" % bucket_name_to_create2)
-        bucket = reusable.create_bucket(bucket_name_to_create2, rgw_conn, ten_user)
+        bucket = reusable.create_bucket(
+            bucket_name_to_create2, rgw_conn, ten_user, ip_and_port
+        )
         ten_buckets[ten_user["user_id"]] = bucket_name_to_create2
         if config.test_ops["rename_buckets"] is True:
             bucket_new_name2 = "new" + bucket_name_to_create2

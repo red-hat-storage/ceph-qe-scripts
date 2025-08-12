@@ -1,16 +1,17 @@
-""" test_versioning_copy_objects - Test Copy of objects with Versioned and non-versionsed buckets.
+"""test_versioning_copy_objects - Test Copy of objects with Versioned and non-versionsed buckets.
 
 Usage: test_versioning_copy_objects.py -c <input_yaml>
 
 <input_yaml>
-	Note: Any one of these yamls can be used
-	test_versioning_copy_objects.yaml
+        Note: Any one of these yamls can be used
+        test_versioning_copy_objects.yaml
 Operation:
-	Create a bucket and a versioned bucket
- 	Copy objects between buckets 
-	verify version ID is created for objects in versioned buckets.
+        Create a bucket and a versioned bucket
+        Copy objects between buckets
+        verify version ID is created for objects in versioned buckets.
 
 """
+
 # Test Desc:  test of version copy objects to different buckets
 import os
 import sys
@@ -32,6 +33,7 @@ from v2.lib.s3.write_io_info import (
     KeyIoInfo,
 )
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -53,6 +55,7 @@ def test_exec(config, ssh_con):
     # create user
     s3_user = s3lib.create_users(1)[0]
     # authenticate
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
     auth = Auth(s3_user, ssh_con, ssl=config.ssl)
     rgw_conn = auth.do_auth()
     b1_name = utils.gen_bucket_name_from_userid(s3_user["user_id"], rand_no=1)
@@ -61,8 +64,8 @@ def test_exec(config, ssh_con):
     b2_name = utils.gen_bucket_name_from_userid(s3_user["user_id"], rand_no=2)
     b2_k1_name = b2_name + ".key.1"  # key1
     b2_k2_name = b2_name + ".key.2"  # key2
-    b1 = reusable.create_bucket(b1_name, rgw_conn, s3_user)
-    b2 = reusable.create_bucket(b2_name, rgw_conn, s3_user)
+    b1 = reusable.create_bucket(b1_name, rgw_conn, s3_user, ip_and_port)
+    b2 = reusable.create_bucket(b2_name, rgw_conn, s3_user, ip_and_port)
     # enable versioning on b1
     reusable.enable_versioning(b1, rgw_conn, s3_user, write_bucket_io_info)
     # upload object to version enabled bucket b1
@@ -154,7 +157,9 @@ def test_exec(config, ssh_con):
             )
     if config.copy_versioned_obj_to_versioned_bkt:
         versioned_bkt_name = "new-ver-bkt"
-        new_bkt = reusable.create_bucket(versioned_bkt_name, rgw_conn, s3_user)
+        new_bkt = reusable.create_bucket(
+            versioned_bkt_name, rgw_conn, s3_user, ip_and_port
+        )
         reusable.enable_versioning(new_bkt, rgw_conn, s3_user, write_bucket_io_info)
         new_bkt_k1_name = versioned_bkt_name + ".key.1"  # key1
         # upload object to version enabled bucket new-ver-bkt

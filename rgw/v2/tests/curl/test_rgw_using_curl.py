@@ -27,6 +27,7 @@ from v2.lib import resource_op
 from v2.lib.curl.resource_op import CURL
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.tests.aws import reusable as aws_reusable
 from v2.tests.curl import reusable as curl_reusable
 from v2.tests.s3_swift import reusable as s3_reusable
 from v2.utils import utils
@@ -105,10 +106,11 @@ def test_exec(config, ssh_con):
         log.info(user_name)
 
         curl_auth = CURL(each_user, ssh_con, ssl=config.ssl)
+        endpoint = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
 
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
-            curl_reusable.create_bucket(curl_auth, bucket_name)
+            curl_reusable.create_bucket(curl_auth, bucket_name, endpoint)
             log.info(f"Bucket {bucket_name} created")
 
             # create objects
