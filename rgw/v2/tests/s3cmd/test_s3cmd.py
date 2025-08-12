@@ -89,7 +89,7 @@ def test_exec(config, ssh_con):
             bucket_name = utils.gen_bucket_name_from_userid(
                 user_info[0]["user_id"], rand_no=bc
             )
-            s3cmd_reusable.create_bucket(bucket_name)
+            s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
             object_count = config.objects_count // 2
@@ -139,7 +139,9 @@ def test_exec(config, ssh_con):
         bucket_name = utils.gen_bucket_name_from_userid(
             user_info[0]["user_id"], rand_no=1
         )
-        bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info[0])
+        bucket = reusable.create_bucket(
+            bucket_name, rgw_conn, user_info[0], ip_and_port
+        )
         reusable.enable_versioning(bucket, rgw_conn, user_info[0], write_bucket_io_info)
 
         log.info("uploading current and non-current version of object object1")
@@ -191,7 +193,9 @@ def test_exec(config, ssh_con):
         bucket_name = utils.gen_bucket_name_from_userid(
             user_info[0]["user_id"], rand_no=1
         )
-        bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info[0])
+        bucket = reusable.create_bucket(
+            bucket_name, rgw_conn, user_info[0], ip_and_port
+        )
 
         life_cycle_rule = {"Rules": config.lifecycle_conf}
         reusable.put_bucket_lifecycle(
@@ -264,7 +268,7 @@ def test_exec(config, ssh_con):
             )
             if bc == 0:
                 bucket_prefix = bucket_name[:-2]
-            s3cmd_reusable.create_bucket(bucket_name)
+            s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             buckets.append(bucket_name)
             log.info(
@@ -356,7 +360,7 @@ def test_exec(config, ssh_con):
             bucket_name = utils.gen_bucket_name_from_userid(
                 user_info[0]["user_id"], rand_no=bc
             )
-            s3cmd_reusable.create_bucket(bucket_name)
+            s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
 
@@ -422,7 +426,7 @@ def test_exec(config, ssh_con):
             bucket_name = utils.gen_bucket_name_from_userid(
                 user_info[0]["user_id"], rand_no=bc
             )
-            s3cmd_reusable.create_bucket(bucket_name)
+            s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
             cmd = f"{s3cmd_path} setacl --acl-public s3://{bucket_name}"
@@ -476,13 +480,13 @@ def test_exec(config, ssh_con):
         bucket_name = utils.gen_bucket_name_from_userid(
             user_info[0]["user_id"], rand_no=0
         )
-        s3cmd_reusable.create_bucket(bucket_name)
+        s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
         log.info(f"Bucket {bucket_name} created")
         log.info(f"list bucket under user {user_info[0]['user_id']}")
         resp = utils.exec_shell_cmd("/home/cephuser/venv/bin/s3cmd ls")
         log.info(f"bucket list s3mcd ls data {resp}")
         log.info(f"Create bucket {bucket_name} which is alreday exist")
-        s3cmd_reusable.create_bucket(bucket_name)
+        s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
         log.info("BucketAlreadyExists error not seen as expected")
         log.info("set config rgw_bucket_eexist_override for rgw daemon service")
         ceph_conf.set_to_ceph_conf(
@@ -534,7 +538,7 @@ def test_exec(config, ssh_con):
                 user_info[0]["user_id"], rand_no=bc
             )
             # Create bucket
-            s3cmd_reusable.create_bucket(bucket_name)
+            s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
 
             # Enable versioning
@@ -581,7 +585,7 @@ def test_exec(config, ssh_con):
         bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
 
         # Create a bucket
-        s3cmd_reusable.create_bucket(bucket_name)
+        s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
         log.info(f"Bucket {bucket_name} created")
         object_count = config.objects_count
 

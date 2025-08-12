@@ -129,7 +129,7 @@ def get_user_info(curl_auth, uid):
     return user_get_resp
 
 
-def create_subuser(curl_auth, uid, subuser_name):
+def create_subuser(curl_auth, uid, subuser_name, endpoint, retries=3, wait_time=5):
     """
     create rgw user using curl
     ex: curl -X PUT http://10.0.209.142:80/admin/user?subuser=subuser_name&uid=user_name
@@ -139,6 +139,21 @@ def create_subuser(curl_auth, uid, subuser_name):
         subuser_name(str): name of the user to be created
     """
     log.info(f"subuser to create: {subuser_name}")
+
+    for attempt in range(1, retries + 1):
+        output = utils.exec_shell_cmd(f"curl -k --connect-timeout 10 {endpoint}")
+        if output:
+            log.info(f"Endpoint {endpoint} is reachable on attempt {attempt}.")
+            break
+        else:
+            log.warning(
+                f"Attempt {attempt}: Endpoint {endpoint} not reachable, retrying in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+    else:
+        log.error(f"Endpoint {endpoint} is not reachable after {retries} attempts.")
+        return
+
     headers = {
         "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
     }
@@ -154,7 +169,7 @@ def create_subuser(curl_auth, uid, subuser_name):
     return subuser_create_resp
 
 
-def create_bucket(curl_auth, bucket_name):
+def create_bucket(curl_auth, bucket_name, endpoint, retries=3, wait_time=5):
     """
     Creates bucket
     ex: curl -X PUT http://10.0.209.142:80/bkt1
@@ -163,6 +178,22 @@ def create_bucket(curl_auth, bucket_name):
         bucket_name(str): Name of the bucket to be created
     """
     utils.exec_shell_cmd("curl --version")
+
+    # Retry until endpoint is reachable or max retries reached
+    for attempt in range(1, retries + 1):
+        output = utils.exec_shell_cmd(f"curl -k --connect-timeout 10 {endpoint}")
+        if output:
+            log.info(f"Endpoint {endpoint} is reachable on attempt {attempt}.")
+            break
+        else:
+            log.warning(
+                f"Attempt {attempt}: Endpoint {endpoint} not reachable, retrying in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+    else:
+        log.error(f"Endpoint {endpoint} is not reachable after {retries} attempts.")
+        return
+
     headers = {
         "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
     }
@@ -395,7 +426,9 @@ def delete_bucket(curl_auth, bucket_name):
     return True
 
 
-def set_user_quota(curl_auth, user_id, quota_type, quota_json):
+def set_user_quota(
+    curl_auth, user_id, quota_type, quota_json, endpoint, retries=3, wait_time=5
+):
     """
     set user/bucket quota to a user
     example for put user quota: curl -X PUT "http://10.0.103.136:80/admin/user?quota=true&quota-type=user&uid=hmaheswa3"
@@ -413,6 +446,21 @@ def set_user_quota(curl_auth, user_id, quota_type, quota_json):
                             }
     """
     log.info(f"setting {quota_type} quota")
+
+    for attempt in range(1, retries + 1):
+        output = utils.exec_shell_cmd(f"curl -k --connect-timeout 10 {endpoint}")
+        if output:
+            log.info(f"Endpoint {endpoint} is reachable on attempt {attempt}.")
+            break
+        else:
+            log.warning(
+                f"Attempt {attempt}: Endpoint {endpoint} not reachable, retrying in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+    else:
+        log.error(f"Endpoint {endpoint} is not reachable after {retries} attempts.")
+        return
+
     headers = {
         "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
     }

@@ -1,16 +1,17 @@
-""" test_bucket_request_payer.py - Test requester pays buckets.
+"""test_bucket_request_payer.py - Test requester pays buckets.
 
 Usage: test_bucket_request_payer.py -c <input_yaml>
 
 <input_yaml>
-	Note: Any one of these yamls can be used
-	test_bucket_request_payer.yaml
-	test_bucket_request_payer_download.yaml
+        Note: Any one of these yamls can be used
+        test_bucket_request_payer.yaml
+        test_bucket_request_payer_download.yaml
 
 Operation:
-	Create a bucket. Verify the Requester pays bucket is set to 'Requester' and upload objects
-	Create a bucket. Verify the Requester pays bucket is set to 'Requester'.
+        Create a bucket. Verify the Requester pays bucket is set to 'Requester' and upload objects
+        Create a bucket. Verify the Requester pays bucket is set to 'Requester'.
 """
+
 # test S3 bucket request payer
 import os
 import sys
@@ -27,6 +28,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser
@@ -43,6 +45,7 @@ def test_exec(config, requester, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     log.info("requester type: %s" % requester)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -59,7 +62,10 @@ def test_exec(config, requester, ssh_con):
             log.info("creating bucket with name: %s" % bucket_name_to_create)
             # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
             bucket = reusable.create_bucket(
-                bucket_name=bucket_name_to_create, rgw=rgw_conn, user_info=each_user
+                bucket_name=bucket_name_to_create,
+                rgw=rgw_conn,
+                user_info=each_user,
+                endpoint=ip_and_port,
             )
             bucket_request_payer = s3lib.resource_op(
                 {

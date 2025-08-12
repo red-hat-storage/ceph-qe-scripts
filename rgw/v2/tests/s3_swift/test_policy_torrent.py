@@ -4,12 +4,13 @@
 usage : test_policy_torrent.py -c configs/<input-yaml>
 where input-yaml test_policy_torrent.yaml
 Polarion : CEPH-11209
-  
+
 Operation:
 - create bucket user1
 - Using policy s3:GetObjectTorrent, users under same and different tenants,should be able to torrent for the file
 
 """
+
 import os
 import sys
 
@@ -31,6 +32,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -54,6 +56,7 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     config.user_count = 2
@@ -92,6 +95,7 @@ def test_exec(config, ssh_con):
         bucket_name1,
         rgw_tenant1_user1,
         tenant1_user1_info,
+        ip_and_port,
     )
     rgw_service_name = utils.exec_shell_cmd("ceph orch ls | grep rgw").split(" ")[0]
     utils.exec_shell_cmd(

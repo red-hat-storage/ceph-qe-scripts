@@ -2,7 +2,7 @@
 Usage: test_multisite_bucket_granular_sync_policy.py
 
 <input_yaml>
-	Note: Any one of these yamls can be used
+        Note: Any one of these yamls can be used
     multisite_configs/test_multisite_granular_bucket_sync_policy.yaml
     multisite_configs/test_multisite_granular_bucketsync_allowed_forbidden.yaml
     multisite_configs/test_multisite_granular_bucketsync_enable_enable.yaml
@@ -22,9 +22,10 @@ Usage: test_multisite_bucket_granular_sync_policy.py
     multisite_configs/test_bucket_granularsync_user_mode_direc.yaml
 
 Operation:
-	Creates delete sync policy group bucket , zonegroupl level
+        Creates delete sync policy group bucket , zonegroupl level
     perform IO and verify sync
 """
+
 # test basic creation of buckets with objects
 import os
 import sys
@@ -45,6 +46,7 @@ from v2.lib.rgw_config_opts import CephConfOp
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -57,6 +59,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -100,7 +103,7 @@ def test_exec(config, ssh_con):
                 )
                 log.info(f"creating bucket with name: {bucket_name_to_create}")
                 bucket = reusable.create_bucket(
-                    bucket_name_to_create, rgw_conn, each_user
+                    bucket_name_to_create, rgw_conn, each_user, ip_and_port
                 )
 
                 if config.test_ops.get("create_new_bucket", False):
@@ -109,7 +112,7 @@ def test_exec(config, ssh_con):
                         new_bucket_name = f"{bucket_name_to_create}-new-{i}"
                         log.info(f"creating new bucket with name: {new_bucket_name}")
                         new_bucket = reusable.create_bucket(
-                            new_bucket_name, rgw_conn, each_user
+                            new_bucket_name, rgw_conn, each_user, ip_and_port
                         )
                         new_buckets.append(new_bucket)
 
@@ -128,7 +131,9 @@ def test_exec(config, ssh_con):
         log.info(
             f"creating bucket with name: {new_bkt_name} for user {new_users_info[0]['user_id']}"
         )
-        bkt_new = reusable.create_bucket(new_bkt_name, new_rgw_conn, new_users_info[0])
+        bkt_new = reusable.create_bucket(
+            new_bkt_name, new_rgw_conn, new_users_info[0], ip_and_port
+        )
 
     if utils.is_cluster_multisite():
         if config.test_ops.get("zonegroup_group", False):

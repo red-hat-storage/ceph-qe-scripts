@@ -20,7 +20,7 @@ Usage: test_sse_s3_with_vault.py -c <input_yaml>
 Operation:
     Create a user and create a bucket with user credentials
     enable per-bucket or per-object sse-s3 encryption with vault backend
-    test objects uploaded are encrypted with AES256. 
+    test objects uploaded are encrypted with AES256.
 
 """
 
@@ -50,6 +50,7 @@ from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
 from v2.tests.s3_swift.reusables import (
     upload_object_via_s3client as put_object_s3client,
 )
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -65,7 +66,17 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
+    out = utils.exec_shell_cmd("ceph config get client.rgw rgw_crypt_s3_kms_backend")
+    rgw_crypt_s3_kms_backend = out.strip()
+    if rgw_crypt_s3_kms_backend == "kmip":
+        out = utils.exec_shell_cmd("ceph config get client.rgw rgw_crypt_kmip_addr")
+        rgw_crypt_kmip_addr = out.strip()
+        if rgw_crypt_kmip_addr == "10.245.64.16:5696":
+            config.test_ops[
+                "encrypt_decrypt_key"
+            ] = "ibm000ee6a57000000000"  # use corresponding key id for ibmc env
     # create user
     all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
@@ -132,7 +143,7 @@ def test_exec(config, ssh_con):
                     each_user["user_id"], rand_no=bc
                 )
                 bucket = reusable.create_bucket(
-                    bucket_name_to_create, rgw_conn, each_user
+                    bucket_name_to_create, rgw_conn, each_user, ip_and_port
                 )
                 if config.test_ops.get("enable_version", False):
                     log.info("enable bucket version")

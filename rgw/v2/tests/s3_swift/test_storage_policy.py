@@ -12,6 +12,7 @@ Operation:
 - Create user, bucket and objects after modifying the default-placement hence verifying the storage policy.
 
 """
+
 import os
 import sys
 
@@ -34,6 +35,7 @@ from v2.lib.s3.auth import Auth as S3Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.lib.swift.auth import Auth as SwiftAuth
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -49,6 +51,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create pool
     pool_name = ".rgw.buckets.special"
@@ -150,7 +153,9 @@ def test_exec(config, ssh_con):
         rgw_conn = auth.do_auth()
         # create bucket
         bucket_name = utils.gen_bucket_name_from_userid(rgw_user_info[0]["user_id"], 0)
-        bucket = reusable.create_bucket(bucket_name, rgw_conn, rgw_user_info[0])
+        bucket = reusable.create_bucket(
+            bucket_name, rgw_conn, rgw_user_info[0], ip_and_port
+        )
         # create object
         for oc, size in list(config.mapped_sizes.items()):
             config.obj_size = size

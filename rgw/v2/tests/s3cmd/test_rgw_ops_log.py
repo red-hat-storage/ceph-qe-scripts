@@ -1,5 +1,5 @@
 """
-Test_rgw_ops_log are sent to a file. The test will be performed by doing 
+Test_rgw_ops_log are sent to a file. The test will be performed by doing
 some rgw ops via s3cmd. For example, list_buckets, create buckets, put objects etc.
 
 Usage: test_rgw_ops_log.py -c <input_yaml>
@@ -20,9 +20,8 @@ Operation:
     7. Upload a file to the bucket
     8. We should observe the above operations logged in a file
     9. Operation 1 to 8 or check log_to_file enabled and get rgw logs detail
- 
-"""
 
+"""
 
 import argparse
 import json
@@ -103,7 +102,7 @@ def test_exec(config, ssh_con):
             bucket_name = utils.gen_bucket_name_from_userid(
                 user_info["user_id"], rand_no=0
             )
-            s3cmd_reusable.create_bucket(bucket_name)
+            s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             log.info("Check the operation 'create_bucket'")
             pr = subprocess.Popen(

@@ -10,6 +10,7 @@ Operation:
 -Run "radosgw-admin lc reshard fix" should create an entry for removed LC shards
 -Remove the user at successful completion
 """
+
 import os
 import sys
 
@@ -28,6 +29,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -42,6 +44,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -57,7 +60,9 @@ def test_exec(config, ssh_con):
                 bucket_name = utils.gen_bucket_name_from_userid(
                     each_user["user_id"], rand_no=bc
                 )
-                bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+                bucket = reusable.create_bucket(
+                    bucket_name, rgw_conn, each_user, ip_and_port
+                )
                 life_cycle_rule = {"Rules": config.lifecycle_conf}
                 reusable.put_bucket_lifecycle(
                     bucket, rgw_conn, rgw_conn2, life_cycle_rule

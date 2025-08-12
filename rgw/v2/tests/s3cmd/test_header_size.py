@@ -14,7 +14,6 @@ Operation:
     Verify object for its header
 """
 
-
 import argparse
 import json
 import logging
@@ -63,7 +62,7 @@ def test_exec(config, ssh_con):
         log.info(f"Number of buckets to create: {config.bucket_count}")
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
-            s3cmd_reusable.create_bucket(bucket_name)
+            s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             utils.exec_shell_cmd(f"fallocate -l 25m obj25m")
             header = "".join(

@@ -188,7 +188,26 @@ def create_rgw_account_with_iam_user(
     return iam_user_details
 
 
-def create_bucket(bucket_name, rgw, user_info, location=None):
+def create_bucket(
+    bucket_name, rgw, user_info, endpoint=None, location=None, retries=3, wait_time=5
+):
+
+    if endpoint is not None:
+        # Retry until endpoint is reachable or max retries reached
+        for attempt in range(1, retries + 1):
+            output = utils.exec_shell_cmd(f"curl -k --connect-timeout 10 {endpoint}")
+            if output:
+                log.info(f"Endpoint {endpoint} is reachable on attempt {attempt}.")
+                break
+            else:
+                log.warning(
+                    f"Attempt {attempt}: Endpoint {endpoint} not reachable, retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+        else:
+            log.error(f"Endpoint {endpoint} is not reachable after {retries} attempts.")
+            return
+
     log.info("creating bucket with name: %s" % bucket_name)
     # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
     bucket = s3lib.resource_op(

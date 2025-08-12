@@ -10,7 +10,6 @@ a. On a MS setup, create sync policy with configuration to sync objects having a
 b. Write objects having said prefix or tag as mentioned in the config.
 """
 
-
 import argparse
 import json
 import logging
@@ -27,6 +26,7 @@ from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils import utils
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -45,6 +45,7 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     user_info = s3lib.create_users(config.user_count)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # Create Zonegroup policy
     log.info("Creating Zone group policy at Enabled state")
@@ -73,7 +74,7 @@ def test_exec(config, ssh_con):
         buckets = []
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(user["user_id"], rand_no=bc)
-            bucket = reusable.create_bucket(bucket_name, rgw_conn, user)
+            bucket = reusable.create_bucket(bucket_name, rgw_conn, user, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             reusable.verify_bucket_sync_on_other_site(rgw_ssh_con, bucket)
             buckets.append(bucket)

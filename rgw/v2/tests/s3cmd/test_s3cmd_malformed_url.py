@@ -20,7 +20,6 @@ Operation:
     test s3cmd malformed url with different permutations of special characters
 """
 
-
 import argparse
 import logging
 import os
@@ -67,7 +66,7 @@ def test_exec(config, ssh_con):
 
     for bc in range(config.bucket_count):
         bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
-        s3cmd_reusable.create_bucket(bucket_name)
+        s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
         log.info(f"Bucket {bucket_name} created")
         cmd = f"/home/cephuser/venv/bin/s3cmd put {object_name} s3://{bucket_name}"
         utils.exec_shell_cmd(cmd)

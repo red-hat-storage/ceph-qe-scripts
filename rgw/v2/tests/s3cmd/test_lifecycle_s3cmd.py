@@ -104,7 +104,7 @@ def test_exec(config, ssh_con):
 
         bucket_name = "tax-bkt1"
         object_name = "tax-obj1"
-        s3cmd_reusable.create_bucket(bucket_name)
+        s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
         utils.exec_shell_cmd(f"fallocate -l 1K obj1k")
         log.info(f"Now Upload the objects to the bucket {bucket_name}")
         s3cmd_reusable.enable_versioning_for_a_bucket(
@@ -166,7 +166,7 @@ def test_exec(config, ssh_con):
                     user_info[0], bucket_name, ip_and_port, ssl=None
                 )
             else:
-                s3cmd_reusable.create_bucket(bucket_name)
+                s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             log.info(f"Now Upload the objects to the bucket {bucket_name}")
             s3cmd_reusable.upload_objects_via_s3cmd(bucket_name, config)
