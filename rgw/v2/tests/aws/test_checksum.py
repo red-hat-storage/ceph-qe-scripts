@@ -56,6 +56,15 @@ def test_exec(config, ssh_con):
     else:
         user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
 
+    log.info("installing prerequisite tools")
+    log.info("Install Rhash program")
+    utils.exec_shell_cmd(
+        "rpm -ivh https://rpmfind.net/linux/epel/9/Everything/x86_64/Packages/r/rhash-1.4.2-1.el9.x86_64.rpm"
+    )
+    utils.exec_shell_cmd("sudo pip install botocore[crt]")
+    log.info("sleeping for 10 seconds")
+    time.sleep(10)
+
     for user in user_info:
         user_name = user["user_id"]
         log.info(user_name)
@@ -244,6 +253,7 @@ def test_exec(config, ssh_con):
                     endpoint,
                     checksum_algorithm,
                     checksum_wrong,
+                    failure_expected=True,
                 )
 
                 checksum_algorithm = "sha256"
@@ -257,6 +267,7 @@ def test_exec(config, ssh_con):
                     endpoint,
                     checksum_algorithm,
                     checksum_wrong,
+                    failure_expected=True,
                 )
 
                 checksum_algorithm = "crc32"
@@ -270,6 +281,7 @@ def test_exec(config, ssh_con):
                     endpoint,
                     checksum_algorithm,
                     "randeasdc",
+                    failure_expected=True,
                 )
 
                 utils.exec_shell_cmd("sudo pip install botocore[crt]")
@@ -284,6 +296,7 @@ def test_exec(config, ssh_con):
                     endpoint,
                     checksum_algorithm,
                     checksum_wrong,
+                    failure_expected=True,
                 )
 
     if config.user_remove is True:
@@ -296,7 +309,6 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-
     test_info = AddTestInfo("Upload wrong checksum with put-object through awscli")
 
     try:

@@ -73,7 +73,7 @@ def create_aws_file(ssh_con=None):
         raise AWSConfigFileNotFound("AWS sample config file not found")
 
 
-def update_aws_file(user_info, ssh_con=None):
+def update_aws_file(user_info, ssh_con=None, checksum_validation_calculation=None):
     """
     Updates .aws/credentials file with user information
     Args:
@@ -83,8 +83,19 @@ def update_aws_file(user_info, ssh_con=None):
     parser.read(root_path + "credentials")
     parser.set("default", "aws_access_key_id", user_info["access_key"])
     parser.set("default", "aws_secret_access_key", user_info["secret_key"])
+    if checksum_validation_calculation:
+        parser.set(
+            "default", "request_checksum_calculation", checksum_validation_calculation
+        )
+        parser.set(
+            "default", "response_checksum_validation", checksum_validation_calculation
+        )
+    else:
+        parser.remove_option("default", "request_checksum_calculation")
+        parser.remove_option("default", "response_checksum_validation")
     with open(root_path + "credentials", "w") as file:
         parser.write(file)
+    utils.exec_shell_cmd(f'cat {root_path + "credentials"}')
 
 
 def do_auth_aws(user_info, ssh_con=None):
