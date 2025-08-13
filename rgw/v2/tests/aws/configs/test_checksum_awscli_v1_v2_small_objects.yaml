@@ -1,0 +1,16 @@
+# BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2353296
+# polarion-id: CEPH-83591679
+# Script: rgw/v2/tests/aws/test_checksum_with_awscli_v1_and_v2.py
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  local_file_delete: true
+  user_remove: true
+  objects_size_range:
+    min: 3K
+    max: 10K
+  test_ops:
+    upload_type: normal
+    download_object: true
+    delete_bucket_object: true
