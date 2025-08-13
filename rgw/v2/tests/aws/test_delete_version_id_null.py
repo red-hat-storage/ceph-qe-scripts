@@ -30,6 +30,7 @@ from v2.lib.aws import auth as aws_auth
 from v2.lib.aws.resource_op import AWS
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.sync_status import sync_status
 from v2.tests.aws import reusable as aws_reusable
 from v2.tests.s3_swift import reusable as s3_reusable
 from v2.utils import utils
@@ -89,10 +90,10 @@ def test_exec(config, ssh_con):
         object_name = "hello.txt"
         utils.exec_shell_cmd(f"fallocate -l 1K {object_name}")
         aws_reusable.put_object(cli_aws, bucket_name, object_name, local_endpoint)
-        time.sleep(30)
 
         # waiting for sync to be caught up with other site
-        s3_reusable.check_sync_status()
+        sync_status(ssh_con=remote_site_ssh_con)
+
         # Verifying object with version id null is created on both local and remote sites
         aws_reusable.verify_object_with_version_id_null(
             cli_aws, bucket_name, object_name, local_endpoint
@@ -108,7 +109,8 @@ def test_exec(config, ssh_con):
 
         # Upload another version of the object to the bucket from local site
         aws_reusable.put_object(cli_aws, bucket_name, object_name, local_endpoint)
-        time.sleep(30)
+
+        sync_status(ssh_con=remote_site_ssh_con)
 
         version_list = aws_reusable.list_object_versions(
             cli_aws, bucket_name, local_endpoint
@@ -128,7 +130,7 @@ def test_exec(config, ssh_con):
         aws_reusable.delete_object(
             cli_aws, bucket_name, object_name, local_endpoint, versionid="null"
         )
-        time.sleep(30)
+        sync_status(ssh_con=remote_site_ssh_con)
 
         # Verifying object with version id null is deleted from both sites:local and remote
         aws_reusable.verify_object_with_version_id_null(
