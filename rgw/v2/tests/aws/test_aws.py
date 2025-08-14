@@ -64,10 +64,28 @@ def test_exec(config, ssh_con):
     )
 
     if config.test_ops.get("user_name", False):
-        user_info = resource_op.create_users(
-            no_of_users_to_create=config.user_count,
-            user_names=user_names,
-        )
+        op = json.loads(utils.exec_shell_cmd("radosgw-admin user list"))
+        log.info(f"user {config.test_ops['user_name']} exist in cluster {op}")
+        if config.test_ops["user_name"] not in op:
+            log.info(f"number of user to create is {config.user_count}")
+            user_info = resource_op.create_users(
+                no_of_users_to_create=config.user_count,
+                user_names=user_names,
+            )
+        elif config.user_count == 1:
+            out = json.loads(
+                utils.exec_shell_cmd(
+                    f"radosgw-admin user info --uid={config.test_ops['user_name']}"
+                )
+            )
+            user_info = [
+                {
+                    "user_id": out["user_id"],
+                    "display_name": out["display_name"],
+                    "access_key": out["keys"][0]["access_key"],
+                    "secret_key": out["keys"][0]["secret_key"],
+                }
+            ]
     else:
         user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
 
