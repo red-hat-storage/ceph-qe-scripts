@@ -154,7 +154,7 @@ def create_subuser(curl_auth, uid, subuser_name):
     return subuser_create_resp
 
 
-def create_bucket(curl_auth, bucket_name):
+def create_bucket(curl_auth, bucket_name, endpoint, retries=3, wait_time=5):
     """
     Creates bucket
     ex: curl -X PUT http://10.0.209.142:80/bkt1
@@ -163,6 +163,22 @@ def create_bucket(curl_auth, bucket_name):
         bucket_name(str): Name of the bucket to be created
     """
     utils.exec_shell_cmd("curl --version")
+
+    # Retry until endpoint is reachable or max retries reached
+    for attempt in range(1, retries + 1):
+        output = utils.exec_shell_cmd(f"curl -k --connect-timeout 10 {endpoint}")
+        if output:
+            log.info(f"Endpoint {endpoint} is reachable on attempt {attempt}.")
+            break
+        else:
+            log.warning(
+                f"Attempt {attempt}: Endpoint {endpoint} not reachable, retrying in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+    else:
+        log.error(f"Endpoint {endpoint} is not reachable after {retries} attempts.")
+        return
+
     headers = {
         "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
     }

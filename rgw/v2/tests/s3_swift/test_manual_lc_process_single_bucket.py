@@ -12,6 +12,7 @@ Operation:
 -check all the expired objects are deleted
 -Non expired objects are not deleted
 """
+
 import os
 import sys
 
@@ -28,6 +29,7 @@ from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -39,6 +41,8 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+
     # create user
     user_info = s3lib.create_users(config.user_count)
     for each_user in user_info:
@@ -54,7 +58,9 @@ def test_exec(config, ssh_con):
                 bucket_name = utils.gen_bucket_name_from_userid(
                     each_user["user_id"], rand_no=bc
                 )
-                bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+                bucket = reusable.create_bucket(
+                    bucket_name, rgw_conn, each_user, ip_and_port
+                )
                 buckets.append(bucket_name)
                 buckets_meta.append(bucket)
                 if config.test_ops["create_object"]:

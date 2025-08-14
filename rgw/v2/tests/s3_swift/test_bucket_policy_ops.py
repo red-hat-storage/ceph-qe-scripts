@@ -23,6 +23,7 @@ Operation:
 
 
 """
+
 import os
 import sys
 
@@ -46,6 +47,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.aws import reusable as aws_reusable
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -96,6 +98,7 @@ def test_exec(config, ssh_con):
 
     ceph_config_set = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
     if config.test_ops.get("verify_policy"):
         ceph_config_set.set_to_ceph_conf(
             "global",
@@ -142,6 +145,7 @@ def test_exec(config, ssh_con):
         bucket_name1,
         rgw_tenant1_user1,
         tenant1_user1_info,
+        ip_and_port,
     )
 
     if config.test_ops.get("sse_s3_per_bucket") is True:
@@ -154,6 +158,7 @@ def test_exec(config, ssh_con):
         bucket_name2,
         rgw_tenant1_user1,
         tenant1_user1_info,
+        ip_and_port,
     )
 
     public_access_block = config.test_ops.get("public_access_block_config", {})

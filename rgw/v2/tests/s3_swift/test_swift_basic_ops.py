@@ -155,6 +155,7 @@ def test_exec(config, ssh_con):
     ceph_conf = CephConfOp(ssh_con)
     log.info(type(ceph_conf))
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
     # preparing data
     user_name = names.get_first_name() + random.choice(string.ascii_letters)
     if config.user_type == "non-tenanted":
@@ -165,7 +166,6 @@ def test_exec(config, ssh_con):
             write_bucket_io_info = BucketIoInfo()
             auth_s3 = s3_auth(user_info, ssh_con, ssl=config.ssl)
             s3_rgw_conn = auth_s3.do_auth()
-            ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
             s3cmd_auth.do_auth(user_info, ip_and_port)
         subuser_info = swiftlib.create_non_tenant_sub_users(1, user_info)
         auth = Auth(subuser_info[-1], ssh_con, config.ssl)
@@ -618,7 +618,9 @@ def test_exec(config, ssh_con):
                 user_info["user_id"], rand_no=cc
             )
             log.info(f"creating bucket {bucket_name} with s3 user")
-            bucket = reusable.create_bucket(bucket_name, s3_rgw_conn, user_info)
+            bucket = reusable.create_bucket(
+                bucket_name, s3_rgw_conn, user_info, ip_and_port
+            )
             log.info("enable bucket version using s3 user")
             reusable.enable_versioning(
                 bucket, s3_rgw_conn, user_info, write_bucket_io_info
@@ -852,7 +854,7 @@ def test_exec(config, ssh_con):
             s3_rgw_conn = auth_s3.do_auth()
             try:
                 bucket = reusable.create_bucket(
-                    bucket_name_to_create, s3_rgw_conn, user_info
+                    bucket_name_to_create, s3_rgw_conn, user_info, ip_and_port
                 )
             except Exception as e:
                 log.info(f"Bucket creation failed as expected with {e}")

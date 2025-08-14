@@ -1,20 +1,21 @@
-""" test_Mbuckets_with_Nobjects.py - Test with M buckets and N objects
+"""test_Mbuckets_with_Nobjects.py - Test with M buckets and N objects
 
 Usage: test_multisite_sync_policy.py -c <input_yaml>
 
 <input_yaml>
-	Note: Any one of these yamls can be used
-	test_multisite_sync_policy.yaml
+        Note: Any one of these yamls can be used
+        test_multisite_sync_policy.yaml
     test_sync_policy_state_change.yaml
     test_multisite_mirror_sync_policy.yaml
     test_multisite_bucket_mirror_sync_policy.yaml
     test_multisite_sync_policy_extended.yaml
 
 Operation:
-	Creates and delete sync policy group
-	Creates and delete sync policy flow
+        Creates and delete sync policy group
+        Creates and delete sync policy flow
     Creates and delete sync policy pipe
 """
+
 # test basic creation of buckets with objects
 import os
 import sys
@@ -35,6 +36,7 @@ from v2.lib.rgw_config_opts import CephConfOp
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -47,6 +49,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -78,7 +81,7 @@ def test_exec(config, ssh_con):
                 )
                 log.info(f"creating bucket with name: {bucket_name_to_create}")
                 bucket = reusable.create_bucket(
-                    bucket_name_to_create, rgw_conn, each_user
+                    bucket_name_to_create, rgw_conn, each_user, ip_and_port
                 )
                 reusable.verify_bucket_sync_on_other_site(rgw_ssh_con, bucket)
                 buckets.append(bucket)
@@ -89,7 +92,7 @@ def test_exec(config, ssh_con):
                 )
                 log.info(f"creating new bucket with name: {new_bucket_name}")
                 new_bucket = reusable.create_bucket(
-                    new_bucket_name, rgw_conn, each_user
+                    new_bucket_name, rgw_conn, each_user, ip_and_port
                 )
                 reusable.verify_bucket_sync_on_other_site(rgw_ssh_con, new_bucket)
 

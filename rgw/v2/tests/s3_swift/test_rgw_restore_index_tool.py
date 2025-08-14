@@ -35,6 +35,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -51,6 +52,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
     log.info("starting IO")
     user_info = s3lib.create_users(config.user_count)
     user_info = user_info[0]
@@ -58,7 +60,7 @@ def test_exec(config, ssh_con):
     rgw_conn = auth.do_auth()
     objects_created_list = []
     bucket_name = utils.gen_bucket_name_from_userid(user_info["user_id"], rand_no=1)
-    bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info)
+    bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info, ip_and_port)
     if config.test_ops.get("enable_version", False):
         log.info("enable bucket version")
         reusable.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
