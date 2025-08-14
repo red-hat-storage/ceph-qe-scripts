@@ -3,7 +3,6 @@ Reusable methods for aws
 """
 
 
-import base64
 import glob
 import json
 import logging
@@ -14,8 +13,6 @@ import sys
 import time
 from configparser import RawConfigParser
 from pathlib import Path
-
-import awscrt.checksums
 
 log = logging.getLogger()
 
@@ -805,9 +802,12 @@ def calculate_checksum(algo, file):
         )[0]
         return checksum
     elif algo == "crc64nvme":
-        checksum = base64.b64encode(
-            awscrt.checksums.crc64nvme(open(file, "rb").read()).to_bytes(8, "big")
-        ).decode()
+        out = utils.exec_shell_cmd(
+            f'venvawsv1/bin/python -c \'import awscrt.checksums, base64; print(base64.b64encode(awscrt.checksums.crc64nvme(open("{file}","rb").read()).to_bytes(8,"big")).decode())\''
+        )
+        if out is False:
+            raise Exception("crc64nvme calculation failed")
+        checksum = out.strip()
         return checksum
 
 

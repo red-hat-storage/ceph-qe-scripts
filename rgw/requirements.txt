@@ -14,7 +14,6 @@ swiftly
 paramiko
 pandas==2.2.3
 pyarrow
-awscrt
 
 # for v1
 #psutil
