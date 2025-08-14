@@ -62,9 +62,9 @@ def test_exec(config, ssh_con):
         log.info("Creating mount point")
         cmd = "sudo mkdir /mnt/nfs1"
         utils.exec_shell_cmd(cmd)
-        cmd = "ceph nfs cluster info rgw-nfs"
+        cmd = "ceph nfs cluster info radosgw-nfs"
         out = json.loads(utils.exec_shell_cmd(cmd))
-        ip = out["rgw-nfs"]["backend"][0]["ip"]
+        ip = out["radosgw-nfs"]["backend"][0]["ip"]
         log.info(ip)
         cmd = f"mount -t nfs -o nfsvers=4,noauto,soft,sync,proto=tcp {ip}:/ /mnt/nfs1"
         err = utils.exec_shell_cmd(cmd, return_err=True)
@@ -74,7 +74,7 @@ def test_exec(config, ssh_con):
     else:
         # Create a NFS cluster without ingress
         rgw_host, _ = utils.get_hostname_ip(ssh_con)
-        cluster_id = "rgw-nfs"
+        cluster_id = "radosgw-nfs"
         cluster_info = nfs.create_nfs_cluster(cluster_id, rgw_host)
         sleep(5)
         # check cluster details
@@ -82,7 +82,7 @@ def test_exec(config, ssh_con):
 
         # If multi cluster scenario is defined
         if config.test_ops.get("multi_cluster", False):
-            cluster_id2 = "rgw-nfs2"
+            cluster_id2 = "radosgw-nfs2"
             nfs.create_nfs_cluster(cluster_id2)
             utils.exec_shell_cmd(f"ceph nfs cluster info {cluster_id2}")
 
