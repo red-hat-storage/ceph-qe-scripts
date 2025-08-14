@@ -71,7 +71,7 @@ def test_exec(config, ssh_con):
     )
     utils.exec_shell_cmd("sudo pip install botocore[crt]")
     utils.exec_shell_cmd(
-        "ls venvawsv1 || (python3 -m venv venvawsv1 && venvawsv1/bin/pip install awscli && venvawsv1/bin/pip install botocore[crt])"
+        "ls venvawsv1 || (python3 -m venv venvawsv1 && venvawsv1/bin/pip install awscli && venvawsv1/bin/pip install botocore[crt] && venvawsv1/bin/pip install awscrt)"
     )
     log.info("sleeping for 10 seconds")
     time.sleep(10)
