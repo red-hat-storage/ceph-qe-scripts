@@ -6,4 +6,3 @@ config:
     new_data_pool: rgwec86-pool
     zone_names: ["secondary"]
     is_multisite: true
-    use_sudo: false

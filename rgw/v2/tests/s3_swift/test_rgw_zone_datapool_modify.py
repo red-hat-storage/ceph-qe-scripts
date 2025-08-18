@@ -10,10 +10,7 @@ This script uses 'radosgw-admin' to:
 5. Modify the data pool in the zone map to a new specified pool (e.g., rgwec86-pool).
 6. Apply the modified zone map using 'zone set'.
 7. For multi-site setups, commit the period update.
-8. Verify if the data pool was successfully updated.
 9. Optionally test negative scenarios (e.g., invalid zone name).
-
-Fails if the modification does not apply, the pool does not exist, or if errors occur (except for expected negative test failures). Provides detailed logging. All commands run without sudo using utils.exec_shell_cmd.
 """
 
 import argparse
