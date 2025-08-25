@@ -105,6 +105,9 @@ def test_exec(config, ssh_con):
     url = f"{proto}://{ip_and_port}/swift/v1/{container_name}?extract-archive=tar"
 
     curl_cmd = f"curl -i {url} -X PUT -H 'X-Auth-Token: {token}' --data-binary @{tar_file_name}"
+    if config.ssl:
+        curl_cmd = curl_cmd + " --insecure"
+
     utils.exec_shell_cmd(curl_cmd)
 
     ls = rgw.get_container(container_name)
