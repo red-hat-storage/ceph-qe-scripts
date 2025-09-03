@@ -84,7 +84,7 @@ def test_exec(config, ssh_con):
     bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
 
     ssl = config.ssl
-    s3cmd_reusable.create_bucket(bucket_name, ssl)
+    s3cmd_reusable.create_bucket(bucket_name, ip_and_port, ssl)
     log.info(f"Bucket {bucket_name} created")
 
     s3cmd_reusable.rate_limit_set_enable(
@@ -153,7 +153,7 @@ def test_exec(config, ssh_con):
     # test the read and write ops limit
     log.info("Testing the global read and write ops limits")
     bucket_name2 = utils.gen_bucket_name_from_userid(user_name, rand_no=1)
-    s3cmd_reusable.create_bucket(bucket_name2, ssl)
+    s3cmd_reusable.create_bucket(bucket_name2, ip_and_port, ssl)
 
     s3cmd_reusable.rate_limit_read(bucket_name2, max_read_ops, ssl)
 

@@ -69,7 +69,7 @@ def test_exec(config, ssh_con):
 
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
-            curl_reusable.create_bucket(curl_auth, bucket_name)
+            curl_reusable.create_bucket(curl_auth, bucket_name, endpoint)
             log.info(f"Bucket {bucket_name} created")
             log.info(f"Put CORS configuration for bucket {bucket_name}")
             file_name = "cors.json"

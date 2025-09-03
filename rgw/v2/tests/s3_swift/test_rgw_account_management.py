@@ -33,6 +33,7 @@ from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import quota_management as quota_mgmt
 from v2.tests.s3_swift.reusables import rgw_accounts as accounts
 from v2.tests.s3_swift.reusables import rgw_s3_elbencho as elbencho
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -46,6 +47,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     io_info_initialize.initialize(basic_io_structure.initial())
 
@@ -81,7 +83,9 @@ def test_exec(config, ssh_con):
                 each_user["user_id"], rand_no=bc
             )
             user_buckets.append(bucket_name)
-            bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+            bucket = reusable.create_bucket(
+                bucket_name, rgw_conn, each_user, ip_and_port
+            )
 
             if config.test_ops.get("enable_version", False):
                 log.info("Enable bucket versioning")

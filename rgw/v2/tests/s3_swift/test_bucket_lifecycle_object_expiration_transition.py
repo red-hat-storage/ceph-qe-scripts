@@ -58,6 +58,7 @@ from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoIn
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import s3_object_restore as reusables_s3_restore
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -75,6 +76,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
     buckets = []
     log.info("making changes to ceph.conf")
     ceph_conf.set_to_ceph_conf(
@@ -246,7 +248,12 @@ def test_exec(config, ssh_con):
                 )
             obj_list = []
             obj_tag = "suffix1=WMV1"
-            bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+            if config.haproxy:
+                bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+            else:
+                bucket = reusable.create_bucket(
+                    bucket_name, rgw_conn, each_user, ip_and_port
+                )
             prefix = list(
                 map(
                     lambda x: x,

@@ -15,9 +15,10 @@ Operation:
     Create a bucket with user credentials
     Enable the limits max-read-ops, max-read-bytes, max-write-ops, max-write-bytes on a Bucket scope
     Verify the rate limits using s3cmd
-    Change the bucket owner to user2 
+    Change the bucket owner to user2
     Bucket limits should not change
 """
+
 import argparse
 import json
 import logging
@@ -79,7 +80,7 @@ def test_exec(config, ssh_con):
     max_write_bytes_kb = math.ceil(float(max_write_bytes) / 1024)
     bucket_name = utils.gen_bucket_name_from_userid(user_info[0]["user_id"], rand_no=0)
     ssl = config.ssl
-    s3cmd_reusable.create_bucket(bucket_name, ssl)
+    s3cmd_reusable.create_bucket(bucket_name, ip_and_port, ssl)
 
     log.info(f"Bucket {bucket_name} created")
     limset = utils.exec_shell_cmd(

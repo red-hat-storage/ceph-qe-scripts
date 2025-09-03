@@ -18,7 +18,7 @@ Operation:
     Verify bucket index log is not empty after creating objects
     Wait for default interval of 20 minutes
     Verify bucket index log is empty
-    
+
 """
 
 import os
@@ -37,6 +37,7 @@ from v2.lib.exceptions import TestExecError
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -49,6 +50,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -65,7 +67,7 @@ def test_exec(config, ssh_con):
                 )
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
                 bucket = reusable.create_bucket(
-                    bucket_name_to_create, rgw_conn, each_user
+                    bucket_name_to_create, rgw_conn, each_user, ip_and_port
                 )
                 if config.test_ops["create_object"] is True:
                     # uploading data

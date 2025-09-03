@@ -18,7 +18,6 @@ Operation:
     Delete bucket
 """
 
-
 import argparse
 import json
 import logging
@@ -73,7 +72,7 @@ def test_exec(config, ssh_con):
     bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=0)
 
     # Create a bucket
-    s3cmd_reusable.create_bucket(bucket_name)
+    s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
     log.info(f"Bucket {bucket_name} created")
 
     # Upload a 2GB file to bucket

@@ -4,7 +4,7 @@ test_dynamic_bucket_resharding - Test resharding operations on bucket
 Usage: test_dynamic_bucket_resharding.py -c <input_yaml>
 
 <input_yaml>
-    Note: any one of these yamls can be used 
+    Note: any one of these yamls can be used
     conf exist in both configs/ and multisite_configs/ :
         test_manual_resharding.yaml
         test_dynamic_resharding.yaml
@@ -58,6 +58,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import quota_management as quota_mgmt
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -80,6 +81,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
     log.info("starting IO")
     config.user_count = 1
     user_info = s3lib.create_users(config.user_count)
@@ -144,7 +146,7 @@ def test_exec(config, ssh_con):
     objects_created_list = []
     log.info("no of buckets to create: %s" % config.bucket_count)
     bucket_name = utils.gen_bucket_name_from_userid(user_info["user_id"], rand_no=1)
-    bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info)
+    bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info, ip_and_port)
     if config.test_ops.get("enable_version", False):
         log.info("enable bucket version")
         reusable.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)

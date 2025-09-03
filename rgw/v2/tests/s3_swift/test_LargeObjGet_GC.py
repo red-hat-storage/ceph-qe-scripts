@@ -1,8 +1,9 @@
-""" test_LargeObjGet_GC.py - Test large object download with and without the GC process and rgw_gc_obj_min_wait= 5
+"""test_LargeObjGet_GC.py - Test large object download with and without the GC process and rgw_gc_obj_min_wait= 5
 
 Usage: test_LargeObjGet_GC.py -c configs/<input-yaml>
 where : <input-yaml> is test_LargeObjGet_GC.yaml
 """
+
 import os
 import sys
 
@@ -21,6 +22,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -35,6 +37,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     user_info = s3lib.create_users(config.user_count)
@@ -51,7 +54,9 @@ def test_exec(config, ssh_con):
                 user_info["user_id"], rand_no=bc
             )
             log.info("creating bucket with name: %s" % bucket_name_to_create)
-            bucket = reusable.create_bucket(bucket_name_to_create, rgw_conn, user_info)
+            bucket = reusable.create_bucket(
+                bucket_name_to_create, rgw_conn, user_info, ip_and_port
+            )
             if config.test_ops["create_object"] is True:
                 # uploading data
                 log.info("s3 objects to create: %s" % config.objects_count)

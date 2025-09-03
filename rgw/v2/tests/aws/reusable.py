@@ -2,7 +2,6 @@
 Reusable methods for aws
 """
 
-
 import glob
 import json
 import logging
@@ -23,7 +22,7 @@ from v2.lib.exceptions import AWSCommandExecError, TestExecError
 from v2.lib.manage_data import io_generator
 
 
-def create_bucket(aws_auth, bucket_name, end_point):
+def create_bucket(aws_auth, bucket_name, end_point, retries=3, wait_time=5):
     """
     Creates bucket
     ex: /usr/local/bin/aws s3api create-bucket --bucket verbkt1 --endpoint-url http://x.x.x.x:xx
@@ -31,6 +30,21 @@ def create_bucket(aws_auth, bucket_name, end_point):
         bucket_name(str): Name of the bucket to be created
         end_point(str): endpoint
     """
+
+    for attempt in range(1, retries + 1):
+        output = utils.exec_shell_cmd(f"curl -k --connect-timeout 10 {end_point}")
+        if output:
+            log.info(f"Endpoint {end_point} is reachable on attempt {attempt}.")
+            break
+        else:
+            log.warning(
+                f"Attempt {attempt}: Endpoint {end_point} not reachable, retrying in {wait_time}s..."
+            )
+            time.sleep(wait_time)
+    else:
+        log.error(f"Endpoint {end_point} is not reachable after {retries} attempts.")
+        return
+
     command = aws_auth.command(
         operation="create-bucket",
         params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],

@@ -17,6 +17,7 @@ Operation:
     test user quota max objects
     test user quota max size
 """
+
 import os
 import sys
 
@@ -32,6 +33,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import quota_management as quota_mgmt
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -46,6 +48,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     log.info(f"Creating {config.user_count} users")
     all_users_info = s3lib.create_users(config.user_count)
@@ -58,7 +61,9 @@ def test_exec(config, ssh_con):
             bucket_name = utils.gen_bucket_name_from_userid(
                 each_user["user_id"], rand_no=bc
             )
-            bucket = reusable.create_bucket(bucket_name, rgw_conn, each_user)
+            bucket = reusable.create_bucket(
+                bucket_name, rgw_conn, each_user, ip_and_port
+            )
             if config.test_ops.get("bucket_max_size"):
                 quota_mgmt.test_max_size(
                     TEST_DATA_PATH,

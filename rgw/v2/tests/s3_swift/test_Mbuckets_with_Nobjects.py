@@ -1,24 +1,24 @@
-""" test_Mbuckets_with_Nobjects.py - Test with M buckets and N objects
+"""test_Mbuckets_with_Nobjects.py - Test with M buckets and N objects
 
 Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
 
 <input_yaml>
-	Note: Any one of these yamls can be used
-	test_Mbuckets_with_Nobjects.yaml
-	test_Mbuckets_with_Nobjects_download.yaml
-	test_Mbuckets_with_Nobjects_aws4.yaml
-	test_Mbuckets_with_Nobjects_compression.yaml
-	test_Mbuckets_with_Nobjects_delete.yaml
-	test_Mbuckets_with_Nobjects_enc.yaml
-	test_Mbuckets_with_Nobjects_multipart.yaml
-	test_Mbuckets_with_Nobjects_sharding.yaml
+        Note: Any one of these yamls can be used
+        test_Mbuckets_with_Nobjects.yaml
+        test_Mbuckets_with_Nobjects_download.yaml
+        test_Mbuckets_with_Nobjects_aws4.yaml
+        test_Mbuckets_with_Nobjects_compression.yaml
+        test_Mbuckets_with_Nobjects_delete.yaml
+        test_Mbuckets_with_Nobjects_enc.yaml
+        test_Mbuckets_with_Nobjects_multipart.yaml
+        test_Mbuckets_with_Nobjects_sharding.yaml
     test_bucket_instance_delete.yaml
-	test_gc_list.yaml
-	test_multisite_manual_resharding_greenfield.yaml
-	test_multisite_dynamic_resharding_greenfield.yaml
-	test_gc_list_multipart.yaml
-	test_Mbuckets_with_Nobjects_etag.yaml
-	test_changing_data_log_num_shards_cause_no_crash.yaml
+        test_gc_list.yaml
+        test_multisite_manual_resharding_greenfield.yaml
+        test_multisite_dynamic_resharding_greenfield.yaml
+        test_gc_list_multipart.yaml
+        test_Mbuckets_with_Nobjects_etag.yaml
+        test_changing_data_log_num_shards_cause_no_crash.yaml
     test_bi_put_with_incomplete_multipart_upload.yaml
     test_Mbuckets_with_Nobjects_get_object_attributes.yaml
     test_Mbuckets_with_Nobjects_get_object_attributes_checksum_sha256.yaml
@@ -26,19 +26,20 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
     test_Mbuckets_with_Nobjects_multipart_upload_complete_abort_race.yaml
 
 Operation:
-	Creates M bucket and N objects
-	Creates M bucket and N objects. Verify checksum of the downloaded objects
-	Creates M bucket and N objects. Verify authentication signature_version:s3v4
-	Creates M bucket and N objects. With compression enabled.
-	Creates M bucket and N objects. Verify object delete succeeds.
-	Creates M bucket and N objects. With encryption enabled.
-	Creates M bucket and N objects. Upload multipart object.
-	Creates M bucket and N objects. With sharding set to max_shards as specified in the config
-	Verify gc command
-	Verify eTag
- 	Verify bi put on incomplete multipart upload
+        Creates M bucket and N objects
+        Creates M bucket and N objects. Verify checksum of the downloaded objects
+        Creates M bucket and N objects. Verify authentication signature_version:s3v4
+        Creates M bucket and N objects. With compression enabled.
+        Creates M bucket and N objects. Verify object delete succeeds.
+        Creates M bucket and N objects. With encryption enabled.
+        Creates M bucket and N objects. Upload multipart object.
+        Creates M bucket and N objects. With sharding set to max_shards as specified in the config
+        Verify gc command
+        Verify eTag
+        Verify bi put on incomplete multipart upload
     Verify bucket instance shards are deleted from index pool post bucket delete
 """
+
 # test basic creation of buckets with objects
 import os
 import subprocess as sp
@@ -60,6 +61,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import RGWService
@@ -77,6 +79,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     if config.dbr_scenario == "brownfield":
@@ -262,9 +265,14 @@ def test_exec(config, ssh_con):
                     )
                     return
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
-                bucket = reusable.create_bucket(
-                    bucket_name_to_create, rgw_conn, each_user
-                )
+                if config.haproxy:
+                    bucket = reusable.create_bucket(
+                        bucket_name_to_create, rgw_conn, each_user
+                    )
+                else:
+                    bucket = reusable.create_bucket(
+                        bucket_name_to_create, rgw_conn, each_user, ip_and_port
+                    )
                 bkt = (
                     "tenant1/" + bucket.name
                     if config.user_type == "tenanted"

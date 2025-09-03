@@ -48,6 +48,7 @@ from v2.lib.s3.write_io_info import (
     KeyIoInfo,
 )
 from v2.tests.s3_swift import reusable
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser
@@ -69,6 +70,7 @@ def test_exec(config, ssh_con):
     write_bucket_io_info = BucketIoInfo()
     write_key_io_info = KeyIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -88,28 +90,9 @@ def test_exec(config, ssh_con):
             )
             log.info("creating bucket with name: %s" % bucket_name_to_create)
             # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
-            bucket = s3lib.resource_op(
-                {"obj": rgw_conn, "resource": "Bucket", "args": [bucket_name_to_create]}
+            bucket = reusable.create_bucket(
+                bucket_name_to_create, rgw_conn, each_user, ip_and_port
             )
-            # created = s3_ops.resource_op(bucket, 'create', None, **{'access_key': each_user['access_key']})
-            created = s3lib.resource_op(
-                {
-                    "obj": bucket,
-                    "resource": "create",
-                    "args": None,
-                    "extra_info": {"access_key": each_user["access_key"]},
-                }
-            )
-            if created is False:
-                raise TestExecError("Resource execution failed: bucket creation faield")
-            if created is not None:
-                response = HttpResponseParser(created)
-                if response.status_code == 200:
-                    log.info("bucket created")
-                else:
-                    raise TestExecError("bucket creation failed")
-            else:
-                raise TestExecError("bucket creation failed")
             # getting bucket version object
             if config.test_ops["enable_version"] is True:
                 log.info("bucket versioning test on bucket: %s" % bucket.name)

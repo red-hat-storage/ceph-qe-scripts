@@ -2,13 +2,13 @@
 Usage: test_tail_deletion_during_copy_object.py -c <input_yaml>
 
 
+
 <input_yaml>
     Note: Following yaml can be used
     ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_1g.yaml
     ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_10m.yaml
     ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_6m.yaml
     test_aws_rgw_crash_with_part_copy_with_object_name_%_init.yaml
-    
 
 Operation:
     Verifies tail object not deleted post performing copy_objject
@@ -17,7 +17,6 @@ Operation:
 
     Verified No RGW  crash seen while performing upload-part-copy with object name containg % in it.
 """
-
 
 import argparse
 import json
@@ -70,7 +69,7 @@ def test_exec(config, ssh_con):
         file_size = config.test_ops.get("file_size", 1024)
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
-            s3cmd_reusable.create_bucket(bucket_name)
+            s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
             if config.test_ops.get("test_upload_part_copy_with_%", False):
                 log.info("Test upload part copy with %")

@@ -42,6 +42,7 @@ from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoIn
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import rgw_accounts as accounts
 from v2.tests.s3_swift.reusables import server_access_logging as bkt_logging
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -57,6 +58,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     # add service2 sdk extras so that bucket logging api's and respective fields are supported
     utils.add_service2_sdk_extras(
@@ -116,10 +118,10 @@ def test_exec(config, ssh_con):
                 src_bucket_name = f"src-bkt{bc}-{each_user['user_id']}"
                 dest_bucket_name = f"dest-bkt{bc}-{each_user['user_id']}"
                 src_bucket = reusable.create_bucket(
-                    src_bucket_name, rgw_conn, each_user
+                    src_bucket_name, rgw_conn, each_user, ip_and_port
                 )
                 dest_bucket = reusable.create_bucket(
-                    dest_bucket_name, rgw_conn, each_user
+                    dest_bucket_name, rgw_conn, each_user, ip_and_port
                 )
                 if config.test_ops.get("enable_version", False):
                     log.info("enable bucket version")

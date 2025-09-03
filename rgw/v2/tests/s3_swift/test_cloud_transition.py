@@ -11,6 +11,7 @@ Usage: test_cloud_transitions.py -c <input_yaml>
     configs/test_cloud_transition_headobject_true.yaml
     configs/test_cloud_transition_multipart.yaml
 """
+
 import os
 import sys
 
@@ -32,6 +33,7 @@ from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import lc_policy
 from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
+from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 from v2.utils.utils import HttpResponseParser, RGWService
@@ -46,6 +48,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
 
     user_info = s3lib.create_users(config.user_count)[0]
     # authenticate
@@ -61,7 +64,9 @@ def test_exec(config, ssh_con):
                 user_info["user_id"], rand_no=bc
             )
             log.info(f"creating bucket with name: {bucket_name_to_create}")
-            bucket = reusable.create_bucket(bucket_name_to_create, rgw_conn, user_info)
+            bucket = reusable.create_bucket(
+                bucket_name_to_create, rgw_conn, user_info, ip_and_port
+            )
 
             if config.test_ops["enable_encryption"]:
                 # enable per bucket encryption on the bucket
