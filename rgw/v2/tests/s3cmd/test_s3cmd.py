@@ -14,6 +14,7 @@ Usage: test_s3cmd.py -c <input_yaml>
     configs/test_setting_public_acl.yaml
     configs/test_create_bucket_for_existing_bucket.yaml
     configs/test_olh_get.yaml
+    multisite_configs/test_s3cmd_put_obj_primary_cp_obj_secondary.yaml
 
 Operation:
     Create an user
@@ -571,6 +572,96 @@ def test_exec(config, ssh_con):
 
             if "ERROR: failed reading olh:" in str(olh_out):
                 raise AssertionError(f"olh decode failed for object {object_name}")
+
+    elif config.test_ops.get("test_put_obj_primary_cp_obj_secondary", False):
+        log.info("Verify put object from primary and copy object from secondary")
+        user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        object_names = []
+        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+        log.info("perform put objects from primary")
+        bucket_name = utils.gen_bucket_name_from_userid(
+            user_info[0]["user_id"], rand_no=1
+        )
+        s3cmd_reusable.create_bucket(bucket_name)
+        log.info(f"Bucket {bucket_name} created")
+        object_count = config.objects_count // 2
+
+        log.info(f"uploading some large objects to bucket {bucket_name}")
+        utils.exec_shell_cmd(f"fallocate -l 20m obj20m")
+        for mobj in range(object_count):
+            cmd = f"{s3cmd_path} put obj20m s3://{bucket_name}/multipart-object-{mobj}"
+            utils.exec_shell_cmd(cmd)
+            object_names.append(f"multipart-object-{mobj}")
+
+        log.info(f"uploading some small objects to bucket {bucket_name}")
+        utils.exec_shell_cmd(f"fallocate -l 4k obj4k")
+        for sobj in range(object_count):
+            cmd = f"{s3cmd_path} put obj4k s3://{bucket_name}/small-object-{sobj}"
+            utils.exec_shell_cmd(cmd)
+            object_names.append(f"small-object-{sobj}")
+
+        bucket_stats = json.loads(
+            utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket_name}")
+        )
+        utils.exec_shell_cmd(f"{s3cmd_path} ls s3://{bucket_name}")
+
+        log.info("perform copy objects from secondary")
+        period_details = json.loads(utils.exec_shell_cmd("radosgw-admin period get"))
+        zone_list = json.loads(utils.exec_shell_cmd("radosgw-admin zone list"))
+        for zone in period_details["period_map"]["zonegroups"][0]["zones"]:
+            if zone["name"] not in zone_list["zones"]:
+                rgw_nodes = zone["endpoints"][0].split(":")
+                node_rgw = rgw_nodes[1].split("//")[-1]
+                break
+
+        time.sleep(60)
+        log.info(f"Another site is: {zone['name']} and ip {node_rgw}")
+        rgw_ssh_con = utils.connect_remote(node_rgw)
+        port = ip_and_port.split(":")[-1]
+        remote_ip_port = f"{node_rgw}:{port}"
+        s3_auth.do_auth(user_info[0], remote_ip_port, rgw_ssh_con)
+
+        _, stdout, _ = rgw_ssh_con.exec_command(f"{s3cmd_path} ls s3://{bucket_name}")
+        log.info(f"s3cmd ls output from remote site: {stdout.read().decode()}")
+        _, re_stdout, _ = rgw_ssh_con.exec_command(
+            f"radosgw-admin bucket stats --bucket {bucket_name}"
+        )
+
+        re_cmd_output = json.loads(re_stdout.read().decode())
+        log.info(re_cmd_output)
+        if (
+            re_cmd_output["usage"]["rgw.main"]["num_objects"]
+            != bucket_stats["usage"]["rgw.main"]["num_objects"]
+        ):
+            raise TestExecError(
+                f"put objects from primary did not sync to secondary, {re_cmd_output['usage']['rgw.main']['num_objects']}"
+            )
+
+        log.info(f"perform copy objects for bucket {bucket_name} from secondary")
+        for obj in object_names:
+            cmd = f"{s3cmd_path} cp s3://{bucket_name}/{obj} s3://{bucket_name}/copy-{obj}"
+            rgw_ssh_con.exec_command(cmd)
+
+        time.sleep(60)
+        _, re_stdout, _ = rgw_ssh_con.exec_command(
+            f"radosgw-admin bucket stats --bucket {bucket_name}"
+        )
+        re_cmd_output = json.loads(re_stdout.read().decode())
+        _, stdout, _ = rgw_ssh_con.exec_command(f"{s3cmd_path} ls s3://{bucket_name}")
+        log.info(f"s3cmd ls output from remote site: {stdout.read().decode()}")
+
+        s3_auth.do_auth(user_info[0], ip_and_port)
+        log.info("s3cmd ls output from current site: ")
+        utils.exec_shell_cmd(f"{s3cmd_path} ls s3://{bucket_name}")
+        bucket_stats = json.loads(
+            utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket_name}")
+        )
+        if (
+            re_cmd_output["usage"]["rgw.main"]["num_objects"]
+            != bucket_stats["usage"]["rgw.main"]["num_objects"]
+        ):
+            raise TestExecError("copied objects from secondary did not sync to primary")
 
     else:
         user_name = resource_op.create_users(no_of_users_to_create=1)[0]["user_id"]
