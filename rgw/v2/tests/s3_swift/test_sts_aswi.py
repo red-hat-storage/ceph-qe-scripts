@@ -80,7 +80,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_config_set = CephConfOp(ssh_con)
     rgw_service = RGWService()
-    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
     local_ip_addr = utils.get_localhost_ip_address()
 
     if config.sts is None:

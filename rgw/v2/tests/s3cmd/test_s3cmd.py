@@ -71,7 +71,7 @@ def test_exec(config, ssh_con):
     rgw_service = RGWService()
 
     rgw_service_port = reusable.get_rgw_service_port()
-    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
     if config.haproxy and rgw_service_port != 443:
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)

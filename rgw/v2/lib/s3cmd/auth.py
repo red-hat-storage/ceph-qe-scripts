@@ -47,6 +47,9 @@ def update_s3cfg_file(user_info, ip_and_port):
         user_info(dict): User Information
         ip_and_port(str): RGW ip and port in <ip>:<port> forma
     """
+    if ip_and_port.startswith("http://") or ip_and_port.startswith("https://"):
+        ip_and_port = ip_and_port.split("://", 1)[1]
+
     port = str(ip_and_port).split(":")[1]
     log.info(f"Port  is {port}")
     parser = RawConfigParser()

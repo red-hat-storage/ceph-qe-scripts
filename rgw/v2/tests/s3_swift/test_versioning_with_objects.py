@@ -70,7 +70,7 @@ def test_exec(config, ssh_con):
     write_bucket_io_info = BucketIoInfo()
     write_key_io_info = KeyIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
 
     # create user
     all_users_info = s3lib.create_users(config.user_count)
@@ -90,9 +90,14 @@ def test_exec(config, ssh_con):
             )
             log.info("creating bucket with name: %s" % bucket_name_to_create)
             # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
-            bucket = reusable.create_bucket(
-                bucket_name_to_create, rgw_conn, each_user, ip_and_port
-            )
+            if config.haproxy:
+                bucket = reusable.create_bucket(
+                    bucket_name_to_create, rgw_conn, each_user
+                )
+            else:
+                bucket = reusable.create_bucket(
+                    bucket_name_to_create, rgw_conn, each_user, ip_and_port
+                )
             # getting bucket version object
             if config.test_ops["enable_version"] is True:
                 log.info("bucket versioning test on bucket: %s" % bucket.name)
