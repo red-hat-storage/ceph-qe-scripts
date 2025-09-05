@@ -55,7 +55,7 @@ def test_exec(config, ssh_con):
     # create user
     s3_user = s3lib.create_users(1)[0]
     # authenticate
-    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
     auth = Auth(s3_user, ssh_con, ssl=config.ssl)
     rgw_conn = auth.do_auth()
     b1_name = utils.gen_bucket_name_from_userid(s3_user["user_id"], rand_no=1)

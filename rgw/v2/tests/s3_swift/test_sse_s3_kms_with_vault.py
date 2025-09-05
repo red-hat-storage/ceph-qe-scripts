@@ -66,7 +66,7 @@ def test_exec(config, ssh_con):
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
-    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
 
     out = utils.exec_shell_cmd("ceph config get client.rgw rgw_crypt_s3_kms_backend")
     rgw_crypt_s3_kms_backend = out.strip()

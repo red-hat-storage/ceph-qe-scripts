@@ -155,7 +155,7 @@ def test_exec(config, ssh_con):
     ceph_conf = CephConfOp(ssh_con)
     log.info(type(ceph_conf))
     rgw_service = RGWService()
-    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
     # preparing data
     user_name = names.get_first_name() + random.choice(string.ascii_letters)
     if config.user_type == "non-tenanted":
