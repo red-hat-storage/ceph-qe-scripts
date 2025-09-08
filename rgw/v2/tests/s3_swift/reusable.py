@@ -1347,7 +1347,7 @@ def link_chown_nontenant_to_nontenant(new_uid, bucket):
     return
 
 
-def delete_objects(bucket):
+def delete_objects(bucket, gc_verification=True):
     """
     deletes the objects in a given bucket
     :param bucket: S3Bucket object
@@ -1359,6 +1359,12 @@ def delete_objects(bucket):
     log.info("all objects: %s" % all_objects)
     for obj in all_objects:
         log.info("object_name: %s" % obj.key)
+        log.info("object_size: %s" % obj.size)
+        gc_verify_list = []
+        if obj.size < 4194304:
+            gc_verify_list.append("No")
+            if "No" in gc_verify_list:
+                gc_verification = False
     log.info("deleting all objects in bucket")
     objects_deleted = s3lib.resource_op(
         {"obj": objects, "resource": "delete", "args": None}
@@ -1374,6 +1380,19 @@ def delete_objects(bucket):
             for obj in all_objects:
                 log.info(f"writing log for delete object {obj.key}")
                 write_key_info.set_key_deleted(obj.bucket_name, obj.key)
+            if gc_verification:
+                log.info("Verify GC Process")
+                cmd1 = f"radosgw-admin gc list --include-all"
+                gc_list = utils.exec_shell_cmd(cmd1)
+                gc_list_json = json.loads(gc_list)
+                if len(gc_list_json) == 0:
+                    raise AssertionError("GC list not generated for deleted objects")
+                utils.exec_shell_cmd("radosgw-admin gc process --include-all")
+                gc_list = utils.exec_shell_cmd(cmd1)
+                gc_list_json = json.loads(gc_list)
+                if len(gc_list_json) != 0:
+                    raise AssertionError("GC process is not successful!")
+
         else:
             raise TestExecError("objects deletion failed")
     else:
