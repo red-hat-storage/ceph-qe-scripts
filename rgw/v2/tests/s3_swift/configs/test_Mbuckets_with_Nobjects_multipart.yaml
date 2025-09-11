@@ -13,7 +13,7 @@ config:
     create_object: true
     upload_type: multipart
     download_object: true
-    delete_bucket_object: false
+    delete_bucket_object: true
     sharding:
       enable: false
       max_shards: 0
