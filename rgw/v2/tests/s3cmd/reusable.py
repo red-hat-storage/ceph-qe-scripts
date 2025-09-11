@@ -252,7 +252,7 @@ def get_file_size(file_name):
     return os.path.getsize(file_name)
 
 
-def get_rgw_ip_and_port(ssh_con=None):
+def get_rgw_ip_and_port(ssh_con=None, ssl=None):
     """
     Returns RGW ip and port in <ip>:<port> format
     Returns: RGW ip and port
@@ -268,6 +268,8 @@ def get_rgw_ip_and_port(ssh_con=None):
         ip = socket.gethostbyname(hostname)
         port = utils.get_radosgw_port_no()
     ip_and_port = f"{ip}:{port}"
+    if ssl:
+        ip_and_port = f"https://{ip}:{port}"
     return ip_and_port
 
 

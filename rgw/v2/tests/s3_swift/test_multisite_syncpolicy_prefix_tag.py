@@ -45,7 +45,7 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     user_info = s3lib.create_users(config.user_count)
-    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
 
     # Create Zonegroup policy
     log.info("Creating Zone group policy at Enabled state")

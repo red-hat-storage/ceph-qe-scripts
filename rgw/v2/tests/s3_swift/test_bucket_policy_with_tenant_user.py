@@ -94,7 +94,7 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
-    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con)
+    ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
     if config.rgw_enable_static_website:
         ceph_conf = CephConfOp(ssh_con)
         rgw_service = RGWService()
