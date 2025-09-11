@@ -511,9 +511,8 @@ def get_endpoint(ssh_con=None, ssl=None, haproxy=None):
     """
 
     if ssh_con:
-        _, stdout, _ = ssh_con.exec_command("hostname")
-        hostname = stdout.readline().strip()
-        ip = socket.gethostbyname(str(hostname))
+        _, stdout, _ = ssh_con.exec_command("hostname -I")
+        ip = stdout.readline().strip().split()[0]  # first IP
         port = utils.get_radosgw_port_no(ssh_con)
     else:
         hostname = socket.gethostname()
@@ -975,3 +974,94 @@ def perform_gc_process_and_list():
     gc_list = json.loads(out)
     if len(gc_list) != 0:
         raise AssertionError("GC process does not emptied the GC list")
+
+
+def create_s3_replication_json(config, bucket_name, json_file="replication.json"):
+    """
+    Extract replication config from a YAML file and apply it to a bucket.
+    """
+    replication_config = config.test_ops["s3_replication"]
+    replication_config["Rules"][0]["Destination"]["Bucket"] = bucket_name
+    log.info(f"replication configuration data: {replication_config}")
+    # Save replication config as JSON
+    with open(json_file, "w") as f:
+        json.dump(replication_config, f, indent=4)
+
+
+def put_bucket_s3_replication(
+    aws_auth, bucket_name, end_point, json_file="replication.json"
+):
+    """
+    Put bucket s3 replication
+    Ex: /usr/local/bin/aws s3api put-bucket-replication --bucket <bucket> --replication-configuration file://replication.json --endpoint <endpoint_url>
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        end_point(str): endpoint
+        json_file(str): Name/path of the file
+    Return:
+        Response of put-bucket-replication operation
+    """
+    command = aws_auth.command(
+        operation="put-bucket-replication",
+        params=[
+            f"--bucket {bucket_name} --replication-configuration file://{json_file} --endpoint-url {end_point}",
+        ],
+    )
+    try:
+        put_response = utils.exec_shell_cmd(command)
+        if put_response:
+            raise Exception(f"put s3 replication failed for bucket {bucket_name}")
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def get_bucket_s3_replication(aws_auth, bucket_name, end_point):
+    """
+    Get bucket s3 replication
+    Ex: /usr/local/bin/aws s3api get-bucket-replication --bucket <bucket> --endpoint <endpoint_url>
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        end_point(str): endpoint
+    Return:
+        Response of get-bucket-replication operation
+    """
+    command = aws_auth.command(
+        operation="get-bucket-replication",
+        params=[
+            f"--bucket {bucket_name} --endpoint-url {end_point}",
+        ],
+    )
+    try:
+        get_response = utils.exec_shell_cmd(command)
+        log.info(get_response)
+        if not get_response:
+            raise Exception(f"get s3 replication failed for bucket {bucket_name}")
+        return get_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def delete_bucket_s3_replication(aws_auth, bucket_name, end_point):
+    """
+    Delete bucket s3 replication
+    Ex: /usr/local/bin/aws s3api delete-bucket-replication --bucket <bucket> --endpoint <endpoint_url>
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        end_point(str): endpoint
+    Return:
+        Response of delete-bucket-replication operation
+    """
+    command = aws_auth.command(
+        operation="delete-bucket-replication",
+        params=[
+            f"--bucket {bucket_name} --endpoint-url {end_point}",
+        ],
+    )
+    try:
+        delete_response = utils.exec_shell_cmd(command)
+        log.info(delete_response)
+        if delete_response is False:
+            raise Exception(f"delete s3 replication failed for bucket {bucket_name}")
+        return delete_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
