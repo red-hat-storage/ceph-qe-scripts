@@ -4,6 +4,7 @@ Usage: test_delete_version_id_null.py -c configs/test_delete_version_id_null.yam
 <input_yaml>
     Note: Following yaml can be used
     configs/test_delete_version_id_null.yaml
+    configs/test_no_crash_while_ver_deletion.yaml
 
 Operation:
     Validates Null version id deletion using AWS
@@ -63,84 +64,116 @@ def test_exec(config, ssh_con):
         current_zone_name = "secondary"
         remote_zone_name = "primary"
 
-    current_rgw_ip = utils.get_rgw_ip_zone(current_zone_name)
-    remote_rgw_ip = utils.get_rgw_ip_zone(remote_zone_name)
-    log.info(f"current_ip : {current_rgw_ip}")
-    log.info(f"remote_ip : {remote_rgw_ip}")
-    remote_site_ssh_con = utils.connect_remote(remote_rgw_ip)
-    log.info(f"remote_site_ssh_con : {remote_site_ssh_con}")
+    if config.test_ops.get("delete_with_verid", False):
+        log.info("Validate Object version deletion with version-id")
+        endpoint = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
+        for user in user_info:
+            user_name = user["user_id"]
+            log.info(user_name)
+            cli_aws = AWS(ssl=config.ssl)
+            aws_auth.do_auth_aws(user)
+            bucket_name = "testbkt-1"
+            aws_reusable.create_bucket(cli_aws, bucket_name, endpoint)
+            log.info(f"Bucket {bucket_name} created")
+            aws_reusable.put_get_bucket_versioning(cli_aws, bucket_name, endpoint)
+            object_name = "hello.txt"
+            utils.exec_shell_cmd(f"fallocate -l 12m {object_name}")
+            aws_reusable.put_object(cli_aws, bucket_name, object_name, endpoint)
+            log.info(f"upload another version of objcet {object_name}")
+            aws_reusable.put_object(cli_aws, bucket_name, object_name, endpoint)
+            obj_versions = json.loads(
+                aws_reusable.list_object_versions(cli_aws, bucket_name, endpoint)
+            )
+            version_id = obj_versions["Versions"][1]["VersionId"]
+            log.info(f"version_id is : {version_id}")
+            out = aws_reusable.delete_object(
+                cli_aws, bucket_name, object_name, endpoint, versionid=version_id
+            )
+            if "Could not connect to the endpoint URL" in out:
+                raise AssertionError(
+                    "RGW crash seen while deleting object version with version id"
+                )
+            s3_reusable.remove_user(user)
+    if config.test_ops.get("delete_version_id_null", False):
+        log.info("Verify delete version id null")
+        current_rgw_ip = utils.get_rgw_ip_zone(current_zone_name)
+        remote_rgw_ip = utils.get_rgw_ip_zone(remote_zone_name)
+        log.info(f"current_ip : {current_rgw_ip}")
+        log.info(f"remote_ip : {remote_rgw_ip}")
+        remote_site_ssh_con = utils.connect_remote(remote_rgw_ip)
+        log.info(f"remote_site_ssh_con : {remote_site_ssh_con}")
 
-    for user in user_info:
-        user_name = user["user_id"]
-        log.info(user_name)
-        cli_aws = AWS(ssl=config.ssl)
-        aws_auth.do_auth_aws(user)
-        aws_auth.do_auth_aws(user, remote_site_ssh_con)
-        local_port = utils.get_radosgw_port_no(ssh_con)
-        log.info(f"local_port is {local_port}")
-        remote_port = utils.get_radosgw_port_no(remote_site_ssh_con)
-        log.info(f"remote_port is {remote_port}")
-        internet_protocol = "https" if config.ssl else "http"
-        local_endpoint = f"{internet_protocol}://{current_rgw_ip}:{local_port}"
-        remote_endpoint = f"{internet_protocol}://{remote_rgw_ip}:{remote_port}"
+        for user in user_info:
+            user_name = user["user_id"]
+            log.info(user_name)
+            cli_aws = AWS(ssl=config.ssl)
+            aws_auth.do_auth_aws(user)
+            aws_auth.do_auth_aws(user, remote_site_ssh_con)
+            local_port = utils.get_radosgw_port_no(ssh_con)
+            log.info(f"local_port is {local_port}")
+            remote_port = utils.get_radosgw_port_no(remote_site_ssh_con)
+            log.info(f"remote_port is {remote_port}")
+            internet_protocol = "https" if config.ssl else "http"
+            local_endpoint = f"{internet_protocol}://{current_rgw_ip}:{local_port}"
+            remote_endpoint = f"{internet_protocol}://{remote_rgw_ip}:{remote_port}"
 
-        bucket_name = "testbkt"
-        aws_reusable.create_bucket(cli_aws, bucket_name, local_endpoint)
-        log.info(f"Bucket {bucket_name} created")
-        object_name = "hello.txt"
-        utils.exec_shell_cmd(f"fallocate -l 1K {object_name}")
-        aws_reusable.put_object(cli_aws, bucket_name, object_name, local_endpoint)
+            bucket_name = "testbkt"
+            aws_reusable.create_bucket(cli_aws, bucket_name, local_endpoint)
+            log.info(f"Bucket {bucket_name} created")
+            object_name = "hello.txt"
+            utils.exec_shell_cmd(f"fallocate -l 1K {object_name}")
+            aws_reusable.put_object(cli_aws, bucket_name, object_name, local_endpoint)
 
-        # waiting for sync to be caught up with other site
-        sync_status(ssh_con=remote_site_ssh_con)
+            # waiting for sync to be caught up with other site
+            sync_status(ssh_con=remote_site_ssh_con)
 
-        # Verifying object with version id null is created on both local and remote sites
-        aws_reusable.verify_object_with_version_id_null(
-            cli_aws, bucket_name, object_name, local_endpoint
-        )
-        aws_reusable.verify_object_with_version_id_null(
-            cli_aws, bucket_name, object_name, remote_endpoint
-        )
+            # Verifying object with version id null is created on both local and remote sites
+            aws_reusable.verify_object_with_version_id_null(
+                cli_aws, bucket_name, object_name, local_endpoint
+            )
+            aws_reusable.verify_object_with_version_id_null(
+                cli_aws, bucket_name, object_name, remote_endpoint
+            )
 
-        log.info(
-            f"Enabling versioning for the bucket {bucket_name} from local site:{current_zone_name}"
-        )
-        aws_reusable.put_get_bucket_versioning(cli_aws, bucket_name, local_endpoint)
+            log.info(
+                f"Enabling versioning for the bucket {bucket_name} from local site:{current_zone_name}"
+            )
+            aws_reusable.put_get_bucket_versioning(cli_aws, bucket_name, local_endpoint)
 
-        # Upload another version of the object to the bucket from local site
-        aws_reusable.put_object(cli_aws, bucket_name, object_name, local_endpoint)
+            # Upload another version of the object to the bucket from local site
+            aws_reusable.put_object(cli_aws, bucket_name, object_name, local_endpoint)
 
-        sync_status(ssh_con=remote_site_ssh_con)
+            sync_status(ssh_con=remote_site_ssh_con)
 
-        version_list = aws_reusable.list_object_versions(
-            cli_aws, bucket_name, local_endpoint
-        )
-        log.info(
-            f"versions of objects for the bucket {bucket_name} from local site: {current_zone_name} is {version_list}"
-        )
+            version_list = aws_reusable.list_object_versions(
+                cli_aws, bucket_name, local_endpoint
+            )
+            log.info(
+                f"versions of objects for the bucket {bucket_name} from local site: {current_zone_name} is {version_list}"
+            )
 
-        version_list = aws_reusable.list_object_versions(
-            cli_aws, bucket_name, remote_endpoint
-        )
-        log.info(
-            f"versions of objects for the bucket {bucket_name} from remote site:{remote_zone_name} is {version_list}"
-        )
+            version_list = aws_reusable.list_object_versions(
+                cli_aws, bucket_name, remote_endpoint
+            )
+            log.info(
+                f"versions of objects for the bucket {bucket_name} from remote site:{remote_zone_name} is {version_list}"
+            )
 
-        # Deleting object with version id null from local site
-        aws_reusable.delete_object(
-            cli_aws, bucket_name, object_name, local_endpoint, versionid="null"
-        )
-        sync_status(ssh_con=remote_site_ssh_con)
+            # Deleting object with version id null from local site
+            aws_reusable.delete_object(
+                cli_aws, bucket_name, object_name, local_endpoint, versionid="null"
+            )
+            sync_status(ssh_con=remote_site_ssh_con)
 
-        # Verifying object with version id null is deleted from both sites:local and remote
-        aws_reusable.verify_object_with_version_id_null(
-            cli_aws, bucket_name, object_name, local_endpoint, created=False
-        )
-        aws_reusable.verify_object_with_version_id_null(
-            cli_aws, bucket_name, object_name, remote_endpoint, created=False
-        )
+            # Verifying object with version id null is deleted from both sites:local and remote
+            aws_reusable.verify_object_with_version_id_null(
+                cli_aws, bucket_name, object_name, local_endpoint, created=False
+            )
+            aws_reusable.verify_object_with_version_id_null(
+                cli_aws, bucket_name, object_name, remote_endpoint, created=False
+            )
 
-        s3_reusable.remove_user(user)
+            s3_reusable.remove_user(user)
 
     # check for any crashes during the execution
     crash_info = s3_reusable.check_for_crash()
