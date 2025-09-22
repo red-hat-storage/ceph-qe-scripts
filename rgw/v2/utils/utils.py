@@ -44,7 +44,7 @@ def exec_long_running_shell_cmd(cmd):
         print()
         rc = pr.poll()
         if rc == 0:
-            log.info("cmd excuted")
+            log.info("cmd executed")
             return True
         else:
             raise Exception("error occured \nreturncode: %s" % (rc))
@@ -69,7 +69,7 @@ def exec_shell_cmd(cmd, debug_info=False, return_err=False):
         out = out.decode("utf-8", errors="ignore")
         err = err.decode("utf-8", errors="ignore")
         if pr.returncode == 0:
-            log.info("cmd excuted")
+            log.info("cmd executed")
             if out is not None:
                 log.info(out)
                 if debug_info == True:
