@@ -358,6 +358,39 @@ def complete_multipart_upload(
         raise AWSCommandExecError(message=str(e))
 
 
+def conditional_put_object(
+    aws_auth, bucket_name, object_name, end_point, etag=None, return_err=False
+):
+    """
+    Put/uploads object to the bucket based on given condition matches
+    Ex: /usr/local/bin/aws s3api put-object --bucket <bucket_name> --key <object_name> --body <content> --endpoint <endpoint_url> --if-none-match | --if-match <Etag>
+    Args:
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        object_name(str): Name of the object/file
+        end_point(str): endpoint
+        etag(str): if Etag given checks for condition --if-match <etag> else proceed with condition --if-none-match "*"
+        return_err(boolean): If True returns error
+    """
+    params = [f"--bucket {bucket_name} --key {object_name} --endpoint-url {end_point}"]
+    if etag:
+        params = [params[0] + f" --if-match {etag}"]
+    else:
+        params = [params[0] + f' --if-none-match "*"']
+
+    command = aws_auth.command(
+        operation="put-object",
+        params=params,
+    )
+    try:
+        put_response = utils.exec_shell_cmd(command, return_err=True)
+        log.info(f"delete object response: {put_response}")
+        if not put_response and not return_err:
+            raise Exception(f"delete object failed for {bucket_name}")
+        return put_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
 def put_object(aws_auth, bucket_name, object_name, end_point):
     """
     Put/uploads object to the bucket
@@ -433,6 +466,79 @@ def put_object_checksum(
     else:
         log.info(f"Upload successful for {algo}")
         return out
+
+
+def validate_gc():
+    """
+    Method to Check for GC list creation and validates GC process
+    """
+    log.info("Verify GC Process")
+    cmd1 = f"radosgw-admin gc list --include-all"
+    gc_list = utils.exec_shell_cmd(cmd1)
+    gc_list_json = json.loads(gc_list)
+    if len(gc_list_json) == 0:
+        raise AssertionError("GC list not generated for deleted objects")
+    utils.exec_shell_cmd("radosgw-admin gc process --include-all")
+    gc_list = utils.exec_shell_cmd(cmd1)
+    gc_list_json = json.loads(gc_list)
+    if len(gc_list_json) != 0:
+        raise AssertionError("GC process is not successful!")
+
+
+def conditional_delete_object(
+    aws_auth,
+    bucket_name,
+    object_name,
+    end_point,
+    versionid=None,
+    etag=None,
+    last_modified_time=None,
+    size=None,
+    return_err=False,
+):
+    """
+    Method to perform conditional delete operation using Etag, Last modified time and size of the object
+    Ex: /usr/local/bin/aws s3api delete-object --bucket <bucket_name> --key <object_name> --endpoint <endpoint_url> --if-match <etag> |
+    --if-match-last-modified-time <last_modified_time> | --if-match-size <size> | --version-id <versionid>
+    Args:
+        aws_auth: authentication for awscli
+        bucket_name(str): Name of the bucket from which object needs to be listed
+        object_name(str): Name of the object/file
+        end_point(str): endpoint
+        versionid(str): version id of object
+        etag(str): etag of an object
+        last_modified_time(str): last modified time of an object
+        size(int): size of an object
+        return_err(boolean): if true returns error
+    Return:
+
+    """
+    params = [f"--bucket {bucket_name} --key {object_name} --endpoint-url {end_point}"]
+
+    if versionid:
+        params = [params[0] + f" --version-id {versionid}"]
+
+    if etag:
+        params = [params[0] + f" --if-match {etag}"]
+
+    if last_modified_time:
+        params = [params[0] + f" --if-match-last-modified-time {last_modified_time}"]
+
+    if size:
+        params = [params[0] + f" --if-match-size {size}"]
+
+    command = aws_auth.command(
+        operation="delete-object",
+        params=params,
+    )
+    try:
+        delete_response = utils.exec_shell_cmd(command, return_err=True)
+        log.info(f"delete object response: {delete_response}")
+        if delete_response is False and not return_err:
+            raise Exception(f"delete object failed for {bucket_name}")
+        return delete_response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
 
 
 def delete_object(aws_auth, bucket_name, object_name, end_point, versionid=None):
