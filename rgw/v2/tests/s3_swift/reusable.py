@@ -2595,7 +2595,7 @@ def pipe_operation(
         + bkt
     )
     if policy_detail is not None:
-        cmd = cmd + policy_detail
+        cmd = cmd + " " + policy_detail
 
     utils.exec_shell_cmd(cmd)
     if bucket_name is None:
