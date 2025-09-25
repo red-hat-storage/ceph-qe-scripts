@@ -1,4 +1,5 @@
-# Polarian TC : CEPH-83575876
+# Polarian TC : CEPH-83629972
+# bug: 2318519
 # script: test_aws_s3_replication.py
 config:
     user_count: 1
@@ -13,12 +14,16 @@ config:
         zonegroup_flow: true
         zonegroup_flow_type: symmetrical
         zonegroup_pipe: true
-        create_object: true
+        zonegroup_policy_details: --mode=user --uid=<user_id>
+        create_object: false
         create_bucket: true
         should_sync: true
-        write_io_verify_another_site: true
-        write_io_verify_should_sync: true
         zonegroup_group_remove: true
+        modify_zonegroup_policy: true
+        modify_zonegroup_pipe: true
+        modify_zg_policy_details: --storage-class cold
+        modify_bucket_pipe: true
+        modify_bkt_policy_details: --prefix abc
         s3_replication:
           Role: ""
           Rules:

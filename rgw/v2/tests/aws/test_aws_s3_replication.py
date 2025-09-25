@@ -4,6 +4,7 @@ Usage: test_aws_s3_replication.py -c <input_yaml>
 <input_yaml>
     Note: Following yaml can be used
     multisite_configs/test_aws_s3_bucket_replication.yaml
+    multisite_configs/test_aws_granular_sync_policy_pipe_modify.yaml
 """
 
 
@@ -123,6 +124,11 @@ def test_exec(config, ssh_con):
                 zonegroup_details = config.test_ops.get(
                     "zonegroup_policy_details", None
                 )
+                if zonegroup_details and "mode" in zonegroup_details:
+                    zonegroup_details = zonegroup_details.replace(
+                        "<user_id>",
+                        each_user["user_id"],
+                    )
                 zonegroup_source_pipe = config.test_ops.get(
                     "zonegroup_source_zones", None
                 )
@@ -145,12 +151,23 @@ def test_exec(config, ssh_con):
             rgw_conn = auth.do_auth()
             if utils.is_cluster_multisite():
                 if config.test_ops.get("modify_zonegroup_policy", False):
-                    modify_zgroup_status = config.test_ops["modify_zgroup_status"]
-                    reusable.group_operation(
-                        group_id,
-                        "modify",
-                        modify_zgroup_status,
-                    )
+                    if config.test_ops.get("modify_zonegroup_pipe", False):
+                        log.info(f"Modifying zonegroup policy {group_id}")
+                        modify_zg_policy_details = config.test_ops.get(
+                            "modify_zg_policy_details", None
+                        )
+                        pipe_id = reusable.pipe_operation(
+                            group_id,
+                            "modify",
+                            policy_detail=modify_zg_policy_details,
+                        )
+                    if config.test_ops.get("modify_zgroup_status", False):
+                        modify_zgroup_status = config.test_ops["modify_zgroup_status"]
+                        reusable.group_operation(
+                            group_id,
+                            "modify",
+                            modify_zgroup_status,
+                        )
 
                 for bkt in buckets:
                     log.info(f"perform put s3 replication on bucket {bkt.name}")
@@ -158,6 +175,9 @@ def test_exec(config, ssh_con):
                     aws_reusable.put_bucket_s3_replication(cli_aws, bkt.name, endpoint)
                     log.info(f"perform get s3 replication on bucket {bkt.name}")
                     aws_reusable.get_bucket_s3_replication(cli_aws, bkt.name, endpoint)
+                    get_policy = f"radosgw-admin sync policy get --bucket {bkt.name}"
+                    bucket_group = json.loads(utils.exec_shell_cmd(get_policy))
+                    log.info(f"get sync policy of bucket {bkt.name}")
 
                     reusable.verify_bucket_sync_policy_on_other_site(rgw_ssh_con, bkt)
                     if config.test_ops.get("create_object", False):
@@ -308,6 +328,23 @@ def test_exec(config, ssh_con):
                                 )
 
                 for bkt in buckets:
+                    if config.test_ops.get("modify_bucket_pipe", False):
+                        bucket_group_id = "s3-bucket-replication:enabled"
+                        log.info(
+                            f"Modifying bucket policy {bucket_group_id} for bucket {bkt.name}"
+                        )
+                        replication_config = config.test_ops["s3_replication"]
+                        bkt_pipe_id = replication_config["Rules"][0]["ID"]
+                        bkt_policy_details = config.test_ops.get(
+                            "modify_bkt_policy_details", None
+                        )
+                        pipe_id = reusable.pipe_operation(
+                            bucket_group_id,
+                            "modify",
+                            bucket_name=bkt.name,
+                            policy_detail=bkt_policy_details,
+                            pipe_id=bkt_pipe_id,
+                        )
                     log.info(f"perform delete s3 replication on bucket {bkt.name}")
                     aws_reusable.delete_bucket_s3_replication(
                         cli_aws, bkt.name, endpoint
