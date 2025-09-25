@@ -4,9 +4,12 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
 import urllib.parse
+
+import yaml
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
@@ -1670,3 +1673,282 @@ def parse_haproxy_stats(stats_output, service_name):
                 except (ValueError, IndexError):
                     continue
     return rgw_rgw_requests
+
+
+def rgw_concentrator_negative(config, ssh_con, rgw_node):
+    """
+    Test negative scenarios for RGW with HAProxy concentrator deployment on a non-RGW node.
+    Scenarios:
+    1. Deploy RGW with invalid concentrator type (expect error)
+    2. Deploy RGW without concentrator port (expect error)
+    3. Deploy two RGW services with same concentrator port (expect port conflict error)
+    4. Send traffic to non-existent RGW instance via HAProxy (expect 502/503 or connection error)
+    Args:
+        config: Configuration object with test parameters
+        ssh_con: SSH connection to a node with Ceph client access
+        rgw_node: Node with RGW role (used to avoid it)
+    Returns:
+        True if all tests pass, False otherwise
+    """
+    log.info("Starting RGW concentrator negative tests")
+    try:
+        # Get all hosts
+        orch_host_cmd = "ceph orch host ls --format json"
+        orch_host_output = utils.exec_shell_cmd(orch_host_cmd)
+        if not orch_host_output:
+            raise TestExecError("Failed to get host list")
+        hosts = json.loads(orch_host_output)
+
+        # Get RGW services
+        orch_ps_cmd = "ceph orch ps --format json"
+        orch_ps_output = utils.exec_shell_cmd(orch_ps_cmd)
+        if not orch_ps_output:
+            raise TestExecError("Failed to get process list")
+        services = json.loads(orch_ps_output)
+        rgw_hosts = list(
+            set([s["hostname"] for s in services if "rgw" in s["service_name"]])
+        )
+
+        # Select a non-RGW host
+        non_rgw_hosts = [h["hostname"] for h in hosts if h["hostname"] not in rgw_hosts]
+        if not non_rgw_hosts:
+            raise TestExecError("No host without RGW role found")
+        test_host = non_rgw_hosts[0]
+        log.info(f"Selected non-RGW host for testing: {test_host}")
+
+        def apply_spec(spec, expected_error=None):
+            """Apply a Ceph spec and check for expected error."""
+            with tempfile.NamedTemporaryFile(
+                mode="w", suffix=".yaml", delete=False
+            ) as tmp:
+                yaml.safe_dump(spec, tmp)
+                tmp_path = tmp.name
+            try:
+                # Copy spec to remote node using utils.exec_shell_cmd
+                copy_cmd = f"cat {tmp_path} | ssh {rgw_node} 'mkdir -p /tmp && cat > /tmp/spec.yaml'"
+                copy_output = utils.exec_shell_cmd(copy_cmd)
+                if not copy_output:
+                    raise TestExecError(f"Failed to copy spec file to {rgw_node}")
+
+                # Apply the spec
+                apply_cmd = f"ceph orch apply -i /tmp/spec.yaml"
+                apply_output = utils.exec_shell_cmd(apply_cmd, check_ec=False)
+                if apply_output is False:
+                    out = ""
+                    err = (
+                        apply_output.stderr
+                        if hasattr(apply_output, "stderr")
+                        else "Command failed"
+                    )
+                else:
+                    out = apply_output
+                    err = ""
+
+                # Remove the spec file from remote node
+                cleanup_cmd = f"ssh {rgw_node} 'rm /tmp/spec.yaml'"
+                utils.exec_shell_cmd(cleanup_cmd)
+
+                # Remove local temp file
+                os.remove(tmp_path)
+
+                if expected_error:
+                    # For negative tests, expect an error and specific error message
+                    if err and expected_error.lower() in err.lower() and not out:
+                        log.info(f"Expected error found: {expected_error}")
+                        return True
+                    log.error(
+                        f"Expected error '{expected_error}' not found or deployment succeeded unexpectedly: out='{out}', err='{err}'"
+                    )
+                    return False
+                else:
+                    # For positive tests, expect no error
+                    if not err and out:
+                        log.info(f"Spec applied successfully: {out}")
+                        return out, err
+                    log.error(
+                        f"Unexpected error during spec application: out='{out}', err='{err}'"
+                    )
+                    return False
+            except Exception as e:
+                log.error(f"Error applying spec: {str(e)}")
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+                return False
+
+        def remove_service(service_id):
+            """Remove an RGW service."""
+            utils.exec_shell_cmd(f"ceph orch rm rgw.{service_id}", check_ec=False)
+
+        # Case 1: Invalid concentrator type
+        spec1 = {
+            "service_type": "rgw",
+            "service_id": "foo_invalid",
+            "placement": {"hosts": [test_host]},
+            "spec": {
+                "concentrator": "invalid_type",
+                "concentrator_frontend_port": 8081,
+                "concentrator_monitor_port": 1967,
+                "concentrator_monitor_user": "admin",
+            },
+        }
+        log.info("Case 1: Testing invalid concentrator type")
+        if not apply_spec(spec1, "invalid concentrator"):
+            raise TestExecError("Case 1: Invalid concentrator type test failed")
+
+        # Case 2: Missing concentrator port
+        spec2 = {
+            "service_type": "rgw",
+            "service_id": "foo_missing_port",
+            "placement": {"hosts": [test_host]},
+            "spec": {
+                "concentrator": "haproxy",
+                "concentrator_monitor_port": 1967,
+                "concentrator_monitor_user": "admin",
+            },
+        }
+        log.info("Case 2: Testing missing concentrator port")
+        if not apply_spec(spec2, "missing concentrator port"):
+            raise TestExecError("Case 2: Missing concentrator port test failed")
+
+        # Case 3: Port conflict
+        spec3a = {
+            "service_type": "rgw",
+            "service_id": "foo_port_conflict1",
+            "placement": {"hosts": [test_host]},
+            "spec": {
+                "concentrator": "haproxy",
+                "concentrator_frontend_port": 8082,
+                "concentrator_monitor_port": 1968,
+                "concentrator_monitor_user": "admin",
+            },
+        }
+        spec3b = {
+            "service_type": "rgw",
+            "service_id": "foo_port_conflict2",
+            "placement": {"hosts": [test_host]},
+            "spec": {
+                "concentrator": "haproxy",
+                "concentrator_frontend_port": 8082,  # Same port as spec3a
+                "concentrator_monitor_port": 1969,
+                "concentrator_monitor_user": "admin",
+            },
+        }
+        log.info("Case 3: Testing port conflict")
+        # Apply first service
+        result = apply_spec(spec3a)
+        if result is False:
+            remove_service("foo_port_conflict1")
+            raise TestExecError("Case 3: Failed to deploy first RGW service")
+        # Apply second service with same port
+        if not apply_spec(spec3b, "port conflict"):
+            remove_service("foo_port_conflict1")
+            remove_service("foo_port_conflict2")
+            raise TestExecError("Case 3: Port conflict test failed")
+        # Clean up
+        remove_service("foo_port_conflict1")
+        remove_service("foo_port_conflict2")
+
+        # Case 4: Non-existent RGW instance
+        spec4 = {
+            "service_type": "rgw",
+            "service_id": "foo_nonexistent",
+            "placement": {"hosts": [test_host]},
+            "spec": {
+                "concentrator": "haproxy",
+                "concentrator_frontend_port": 8083,
+                "concentrator_monitor_port": 1970,
+                "concentrator_monitor_user": "admin",
+            },
+        }
+        out, err = apply_spec(spec4)
+        if err:
+            remove_service("foo_nonexistent")
+            raise TestExecError(f"Case 4: Failed to deploy RGW service: {err}")
+
+        # Wait for RGW daemon to appear
+        max_attempts = 5
+        for attempt in range(max_attempts):
+            orch_ps_output = utils.exec_shell_cmd(orch_ps_cmd)
+            if not orch_ps_output:
+                remove_service("foo_nonexistent")
+                raise TestExecError("Failed to get process list after deploying RGW")
+            services = json.loads(orch_ps_output)
+            rgw_daemons = [
+                s for s in services if s["service_name"] == "rgw.foo_nonexistent"
+            ]
+            if rgw_daemons:
+                break
+            log.info(
+                f"Attempt {attempt + 1}/{max_attempts}: No RGW daemons found, retrying..."
+            )
+            time.sleep(10)
+        else:
+            remove_service("foo_nonexistent")
+            raise TestExecError(
+                "Case 4: No RGW daemons found for service rgw.foo_nonexistent after retries"
+            )
+
+        # Stop one RGW daemon
+        daemon_to_stop = rgw_daemons[0]["daemon_name"]
+        stop_cmd = f"ceph orch daemon stop {daemon_to_stop}"
+        stop_output = utils.exec_shell_cmd(stop_cmd)
+        if not stop_output:
+            remove_service("foo_nonexistent")
+            raise TestExecError(f"Failed to stop RGW daemon {daemon_to_stop}")
+
+        # Wait for daemon to stop
+        time.sleep(10)
+
+        # Send traffic to HAProxy
+        num_requests = config.test_ops.get("traffic_test_requests", 20)
+        successful_requests = 0
+        error_codes = []
+        for i in range(num_requests):
+            curl_cmd = (
+                f"curl -s -o /dev/null -w '%{{http_code}}' http://{test_host}:8083"
+            )
+            result = subprocess.run(
+                curl_cmd, shell=True, capture_output=True, text=True
+            )
+            status_code = result.stdout.strip()
+            error_codes.append(status_code)
+            if status_code in ["502", "503", "000"]:  # 000 for connection refused
+                log.info(
+                    f"Request {i+1} failed as expected with status code {status_code}"
+                )
+            else:
+                successful_requests += 1
+                log.warning(
+                    f"Request {i+1} succeeded unexpectedly with status code {status_code}"
+                )
+            time.sleep(0.1)
+
+        # Verify no successful requests
+        if successful_requests > 0:
+            remove_service("foo_nonexistent")
+            raise TestExecError(
+                f"Case 4: Unexpected successful requests: {successful_requests} out of {num_requests}"
+            )
+
+        # Verify error codes
+        expected_errors = {"502", "503", "000"}
+        if not any(code in expected_errors for code in error_codes):
+            remove_service("foo_nonexistent")
+            raise TestExecError(
+                f"Case 4: No expected error codes (502/503/000) received: {error_codes}"
+            )
+
+        # Clean up
+        remove_service("foo_nonexistent")
+        log.info("All negative test cases passed successfully")
+        return True
+
+    except json.JSONDecodeError:
+        log.error("Failed to parse ceph orch command output")
+        return False
+    except TestExecError as e:
+        log.error(f"Test failed: {e}")
+        return False
+    except Exception as e:
+        log.error(f"Unexpected error: {str(e)}")
+        return False
