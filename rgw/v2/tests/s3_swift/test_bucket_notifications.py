@@ -207,7 +207,12 @@ def test_exec(config, ssh_con):
                         log.info("topic with peristent flag enabled")
                         persistent = config.test_ops.get("persistent_flag")
                     # create topic at kafka side
-                    notification.create_topic_from_kafka_broker(topic_name)
+                    if config.test_ops.get("add_acl_config_in_kafka_properties", False):
+                        log.info(
+                            "Skipping create topic from kafka side for kafka acl negative testcase"
+                        )
+                    else:
+                        notification.create_topic_from_kafka_broker(topic_name)
                     # create topic at rgw side
                     topic = notification.create_topic(
                         rgw_sns_conn,
