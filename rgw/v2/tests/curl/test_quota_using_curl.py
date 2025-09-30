@@ -102,10 +102,10 @@ def test_exec(config, ssh_con):
                 ceph_version_id = ceph_version_id.split("-")
                 ceph_version_id = ceph_version_id[0].split(".")
                 if (
-                    (float(ceph_version_id[0]) >= 19)
-                    and (float(ceph_version_id[1]) >= 2)
-                    and (float(ceph_version_id[2]) >= 1)
-                ):
+                    float(ceph_version_id[0]) >= 19
+                    and float(ceph_version_id[1]) >= 2
+                    and float(ceph_version_id[2]) >= 1
+                ) or (float(ceph_version_id[0]) >= 20):
                     log.info("Remove default headers from expected headers")
                     log.info(f"expected_header : {expected_header}")
                     if config.test_ops.get("bucket_quota", False):
