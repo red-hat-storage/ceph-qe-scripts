@@ -1,0 +1,8 @@
+# bugzilla id : 2306382
+# Configuration for RGW zone modification test on primary cluster
+config:
+  test_ops:
+    run_zone_modify_test: true
+    new_data_pool: rgwec86-pool
+    zone_names: ["primary"]
+    is_multisite: true
