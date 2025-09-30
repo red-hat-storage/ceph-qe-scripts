@@ -1,0 +1,9 @@
+# script: ceph-qe-scripts/rgw/v2/tests/aws/test_conditional_delete.py
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    conditional_delete_with_multi_condition: true
+    etag: [true, "correct"]
+    last_modified_time: [true, "correct"]
+    size: [true, "correct"]

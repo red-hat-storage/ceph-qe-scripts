@@ -1,0 +1,7 @@
+# script: ceph-qe-scripts/rgw/v2/tests/aws/test_conditional_delete.py
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    conditional_put_if_none_match: true
+    enable_version: true
