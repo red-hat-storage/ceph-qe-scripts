@@ -98,9 +98,14 @@ def test_exec(config, ssh_con):
                     each_user["user_id"], rand_no=bc
                 )
                 log.info("creating bucket with name: %s" % bucket_name_to_create)
-                bucket = reusable.create_bucket(
-                    bucket_name_to_create, rgw_conn, each_user, ip_and_port
-                )
+                if config.haproxy:
+                    bucket = reusable.create_bucket(
+                        bucket_name_to_create, rgw_conn, each_user
+                    )
+                else:
+                    bucket = reusable.create_bucket(
+                        bucket_name_to_create, rgw_conn, each_user, ip_and_port
+                    )
 
                 bucket_created.append(bucket)
                 if config.test_ops.get("test_bucket_list_incomplete_mp", False):
