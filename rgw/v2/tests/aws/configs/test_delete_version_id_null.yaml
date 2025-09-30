@@ -1,3 +1,6 @@
-#CEPH-83576431
+# CEPH-83576431
+# Script: aws/test_delete_version_id_null.py
 config:
   user_count: 1
+  test_ops:
+    delete_version_id_null: true

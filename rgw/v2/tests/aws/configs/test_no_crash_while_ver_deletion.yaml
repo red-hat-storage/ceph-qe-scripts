@@ -1,0 +1,7 @@
+# script: ceph-qe-scripts/rgw/v2/tests/aws/test_delete_version_id_null.py
+# Bugzilla id: 2379275
+# CEPH-83576431
+config:
+  user_count: 1
+  test_ops:
+    delete_with_verid: true
