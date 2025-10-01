@@ -1,4 +1,5 @@
-"""test_rgw_concentrators.py - Test if RGW and HAProxy are on the same node and concentrator behavior
+"""
+test_rgw_concentrators.py - Test if RGW and HAProxy are on the same node and concentrator behavior
 
 Usage: test_rgw_concentrators.py -c <input_yaml>
 
@@ -15,7 +16,8 @@ Operation:
     Test stopping HAProxy instance and verify traffic stops
     Test restarting HAProxy during traffic and verify even distribution
     Test removing RGW service and verify RGW and HAProxy are removed
-    Test S3 operations (create, upload, download, delete) based on config.
+    Test negative scenarios for RGW with HAProxy concentrator
+    Test S3 operations (create, upload, download, delete) based on config
     Report status of colocation and concentrator behavior checks
 """
 
@@ -72,7 +74,7 @@ def test_exec(config, ssh_con, rgw_node, test_info_obj):
         log.info(
             f"Ceph version {ceph_version_name} detected. Required version is >= 19.2.1."
         )
-        #  skipping the test as the ceph version in < 19.2.1
+        # skipping the test as the ceph version in < 19.2.1
         log.info(
             f"Skipping tests: This feature is not valid for version less than 8.1."
         )
@@ -141,6 +143,11 @@ def test_exec(config, ssh_con, rgw_node, test_info_obj):
         if not concentrator_tests.test_rgw_service_removal(config, ssh_con, rgw_node):
             raise TestExecError("RGW service removal test failed")
 
+    if config.test_ops.get("test_rgw_concentrator_negative", False):
+        log.info("Running RGW concentrator negative tests")
+        if not concentrator_tests.rgw_concentrator_negative(config, ssh_con, rgw_node):
+            raise TestExecError("RGW concentrator negative tests failed")
+
     if config.test_ops.get("perform_s3_operations", False):
         log.info(
             "Running S3 operations (create bucket, create object, download object, delete bucket/object)"
@@ -179,6 +186,7 @@ def test_exec(config, ssh_con, rgw_node, test_info_obj):
         or config.test_ops.get("test_haproxy_stop", False)
         or config.test_ops.get("test_haproxy_restart", False)
         or config.test_ops.get("test_rgw_service_removal", False)
+        or config.test_ops.get("test_rgw_concentrator_negative", False)
         or config.test_ops.get("perform_s3_operations", False)
     ):
         log.info(
