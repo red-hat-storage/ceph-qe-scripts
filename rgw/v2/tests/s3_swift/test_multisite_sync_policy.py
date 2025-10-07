@@ -118,6 +118,7 @@ def test_exec(config, ssh_con):
                     if config.test_ops.get("group_transition", False):
                         transition_status = config.test_ops["group_transition_status"]
                         reusable.group_operation(group_id, "modify", transition_status)
+                        reusable.period_update_commit(True)
                         log.info("Creating new group after transition of old group")
                         group_id2 = "new_group"
                         reusable.group_operation(group_id2, "create", group_status)
@@ -150,6 +151,7 @@ def test_exec(config, ssh_con):
                                         "modify",
                                         "allowed",
                                     )
+                                    reusable.period_update_commit(True)
                                 group_id1 = "group-" + bkt.name
                                 reusable.group_operation(
                                     group_id1,
@@ -276,6 +278,7 @@ def test_exec(config, ssh_con):
 
             if config.test_ops.get("new_bucket_and_group_state_change", False):
                 reusable.group_operation(group_id, "modify", "enabled")
+                reusable.period_update_commit(True)
                 newgroup_id = f"new-group-{new_bucket_name}"
                 reusable.group_operation(
                     newgroup_id,
