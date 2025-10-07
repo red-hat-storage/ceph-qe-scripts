@@ -82,6 +82,7 @@ def test_exec(config, ssh_con):
         group_info = reusable.get_sync_policy()
         if group_info["groups"][0]["status"] != "allowed":
             reusable.group_operation(group_id, "modify", "allowed")
+            reusable.period_update_commit(True)
 
         for bkt in buckets:
             # Create bucket sync policy

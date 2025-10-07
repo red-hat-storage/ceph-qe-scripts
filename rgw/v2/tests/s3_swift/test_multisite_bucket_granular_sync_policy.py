@@ -182,6 +182,7 @@ def test_exec(config, ssh_con):
                         "modify",
                         modify_zgroup_status,
                     )
+                    reusable.period_update_commit(True)
                 for bkt in buckets:
                     if config.test_ops.get("bucket_group", False):
                         bucket_group_status = config.test_ops["bucket_status"]
