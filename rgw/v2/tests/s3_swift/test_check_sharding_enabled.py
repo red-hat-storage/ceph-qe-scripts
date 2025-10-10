@@ -155,6 +155,10 @@ def test_exec(config, ssh_con):
             )
         log.info(f"Remove new default realm {realm_name}")
         utils.exec_shell_cmd(f"radosgw-admin realm rm --rgw-realm {realm_name}")
+        ceph_version_id, _ = utils.get_ceph_version()
+        ceph_version_id = ceph_version_id.split("-")[0].split(".")
+        if float(ceph_version_id[0]) >= 18:
+            utils.exec_shell_cmd("radosgw-admin realm default rm")
         log.info(f"post deletion of realm {realm_name}, verify realm does not exist")
         list_realm = json.loads(utils.exec_shell_cmd("radosgw-admin realm list"))
         if realm_name in list_realm["realms"]:
