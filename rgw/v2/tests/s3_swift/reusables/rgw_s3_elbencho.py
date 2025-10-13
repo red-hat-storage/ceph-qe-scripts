@@ -7,7 +7,6 @@ import subprocess
 import threading
 import time
 
-import boto
 import boto3
 import v2.utils.utils as utils
 from v2.lib.exceptions import SyncFailedError, TestExecError

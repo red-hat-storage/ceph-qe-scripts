@@ -4,7 +4,6 @@ import os
 import random
 import time
 
-import boto
 import boto3
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
