@@ -13,8 +13,7 @@ import time
 import xml.etree.ElementTree as xml
 from pathlib import Path
 
-import boto
-import boto.s3.connection
+import boto3
 
 log = logging.getLogger()
 
@@ -99,14 +98,14 @@ def enable_versioning_for_a_bucket(user_info, bucket_name, ip_and_port, ssl=None
         bucket_name(str): Name of the bucket to be created
         ip_and_port (str) : hostname and port where rgw daemon is running
     """
-    port = int(ip_and_port.split(":")[1])
-    conn = boto.connect_s3(
+    protocol = "https" if ssl else "http"
+    endpoint_url = f"{protocol}://{ip_and_port}"
+    conn = boto3.client(
+        "s3",
         aws_access_key_id=user_info["access_key"],
         aws_secret_access_key=user_info["secret_key"],
-        host=ip_and_port.split(":")[0],
-        port=port,
+        endpoint_url=endpoint_url,
         is_secure=False,  # Change it to True if RGW running using SSL
-        calling_format=boto.s3.connection.OrdinaryCallingFormat(),
     )
     bucket = conn.get_bucket(bucket_name)
     bucket.configure_versioning(versioning=True)
@@ -120,14 +119,14 @@ def create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl=None):
         bucket_name(str): Name of the bucket to be created
         ip_and_port (str) : hostname and port where rgw daemon is running
     """
-    port = int(ip_and_port.split(":")[1])
-    conn = boto.connect_s3(
+    protocol = "https" if ssl else "http"
+    endpoint_url = f"{protocol}://{ip_and_port}"
+    conn = boto3.client(
+        "s3",
         aws_access_key_id=user_info["access_key"],
         aws_secret_access_key=user_info["secret_key"],
-        host=ip_and_port.split(":")[0],
-        port=port,
+        endpoint_url=endpoint_url,
         is_secure=False,  # Change it to True if RGW running using SSL
-        calling_format=boto.s3.connection.OrdinaryCallingFormat(),
     )
     bucket = conn.create_bucket(bucket_name)
     bucket.configure_versioning(versioning=True)
