@@ -3425,6 +3425,8 @@ def list_bucket_objects(rgw_s3_client, bucket_name):
     resp = rgw_s3_client.list_objects(Bucket=bucket_name)
     log.info(f"list bucket objects response: {resp}")
     return resp["Contents"]
+
+
 def delete_indexless_bucket(bucket):
     """
     deletes a given indexless bucket
