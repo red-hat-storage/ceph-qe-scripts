@@ -3425,3 +3425,29 @@ def list_bucket_objects(rgw_s3_client, bucket_name):
     resp = rgw_s3_client.list_objects(Bucket=bucket_name)
     log.info(f"list bucket objects response: {resp}")
     return resp["Contents"]
+def delete_indexless_bucket(bucket):
+    """
+    deletes a given indexless bucket
+    :param bucket: s3Bucket object
+    """
+    log.info("deleting indexless bucket: %s" % bucket.name)
+    bucket_deleted_response = s3lib.resource_op(
+        {"obj": bucket, "resource": "delete", "args": None}
+    )
+    log.info("bucket_deleted_status: %s" % bucket_deleted_response)
+    if bucket_deleted_response is not None and isinstance(
+        bucket_deleted_response, dict
+    ):
+        response = HttpResponseParser(bucket_deleted_response)
+        log.info(bucket_deleted_response)
+        if response.status_code == 204:
+            log.info("bucket deleted ")
+            write_bucket_info = BucketIoInfo()
+            log.info("adding io info of delete bucket")
+            write_bucket_info.set_bucket_deleted(bucket.name)
+        else:
+            raise TestExecError(
+                f"indexless bucket deletion failed with status code {response.status_code}"
+            )
+    else:
+        raise TestExecError("indexless bucket deletion failed")
