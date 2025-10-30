@@ -60,7 +60,10 @@ def test_exec(config, ssh_con):
     rgw_conn = auth.do_auth()
     objects_created_list = []
     bucket_name = utils.gen_bucket_name_from_userid(user_info["user_id"], rand_no=1)
-    bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info, ip_and_port)
+    if config.haproxy:
+        bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info)
+    else:
+        bucket = reusable.create_bucket(bucket_name, rgw_conn, user_info, ip_and_port)
     if config.test_ops.get("enable_version", False):
         log.info("enable bucket version")
         reusable.enable_versioning(bucket, rgw_conn, user_info, write_bucket_io_info)
