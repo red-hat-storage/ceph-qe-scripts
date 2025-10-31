@@ -112,7 +112,7 @@ def test_exec(config, ssh_con):
                     raise TestExecError("default placement is not Indexless placement")
 
                 # delete bucket and objects
-                if config.test_ops["delete_indexless_bucket"] is True:
+                if config.test_ops["delete_indexless_bucket"] is False:
                     log.info("Deleting buckets and objects")
                     reusable.delete_indexless_bucket(bucket)
 
