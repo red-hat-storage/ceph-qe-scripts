@@ -9,4 +9,4 @@ config:
     create_bucket: true
     create_object: true
     delete_bucket_object: true
-    delete_indesless_bucket: true
+    delete_indexless_bucket: true
