@@ -75,7 +75,8 @@ def test_exec(config, ssh_con):
         utils.exec_shell_cmd("sudo yum install -y nmap-ncat")
         log.info("Install pakage 'nmap-ncat' for further operation")
         ceph_version_id, _ = utils.get_ceph_version()
-        if float(ceph_version_id[1]) >= 6:
+        ceph_version_id = ceph_version_id.split("-")[0].split(".")
+        if float(ceph_version_id[0]) >= 17:
             cmd = " ceph orch ps | grep rgw"
             out = utils.exec_shell_cmd(cmd)
             rgw_process_name = out.split()[0]
