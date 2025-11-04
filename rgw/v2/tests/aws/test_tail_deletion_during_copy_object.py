@@ -8,7 +8,8 @@ Usage: test_tail_deletion_during_copy_object.py -c <input_yaml>
     ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_1g.yaml
     ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_10m.yaml
     ceph-qe-scripts/rgw/v2/tests/aws/configs/test_tail_deletion_during_copy_object_6m.yaml
-    test_aws_rgw_crash_with_part_copy_with_object_name_%_init.yaml
+    ceph-qe-scripts/rgw/v2/tests/aws/configs/test_aws_rgw_crash_with_part_copy_with_object_name_%_init.yaml
+    ceph-qe-scripts/rgw/v2/tests/aws/configs/test_crash_with_empty_copy_source.yaml
 
 Operation:
     Verifies tail object not deleted post performing copy_objject
@@ -109,6 +110,18 @@ def test_exec(config, ssh_con):
                 if "Could not connect to the endpoint URL" in part_cp_upload:
                     raise AssertionError(
                         "RGW crash seen with upload part copy when object name contains '%' in it"
+                    )
+                # check for any crashes during the execution
+                crash_info = reusable.check_for_crash()
+                if crash_info:
+                    raise TestExecError("ceph daemon crash found!")
+            if config.test_ops.get("test_copy_with_empty_source", False):
+                cmd = f"/usr/local/bin/aws s3api copy-object --bucket {bucket_name} --key object1 --copy-source '' --endpoint {endpoint}"
+                err = utils.exec_shell_cmd(cmd, return_err=True)
+                log.info(f"Failed with error: {err}")
+                if "Could not connect to the endpoint URL" in err:
+                    raise AssertionError(
+                        "RGW crash seen while performing copy-object with empty source"
                     )
                 # check for any crashes during the execution
                 crash_info = reusable.check_for_crash()
