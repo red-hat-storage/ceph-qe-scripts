@@ -281,7 +281,7 @@ def test_exec(config, ssh_con):
                             float(ceph_version_id[0]) == 19
                             and float(ceph_version_id[1]) == 2
                             and float(ceph_version_id[2]) >= 1
-                        ):
+                        ) or (float(ceph_version_id[0]) >= 20):
                             topics_list_workaround = topics_list
                         else:
                             topics_list_workaround = topics_list["topics"]
