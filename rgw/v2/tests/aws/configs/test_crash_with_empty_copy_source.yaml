@@ -1,0 +1,9 @@
+#script: test_tail_deletion_during_copy_object.py
+#Polarion: CEPH-83622325
+# BZ: 2412218, 2390980
+# Tracker: https://tracker.ceph.com/issues/72669
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    test_copy_with_empty_source: true
