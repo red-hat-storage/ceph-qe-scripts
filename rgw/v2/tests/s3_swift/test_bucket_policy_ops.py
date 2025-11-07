@@ -194,7 +194,7 @@ def test_exec(config, ssh_con):
             )
             log.info(f"upload object obj1 resp: {resp}")
             try:
-                reusable.put_get_object_acl(
+                reusable.set_get_object_acl(
                     "obj1", t1_u1_bucket1.name, rgw_tenant1_user1_c, "public-read-write"
                 )
                 raise TestExecError(
