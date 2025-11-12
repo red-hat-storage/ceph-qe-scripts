@@ -6,6 +6,7 @@ Usage: test_user_bucket_rename.py -c <input_yaml>
         Note: any one of these yamls can be used
         test_user_bucket_rename.yaml
         test_user_rename.yaml
+        test_object_unlink.yaml
 
 Operation:
     Create tenanted and non tenanted user
@@ -57,6 +58,7 @@ def test_exec(config, ssh_con):
     tenant1 = "tenant"
     non_ten_users = s3lib.create_users(config.user_count)
     ten_users = s3lib.create_tenant_users(config.user_count, tenant1)
+    objects_created_list = []
     # Rename users
     if config.test_ops["rename_users"] is True:
         for user in non_ten_users:
@@ -80,7 +82,7 @@ def test_exec(config, ssh_con):
         rgw_conn = auth.do_auth()
         bucket_name_to_create1 = utils.gen_bucket_name_from_userid(user["user_id"])
         log.info("creating bucket with name: %s" % bucket_name_to_create1)
-        bucket = reusable.create_bucket(
+        bucket1 = reusable.create_bucket(
             bucket_name_to_create1, rgw_conn, user, ip_and_port
         )
         non_ten_buckets[user["user_id"]] = bucket_name_to_create1
@@ -88,7 +90,7 @@ def test_exec(config, ssh_con):
             bucket_new_name1 = "new" + bucket_name_to_create1
             non_ten_buckets[user["user_id"]] = bucket_new_name1
             out2 = reusable.rename_bucket(
-                bucket.name, bucket_new_name1, user["user_id"]
+                bucket1.name, bucket_new_name1, user["user_id"]
             )
             if out2 is False:
                 raise TestExecError("RGW Bucket rename error")
@@ -136,6 +138,30 @@ def test_exec(config, ssh_con):
         reusable.link_chown_to_nontenanted(
             non_ten_users[0]["user_id"], ten_buckets[ten_users[0]["user_id"]], tenant1
         )
+
+    # Test object unlink
+    if config.test_ops.get("object_unlink", False):
+        log.info(f"s3 objects to create: {config.objects_count}")
+        config.mapped_sizes = utils.make_mapped_sizes(config)
+        user1 = non_ten_users[0]
+        for oc, size in list(config.mapped_sizes.items()):
+            config.obj_size = size
+            s3_object_name = utils.gen_s3_object_name(bucket_name_to_create1, oc)
+            log.info(f"s3 object name: {s3_object_name}")
+            s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+            log.info(f"s3 object path: {s3_object_path}")
+            reusable.upload_object(
+                s3_object_name,
+                bucket1,
+                TEST_DATA_PATH,
+                config,
+                user1,
+            )
+            objects_created_list.append((s3_object_name, s3_object_path))
+
+        log.info("Verify object unlink behaviour")
+        obj_to_unlink = objects_created_list[0][0]
+        resp = reusable.object_unlink(bucket_name_to_create1, obj_to_unlink)
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
     if crash_info:
