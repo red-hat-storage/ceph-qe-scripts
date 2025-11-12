@@ -108,7 +108,7 @@ def test_exec(config, ssh_con):
         log.info(f"Listing bucket {bucket_name}: {out}")
 
     log.info("Switching to implicit Tenant S3 only")
-    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "demo1", "demo", "s3")
+    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "admin123", "demo", "s3")
     cmd = f"AWS_ACCESS_KEY_ID={access_demo} AWS_SECRET_ACCESS_KEY={secret_demo} /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
     utils.exec_shell_cmd(cmd)
     time.sleep(2)
@@ -121,7 +121,7 @@ def test_exec(config, ssh_con):
     if not tenant1:
         raise RGWBaseException("Keystone user not present in RGW user list")
 
-    # Create a bucket on the Keystone user
+    # Create a bucket on the Keystone userrgw/v2/tests/aws/test_unified_namespace.py
     for bc in range(config.bucket_count):
         bucket_name = "keystone" + str(bc)
         cmd = f"AWS_ACCESS_KEY_ID={access_demo} AWS_SECRET_ACCESS_KEY={secret_demo} /usr/local/bin/aws s3 mb s3://{bucket_name} --endpoint http://{rgw_ip}:{rgw_port} --region us-east-1"
