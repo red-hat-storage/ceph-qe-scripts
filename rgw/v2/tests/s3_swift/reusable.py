@@ -1242,6 +1242,30 @@ def rename_bucket(old_bucket, new_bucket, userid, tenant=False):
     return out
 
 
+def object_unlink(bucket, object):
+    """
+    radosgw-admin command to unlink object from BI
+    """
+    log.info("Check for num_shards 0 in the object shard command")
+    cmd = f"radosgw-admin bucket object shard --bucket {bucket} --object {object} --num-shards 0"
+    try:
+        out = utils.exec_shell_cmd(cmd)
+    except Exception as e:
+        if "ERROR: non-positive value" not in str(e):
+            raise TestExecError("RGW Object shard command hitting divide by zero error")
+    log.info(f"Unlink object {object} from {bucket}")
+    cmd = f"radosgw-admin object unlink --bucket {bucket} --object {object}"
+    out1 = utils.exec_shell_cmd(cmd)
+    if out1 is False:
+        raise TestExecError("RGW Object unlink error")
+    log.info("BI list for the object shoud return empty")
+    cmd = f"radosgw-admin bi list --bucket {bucket} --object {object}"
+    out2 = utils.exec_shell_cmd(cmd)
+    if out is False:
+        log.info("Object unlinked from the BI as expected")
+    return out1
+
+
 def get_multisite_info():
     cmd = "radosgw-admin period get"
     period_list = utils.exec_shell_cmd(cmd)
