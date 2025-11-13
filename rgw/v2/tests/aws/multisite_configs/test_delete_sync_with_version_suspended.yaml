@@ -1,0 +1,6 @@
+# script: tests/aws/test_delete_version_id_null.py
+# Polarion: CEPH-83576431
+config:
+  user_count: 1
+  test_ops:
+    delete_version_suspended: true
