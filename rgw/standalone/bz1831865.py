@@ -2,7 +2,7 @@
 This script will try to search for a parameter "uid+anonymous" from the log file.
 The ceph.conf has been set a parameter of debug rgw = 20.
 If the object have public-read permission, the rgw try to access metadata of anonymous user and try to cache every req.
-Install boto package on machine to run this script from the rgw node and user=root.
+Install boto3 package on machine to run this script from the rgw node and user=root.
 """
 
 import os
@@ -11,10 +11,7 @@ import time
 from configparser import ConfigParser
 from subprocess import PIPE, Popen
 
-import boto
-
-#!/usr/bin/python3
-import boto.s3.connection
+import boto3
 import requests
 
 parser = ConfigParser()
@@ -41,28 +38,25 @@ def rgwops():
     cmdline(admin_create_command)
 
     # create bucket named = test_unique_id and upload some objects
-    conn = boto.connect_s3(
+    s3 = boto3.resource(
+        "s3",
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
-        host=hostname,
-        port=8080,
-        is_secure=False,  # uncomment if you are not using ssl
-        calling_format=boto.s3.connection.OrdinaryCallingFormat(),
+        endpoint_url=f"http://{hostname}:8080",  # use https:// if RGW runs with SSL
     )
 
     bkt_name = f"test1_{unique_id}"
-    bucket = conn.create_bucket(bkt_name)
-    bucket = conn.get_bucket(bkt_name)
+    bucket = s3.Bucket(bkt_name)
+    bucket.create()
 
-    # bucket.configure_versioning(versioning=True)
-    config = bucket.get_versioning_status()
-    print(config)
+    # versioning check
+    versioning = s3.BucketVersioning(bkt_name)
+    print(versioning.status)
 
     for i in range(1, 10):
-        creat_name = "logC_" + str(i)
-        print("creating object" + creat_name)
-        key = bucket.new_key(creat_name + "/")
-        key.set_contents_from_string("hello how are you")
+        creat_name = f"logC_{i}"
+        print(f"creating object {creat_name}")
+        bucket.put_object(Key=f"{creat_name}/", Body="hello how are you")
 
     # install and setup s3cmd for the above user
     print("It will create a file as /root/.s3cfg_{}".format(user))

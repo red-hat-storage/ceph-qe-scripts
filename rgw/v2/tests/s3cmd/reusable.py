@@ -90,7 +90,7 @@ def set_lc_lifecycle(lifecycle_rule, config, bucket_name):
     utils.exec_shell_cmd(f"{s3cmd_path} getlifecycle s3://{bucket_name}")
 
 
-def enable_versioning_for_a_bucket(user_info, bucket_name, ip_and_port, ssl=None):
+def enable_versioning_for_a_bucket(user_info, bucket_name, ip_and_port, ssl=False):
     """
     Enable versioning for existing bucket
     Args:
@@ -100,18 +100,20 @@ def enable_versioning_for_a_bucket(user_info, bucket_name, ip_and_port, ssl=None
     """
     protocol = "https" if ssl else "http"
     endpoint_url = f"{protocol}://{ip_and_port}"
-    conn = boto3.client(
+    s3 = boto3.resource(
         "s3",
         aws_access_key_id=user_info["access_key"],
         aws_secret_access_key=user_info["secret_key"],
         endpoint_url=endpoint_url,
-        is_secure=False,  # Change it to True if RGW running using SSL
+        use_ssl=ssl,  # if using SSL
     )
-    bucket = conn.get_bucket(bucket_name)
-    bucket.configure_versioning(versioning=True)
+
+    bucket = s3.Bucket(bucket_name)
+    versioning = bucket.Versioning()
+    versioning.enable()  # enables versioning
 
 
-def create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl=None):
+def create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl=False):
     """
     Creates bucket
     Args:
@@ -121,15 +123,16 @@ def create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl=None):
     """
     protocol = "https" if ssl else "http"
     endpoint_url = f"{protocol}://{ip_and_port}"
-    conn = boto3.client(
+    s3 = boto3.resource(
         "s3",
         aws_access_key_id=user_info["access_key"],
         aws_secret_access_key=user_info["secret_key"],
         endpoint_url=endpoint_url,
-        is_secure=False,  # Change it to True if RGW running using SSL
+        use_ssl=ssl,  # if using SSL
     )
-    bucket = conn.create_bucket(bucket_name)
-    bucket.configure_versioning(versioning=True)
+    bucket = s3.create_bucket(Bucket=bucket_name)
+    bucket_versioning = bucket.Versioning()
+    bucket_versioning.enable()
 
 
 def upload_file(bucket_name, file_name=None, file_size=1024, test_data_path=None):

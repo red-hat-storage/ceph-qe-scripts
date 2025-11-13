@@ -1,30 +1,27 @@
 """
 This script will delete specified number of objects from specified bucket.
-Install boto package on machine to run this script.
+Install boto3 package on machine to run this script.
 """
 
-
-import boto
-import boto.s3.connection
+import boto3
 
 access_key = "<s3 access key>"
 secret_key = "<s3 secret key>"
 count = 0
-conn = boto.connect_s3(
+
+s3 = boto3.resource(
+    "s3",
     aws_access_key_id=access_key,
     aws_secret_access_key=secret_key,
-    host="<Hostname or IP>",
-    port=8080,
-    is_secure=False,  # Change it to True if RGW running using SSL
-    calling_format=boto.s3.connection.OrdinaryCallingFormat(),
+    endpoint_url="http://<Hostname or IP>:8080",  # Change to https:// if RGW runs with SSL
 )
 
-bucket = conn.create_bucket("<Bucket name>")
+bucket = s3.Bucket("<Bucket name>")
+
 print("deleting object")
-for key in bucket.list():
-    print(key.name)
-    name = key.name
-    key = bucket.delete_key(name)
+for obj in bucket.objects.all():
+    print(obj.key)
+    obj.delete()
     count += 1
     # if count == <Number of object to delete from bucket>:
     #     break;
