@@ -5,6 +5,7 @@ Usage: test_delete_version_id_null.py -c configs/test_delete_version_id_null.yam
     Note: Following yaml can be used
     configs/test_delete_version_id_null.yaml
     configs/test_no_crash_while_ver_deletion.yaml
+    configs/test_delete_sync_with_version_suspended.yaml
 
 Operation:
     Validates Null version id deletion using AWS
@@ -63,6 +64,103 @@ def test_exec(config, ssh_con):
     else:
         current_zone_name = "secondary"
         remote_zone_name = "primary"
+
+    if config.test_ops.get("delete_version_suspended", False):
+        log.info("Validate Object version null deletion with version suspended bucket")
+        current_rgw_ip = utils.get_rgw_ip_zone(current_zone_name)
+        remote_rgw_ip = utils.get_rgw_ip_zone(remote_zone_name)
+        log.info(f"current_ip : {current_rgw_ip}")
+        log.info(f"remote_ip : {remote_rgw_ip}")
+        remote_site_ssh_con = utils.connect_remote(remote_rgw_ip)
+        log.info(f"remote_site_ssh_con : {remote_site_ssh_con}")
+
+        for user in user_info:
+            user_name = user["user_id"]
+            log.info(user_name)
+            cli_aws = AWS(ssl=config.ssl)
+            aws_auth.do_auth_aws(user)
+            aws_auth.do_auth_aws(user, remote_site_ssh_con)
+            local_port = utils.get_radosgw_port_no(ssh_con)
+            log.info(f"local_port is {local_port}")
+            remote_port = utils.get_radosgw_port_no(remote_site_ssh_con)
+            log.info(f"remote_port is {remote_port}")
+            internet_protocol = "https" if config.ssl else "http"
+            local_endpoint = f"{internet_protocol}://{current_rgw_ip}:{local_port}"
+            remote_endpoint = f"{internet_protocol}://{remote_rgw_ip}:{remote_port}"
+
+            bucket_name = "testbkt"
+            aws_reusable.create_bucket(cli_aws, bucket_name, local_endpoint)
+            log.info(f"Bucket {bucket_name} created")
+            object_name1 = "hello.txt"
+            utils.exec_shell_cmd(f"fallocate -l 1K {object_name1}")
+
+            object_name2 = "hello.txt"
+            utils.exec_shell_cmd(f"fallocate -l 2K {object_name2}")
+
+            # Enable versioning , upload an object and verify on both the sites
+            aws_reusable.put_get_bucket_versioning(
+                cli_aws, bucket_name, local_endpoint, status="Enabled"
+            )
+            aws_reusable.put_object(cli_aws, bucket_name, object_name1, local_endpoint)
+            # waiting for sync to be caught up with other site
+            sync_status(ssh_con=remote_site_ssh_con)
+            obj_versions = json.loads(
+                aws_reusable.list_object_versions(cli_aws, bucket_name, local_endpoint)
+            )
+            version_id_pri = obj_versions["Versions"][0]["VersionId"]
+            log.info(f"version_id on pri is : {version_id_pri}")
+            obj_versions = json.loads(
+                aws_reusable.list_object_versions(cli_aws, bucket_name, remote_endpoint)
+            )
+            version_id_sec = obj_versions["Versions"][0]["VersionId"]
+            log.info(f"version_id is : {version_id_sec}")
+
+            if version_id_pri != version_id_sec:
+                raise AssertionError("Version of objects differs on two sites")
+
+            # Suspend versioning , upload an object and verify on both the sites
+            aws_reusable.put_get_bucket_versioning(
+                cli_aws, bucket_name, local_endpoint, status="Suspended"
+            )
+            aws_reusable.put_object(cli_aws, bucket_name, object_name2, local_endpoint)
+            # waiting for sync to be caught up with other site
+            sync_status(ssh_con=remote_site_ssh_con)
+            obj_versions = json.loads(
+                aws_reusable.list_object_versions(cli_aws, bucket_name, local_endpoint)
+            )
+            version_id_pri = obj_versions["Versions"][1]["VersionId"]
+            log.info(f"version_id on pri is : {version_id_pri}")
+            obj_versions = json.loads(
+                aws_reusable.list_object_versions(cli_aws, bucket_name, remote_endpoint)
+            )
+            version_id_sec = obj_versions["Versions"][1]["VersionId"]
+            log.info(f"version_id is : {version_id_sec}")
+
+            if version_id_pri != version_id_sec:
+                raise AssertionError("Version of objects differs on two sites")
+
+            # Delete version_id null and verify on both the sites
+            out = aws_reusable.delete_object(
+                cli_aws, bucket_name, object_name2, local_endpoint
+            )
+            # waiting for sync to be caught up with other site
+            sync_status(ssh_con=remote_site_ssh_con)
+            obj_versions = json.loads(
+                aws_reusable.list_object_versions(cli_aws, bucket_name, local_endpoint)
+            )
+            delete_marker_pri = obj_versions["DeleteMarkers"][0]["VersionId"]
+            log.info(f"version_id of delete marker on pri is : {delete_marker_pri}")
+            obj_versions = json.loads(
+                aws_reusable.list_object_versions(cli_aws, bucket_name, remote_endpoint)
+            )
+            delete_marker_sec = obj_versions["DeleteMarkers"][0]["VersionId"]
+            log.info(f"version_id of delete marker on sec is : {delete_marker_sec}")
+
+            if delete_marker_pri != delete_marker_sec:
+                raise AssertionError("Version of objects differs on two sites")
+
+            if delete_marker_sec != "null":
+                raise AssertionError("Delete marker with null version id not created!")
 
     if config.test_ops.get("delete_with_verid", False):
         log.info("Validate Object version deletion with version-id")
