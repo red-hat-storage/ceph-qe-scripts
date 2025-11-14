@@ -58,7 +58,7 @@ def test_exec(config, ssh_con):
     keystone_server = keystone_url.replace("http://", "").split(":")[0]
     log.info(f"keystone URL is {keystone_server}")
     # Put keystone conf options for user demo
-    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "admin1", "demo", "true")
+    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "admin123", "demo", "true")
 
     access_demo, secret_demo, project_demo = aws_reusable.get_ec2_details(
         keystone_server, "demo"
