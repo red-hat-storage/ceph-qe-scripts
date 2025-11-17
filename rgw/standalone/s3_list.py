@@ -1,25 +1,23 @@
 """
 This script will list objects from specified bucket.
-Install boto package on machine to run this script.
+Install boto3 package on machine to run this script.
 """
 
-import boto
-import boto.s3.connection
+import boto3
 
 access_key = "<Access_Key>"
 secret_key = "<Secret_Key>"
 
-conn = boto.connect_s3(
+s3 = boto3.resource(
+    "s3",
     aws_access_key_id=access_key,
     aws_secret_access_key=secret_key,
-    host="<RGW HOST Name or IP>",
-    port=8080,
-    is_secure=False,  # Change it to True if RGW running using SSL
-    calling_format=boto.s3.connection.OrdinaryCallingFormat(),
+    endpoint_url="http://<RGW HOST Name or IP>:8080",  # use https:// if RGW runs with SSL
 )
 
-bucket = conn.create_bucket("<Bucket Name>")
+bucket_name = "<Bucket Name>"
+bucket = s3.Bucket(bucket_name)
 
 print("Listing objects")
-for key in bucket.list():
-    print("{name}\t{size}".format(name=key.name, size=key.size))
+for obj in bucket.objects.all():
+    print(f"{obj.key}\t{obj.size}")
