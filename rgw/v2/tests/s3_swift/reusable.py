@@ -797,6 +797,139 @@ def upload_mutipart_object(
         return object_parts_info
 
 
+def upload_multipart_with_break(
+    s3_object_name,
+    bucket,
+    TEST_DATA_PATH,
+    config,
+    user_info,
+    break_at_part_no=0,
+):
+    """
+    Upload multipart object with option to break at specific part number
+    break_at_part_no=0 means complete the upload
+    break_at_part_no>0 means abort at that part number
+
+    Parameters:
+        s3_object_name (str): Name of the S3 object
+        bucket: S3 bucket resource
+        TEST_DATA_PATH (str): Path to test data directory
+        config: Config object with obj_size, split_size, local_file_delete
+        user_info (dict): User information dictionary
+        break_at_part_no (int): Part number at which to abort (0 = complete upload)
+
+    Returns:
+        None: Returns None after aborting or completing upload
+    """
+    log.info("s3 object name: %s" % s3_object_name)
+    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+    log.info("s3 object path: %s" % s3_object_path)
+    s3_object_size = config.obj_size
+    split_size = config.split_size if hasattr(config, "split_size") else 5
+    log.info("split size: %s" % split_size)
+
+    # Generate test data
+    data_info = manage_data.io_generator(s3_object_path, s3_object_size)
+    if data_info is False:
+        raise TestExecError("data creation failed")
+
+    # Create multipart parts directory
+    mp_dir = os.path.join(TEST_DATA_PATH, s3_object_name + ".mp.parts")
+    log.info("mp part dir: %s" % mp_dir)
+    log.info("making multipart object part dir")
+    mkdir = utils.exec_shell_cmd("sudo mkdir -p %s" % mp_dir)
+    if mkdir is False:
+        raise TestExecError("mkdir failed creating mp_dir_name")
+
+    # Split file into parts
+    utils.split_file(s3_object_path, split_size, mp_dir + "/")
+    parts_list = sorted(glob.glob(mp_dir + "/" + "*"))
+    log.info("parts_list: %s" % parts_list)
+    log.info("uploading s3 object: %s" % s3_object_path)
+
+    upload_info = dict(
+        {"access_key": user_info["access_key"], "upload_type": "multipart"}, **data_info
+    )
+
+    # Create S3 object resource
+    s3_obj = s3lib.resource_op(
+        {
+            "obj": bucket,
+            "resource": "Object",
+            "args": [s3_object_name],
+        }
+    )
+
+    log.info("initiating multipart upload")
+    mpu_dict = {
+        "obj": s3_obj,
+        "resource": "initiate_multipart_upload",
+        "args": None,
+        "extra_info": upload_info,
+    }
+
+    mpu = s3lib.resource_op(mpu_dict)
+    part_number = 1
+    parts_info = {"Parts": []}
+    log.info("no of parts: %s" % len(parts_list))
+
+    if break_at_part_no > 0:
+        log.info("starting at part no: %s" % break_at_part_no)
+        log.info("--------------------------------------------------")
+
+    # Upload parts
+    for each_part in parts_list:
+        log.info("trying to upload part: %s" % each_part)
+        part = mpu.Part(part_number)
+        part_upload_response = s3lib.resource_op(
+            {
+                "obj": part,
+                "resource": "upload",
+                "kwargs": dict(Body=open(each_part, mode="rb")),
+            }
+        )
+        if part_upload_response is not False:
+            response = HttpResponseParser(part_upload_response)
+            if response.status_code == 200:
+                log.info("part uploaded")
+            else:
+                raise TestExecError("part uploading failed")
+
+        part_info = {"PartNumber": part_number, "ETag": part_upload_response["ETag"]}
+        parts_info["Parts"].append(part_info)
+
+        # Check if we should abort at this part
+        if break_at_part_no > 0 and part_number == break_at_part_no:
+            log.info(f"aborting multipart upload at part {part_number}")
+            # Abort the multipart upload
+            abort_response = s3lib.resource_op(
+                {
+                    "obj": mpu,
+                    "resource": "abort",
+                    "args": None,
+                }
+            )
+            log.info(f"multipart upload aborted: {abort_response}")
+            return
+
+        if each_part != parts_list[-1]:
+            # increase the part number only if the current part is not the last part
+            part_number += 1
+        log.info("curr part_number: %s" % part_number)
+
+    # Complete multipart upload if not aborted
+    if len(parts_list) == part_number:
+        log.info("all parts upload completed")
+        complete_response = mpu.complete(MultipartUpload=parts_info)
+        log.info("multipart upload complete for key: %s" % s3_object_name)
+        log.info(f"complete response: {complete_response}")
+
+    # Cleanup local parts
+    if config.local_file_delete is True:
+        log.info("deleting local file part")
+        utils.exec_shell_cmd(f"rm -rf {mp_dir}")
+
+
 def upload_part(
     rgw_client,
     s3_object_name,
@@ -3201,6 +3334,92 @@ def put_get_bucket_acl(rgw_client, bucket_name, acl):
     get_bkt_acl = rgw_client.get_bucket_acl(Bucket=bucket_name)
     get_bkt_acl_json = json.dumps(get_bkt_acl, indent=2)
     log.info(f"get bucket acl response: {get_bkt_acl_json}")
+
+
+def get_user_canonical_id(
+    user_info, rgw_conn, rgw_conn_c, ssh_con=None, ssl=False, haproxy=False
+):
+    """
+    Get canonical ID of a user by creating a temporary bucket and reading its ACL
+
+    Parameters:
+        user_info (dict): User information dictionary with user_id, access_key, secret_key
+        rgw_conn: S3 resource connection for the user
+        rgw_conn_c: S3 client connection for the user
+        ssh_con: SSH connection (optional, for remote connections)
+        ssl: Whether to use SSL (optional)
+        haproxy: Whether to use haproxy (optional)
+
+    Returns:
+        str: Canonical ID of the user
+    """
+    # Create a temporary bucket to get canonical ID
+    temp_bucket_name = utils.gen_bucket_name_from_userid(
+        user_info["user_id"], rand_no=999
+    )
+    temp_bucket = create_bucket(temp_bucket_name, rgw_conn, user_info)
+    acl_response = rgw_conn_c.get_bucket_acl(Bucket=temp_bucket_name)
+    canonical_id = acl_response["Owner"]["ID"]
+    log.info("canonical id of user %s: %s" % (user_info["user_id"], canonical_id))
+
+    # Delete temporary bucket
+    delete_bucket(temp_bucket)
+
+    return canonical_id
+
+
+def set_bucket_acl_with_grants(
+    rgw_conn_c, bucket_name, grants_list, preserve_owner=True
+):
+    """
+    Set bucket ACL with grants (AccessControlPolicy format)
+
+    Parameters:
+        rgw_conn_c: S3 client connection
+        bucket_name (str): Name of the bucket
+        grants_list (list): List of grant dictionaries, each with:
+            - "Grantee": {"ID": canonical_id, "Type": "CanonicalUser"}
+            - "Permission": "READ", "WRITE", "FULL_CONTROL", etc.
+        preserve_owner (bool): If True, preserves the owner's FULL_CONTROL grant
+
+    Returns:
+        dict: Response from put_bucket_acl
+    """
+    # Get current ACL to preserve owner information
+    current_acl = rgw_conn_c.get_bucket_acl(Bucket=bucket_name)
+    owner = current_acl["Owner"]
+
+    # Build grants list
+    grants = []
+
+    # Always include owner's FULL_CONTROL if preserve_owner is True
+    if preserve_owner:
+        grants.append(
+            {
+                "Grantee": {
+                    "ID": owner["ID"],
+                    "Type": "CanonicalUser",
+                },
+                "Permission": "FULL_CONTROL",
+            }
+        )
+
+    # Add user-specified grants
+    grants.extend(grants_list)
+
+    # Build AccessControlPolicy
+    access_control_policy = {
+        "Grants": grants,
+        "Owner": owner,
+    }
+
+    # Set bucket ACL
+    put_acl_response = rgw_conn_c.put_bucket_acl(
+        Bucket=bucket_name, AccessControlPolicy=access_control_policy
+    )
+    log.info("put bucket acl response: %s" % put_acl_response)
+
+    return put_acl_response
 
 
 def reboot_rgw_nodes(rgw_service_name):

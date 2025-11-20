@@ -1,0 +1,7 @@
+# script: rgw/v2/tests/s3_swift/test_acls_copy_obj.py
+# CEPH-14242
+config:
+  objects_count: 4
+  objects_size_range:
+    min: 5
+    max: 15
