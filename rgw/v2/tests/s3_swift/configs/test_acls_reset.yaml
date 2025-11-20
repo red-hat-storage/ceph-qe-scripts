@@ -1,0 +1,9 @@
+# script: /rgw/v2/tests/s3_swift/test_acls_reset.py
+# CEPH-14260,  also applies to CEPH-10489
+config:
+  user_count: 3
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 15

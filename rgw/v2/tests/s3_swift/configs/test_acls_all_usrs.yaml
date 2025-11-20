@@ -1,0 +1,9 @@
+# script: /rgw/v2/tests/s3_swift/test_acls_all_usrs.py
+#  CEPH-14240 also applies to CEPH-14241, CEPH-10487, CEPH-10488
+config:
+  user_count: 3
+  bucket_count: 2
+  objects_count: 4
+  objects_size_range:
+    min: 5
+    max: 15
