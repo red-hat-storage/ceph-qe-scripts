@@ -1,0 +1,9 @@
+# script: rgw/v2/tests/s3_swift/configs/test_multipart_upload_cancel.yaml
+#  CEPH-14266
+config:
+  user_count: 1
+  bucket_count: 1
+  break_at_part_no: 19
+  objects_size_range:
+    min: 500
+    max: 800

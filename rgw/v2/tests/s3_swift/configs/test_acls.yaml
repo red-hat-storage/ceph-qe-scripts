@@ -1,0 +1,8 @@
+# script: /rgw/v2/tests/s3_swift/configs/test_acls.yaml
+# CEPH-14239
+config:
+  bucket_count: 2
+  objects_count: 10
+  objects_size_range:
+    min: 5
+    max: 15
