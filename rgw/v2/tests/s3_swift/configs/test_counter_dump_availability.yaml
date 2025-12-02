@@ -1,0 +1,5 @@
+# script: test_counter_dump_availability.py
+# polarion id:
+config:
+    test_ops:
+      test_perf_dump: true
