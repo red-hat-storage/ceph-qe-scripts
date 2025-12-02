@@ -65,6 +65,10 @@ def test_exec(config, ssh_con):
         ssh_con, ssl=config.ssl, haproxy=config.haproxy
     )
 
+    ceph_version_id, _ = utils.get_ceph_version()
+    ceph_version_id = ceph_version_id.split("-")
+    ceph_version_id = ceph_version_id[0].split(".")
+
     if config.test_ops.get("user_name", False):
         op = json.loads(utils.exec_shell_cmd("radosgw-admin user list"))
         log.info(f"user {config.test_ops['user_name']} exist in cluster {op}")
@@ -207,6 +211,8 @@ def test_exec(config, ssh_con):
                     aws_reusable.list_object_versions(cli_aws, bucket_name, endpoint)
                 )
                 lmt = version_list["Versions"][0]["LastModified"].split(".")[0]
+                if float(ceph_version_id[0]) >= 20:
+                    lmt = version_list["Versions"][0]["LastModified"].split("+")[0]
                 log.info("Conditional delete object with incorrect Last modified time")
                 incorrect_lmt = lmt[:-1]
                 out = aws_reusable.conditional_delete_object(
@@ -279,6 +285,8 @@ def test_exec(config, ssh_con):
                         etag = etag[:-1]
                 if config.test_ops.get("last_modified_time", False):
                     lmt = version_list["Versions"][0]["LastModified"].split(".")[0]
+                    if float(ceph_version_id[0]) >= 20:
+                        lmt = version_list["Versions"][0]["LastModified"].split("+")[0]
                     if config.test_ops.get("last_modified_time")[1] == "correct":
                         lmt = lmt
                     else:
