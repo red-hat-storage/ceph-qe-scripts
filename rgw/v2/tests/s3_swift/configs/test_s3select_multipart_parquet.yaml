@@ -1,0 +1,14 @@
+# script: test_s3select_multipart_parquet.py
+# polarion-id: CEPH-83575290
+# BZ: https://bugzilla.redhat.com/show_bug.cgi?id=2118706
+config:
+  haproxy: true
+  user_count: 1
+  bucket_count: 1
+  user_remove: false
+  obj_size: 19M
+  split_size: 5
+  test_ops:
+    create_bucket: true
+    parquet_row_count: 100000
+    query: "select * from s3object"
