@@ -1,0 +1,14 @@
+# Polarian-id: CEPH-83623450
+# Script: ceph-qe-scripts/rgw/v2/tests/aws/test_lua_script_prerequest.py
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 20
+  local_file_delete: true
+  objects_size_range:
+    min: 4K
+    max: 6M
+  test_ops:
+    object_placement_on_storage_class: true
+    storage_class: "COLD"
+    pool_name: "cold.pool"

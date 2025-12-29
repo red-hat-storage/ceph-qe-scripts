@@ -10,9 +10,9 @@ config:
   objects_size_range:
     min: 5
     max: 15
-#  enable_resharding: true
-#  sharding_type: dynamic
-#  max_objects_per_shard: 5
+  # enable_resharding: true
+  # sharding_type: dynamic
+  # max_objects_per_shard: 5
   test_ops:
     create_bucket: true
     create_object: true

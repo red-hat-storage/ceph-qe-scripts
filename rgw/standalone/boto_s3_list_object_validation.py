@@ -5,12 +5,18 @@ import time
 import boto3
 
 # ---------------- CONFIG ----------------
-BUCKET_NAME = os.environ.get("BUCKET_NAME", "test-1")
+BUCKET_NAME = os.environ.get("BUCKET_NAME", None)
 OUTPUT_FILE = os.environ.get("OUTPUT_FILE", f"list_validate_{BUCKET_NAME}.log")
-ENDPOINT = os.environ.get("S3_ENDPOINT", "http://10.1.172.231:5000")
+ENDPOINT = os.environ.get("S3_ENDPOINT", None)
+EXPECTED_STORAGE_CLASS = os.environ.get("EXPECTED_STORAGE_CLASS", None)
 LOG_EVERY = int(os.environ.get("LOG_EVERY", "100000"))  # log every N objects
 BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "50000"))  # buffer before writing
 # ----------------------------------------
+
+if BUCKET_NAME == None or ENDPOINT == None or EXPECTED_STORAGE_CLASS == None:
+    raise ValueError(
+        f"ERROR: environment variables are required and cannot be empty: BUCKET_NAME={BUCKET_NAME}, ENDPOINT={ENDPOINT}, EXPECTED_STORAGE_CLASS={EXPECTED_STORAGE_CLASS}"
+    )
 
 s3 = boto3.client("s3", endpoint_url=ENDPOINT)
 
@@ -23,7 +29,7 @@ def validate_object(obj):
     """Validate directly from list_objects_v2 metadata"""
     size = obj["Size"]
     storage_class = obj.get("StorageClass", "STANDARD")
-    expected_sc = "STANDARD" if size < 1048576 else "ERASURE"
+    expected_sc = "STANDARD" if size < 1048576 else EXPECTED_STORAGE_CLASS
     # expected_sc = "STANDARD"
     # expected_sc = "ERASURE"
     status = "ERROR" if expected_sc != str(storage_class) else "PASS"
