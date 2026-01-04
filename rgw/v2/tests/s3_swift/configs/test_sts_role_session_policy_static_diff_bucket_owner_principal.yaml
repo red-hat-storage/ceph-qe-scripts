@@ -1,0 +1,90 @@
+# polarion test case id: CEPH-83593390
+# test scripts : test_sts_policy_permutations.py
+config:
+     user_count: 2
+     user_type: tenanted
+     bucket_count: 1
+     objects_count: 1
+     objects_size_range:
+          min: 5
+          max: 15
+     test_ops:
+          create_bucket: true
+          create_object: true
+          expected_allowed_actions: ['abort_multipart_upload', 'copy_object', 'delete_object', 'get_accelerate_configuration', 'get_bucket_location', 'get_object', 'head_bucket', 'head_object', 'list_bucket_multipart_uploads', 'list_objects', 'list_objects_v2', 'multipart_upload', 'put_object', 'select_object_content']
+          same_bucket_owner_and_principal: False
+          verify_static_sts_role_session_policy: True
+     sts:
+          trust_policy:
+               "Version": "2012-10-17"
+               "Statement":
+                  [
+                       {
+                            "Effect": "Allow",
+                            "Principal":
+                                 {
+                                      "AWS":
+                                           ["arn:aws:iam::<tenant_name>:user/<user_name>"],
+                                 },
+                            "Action": ["sts:AssumeRole"],
+                       },
+                  ]
+          role_policy:
+              "Version": "2012-10-17"
+              "Statement":
+               [
+                   {
+                       "Effect": "Allow",
+                       "Action": [
+                           "s3:GetObject",
+                           "s3:ListBucketMultipartUploads",
+                           "s3:ListMultipartUploadParts",
+                           "s3:GetBucketLocation",
+                           "s3:ListBucket",
+                           "s3:ListAllMyBuckets",
+                           "s3:AbortMultipartUpload",
+                           "s3:DeleteObject",
+                           "s3:PutObject"
+                       ],
+                       "Resource": "arn:aws:s3::<tenant_name>:*"
+                   }
+              ]
+          session_policy:
+              "Version": "2012-10-17"
+              "Statement":
+               [
+                   {
+                     "Effect": "Allow",
+                     "Action": [
+                       "s3:GetBucketLocation",
+                       "s3:ListBucket*"
+                     ],
+                     "Resource": [
+                       "arn:aws:s3::<tenant_name>:<bucket_name>"
+                     ]
+                   },
+                   {
+                     "Effect": "Allow",
+                     "Action": [
+                       "s3:Get*",
+                       "s3:PutObject",
+                       "s3:PutObjectAcl",
+                       "s3:DeleteObject",
+                       "s3:AbortMultipartUpload"
+                     ],
+                     "Resource": [
+                       "arn:aws:s3::<tenant_name>:<bucket_name>/warehouse",
+                       "arn:aws:s3::<tenant_name>:<bucket_name>/warehouse/*",
+                       "arn:aws:s3::<tenant_name>:<bucket_name>/warehouse/"
+                     ]
+                   },
+                   {
+                     "Effect": "Allow",
+                     "Action": [
+                       "s3:DeleteObject"
+                     ],
+                     "Resource": [
+                       "arn:aws:s3::<tenant_name>:<bucket_name>"
+                     ]
+                   }
+               ]
