@@ -29,6 +29,7 @@ Operation:
 
 permutations:
 1. same/different principal
+2. with only role policy and role+session policy
 2. effect: allow/deny
 3. resource: arn_access_all_buckets_and_objects,
 4. for each s3 action

@@ -1807,322 +1807,1074 @@ def test_sts_policy_permutations(user1, user2, user3, ssh_con, config):
                 expected_allowed_actions = sorted(expected_allowed_actions)
                 expected_denied_actions = sorted(expected_denied_actions)
 
-                print(
-                    f"\n\n====================================================================================================== \nTest {arn_type}")
-                print(f"BUCKET {BUCKET}")
-                print(f"OBJECT_KEY {OBJECT_KEY}")
-                print(f"resource_list {resource_list}")
+                session_policy_flags = [False, True]
 
-                # print(f"creating bucket {BUCKET} from {user1_name}")
-                # resp = s3_main.create_bucket(Bucket=BUCKET, ObjectLockEnabledForBucket=True)
-                # print(f"creating bucket response: {resp}")
+                for session_policy_flag in session_policy_flags:
+                    print(
+                        f"\n\n====================================================================================================== \nTest {arn_type}")
+                    print(f"BUCKET {BUCKET}")
+                    print(f"OBJECT_KEY {OBJECT_KEY}")
+                    print(f"resource_list {resource_list}")
 
-                # Step 1: Create Role
-                role_name = f'TestRole-{random_string}-{index_actions}-{index_resource}'
-                print(f"role_name {role_name}")
-                assume_role_policy_document = {
-                    'Version': '2012-10-17',
-                    'Statement': [{
-                        'Effect': 'Allow',
-                        'Principal': {'AWS': [f'arn:aws:iam::{tenant_name}:user/{user2_name}']},
-                        'Action': 'sts:AssumeRole'
-                    }]
-                }
-                print(f'trust policy: {json.dumps(assume_role_policy_document).replace(" ", "")}')
+                    # print(f"creating bucket {BUCKET} from {user1_name}")
+                    # resp = s3_main.create_bucket(Bucket=BUCKET, ObjectLockEnabledForBucket=True)
+                    # print(f"creating bucket response: {resp}")
 
-                try:
-                    create_role_response = iam.create_role(
-                        RoleName=role_name,
-                        Path="/",
-                        AssumeRolePolicyDocument=f'{json.dumps(assume_role_policy_document).replace(" ", "")}',
-                        Description='Role for testing STS assume-role in Ceph RGW'
-                    )
-                    print("Role created:", create_role_response)
-                except ClientError as e:
-                    logging.error(f"create role failed: {e}")
+                    # Step 1: Create Role
+                    role_name = f'TestRole-{random_string}-{index_actions}-{index_resource}'
+                    print(f"role_name {role_name}")
+                    assume_role_policy_document = {
+                        'Version': '2012-10-17',
+                        'Statement': [{
+                            'Effect': 'Allow',
+                            'Principal': {'AWS': [f'arn:aws:iam::{tenant_name}:user/{user2_name}']},
+                            'Action': 'sts:AssumeRole'
+                        }]
+                    }
+                    print(f'trust policy: {json.dumps(assume_role_policy_document).replace(" ", "")}')
+
+                    try:
+                        create_role_response = iam.create_role(
+                            RoleName=role_name,
+                            Path="/",
+                            AssumeRolePolicyDocument=f'{json.dumps(assume_role_policy_document).replace(" ", "")}',
+                            Description='Role for testing STS assume-role in Ceph RGW'
+                        )
+                        print("Role created:", create_role_response)
+                    except ClientError as e:
+                        logging.error(f"create role failed: {e}")
 
 
-                # Step 2: Attach Inline Policy
-                policy_name = 'TestPolicy'
-                policy_document = {
-                    "Version": "2012-10-17",
-                    "Statement": [
-                        {
-                            "Effect": effect,
-                            "Action": [
-                                f"{s3_action}"
-                            ],
-                            "Resource": resource_list
+                    # Step 2: Attach Inline Policy
+                    policy_name = 'TestPolicy'
+                    policy_document = {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": effect,
+                                "Action": [
+                                    f"{s3_action}"
+                                ],
+                                "Resource": resource_list
+                            }
+                        ]
+                    }
+
+                    print(f'role policy: {json.dumps(policy_document).replace(" ", "")}')
+                    try:
+                        put_role_resp = iam.put_role_policy(
+                            RoleName=role_name,
+                            PolicyName=policy_name,
+                            PolicyDocument=json.dumps(policy_document).replace(" ", "")
+                        )
+                        print(f"Policy attached to role. resp: {put_role_resp}")
+                    except ClientError as e:
+                        logging.error(f"put role policy failed: {e}")
+                    if session_policy_flag:
+
+                        # Step 3: Assume Role
+
+                        session_policy_document = {
+                            "Version": "2012-10-17",
+                            "Statement": [
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:GetBucketLocation",
+                                        "s3:ListBucket*"
+                                    ],
+                                    "Resource": [
+                                        "arn:aws:s3::tenant2:<bucket_name>"
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:Get*",
+                                        "s3:PutObject",
+                                        "s3:PutObjectAcl",
+                                        "s3:DeleteObject",
+                                        "s3:AbortMultipartUpload"
+                                    ],
+                                    "Resource": [
+                                        "arn:aws:s3::tenant2:<bucket_name>/warehouse",
+                                        "arn:aws:s3::tenant2:<bucket_name>/warehouse/*",
+                                        "arn:aws:s3::tenant2:<bucket_name>/warehouse/"
+                                    ]
+                                },
+                                {
+                                    "Effect": "Allow",
+                                    "Action": [
+                                        "s3:DeleteObject"
+                                    ],
+                                    "Resource": [
+                                        "arn:aws:s3::tenant2:<bucket_name>"
+                                    ]
+                                }
+                            ]
                         }
+
+                        print(
+                            f'session policy: {json.dumps(session_policy_document).replace(" ", "").replace("<bucket_name>", BUCKET)}')
+
+                        # Step 3: Assume Role
+                        assumed_role = sts.assume_role(
+                            RoleArn=create_role_response['Role']['Arn'],
+                            RoleSessionName='TestSession',
+                            Policy=json.dumps(session_policy_document).replace(" ", "").replace("<bucket_name>", BUCKET)
+                        )
+
+                    else:
+                        assumed_role = sts.assume_role(
+                            RoleArn=create_role_response['Role']['Arn'],
+                            RoleSessionName='TestSession'
+                        )
+
+                    credentials = assumed_role['Credentials']
+                    print("Assumed role credentials:")
+                    print("Access Key:", credentials['AccessKeyId'])
+                    print("Secret Key:", credentials['SecretAccessKey'])
+                    print("Session Token:", credentials['SessionToken'])
+
+
+                    # # Initialize S3 client with sts creds
+                    # s3 = boto3.client(
+                    #     's3',
+                    #     aws_access_key_id=credentials['AccessKeyId'],
+                    #     aws_secret_access_key=credentials['SecretAccessKey'],
+                    #     aws_session_token=credentials['SessionToken'],
+                    #     endpoint_url=ENDPOINT_URL,
+                    #     region_name=REGION
+                    # )
+
+                    assumed_role_user_info = {
+                        "access_key": credentials['AccessKeyId'],
+                        "secret_key": credentials['SecretAccessKey'],
+                        "session_token": credentials['SessionToken'],
+                        "user_id": user2["user_id"],
+                    }
+
+                    # log.info("got the credentials after assume role")
+                    authstsuser = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
+                    s3 = authstsuser.do_auth_using_client()
+
+
+                    s3_client_list = [
+                        {
+                            "s3_client": s3,
+                            "desc": "sts-user-s3-client"
+                        },
+                        # {
+                        #     "s3_client": s3_main_object_owner,
+                        #     "desc": "object-owner-s3-client"
+                        # },
+                        # {
+                        #     "s3_client": s3_main,
+                        #     "desc": "bucket-owner-s3-client"
+                        # }
                     ]
-                }
+                    actual_bucket_name = BUCKET
+                    output_list = []
+                    index_s3_client = 0
+                    for s3_client_dict in s3_client_list:
 
-                print(f'role policy: {json.dumps(policy_document).replace(" ", "")}')
-                try:
-                    put_role_resp = iam.put_role_policy(
-                        RoleName=role_name,
-                        PolicyName=policy_name,
-                        PolicyDocument=json.dumps(policy_document).replace(" ", "")
-                    )
-                    print(f"Policy attached to role. resp: {put_role_resp}")
-                except ClientError as e:
-                    logging.error(f"put role policy failed: {e}")
+                        bucket_names = [BUCKET, user3_bucket_name]
+                        object_names = [OBJECT_KEY, f'warehouse/test-object1-{random_string}']
 
-                # Step 3: Assume Role
-                assumed_role = sts.assume_role(
-                    RoleArn=create_role_response['Role']['Arn'],
-                    RoleSessionName='TestSession'
-                )
-                credentials = assumed_role['Credentials']
-                print("Assumed role credentials:")
-                print("Access Key:", credentials['AccessKeyId'])
-                print("Secret Key:", credentials['SecretAccessKey'])
-                print("Session Token:", credentials['SessionToken'])
+                        for bucket_name in bucket_names:
+                            for object_name in object_names:
 
+                                FAILED_ACTIONS = []
+                                PASSED_ACTIONS = []
+                                s3_client = s3_client_dict["s3_client"]
+                                desc = s3_client_dict["desc"]
+                                BUCKET = f"{actual_bucket_name}-{desc}"
+                                print(f"creating bucket {BUCKET} from {user1_name}")
+                                resp = s3_main.create_bucket(Bucket=BUCKET, ObjectLockEnabledForBucket=True)
+                                print(f"creating bucket response: {resp}")
 
-                # # Initialize S3 client with sts creds
-                # s3 = boto3.client(
-                #     's3',
-                #     aws_access_key_id=credentials['AccessKeyId'],
-                #     aws_secret_access_key=credentials['SecretAccessKey'],
-                #     aws_session_token=credentials['SessionToken'],
-                #     endpoint_url=ENDPOINT_URL,
-                #     region_name=REGION
-                # )
+                                # time.sleep(2)
 
-                assumed_role_user_info = {
-                    "access_key": credentials['AccessKeyId'],
-                    "secret_key": credentials['SecretAccessKey'],
-                    "session_token": credentials['SessionToken'],
-                    "user_id": user2["user_id"],
-                }
+                                # Call each method
+                                print("--------------------------------------------------------------------------------------------------- \nTest create_bucket")
+                                create_bucket(s3_client)
+                                print("")
+                                print("--------------------------------------------------------------------------------------------------- \nTest abort_multipart_upload")
+                                abort_multipart_upload(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_object")
+                                put_object(s3)
+                                print("--------------------------------------------------------------------------------------------------- \nTest multipart_upload")
+                                multipart_upload(s3)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object")
+                                get_object(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_object_acl")
+                                put_object_acl(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object_acl")
+                                get_object_acl(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_acl")
+                                put_bucket_acl(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_cors")
+                                put_bucket_cors(s3_client)
+                                print("")
+                                # print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_logging")
+                                # put_bucket_logging(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_notification")
+                                put_bucket_notification(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_policy")
+                                put_bucket_policy(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_tagging")
+                                put_bucket_tagging(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_versioning")
+                                put_bucket_versioning(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_object_version_acl")
+                                put_object_version_acl(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_website")
+                                put_bucket_website(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_lifecycle_configuration")
+                                put_lifecycle_configuration(s3_client)
+                                print("")
+                                # print("--------------------------------------------------------------------------------------------------- \nTest restore_object")
+                                # restore_object(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest copy_object")
+                                copy_object(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_encryption")
+                                put_bucket_encryption(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_encryption")
+                                get_bucket_encryption(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_bucket_encryption")
+                                delete_bucket_encryption(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_public_access_block")
+                                put_public_access_block(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_public_access_block")
+                                get_public_access_block(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_public_access_block")
+                                delete_public_access_block(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest head_bucket")
+                                head_bucket(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest head_object")
+                                head_object(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest list_object_versions")
+                                list_object_versions(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest list_objects")
+                                list_objects(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest list_objects_v2")
+                                list_objects_v2(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest select_object_content")
+                                select_object_content(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_object_tagging")
+                                put_object_tagging(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object_tagging")
+                                get_object_tagging(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object_attributes")
+                                get_object_attributes(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_object_lock_configuration")
+                                put_object_lock_configuration(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object_lock_configuration")
+                                get_object_lock_configuration(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_object_legal_hold")
+                                put_object_legal_hold(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object_legal_hold")
+                                get_object_legal_hold(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest remove_object_legal_hold")
+                                remove_object_legal_hold(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest put_object_retention")
+                                put_object_retention(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object_retention")
+                                get_object_retention(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest remove_object_retention")
+                                remove_object_retention(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_accelerate_configuration")
+                                get_accelerate_configuration(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_acl")
+                                get_bucket_acl(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_cors")
+                                get_bucket_cors(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_location")
+                                get_bucket_location(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_logging")
+                                get_bucket_logging(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_notification")
+                                get_bucket_notification(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_policy")
+                                get_bucket_policy(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_request_payment")
+                                get_bucket_request_payment(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_tagging")
+                                get_bucket_tagging(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_versioning")
+                                get_bucket_versioning(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_website")
+                                get_bucket_website(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_lifecycle_configuration")
+                                get_lifecycle_configuration(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object_version_acl")
+                                get_object_version_acl(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_object_version")
+                                get_object_version(s3_client)
+                                # print("--------------------------------------------------------------------------------------------------- \nTest put_replication_configuration")
+                                # put_replication_configuration(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest get_replication_configuration")
+                                get_replication_configuration(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest list_all_my_buckets")
+                                list_all_my_buckets(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest list_bucket_multipart_uploads")
+                                list_bucket_multipart_uploads(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest list_multipart_upload_parts")
+                                list_multipart_upload_parts(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_bucket_website")
+                                delete_bucket_website(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_replication_configuration")
+                                delete_replication_configuration(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_object_version")
+                                delete_object_version(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_object")
+                                delete_object(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_objects")
+                                delete_objects(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_bucket_policy")
+                                delete_bucket_policy(s3_client)
+                                print("--------------------------------------------------------------------------------------------------- \nTest delete_bucket")
+                                delete_bucket(s3_client)
+                                print("")
+                                # print("--------------------------------------------------------------------------------------------------- \nTest list_bucket")
+                                # list_bucket()
+                                # print("--------------------------------------------------------------------------------------------------- \nTest list_bucket_versions")
+                                # list_bucket_versions()
 
-                # log.info("got the credentials after assume role")
-                authstsuser = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
-                s3 = authstsuser.do_auth_using_client()
+                                print(f"--------------------------------------------------------------------------------------------------- \nTest Summary for {arn_type} with deny {s3_action} and with s3_client {desc}")
+                                actual_allowed_actions = sorted(PASSED_ACTIONS)
+                                actual_denied_actions = sorted(FAILED_ACTIONS)
+                                print(f"\nactual_allowed_actions: {actual_allowed_actions}")
+                                print(f"\nexpected_allowed_actions: {expected_allowed_actions}")
+                                print(f"\nactual_denied_actions: {actual_denied_actions}")
+                                print(f"\nexpected_denied_actions: {expected_denied_actions}")
+                                if expected_allowed_actions != actual_allowed_actions:
+                                    print(f"\nthese actions are expected to be allowed but not allowed: {list(set(expected_allowed_actions) - set(actual_allowed_actions))}")
+                                    print(
+                                        f"\nthese actions are not expected to be allowed but allowed: {list(set(actual_allowed_actions) - set(expected_allowed_actions))}")
+                                    # raise Exception(f"\nactual_allowed_actions not matched with expected_allowed_actions.")
+                                if expected_denied_actions != actual_denied_actions:
+                                    print(f"\nthese actions are expected to be denied but not denied: {list(set(expected_denied_actions) - set(actual_denied_actions))}")
+                                    print(
+                                        f"\nthese actions are not expected to be denied but denied: {list(set(actual_denied_actions) - set(expected_denied_actions))}")
+                                    # raise Exception(f"\nactual_denied_actions not matched with expected_allowed_actions.")
 
+                                # output_list.append([])
+                                # for action in BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS:
+                                #     result = ""
+                                #     if action in actual_allowed_actions:
+                                #         result = "Allowed"
+                                #     elif action in actual_denied_actions:
+                                #         result = "Denied"
+                                #     output_list[index_s3_client].append(result)
+                                # print("\n".join(output_list[index_s3_client]))
+                                index_s3_client += 1
 
-                s3_client_list = [
-                    {
-                        "s3_client": s3,
-                        "desc": "sts-user-s3-client"
-                    },
-                    # {
-                    #     "s3_client": s3_main_object_owner,
-                    #     "desc": "object-owner-s3-client"
-                    # },
-                    # {
-                    #     "s3_client": s3_main,
-                    #     "desc": "bucket-owner-s3-client"
-                    # }
-                ]
-                actual_bucket_name = BUCKET
-                output_list = []
-                index_s3_client = 0
-                for s3_client_dict in s3_client_list:
+                            index_resource = index_resource + 1
 
-                    bucket_names = [BUCKET, user3_bucket_name]
-                    object_names = [OBJECT_KEY, f'warehouse/test-object1-{random_string}']
-
-                    for bucket_name in bucket_names:
-                        for object_name in object_names:
-
-                            FAILED_ACTIONS = []
-                            PASSED_ACTIONS = []
-                            s3_client = s3_client_dict["s3_client"]
-                            desc = s3_client_dict["desc"]
-                            BUCKET = f"{actual_bucket_name}-{desc}"
-                            print(f"creating bucket {BUCKET} from {user1_name}")
-                            resp = s3_main.create_bucket(Bucket=BUCKET, ObjectLockEnabledForBucket=True)
-                            print(f"creating bucket response: {resp}")
-
-                            # time.sleep(2)
-
-                            # Call each method
-                            print("--------------------------------------------------------------------------------------------------- \nTest create_bucket")
-                            create_bucket(s3_client)
-                            print("")
-                            print("--------------------------------------------------------------------------------------------------- \nTest abort_multipart_upload")
-                            abort_multipart_upload(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_object")
-                            put_object(s3)
-                            print("--------------------------------------------------------------------------------------------------- \nTest multipart_upload")
-                            multipart_upload(s3)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object")
-                            get_object(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_object_acl")
-                            put_object_acl(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object_acl")
-                            get_object_acl(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_acl")
-                            put_bucket_acl(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_cors")
-                            put_bucket_cors(s3_client)
-                            print("")
-                            # print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_logging")
-                            # put_bucket_logging(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_notification")
-                            put_bucket_notification(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_policy")
-                            put_bucket_policy(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_tagging")
-                            put_bucket_tagging(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_versioning")
-                            put_bucket_versioning(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_object_version_acl")
-                            put_object_version_acl(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_website")
-                            put_bucket_website(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_lifecycle_configuration")
-                            put_lifecycle_configuration(s3_client)
-                            print("")
-                            # print("--------------------------------------------------------------------------------------------------- \nTest restore_object")
-                            # restore_object(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest copy_object")
-                            copy_object(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_encryption")
-                            put_bucket_encryption(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_encryption")
-                            get_bucket_encryption(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_bucket_encryption")
-                            delete_bucket_encryption(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_public_access_block")
-                            put_public_access_block(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_public_access_block")
-                            get_public_access_block(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_public_access_block")
-                            delete_public_access_block(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest head_bucket")
-                            head_bucket(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest head_object")
-                            head_object(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest list_object_versions")
-                            list_object_versions(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest list_objects")
-                            list_objects(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest list_objects_v2")
-                            list_objects_v2(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest select_object_content")
-                            select_object_content(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_object_tagging")
-                            put_object_tagging(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object_tagging")
-                            get_object_tagging(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object_attributes")
-                            get_object_attributes(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_object_lock_configuration")
-                            put_object_lock_configuration(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object_lock_configuration")
-                            get_object_lock_configuration(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_object_legal_hold")
-                            put_object_legal_hold(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object_legal_hold")
-                            get_object_legal_hold(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest remove_object_legal_hold")
-                            remove_object_legal_hold(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest put_object_retention")
-                            put_object_retention(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object_retention")
-                            get_object_retention(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest remove_object_retention")
-                            remove_object_retention(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_accelerate_configuration")
-                            get_accelerate_configuration(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_acl")
-                            get_bucket_acl(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_cors")
-                            get_bucket_cors(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_location")
-                            get_bucket_location(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_logging")
-                            get_bucket_logging(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_notification")
-                            get_bucket_notification(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_policy")
-                            get_bucket_policy(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_request_payment")
-                            get_bucket_request_payment(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_tagging")
-                            get_bucket_tagging(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_versioning")
-                            get_bucket_versioning(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_bucket_website")
-                            get_bucket_website(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_lifecycle_configuration")
-                            get_lifecycle_configuration(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object_version_acl")
-                            get_object_version_acl(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_object_version")
-                            get_object_version(s3_client)
-                            # print("--------------------------------------------------------------------------------------------------- \nTest put_replication_configuration")
-                            # put_replication_configuration(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest get_replication_configuration")
-                            get_replication_configuration(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest list_all_my_buckets")
-                            list_all_my_buckets(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest list_bucket_multipart_uploads")
-                            list_bucket_multipart_uploads(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest list_multipart_upload_parts")
-                            list_multipart_upload_parts(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_bucket_website")
-                            delete_bucket_website(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_replication_configuration")
-                            delete_replication_configuration(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_object_version")
-                            delete_object_version(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_object")
-                            delete_object(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_objects")
-                            delete_objects(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_bucket_policy")
-                            delete_bucket_policy(s3_client)
-                            print("--------------------------------------------------------------------------------------------------- \nTest delete_bucket")
-                            delete_bucket(s3_client)
-                            print("")
-                            # print("--------------------------------------------------------------------------------------------------- \nTest list_bucket")
-                            # list_bucket()
-                            # print("--------------------------------------------------------------------------------------------------- \nTest list_bucket_versions")
-                            # list_bucket_versions()
-
-                            print(f"--------------------------------------------------------------------------------------------------- \nTest Summary for {arn_type} with deny {s3_action} and with s3_client {desc}")
-                            actual_allowed_actions = sorted(PASSED_ACTIONS)
-                            actual_denied_actions = sorted(FAILED_ACTIONS)
-                            print(f"\nactual_allowed_actions: {actual_allowed_actions}")
-                            print(f"\nexpected_allowed_actions: {expected_allowed_actions}")
-                            print(f"\nactual_denied_actions: {actual_denied_actions}")
-                            print(f"\nexpected_denied_actions: {expected_denied_actions}")
-                            if expected_allowed_actions != actual_allowed_actions:
-                                print(f"\nthese actions are expected to be allowed but not allowed: {list(set(expected_allowed_actions) - set(actual_allowed_actions))}")
-                                print(
-                                    f"\nthese actions are not expected to be allowed but allowed: {list(set(actual_allowed_actions) - set(expected_allowed_actions))}")
-                                # raise Exception(f"\nactual_allowed_actions not matched with expected_allowed_actions.")
-                            if expected_denied_actions != actual_denied_actions:
-                                print(f"\nthese actions are expected to be denied but not denied: {list(set(expected_denied_actions) - set(actual_denied_actions))}")
-                                print(
-                                    f"\nthese actions are not expected to be denied but denied: {list(set(actual_denied_actions) - set(expected_denied_actions))}")
-                                # raise Exception(f"\nactual_denied_actions not matched with expected_allowed_actions.")
-
-                            # output_list.append([])
-                            # for action in BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS:
+                            # output_string = "action sts-user-s3-client object-owner-s3-client bucket-owner-s3-client\n"
+                            # actions_list = BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS
+                            # for i in range(0, len(actions_list)):
                             #     result = ""
-                            #     if action in actual_allowed_actions:
-                            #         result = "Allowed"
-                            #     elif action in actual_denied_actions:
-                            #         result = "Denied"
-                            #     output_list[index_s3_client].append(result)
-                            # print("\n".join(output_list[index_s3_client]))
-                            index_s3_client += 1
-
-                        index_resource = index_resource + 1
-
-                        # output_string = "action sts-user-s3-client object-owner-s3-client bucket-owner-s3-client\n"
-                        # actions_list = BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS
-                        # for i in range(0, len(actions_list)):
-                        #     result = ""
-                        #     output_string += f"{actions_list[i]} {output_list[0][i]} {output_list[1][i]} {output_list[2][i]}\n"
-                        # print(output_string)
-                        # raise Exception("stop the flow")
+                            #     output_string += f"{actions_list[i]} {output_list[0][i]} {output_list[1][i]} {output_list[2][i]}\n"
+                            # print(output_string)
+                            # raise Exception("stop the flow")
 
 
             index_actions = index_actions + 1
         index_effect = index_effect + 1
+
+
+
+
+
+def exercise_all_s3api_requests(s3_client):
+    FAILED_ACTIONS = []
+    PASSED_ACTIONS = []
+
+    # Call each method
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest create_bucket")
+    create_bucket(s3_client)
+    print("")
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest abort_multipart_upload")
+    abort_multipart_upload(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_object")
+    put_object(s3)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest multipart_upload")
+    multipart_upload(s3)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object")
+    get_object(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_object_acl")
+    put_object_acl(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object_acl")
+    get_object_acl(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_bucket_acl")
+    put_bucket_acl(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_bucket_cors")
+    put_bucket_cors(s3_client)
+    print("")
+    # print("--------------------------------------------------------------------------------------------------- \nTest put_bucket_logging")
+    # put_bucket_logging(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_bucket_notification")
+    put_bucket_notification(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_bucket_policy")
+    put_bucket_policy(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_bucket_tagging")
+    put_bucket_tagging(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_bucket_versioning")
+    put_bucket_versioning(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_object_version_acl")
+    put_object_version_acl(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_bucket_website")
+    put_bucket_website(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_lifecycle_configuration")
+    put_lifecycle_configuration(s3_client)
+    print("")
+    # print("--------------------------------------------------------------------------------------------------- \nTest restore_object")
+    # restore_object(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest copy_object")
+    copy_object(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_bucket_encryption")
+    put_bucket_encryption(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_encryption")
+    get_bucket_encryption(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_bucket_encryption")
+    delete_bucket_encryption(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_public_access_block")
+    put_public_access_block(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_public_access_block")
+    get_public_access_block(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_public_access_block")
+    delete_public_access_block(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest head_bucket")
+    head_bucket(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest head_object")
+    head_object(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest list_object_versions")
+    list_object_versions(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest list_objects")
+    list_objects(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest list_objects_v2")
+    list_objects_v2(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest select_object_content")
+    select_object_content(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_object_tagging")
+    put_object_tagging(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object_tagging")
+    get_object_tagging(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object_attributes")
+    get_object_attributes(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_object_lock_configuration")
+    put_object_lock_configuration(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object_lock_configuration")
+    get_object_lock_configuration(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_object_legal_hold")
+    put_object_legal_hold(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object_legal_hold")
+    get_object_legal_hold(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest remove_object_legal_hold")
+    remove_object_legal_hold(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest put_object_retention")
+    put_object_retention(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object_retention")
+    get_object_retention(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest remove_object_retention")
+    remove_object_retention(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_accelerate_configuration")
+    get_accelerate_configuration(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_acl")
+    get_bucket_acl(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_cors")
+    get_bucket_cors(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_location")
+    get_bucket_location(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_logging")
+    get_bucket_logging(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_notification")
+    get_bucket_notification(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_policy")
+    get_bucket_policy(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_request_payment")
+    get_bucket_request_payment(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_tagging")
+    get_bucket_tagging(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_versioning")
+    get_bucket_versioning(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_bucket_website")
+    get_bucket_website(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_lifecycle_configuration")
+    get_lifecycle_configuration(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object_version_acl")
+    get_object_version_acl(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_object_version")
+    get_object_version(s3_client)
+    # print("--------------------------------------------------------------------------------------------------- \nTest put_replication_configuration")
+    # put_replication_configuration(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest get_replication_configuration")
+    get_replication_configuration(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest list_all_my_buckets")
+    list_all_my_buckets(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest list_bucket_multipart_uploads")
+    list_bucket_multipart_uploads(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest list_multipart_upload_parts")
+    list_multipart_upload_parts(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_bucket_website")
+    delete_bucket_website(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_replication_configuration")
+    delete_replication_configuration(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_object_version")
+    delete_object_version(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_object")
+    delete_object(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_objects")
+    delete_objects(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_bucket_policy")
+    delete_bucket_policy(s3_client)
+    print(
+        "--------------------------------------------------------------------------------------------------- \nTest delete_bucket")
+    delete_bucket(s3_client)
+    print("")
+    # print("--------------------------------------------------------------------------------------------------- \nTest list_bucket")
+    # list_bucket()
+    # print("--------------------------------------------------------------------------------------------------- \nTest list_bucket_versions")
+    # list_bucket_versions()
+
+
+
+def test_sts_static_role_session_policy(user1, user2, user3, ssh_con, config):
+
+    # Generate a random string of 5 characters
+    characters = string.ascii_lowercase + string.digits
+    random_string = ''.join(random.choice(characters) for i in range(5))
+
+    auth1 = Auth(user1, ssh_con, ssl=config.ssl)
+    iam = auth1.do_auth_iam_client()
+    s3_main = auth1.do_auth_using_client()
+
+    auth2 = Auth(user2, ssh_con, ssl=config.ssl)
+    sts = auth2.do_auth_sts_client()
+
+    auth3 = Auth(user3, ssh_con, ssl=config.ssl)
+    s3_user3 = auth1.do_auth_using_client()
+
+    # Configuration
+    user1_name = user1["user_id"]
+    user2_name = user2["user_id"]
+    tenant_name = ""
+
+    # resource_types = [
+    #     {
+    #         "name": "arn_access_all_buckets_and_objects",
+    #         "resource_list": [
+    #             f"arn:aws:s3::{tenant_name}:*"
+    #         ],
+    #         "object_name": 'test-object1',
+    #         "bucket_names": ["user3_bucket_name", "<BUCKET>"]
+    #     },
+    #     {
+    #         "name": "arn_access_all_objects_under_all_buckets",
+    #         "resource_list": [
+    #             f"arn:aws:s3::{tenant_name}:*/*"
+    #         ],
+    #         "object_name": 'test-object1',
+    #         "bucket_names": ["user3_bucket_name", "<BUCKET>"]
+    #     },
+    #     {
+    #         "name": "arn_access_only_the_bucket",
+    #         "resource_list": [
+    #             f"arn:aws:s3::{tenant_name}:<BUCKET>"
+    #         ],
+    #         "object_name": 'test-object1',
+    #         "bucket_names": ["<BUCKET>"]
+    #     },
+    #     {
+    #         "name": "arn_access_all_objects_under_the_bucket",
+    #         "resource_list": [
+    #             f"arn:aws:s3::{tenant_name}:<BUCKET>/*"
+    #         ],
+    #         "object_name": 'test-object1',
+    #         "bucket_names": ["<BUCKET>"]
+    #     },
+    #     {
+    #         "name": "arn_pseudo_directory_access",
+    #         "resource_list": [
+    #             f"arn:aws:s3::{tenant_name}:<BUCKET>/warehouse",
+    #             f"arn:aws:s3::{tenant_name}:<BUCKET>/warehouse/",
+    #             f"arn:aws:s3::{tenant_name}:<BUCKET>/warehouse/*",
+    #         ],
+    #         "object_name": f'warehouse/test-object1-{random_string}',
+    #         "bucket_names": ["<BUCKET>"]
+    #     }
+    # ]
+    #
+    # FAILED_ACTIONS = []
+    # PASSED_ACTIONS = []
+    # BUCKET = f't2hsm1-bkt-{random_string}'
+    # OBJECT_KEY = resource_type["object_name"]
+    # raw_resources = resource_type["resource_list"]
+    # resource_list = [r.replace("<BUCKET>", BUCKET) for r in raw_resources]
+    # # arn_type = resource_type["name"]
+    # arn_type = "arn_pseudo_directory_access"
+    #
+    # user3_bucket_name = f"bkt1-user3-{random_string}"
+    # s3_user3.create_bucket(Bucket=user3_bucket_name)
+    #
+    # expected_denied_actions = []
+    # expected_allowed_actions = all_actions
+    # if arn_type in s3_action_required_resource[s3_action]:
+    #     # expected_allowed_actions = BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS
+    #     # expected_denied_actions = []
+    #     expected_denied_actions = s3_action_allowed_methods[s3_action]
+    #     expected_allowed_actions = list(set(all_actions) - set(expected_denied_actions))
+    #
+    # expected_denied_actions = all_actions
+    # if arn_type in s3_action_required_resource[s3_action]:
+    #     # expected_allowed_actions = BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS
+    #     # expected_denied_actions = []
+    #     expected_allowed_actions = s3_action_allowed_methods[s3_action]
+    #     expected_denied_actions = list(set(all_actions) - set(expected_allowed_actions))
+    #
+    #
+    # print(
+    #     f"\n\n====================================================================================================== \nTest {arn_type}")
+    # print(f"BUCKET {BUCKET}")
+    # print(f"OBJECT_KEY {OBJECT_KEY}")
+    # print(f"resource_list {resource_list}")
+    #
+    # # print(f"creating bucket {BUCKET} from {user1_name}")
+    # # resp = s3_main.create_bucket(Bucket=BUCKET, ObjectLockEnabledForBucket=True)
+    # # print(f"creating bucket response: {resp}")
+    #
+    # # Step 1: Create Role
+    # role_name = f'TestRole-{random_string}-{index_actions}-{index_resource}'
+    # print(f"role_name {role_name}")
+    # assume_role_policy_document = {
+    #     'Version': '2012-10-17',
+    #     'Statement': [{
+    #         'Effect': 'Allow',
+    #         'Principal': {'AWS': [f'arn:aws:iam::{tenant_name}:user/{user2_name}']},
+    #         'Action': 'sts:AssumeRole'
+    #     }]
+    # }
+    # print(f'trust policy: {json.dumps(assume_role_policy_document).replace(" ", "")}')
+    #
+    # try:
+    #     create_role_response = iam.create_role(
+    #         RoleName=role_name,
+    #         Path="/",
+    #         AssumeRolePolicyDocument=f'{json.dumps(assume_role_policy_document).replace(" ", "")}',
+    #         Description='Role for testing STS assume-role in Ceph RGW'
+    #     )
+    #     print("Role created:", create_role_response)
+    # except ClientError as e:
+    #     logging.error(f"create role failed: {e}")
+    #
+    #
+    # # Step 2: Attach Inline Policy
+    # policy_name = 'TestPolicy'
+    # policy_document = {
+    #     "Version": "2012-10-17",
+    #     "Statement": [
+    #         {
+    #             "Effect": effect,
+    #             "Action": [
+    #                 f"{s3_action}"
+    #             ],
+    #             "Resource": resource_list
+    #         }
+    #     ]
+    # }
+    #
+    # print(f'role policy: {json.dumps(policy_document).replace(" ", "")}')
+    # try:
+    #     put_role_resp = iam.put_role_policy(
+    #         RoleName=role_name,
+    #         PolicyName=policy_name,
+    #         PolicyDocument=json.dumps(policy_document).replace(" ", "")
+    #     )
+    #     print(f"Policy attached to role. resp: {put_role_resp}")
+    # except ClientError as e:
+    #     logging.error(f"put role policy failed: {e}")
+    # if session_policy_flag:
+    #
+    #     # Step 3: Assume Role
+    #
+    #     session_policy_document = {
+    #         "Version": "2012-10-17",
+    #         "Statement": [
+    #             {
+    #                 "Effect": "Allow",
+    #                 "Action": [
+    #                     "s3:GetBucketLocation",
+    #                     "s3:ListBucket*"
+    #                 ],
+    #                 "Resource": [
+    #                     "arn:aws:s3::tenant2:<bucket_name>"
+    #                 ]
+    #             },
+    #             {
+    #                 "Effect": "Allow",
+    #                 "Action": [
+    #                     "s3:Get*",
+    #                     "s3:PutObject",
+    #                     "s3:PutObjectAcl",
+    #                     "s3:DeleteObject",
+    #                     "s3:AbortMultipartUpload"
+    #                 ],
+    #                 "Resource": [
+    #                     "arn:aws:s3::tenant2:<bucket_name>/warehouse",
+    #                     "arn:aws:s3::tenant2:<bucket_name>/warehouse/*",
+    #                     "arn:aws:s3::tenant2:<bucket_name>/warehouse/"
+    #                 ]
+    #             },
+    #             {
+    #                 "Effect": "Allow",
+    #                 "Action": [
+    #                     "s3:DeleteObject"
+    #                 ],
+    #                 "Resource": [
+    #                     "arn:aws:s3::tenant2:<bucket_name>"
+    #                 ]
+    #             }
+    #         ]
+    #     }
+    #
+    #     print(
+    #         f'session policy: {json.dumps(session_policy_document).replace(" ", "").replace("<bucket_name>", BUCKET)}')
+    #
+    #     # Step 3: Assume Role
+    #     assumed_role = sts.assume_role(
+    #         RoleArn=create_role_response['Role']['Arn'],
+    #         RoleSessionName='TestSession',
+    #         Policy=json.dumps(session_policy_document).replace(" ", "").replace("<bucket_name>", BUCKET)
+    #     )
+    #
+    # else:
+    #     assumed_role = sts.assume_role(
+    #         RoleArn=create_role_response['Role']['Arn'],
+    #         RoleSessionName='TestSession'
+    #     )
+    #
+    # credentials = assumed_role['Credentials']
+    # print("Assumed role credentials:")
+    # print("Access Key:", credentials['AccessKeyId'])
+    # print("Secret Key:", credentials['SecretAccessKey'])
+    # print("Session Token:", credentials['SessionToken'])
+    #
+    #
+    # # # Initialize S3 client with sts creds
+    # # s3 = boto3.client(
+    # #     's3',
+    # #     aws_access_key_id=credentials['AccessKeyId'],
+    # #     aws_secret_access_key=credentials['SecretAccessKey'],
+    # #     aws_session_token=credentials['SessionToken'],
+    # #     endpoint_url=ENDPOINT_URL,
+    # #     region_name=REGION
+    # # )
+    #
+    # assumed_role_user_info = {
+    #     "access_key": credentials['AccessKeyId'],
+    #     "secret_key": credentials['SecretAccessKey'],
+    #     "session_token": credentials['SessionToken'],
+    #     "user_id": user2["user_id"],
+    # }
+    #
+    # # log.info("got the credentials after assume role")
+    # authstsuser = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
+    # s3 = authstsuser.do_auth_using_client()
+
+
+
+    index = 1
+    FAILED_ACTIONS = []
+    PASSED_ACTIONS = []
+    BUCKET = f'bkt-{random_string}'
+    # OBJECT_KEY = resource_type["object_name"]
+    OBJECT_KEY = f'warehouse/test-object1-{random_string}'
+    # raw_resources = resource_type["resource_list"]
+    raw_resources = [
+        f"arn:aws:s3::{tenant_name}:<BUCKET>/warehouse",
+        f"arn:aws:s3::{tenant_name}:<BUCKET>/warehouse/",
+        f"arn:aws:s3::{tenant_name}:<BUCKET>/warehouse/*",
+    ]
+    resource_list = [r.replace("<BUCKET>", BUCKET) for r in raw_resources]
+    # arn_type = resource_type["name"]
+    arn_type = "arn_pseudo_directory_access"
+    expected_allowed_actions = []
+    expected_denied_actions = list(set(all_actions) - set(expected_allowed_actions))
+    # if arn_type == "arn_access_all_buckets_and_objects":
+    #     expected_allowed_actions = BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS
+    #     expected_denied_actions = []
+    # elif arn_type == "arn_access_all_objects_under_all_buckets":
+    #     expected_allowed_actions = OBJECT_ACTIONS
+    #     expected_denied_actions = BUCKET_ACTIONS + GLOBAL_ACTIONS
+    # elif arn_type == "arn_access_only_the_bucket":
+    #     expected_allowed_actions = BUCKET_ACTIONS
+    #     expected_denied_actions = OBJECT_ACTIONS + GLOBAL_ACTIONS
+    # elif arn_type == "arn_access_all_objects_under_the_bucket":
+    #     expected_allowed_actions = OBJECT_ACTIONS
+    #     expected_denied_actions = BUCKET_ACTIONS + GLOBAL_ACTIONS
+    # elif arn_type == "arn_pseudo_directory_access":
+    #     expected_allowed_actions = OBJECT_ACTIONS
+    #     expected_denied_actions = BUCKET_ACTIONS + GLOBAL_ACTIONS
+    # expected_allowed_actions = sorted(expected_allowed_actions)
+    # expected_denied_actions = sorted(expected_denied_actions)
+
+    print(
+        f"\n\n====================================================================================================== \nTest {arn_type}")
+    print(f"BUCKET {BUCKET}")
+    print(f"OBJECT_KEY {OBJECT_KEY}")
+    print(f"resource_list {resource_list}")
+
+    print(f"creating bucket {BUCKET} from {user_name}")
+    # resp = s3_main.create_bucket(Bucket=BUCKET, ObjectLockEnabledForBucket=True)
+    resp = s3_main.create_bucket(Bucket=BUCKET)
+    print(f"creating bucket response: {resp}")
+
+    # Step 1: Create Role
+    role_name = f'TestRole-{random_string}-{index}'
+    print(f"role_name {role_name}")
+    assume_role_policy_document = {
+        'Version': '2012-10-17',
+        'Statement': [{
+            'Effect': 'Allow',
+            'Principal': {'AWS': [f'arn:aws:iam::{tenant_name}:user/{user2_name}']},
+            'Action': 'sts:AssumeRole'
+        }]
+    }
+    print(f'trust policy: {json.dumps(assume_role_policy_document).replace(" ", "")}')
+
+    try:
+        create_role_response = iam.create_role(
+            RoleName=role_name,
+            Path="/",
+            AssumeRolePolicyDocument=f'{json.dumps(assume_role_policy_document).replace(" ", "")}',
+            Description='Role for testing STS assume-role in Ceph RGW'
+        )
+        print("Role created:", create_role_response)
+    except ClientError as e:
+        logging.error(f"create role failed: {e}")
+    role_arn = create_role_response['Role']['Arn']
+
+    # Step 2: Attach Inline Policy
+    policy_name = 'TestPolicy'
+    policy_document = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetObject",
+                    "s3:ListBucketMultipartUploads",
+                    "s3:ListMultipartUploadParts",
+                    "s3:GetBucketLocation",
+                    "s3:ListBucket",
+                    "s3:ListAllMyBuckets",
+                    "s3:AbortMultipartUpload",
+                    "s3:DeleteObject",
+                    "s3:PutObject"
+                ],
+                "Resource": "arn:aws:s3::tenant2:*"
+            }
+        ]
+    }
+    print(f'role policy: {json.dumps(policy_document).replace(" ", "")}')
+
+    try:
+        put_role_resp = iam.put_role_policy(
+            RoleName=role_name,
+            PolicyName=policy_name,
+            PolicyDocument=json.dumps(policy_document).replace(" ", "")
+        )
+        print(f"Policy attached to role. resp: {put_role_resp}")
+    except ClientError as e:
+        logging.error(f"put role policy failed: {e}")
+
+    # Step 3: Assume Role
+    # assumed_role = sts.assume_role(
+    #     RoleArn=create_role_response['Role']['Arn'],
+    #     RoleSessionName='TestSession'
+    # )
+    session_policy_document = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:GetBucketLocation",
+                    "s3:ListBucket*"
+                ],
+                "Resource": [
+                    "arn:aws:s3::tenant2:<bucket_name>"
+                ]
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:Get*",
+                    "s3:PutObject",
+                    "s3:PutObjectAcl",
+                    "s3:DeleteObject",
+                    "s3:AbortMultipartUpload"
+                ],
+                "Resource": [
+                    "arn:aws:s3::tenant2:<bucket_name>/warehouse",
+                    "arn:aws:s3::tenant2:<bucket_name>/warehouse/*",
+                    "arn:aws:s3::tenant2:<bucket_name>/warehouse/"
+                ]
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "s3:DeleteObject"
+                ],
+                "Resource": [
+                    "arn:aws:s3::tenant2:<bucket_name>"
+                ]
+            }
+        ]
+    }
+
+    print(f'session policy: {json.dumps(session_policy_document).replace(" ", "").replace("<bucket_name>", BUCKET)}')
+
+    # Step 3: Assume Role
+    assumed_role = sts.assume_role(
+        RoleArn=role_arn,
+        RoleSessionName='TestSession',
+        Policy=json.dumps(session_policy_document).replace(" ", "").replace("<bucket_name>", BUCKET)
+    )
+    credentials = assumed_role['Credentials']
+    print("Assumed role credentials:")
+    print("Access Key:", credentials['AccessKeyId'])
+    print("Secret Key:", credentials['SecretAccessKey'])
+    print("Session Token:", credentials['SessionToken'])
+
+    # Initialize S3 client with sts creds
+    # s3 = boto3.client(
+    #     's3',
+    #     aws_access_key_id=credentials['AccessKeyId'],
+    #     aws_secret_access_key=credentials['SecretAccessKey'],
+    #     aws_session_token=credentials['SessionToken'],
+    #     endpoint_url=ENDPOINT_URL,
+    #     region_name=REGION
+    # )
+
+    assumed_role_user_info = {
+        "access_key": credentials['AccessKeyId'],
+        "secret_key": credentials['SecretAccessKey'],
+        "session_token": credentials['SessionToken'],
+        "user_id": user2["user_id"],
+    }
+
+    # log.info("got the credentials after assume role")
+    authstsuser = Auth(assumed_role_user_info, ssh_con, ssl=config.ssl)
+    s3 = authstsuser.do_auth_using_client()
+
+
+    FAILED_ACTIONS = []
+    PASSED_ACTIONS = []
+    s3_client = s3
+
+    # time.sleep(2)
+
+    exercise_all_s3api_requests(s3_client)
+
+    print(f"--------------------------------------------------------------------------------------------------- \nTest Summary for {arn_type} with deny {s3_action} and with s3_client {desc}")
+    actual_allowed_actions = sorted(PASSED_ACTIONS)
+    actual_denied_actions = sorted(FAILED_ACTIONS)
+    print(f"\nactual_allowed_actions: {actual_allowed_actions}")
+    print(f"\nexpected_allowed_actions: {expected_allowed_actions}")
+    print(f"\nactual_denied_actions: {actual_denied_actions}")
+    print(f"\nexpected_denied_actions: {expected_denied_actions}")
+    if expected_allowed_actions != actual_allowed_actions:
+        print(f"\nthese actions are expected to be allowed but not allowed: {list(set(expected_allowed_actions) - set(actual_allowed_actions))}")
+        print(
+            f"\nthese actions are not expected to be allowed but allowed: {list(set(actual_allowed_actions) - set(expected_allowed_actions))}")
+        # raise Exception(f"\nactual_allowed_actions not matched with expected_allowed_actions.")
+    if expected_denied_actions != actual_denied_actions:
+        print(f"\nthese actions are expected to be denied but not denied: {list(set(expected_denied_actions) - set(actual_denied_actions))}")
+        print(
+            f"\nthese actions are not expected to be denied but denied: {list(set(actual_denied_actions) - set(expected_denied_actions))}")
+        # raise Exception(f"\nactual_denied_actions not matched with expected_allowed_actions.")
+
+    # output_list.append([])
+    # for action in BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS:
+    #     result = ""
+    #     if action in actual_allowed_actions:
+    #         result = "Allowed"
+    #     elif action in actual_denied_actions:
+    #         result = "Denied"
+    #     output_list[index_s3_client].append(result)
+    # print("\n".join(output_list[index_s3_client]))
+
+    # output_string = "action sts-user-s3-client object-owner-s3-client bucket-owner-s3-client\n"
+    # actions_list = BUCKET_ACTIONS + OBJECT_ACTIONS + GLOBAL_ACTIONS
+    # for i in range(0, len(actions_list)):
+    #     result = ""
+    #     output_string += f"{actions_list[i]} {output_list[0][i]} {output_list[1][i]} {output_list[2][i]}\n"
+    # print(output_string)
+    # raise Exception("stop the flow")
