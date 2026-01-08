@@ -1,0 +1,35 @@
+# script: test_iam_get_account_summary.py
+# polarion-ID: CEPH-XXXXX
+# Description: Comprehensive test for iam:GetAccountSummary API call
+# This test creates an RGW account, root user, multiple IAM users, buckets, and validates the account summary at different stages
+config:
+  user_count: 0  # Not used directly, controlled by num_iam_users
+  bucket_count: 0  # Not used directly, controlled by buckets_per_user
+  objects_count: 0  # Not used in this test
+  user_remove: false
+  ssl: false  # HTTP endpoint on port 8000
+  haproxy: false
+  test_ops:
+    account_name: "ceph-root"
+    display_name: "Ceph Root Account"
+    account_email: "ceph-root@example.com"
+    root_user_name: "rgwroot"
+    root_display_name: "RGWRootUser"
+    # Number of IAM users to create (default: 3)
+    num_iam_users: 5
+    # Specific IAM user names (optional, if not provided, will generate User1, User2, etc.)
+    iam_user_names:
+      - "Alice"
+      - "Bob"
+      - "Charlie"
+      - "Diana"
+      - "Eve"
+    # Policy ARN to attach to first user
+    policy_arn: "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+    # Number of buckets to create per user (default: 1)
+    buckets_per_user: 2
+    # Total number of users that should have buckets (default: all users with keys)
+    bucket_count: 5
+    region: "us-east-1"
+    # Whether to cleanup after test (default: false)
+    cleanup: false
