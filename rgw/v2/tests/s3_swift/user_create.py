@@ -38,7 +38,7 @@ def test_exec(config, ssh_con):
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
     umgmt = UserMgmt()
-    user_detail_file = os.path.join(lib_dir, "user_details.json")
+    user_detail_file = s3lib.get_writable_user_details_file()
     try:
         test_info.started_info()
         # create a non-tenanted user
