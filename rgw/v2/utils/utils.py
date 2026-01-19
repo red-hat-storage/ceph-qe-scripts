@@ -9,6 +9,7 @@ import shutil
 import socket
 import string
 import subprocess
+import tempfile
 import time
 from random import randint
 from re import S
@@ -224,19 +225,73 @@ class FileOps(object):
         fp.close()
 
 
+def _get_writable_temp_file(original_path):
+    """
+    Get a writable temporary file path for a given original file path.
+    If the original directory is writable, use it. Otherwise, use temp directory.
+    """
+    try:
+        # Try to use the same directory as the original file
+        tmp_file = original_path + ".rgw.tmp"
+        dir_path = os.path.dirname(original_path)
+        if dir_path and os.path.exists(dir_path) and os.access(dir_path, os.W_OK):
+            return tmp_file
+    except (OSError, AttributeError):
+        pass
+    
+    # Fallback to temp directory
+    tmp_dir = tempfile.gettempdir()
+    tmp_filename = os.path.basename(original_path) + ".rgw.tmp"
+    return os.path.join(tmp_dir, tmp_filename)
+
+
 class ConfigParse(object):
     def __init__(self, fname, ssh_con=None):
         self.fname = fname
         self.cfg = configparser.ConfigParser()
         if ssh_con is not None:
-            tmp_file = fname + ".rgw.tmp"
+            # Use a user-writable temp file location
+            tmp_file = _get_writable_temp_file(fname)
             sftp_client = ssh_con.open_sftp()
-            fname = sftp_client.get(fname, tmp_file)
-            sftp_client.close()
-            self.cfg.read(tmp_file)
-            self.fname = tmp_file
+            try:
+                fname = sftp_client.get(fname, tmp_file)
+                sftp_client.close()
+                self.cfg.read(tmp_file)
+                self.fname = tmp_file
+            except (IOError, OSError) as e:
+                sftp_client.close()
+                log.info(
+                    f"ceph.conf file not found at {fname}, using empty config (this is normal for cephadm-managed clusters)"
+                )
+                self.fname = tmp_file
+                with open(tmp_file, "w") as f:
+                    f.write("")
         else:
-            self.cfg.read(fname)
+            if os.path.exists(fname):
+                self.cfg.read(fname)
+            else:
+                # File doesn't exist locally either
+                log.info(f"ceph.conf file not found at {fname}, using empty config")
+                # Use writable temp file if original location isn't writable
+                try:
+                    dir_path = os.path.dirname(fname)
+                    if dir_path and os.path.exists(dir_path) and os.access(dir_path, os.W_OK):
+                        with open(fname, "w") as f:
+                            f.write("")
+                        self.cfg.read(fname)
+                    else:
+                        tmp_file = _get_writable_temp_file(fname)
+                        self.fname = tmp_file
+                        with open(tmp_file, "w") as f:
+                            f.write("")
+                        self.cfg.read(tmp_file)
+                except (OSError, AttributeError):
+                    # Fallback to temp directory
+                    tmp_file = _get_writable_temp_file(fname)
+                    self.fname = tmp_file
+                    with open(tmp_file, "w") as f:
+                        f.write("")
+                    self.cfg.read(tmp_file)
 
     def set(self, section, option, value=None):
         self.cfg.set(section, option, value)
@@ -488,7 +543,10 @@ class RGWService:
         try:
             log.info("Restarting RGW service")
             cmd = self.srv.cmd("restart")
-            if ssh_con is not None:
+            if ssh_con is not None and self.ceph_version_name in [
+                "luminous",
+                "nautilus",
+            ]:
                 log.info("Executing restart on remote node")
                 if not remote_exec_shell_cmd(ssh_con, cmd):
                     log.error("Failed to restart RGW service on remote node")
@@ -517,7 +575,7 @@ class RGWService:
         """
         log.info("stopping service")
         cmd = self.srv.cmd("stop")
-        if ssh_con is not None:
+        if ssh_con is not None and self.ceph_version_name in ["luminous", "nautilus"]:
             return remote_exec_shell_cmd(ssh_con, cmd)
         else:
             return exec_shell_cmd(cmd)
@@ -528,7 +586,7 @@ class RGWService:
         """
         log.info("starting service")
         cmd = self.srv.cmd("start")
-        if ssh_con is not None:
+        if ssh_con is not None and self.ceph_version_name in ["luminous", "nautilus"]:
             return remote_exec_shell_cmd(ssh_con, cmd)
         else:
             return exec_shell_cmd(cmd)
@@ -539,7 +597,7 @@ class RGWService:
         """
         log.info("service status")
         cmd = self.srv.cmd("status")
-        if ssh_con is not None:
+        if ssh_con is not None and self.ceph_version_name in ["luminous", "nautilus"]:
             return remote_exec_shell_cmd(ssh_con, cmd)
         else:
             return exec_shell_cmd(cmd)

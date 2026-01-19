@@ -248,8 +248,7 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         }
     )
     write_user_info.add_user_info(user_info)
-    lib_dir = "/home/cephuser/rgw-ms-tests/ceph-qe-scripts/rgw/v2/lib"
-    user_detail_file = os.path.join(lib_dir, "user_details.json")
+    user_detail_file = s3lib.get_writable_user_details_file()
     with open(user_detail_file, "w") as fout:
         json.dump(iam_user_details, fout)
     return iam_user_details
