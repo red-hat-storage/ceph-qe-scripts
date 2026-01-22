@@ -219,11 +219,32 @@ def validate_prefix_rule(bucket, config):
         log.info("Start the validation of LC expiration.")
 
         c1 = 0
+        object_current_versions = {}
         if objects == objs_total:
             for i, entry in enumerate(json_doc2):
                 print(entry["tag"])
-                if entry["tag"] == "delete-marker":
-                    c1 = c1 + 1
+                obj_name = entry["name"]
+                current_version = entry.get("current_version", 0)
+                is_delete_marker = entry["tag"] == "delete-marker"
+
+                if obj_name not in object_current_versions:
+                    object_current_versions[obj_name] = {
+                        "current_version": current_version,
+                        "is_delete_marker": is_delete_marker,
+                    }
+                elif (
+                    current_version
+                    > object_current_versions[obj_name]["current_version"]
+                ):
+                    object_current_versions[obj_name] = {
+                        "current_version": current_version,
+                        "is_delete_marker": is_delete_marker,
+                    }
+
+            for obj_name, version_info in object_current_versions.items():
+                if version_info["is_delete_marker"]:
+                    c1 += 1
+
             if c1 != (config.objects_count):
                 raise AssertionError(
                     "Lifecycle expiration of current object version for prefix filter failed"
