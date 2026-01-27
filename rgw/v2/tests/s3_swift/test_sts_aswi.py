@@ -180,15 +180,13 @@ def test_exec(config, ssh_con):
         stsaswi.create_open_id_connect_provider(iam_client, identity_provider, keycloak)
     elif identity_provider == "IBM_Security_Verify":
         utils.exec_shell_cmd(
-            "curl -o /home/cephuser/get_isv_web_token.sh http://magna002.ceph.redhat.com/cephci-jenkins/RGW_IBM_Security_Verify/get_isv_web_token.sh"
+            "cp /home/cephuser/configs/rgw/ibm_isv/get_isv_web_token.sh /home/cephuser/get_isv_web_token.sh"
         )
         utils.exec_shell_cmd("chmod +rwx /home/cephuser/get_isv_web_token.sh")
         out = json.loads(utils.exec_shell_cmd("sh /home/cephuser/get_isv_web_token.sh"))
         log.info(f"web token output: {out}")
         web_token = out["id_token"]
-        out = utils.exec_shell_cmd(
-            "curl http://magna002.ceph.redhat.com/cephci-jenkins/RGW_IBM_Security_Verify/oidc_url"
-        )
+        out = utils.exec_shell_cmd("cat /home/cephuser/configs/rgw/ibm_isv/oidc_url")
         url = out.strip()
         idp_url_for_arn = url.replace("https://", "")
         policy_document = policy_document.replace("idp_url", idp_url_for_arn)
