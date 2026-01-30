@@ -3703,3 +3703,157 @@ def delete_indexless_bucket(bucket):
             )
         else:
             raise TestExecError(f"Bucket deletion failed: {err_msg}")
+
+
+def check_service_port(service, ssh_con=None):
+    """
+    Check the port assigned to a service.
+
+    This method attempts to retrieve the port number for a given service by:
+        1. Checking Ceph orchestrator services (via 'ceph orch ls')
+
+    Args:
+        service (str): Name of the service to check (e.g., 'rgw')
+        ssh_con: SSH connection object for remote execution (optional)
+
+    Returns:
+        str: Port number assigned to the service
+
+    Raises:
+        Exception: If unable to determine the service port
+    """
+    log.info(f"Checking port for service: {service}")
+
+    # Try to get port from Ceph orchestrator first (for Ceph services)
+    try:
+        ceph_orch_cmd = f"ceph orch ls --service-type {service} --format json"
+        if ssh_con is not None:
+            orch_output = utils.remote_exec_shell_cmd(
+                ssh_con, ceph_orch_cmd, return_output=True
+            )
+        else:
+            orch_output = utils.exec_shell_cmd(ceph_orch_cmd)
+
+        if orch_output:
+            orch_data = json.loads(orch_output)
+            if orch_data and len(orch_data) > 0:
+                service_info = orch_data[0]
+                if "status" in service_info and "ports" in service_info["status"]:
+                    ports = service_info["status"]["ports"]
+                    if ports and len(ports) > 0:
+                        port = str(ports[0])
+                        log.info(f"Port for service '{service}' from ceph orch: {port}")
+                        return port
+    except Exception as e:
+        log.debug(f"Could not get port from ceph orch for service '{service}': {e}")
+
+
+def get_cluster_id_from_ceph():
+    """
+    Fetch cluster id (fsid) from ceph -s command output.
+
+
+    Returns:
+        str: Cluster id (fsid) from ceph status command
+    """
+    try:
+        log.info("Fetching cluster id from ceph -s command")
+        ceph_status_json = utils.exec_shell_cmd("ceph -s --format json")
+        ceph_status = json.loads(ceph_status_json)
+        cluster_id = ceph_status.get("fsid", "")
+        if not cluster_id:
+            raise TestExecError("Cluster id (fsid) not found in ceph -s output")
+        log.info(f"Cluster id retrieved: {cluster_id}")
+        return cluster_id
+    except json.JSONDecodeError as e:
+        log.error(f"Failed to parse ceph -s JSON output: {str(e)}")
+        raise TestExecError(f"Invalid JSON output from ceph -s: {str(e)}")
+    except Exception as e:
+        log.error(f"Failed to fetch cluster id from ceph -s: {str(e)}")
+        raise TestExecError(f"Error executing ceph -s command: {str(e)}")
+
+
+def find_admin_socket(ssh_con=None):
+    """
+    Find the RGW admin socket file in /var/run/ceph/
+
+    Returns:
+        str: Path to the admin socket file
+    """
+
+    cluster_id = get_cluster_id_from_ceph()
+
+    socket_path = f"/var/run/ceph/{cluster_id}"
+    cmd = f"sudo find {socket_path} -maxdepth 1 -name 'ceph-client.rgw.*.asok' 2>/dev/null | head -1"
+    log.info(f"command is {cmd}")
+
+    if ssh_con:
+        stdin, stdout, stderr = ssh_con.exec_command("hostname")
+        out = stdout.read().decode().strip()
+
+        stdin, stdout, stderr = ssh_con.exec_command(cmd)
+        socket_pattern = stdout.read().decode().strip().split("/")[-1]
+    else:
+        socket_pattern = utils.exec_shell_cmd(cmd).split("/")[-1]
+    if not socket_pattern:
+        raise Exception(f"RGW admin socket not found in {socket_path}")
+
+    log.info(f"Found admin socket: {socket_pattern}")
+    return socket_path, socket_pattern
+
+
+def get_perf_dump(ssh_con=None, return_json=True):
+    """
+    Fetch perf dump from RGW admin socket
+
+    Parameters:
+        socket_path (str): Path to the admin socket file. If None, will auto-detect.
+        return_json (bool): If True, returns parsed JSON. If False, returns raw string.
+
+    Returns:
+        dict or str: Perf dump data as JSON dict or raw string
+    """
+    try:
+        # Use provided socket_path or find it automatically
+
+        # Execute perf dump command
+        socket_path, socket_file = find_admin_socket(ssh_con)
+        cmd1 = "sudo chmod -R 777 /var/run/ceph/"
+        cmd2 = f"cd {socket_path} ; ceph --admin-daemon {socket_file} perf dump"
+
+        log.info(f"cmd2 is {cmd2}")
+
+        if ssh_con is not None:
+            ssh_con.exec_command(cmd1)
+            stdin, stdout, stderr = ssh_con.exec_command(cmd2)
+            output = stdout.read().decode().strip()
+            error = stderr.read().decode().strip()
+            log.info(f"cmd2 output is {output}")
+            if error:
+                log.error(f"Error executing perf dump: {error}")
+                raise Exception(f"Failed to get perf dump: {error}")
+        else:
+            utils.exec_shell_cmd(cmd1)
+            output = utils.exec_shell_cmd(cmd2)
+            if output is False or output is None:
+                raise Exception("Failed to execute perf dump command")
+
+        if not output or not output.strip():
+            raise Exception("Perf dump command returned empty output")
+
+        if return_json:
+            try:
+                perf_dump = json.loads(output)
+                log.info("Successfully retrieved and parsed perf dump")
+                return perf_dump
+            except json.JSONDecodeError as e:
+                log.error(f"Failed to parse perf dump as JSON: {e}")
+                log.error(f"Raw output: {output}")
+                raise Exception(f"Invalid JSON in perf dump: {e}")
+        else:
+            log.info("Successfully retrieved perf dump (raw)")
+            return output
+
+    except Exception as e:
+        log.error(f"Error fetching perf dump: {e}")
+        raise
