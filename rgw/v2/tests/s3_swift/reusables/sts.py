@@ -192,11 +192,9 @@ def create_open_id_connect_provider(
         client_id_list = ["account", keycloak.client_id]
     elif identity_provider == "IBM_Security_Verify":
         utils.exec_shell_cmd(
-            "curl -o obtain_oidc_thumbprint.sh http://magna002.ceph.redhat.com/cephci-jenkins/RGW_IBM_Security_Verify/obtain_oidc_thumbprint.sh"
+            "cp /home/cephuser/configs/rgw/ibm_isv/obtain_oidc_thumbprint.sh /home/cephuser/obtain_oidc_thumbprint.sh"
         )
-        out = utils.exec_shell_cmd(
-            "curl http://magna002.ceph.redhat.com/cephci-jenkins/RGW_IBM_Security_Verify/oidc_url"
-        )
+        out = utils.exec_shell_cmd("cat /home/cephuser/configs/rgw/ibm_isv/oidc_url")
         url = out.strip()
         client_id_list = []
     utils.exec_shell_cmd("chmod +rwx obtain_oidc_thumbprint.sh")
