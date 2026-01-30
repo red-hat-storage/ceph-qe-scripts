@@ -3,7 +3,9 @@
 Usage: test_object_lock.py -c <input_yaml>
 
 <input_yaml>
-	test_object_lock.yaml
+	test_object_lock_compliance.yaml
+    test_object_lock_governance.yaml
+    test_bucket_lock_later.yaml
 
 Operation:
     Create bucket with bucket lock enabled
@@ -37,7 +39,7 @@ from v2.lib.manage_data import io_generator
 from v2.lib.resource_op import Config
 from v2.lib.rgw_config_opts import CephConfOp
 from v2.lib.s3.auth import Auth
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3cmd.reusable import get_rgw_ip_and_port
 from v2.utils.log import configure_logging
@@ -53,6 +55,7 @@ encryption_key = hashlib.md5(password).hexdigest()
 def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
+    write_bucket_io_info = BucketIoInfo()
     io_info_initialize.initialize(basic_io_structure.initial())
     ceph_conf = CephConfOp(ssh_con)
     rgw_service = RGWService()
@@ -63,6 +66,87 @@ def test_exec(config, ssh_con):
         # authentication
         auth = Auth(each_user, ssh_con, ssl=config.ssl)
         s3_conn_client = auth.do_auth_using_client()
+        s3_conn = auth.do_auth()
+
+        if config.test_ops.get("bucket_lock_later", False):
+            log.info(f"no of buckets to create: {config.bucket_count}")
+            for bc in range(config.bucket_count):
+                bucket_name_to_create = utils.gen_bucket_name_from_userid(
+                    each_user["user_id"], rand_no=bc
+                )
+                log.info(f"creating bucket with name: {bucket_name_to_create}")
+                rgw_ip_and_port = get_rgw_ip_and_port(ssh_con)
+                bucket = reusable.create_bucket(
+                    bucket_name_to_create, s3_conn, each_user, rgw_ip_and_port
+                )
+                log.info(f"s3 objects to create: {config.objects_count}")
+                for oc, size in list(config.mapped_sizes.items()):
+                    config.obj_size = size
+                    s3_object_name = utils.gen_s3_object_name(bucket_name_to_create, oc)
+                    log.info(f"s3 object name: {s3_object_name}")
+                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                    log.info(f"s3 object path: {s3_object_path}")
+                    reusable.upload_object(
+                        s3_object_name,
+                        bucket,
+                        TEST_DATA_PATH,
+                        config,
+                        each_user,
+                    )
+                log.info("Post object creation, enable versioning on bucket")
+                reusable.enable_versioning(
+                    bucket, s3_conn, each_user, write_bucket_io_info
+                )
+                log.info("Enable Object lock on bucket and write objects")
+                ObjectLockConfiguration = {
+                    "ObjectLockEnabled": "Enabled",
+                    "Rule": {
+                        "DefaultRetention": {
+                            "Mode": config.test_ops.get("lock_mode"),
+                            "Days": config.test_ops.get("retention_days"),
+                        }
+                    },
+                }
+                log.info(f"{ObjectLockConfiguration}")
+                reusable.object_lock_put(
+                    s3_conn_client, bucket_name_to_create, ObjectLockConfiguration
+                )
+                log.info(f"s3 objects to create: {config.objects_count}")
+                for oc, size in list(config.mapped_sizes.items()):
+                    config.obj_size = size
+                    s3_object_name = (
+                        utils.gen_s3_object_name(bucket_name_to_create, oc) + "_lock"
+                    )
+                    log.info(f"s3 object name: {s3_object_name}")
+                    s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+                    log.info(f"s3 object path: {s3_object_path}")
+                    reusable.upload_object(
+                        s3_object_name,
+                        bucket,
+                        TEST_DATA_PATH,
+                        config,
+                        each_user,
+                    )
+                log.info("Try to delete the uploaded object versions")
+                versions = s3_conn_client.list_object_versions(
+                    Bucket=bucket_name_to_create, Prefix=s3_object_name
+                )
+                for version_dict in versions["Versions"]:
+                    try:
+                        s3_conn_client.delete_object(
+                            Bucket=bucket_name_to_create,
+                            Key=s3_object_name,
+                            VersionId=version_dict["VersionId"],
+                        )
+                        raise AccessDeniedObjectDeleted("Access denied object deleted")
+                    except boto3exception.ClientError as e:
+                        expected_code = "AccessDenied"
+                        actual_code = e.response["Error"]["Code"]
+                        assert (
+                            actual_code == expected_code
+                        ), "Expected: {expected_code}, Actual: {actual_code}"
+                log.info("Unable to delete the object in retention period")
+
         # create buckets with object lock configuration
         if config.test_ops["create_bucket"] is True:
             log.info(f"no of buckets to create: {config.bucket_count}")
