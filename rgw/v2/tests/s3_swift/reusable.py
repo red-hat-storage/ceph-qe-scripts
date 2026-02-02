@@ -191,7 +191,6 @@ def create_rgw_account_with_iam_user(
 def create_bucket(
     bucket_name, rgw, user_info, endpoint=None, location=None, retries=3, wait_time=5
 ):
-
     if endpoint is not None:
         # Retry until endpoint is reachable or max retries reached
         for attempt in range(1, retries + 1):
@@ -2281,8 +2280,10 @@ def prepare_for_bucket_lc_transition(config):
                 )
     else:
         if config.test_ops.get("test_ibm_cloud_transition", False):
-            wget_cmd = "curl -o ibm_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/ibm_cloud_file"
-            utils.exec_shell_cmd(cmd=f"{wget_cmd}")
+            # wget_cmd = "curl -o ibm_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/ibm_cloud_file"
+            utils.exec_shell_cmd(
+                cmd="cp /home/cephuser/configs/rgw/cloud_endpoints/ibm_cloud_file ibm_cloud.env"
+            )
             ibm_config = configobj.ConfigObj("ibm_cloud.env")
             target_path = ibm_config["TARGET"]
             access = ibm_config["ACCESS"]
@@ -2300,8 +2301,10 @@ def prepare_for_bucket_lc_transition(config):
                     f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
                 )
         else:
-            wget_cmd = "curl -o aws_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/aws_cloud_file"
-            utils.exec_shell_cmd(cmd=f"{wget_cmd}")
+            # wget_cmd = "curl -o aws_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/aws_cloud_file"
+            utils.exec_shell_cmd(
+                cmd="cp /home/cephuser/configs/rgw/cloud_endpoints/aws_cloud_file aws_cloud.env"
+            )
             aws_config = configobj.ConfigObj("aws_cloud.env")
             target_path = aws_config["TARGET"]
             access = aws_config["ACCESS"]
