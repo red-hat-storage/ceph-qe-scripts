@@ -1,0 +1,11 @@
+# script: test_list_delete_ratelimit.py
+# Scenario 2: Attempt to get max_list_ops and max_delete_ops for existing user
+# where ratelimit is not enabled (no ratelimit set/enable for this user yet)
+config:
+  user_count: 1
+  bucket_count: 1
+  user_type: non-tenanted
+  version_enable: False
+
+  test_ops:
+    test_ratelimit_get_user_not_enabled: true

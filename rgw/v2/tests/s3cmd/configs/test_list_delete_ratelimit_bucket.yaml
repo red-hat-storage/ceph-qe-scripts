@@ -1,0 +1,9 @@
+# script: test_list_delete_ratelimit.py
+# Test bucket-level LIST and DELETE rate limits
+config:
+  user_count: 1
+  bucket_count: 2
+  user_type: non-tenanted
+  # Bucket-level LIST and DELETE rate limits
+  bucket_max_list_ops: 10
+  bucket_max_delete_ops: 15

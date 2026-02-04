@@ -1,0 +1,12 @@
+# script: test_list_delete_ratelimit.py
+# Scenario 1: Attempt to get max_list_ops and max_delete_ops for non-existing user
+# Expected: ERROR: failed to get a ratelimit for user id: '{username}',
+#           errno: (2) No such file or directory
+config:
+  user_count: 1
+  bucket_count: 1
+  user_type: non-tenanted
+  version_enable: False
+
+  test_ops:
+    test_ratelimit_get_nonexistent_user: true
