@@ -1,0 +1,12 @@
+# Test that put-bucket-logging fails with InvalidArgument error when
+# target bucket is the same as source bucket
+# script: test_server_access_logging.py
+# bz: https://bugzilla.redhat.com/show_bug.cgi?id=2321568
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    create_bucket: true
+    test_same_bucket_logging_fails: true
+    logging_type: Standard
+    target_obj_key_format: SimplePrefix

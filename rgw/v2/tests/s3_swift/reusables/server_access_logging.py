@@ -12,10 +12,13 @@ from v2.tests.s3_swift.reusables import rgw_accounts as accounts
 log = logging.getLogger()
 
 
-def rgw_admin_logging_info(bucket_name):
+def rgw_admin_logging_info(bucket_name, tenant_name=None):
     """
     Perform radosgw-admin bucket logging info --bucket <bucket_name>
+    For tenanted buckets, bucket_name should be in format tenant/bucket-name
     """
+    if tenant_name:
+        bucket_name = f"{tenant_name}/{bucket_name}"
     cmd = f"radosgw-admin bucket logging info --bucket {bucket_name}"
     out = utils.exec_shell_cmd(cmd)
     log.info(out)
@@ -77,10 +80,13 @@ def post_bucket_logging(rgw_s3_client, bucket_name):
     return post_bkt_logging["FlushedLoggingObject"]
 
 
-def rgw_admin_logging_flush(bucket_name):
+def rgw_admin_logging_flush(bucket_name, tenant_name=None):
     """
     Perform radosgw-admin bucket logging flush --bucket <bucket_name>
+    For tenanted buckets, bucket_name should be in format tenant/bucket-name
     """
+    if tenant_name:
+        bucket_name = f"{tenant_name}/{bucket_name}"
     cmd = f"radosgw-admin bucket logging flush --bucket {bucket_name}"
     out = utils.exec_shell_cmd(cmd)
     log.info(out)
@@ -414,7 +420,7 @@ def verify_standard_logs(log_records, src_user_name, src_bucket_name, config):
 
 
 def verify_log_records(
-    rgw_s3_client, src_user_name, src_bucket_name, dest_bucket_name, config=None
+    rgw_s3_client, src_user_name, src_bucket_name, dest_bucket_name, config=None, tenant_name=None
 ):
     """
     verify log records
@@ -422,7 +428,7 @@ def verify_log_records(
     if config.test_ops.get("rest_api_flush"):
         flushed_log_object_name = post_bucket_logging(rgw_s3_client, src_bucket_name)
     elif config.test_ops.get("rgw_admin_flush"):
-        flushed_log_object_name = rgw_admin_logging_flush(src_bucket_name)
+        flushed_log_object_name = rgw_admin_logging_flush(src_bucket_name, tenant_name)
 
     verify_log_object_name(
         flushed_log_object_name, src_user_name, src_bucket_name, config
