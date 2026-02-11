@@ -26,6 +26,7 @@ Operation:
 
 import os
 import sys
+import tempfile
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import argparse
@@ -442,13 +443,14 @@ if __name__ == "__main__":
     test_info.started_info()
 
     try:
-        project_dir = os.path.abspath(os.path.join(__file__, "../../.."))
-        test_data_dir = "test_data"
-        TEST_DATA_PATH = os.path.join(project_dir, test_data_dir)
+        # Use temp directory so test data is always in a user-writable path
+        # (repo may be cloned with sudo on remote, making project_dir root-owned)
+        test_data_dir = "ceph_rgw_n+e_test_data"
+        TEST_DATA_PATH = os.path.join(tempfile.gettempdir(), test_data_dir)
         log.info("TEST_DATA_PATH: %s" % TEST_DATA_PATH)
         if not os.path.exists(TEST_DATA_PATH):
             log.info("test data dir not exists, creating.. ")
-            os.makedirs(TEST_DATA_PATH)
+            os.makedirs(TEST_DATA_PATH, exist_ok=True)
 
         parser = argparse.ArgumentParser(
             description="RGW S3 N+E Signature Checking Automation"

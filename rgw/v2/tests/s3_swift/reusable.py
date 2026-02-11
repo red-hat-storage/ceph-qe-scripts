@@ -4115,14 +4115,23 @@ def login_ibmcloud_with_apikey(api_key, region=None, ibm_cloud_cli_path=None):
             cmd_args,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
             universal_newlines=True,
         )
         stdout, stderr = process.communicate()
-        output = stdout
+        output = stdout or ""
 
         if process.returncode != 0:
-            log.error(f"Login command failed with return code {process.returncode}")
-            return False
+            detail = (stderr or stdout or "").strip()
+            log.error(
+                "Login command failed with return code %s. stderr/stdout: %s",
+                process.returncode,
+                detail[:500] if detail else "(none)",
+            )
+            raise TestExecError(
+                "IBM Cloud login failed (check API key and network). "
+                f"returncode={process.returncode}; output: {detail[:300] or '(none)'}"
+            )
 
         if output and (
             "OK" in output
@@ -4136,6 +4145,7 @@ def login_ibmcloud_with_apikey(api_key, region=None, ibm_cloud_cli_path=None):
                 verify_cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
+                stdin=subprocess.DEVNULL,
                 universal_newlines=True,
             )
             verify_stdout, verify_stderr = verify_process.communicate()
@@ -4148,10 +4158,15 @@ def login_ibmcloud_with_apikey(api_key, region=None, ibm_cloud_cli_path=None):
                 log.warning("Login succeeded but verification failed")
                 return True
         else:
+            detail = (stderr or output or "").strip()
             log.error(
-                f"Login failed - output does not contain success indicators. Output: {output}"
+                "Login output missing success indicators. stdout: %s",
+                (output or "(none)")[:500],
             )
-            return False
+            raise TestExecError(
+                "IBM Cloud login failed - CLI output did not indicate success. "
+                f"output: {(detail or output or '(none)')[:300]}"
+            )
     except Exception as e:
         raise TestExecError(f"Error during IBM Cloud login with API key: {e}")
 
@@ -4166,16 +4181,12 @@ def get_ibm_iam_jwt_token(
 
     Args:
         ibm_cloud_cli_path (str): Path to IBM Cloud CLI binary
-        api_key (str): IBM Cloud API key for auto-login (required if auto_login=True)
+        api_key (str): IBM Cloud API key for auto-login (required)
         region (str): Region to target for auto-login (e.g., 'in-che', 'us-south')
 
     Returns:
         str: JWT token (without Bearer prefix)
     """
-    # Always enable auto_install and auto_login
-    auto_install = True
-    auto_login = True
-
     log.info("Getting IBM IAM JWT token")
     try:
         if ibm_cloud_cli_path:
@@ -4218,6 +4229,7 @@ def get_ibm_iam_jwt_token(
             raise TestExecError(
                 "Unable to find API key. Set IBM_CLOUD_API_KEY environment variable"
             )
+        # Endpoint is set by ibmcloud login --apikey -a cloud.ibm.com (no separate "ibmcloud api" call).
         log.info("API key found for auto-login, Checking login status")
         try:
             check_cmd = f"{cli_cmd} target"
@@ -4239,7 +4251,7 @@ def get_ibm_iam_jwt_token(
                         raise TestExecError("Failed to login with API key")
                     time.sleep(3)
                 else:
-                    raise TestExecError("auto_login=True but no api_key provided")
+                    raise TestExecError("API key required for login")
 
             time.sleep(2)
             verify_cmd = [cli_cmd, "target"]
@@ -4284,25 +4296,13 @@ def get_ibm_iam_jwt_token(
                 )
         except Exception as e:
             error_msg = str(e)
-            if (
-                "No API endpoint set" in error_msg
-                or "api endpoint" in error_msg.lower()
-            ):
-                log.warning("API endpoint not set, retrying")
-                try:
-                    api_cmd = f"{cli_cmd} api cloud.ibm.com"
-                    utils.exec_shell_cmd(api_cmd)
-                    output = utils.exec_shell_cmd(cmd)
-                    if not output or output is False:
-                        raise TestExecError(
-                            "Failed to get oauth tokens after setting API endpoint"
-                        )
-                except Exception as retry_e:
-                    raise TestExecError(
-                        f"Failed to get oauth tokens. Ensure logged in or use auto_login=True. Error: {error_msg}"
-                    )
-            else:
-                raise TestExecError(f"Failed to get oauth tokens. Error: {error_msg}")
+            if "No API endpoint set" in error_msg or "api endpoint" in error_msg.lower():
+                raise TestExecError(
+                    "IBM Cloud API endpoint not set. Login with API key sets it automatically; "
+                    "if you see this, re-run the test or run: ibmcloud login --apikey <key> -a cloud.ibm.com. "
+                    f"Error: {error_msg}"
+                )
+            raise TestExecError(f"Failed to get oauth tokens. Error: {error_msg}")
 
         token_data = json.loads(output)
         iam_token = token_data.get("iam_token", "")
