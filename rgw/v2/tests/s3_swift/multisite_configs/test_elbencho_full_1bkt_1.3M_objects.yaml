@@ -1,0 +1,17 @@
+# Test Scenario 1: FULL SYNC - 1 bucket and 1.3M objects
+# Full sync: Stop secondary → Write all to primary → Restart secondary → Verify full sync
+# Size mix: 25% 1-2B, 37% 2-4B, 25% 4-8B, 3% 8-256B, 10% 1KB-10KB
+# Avg size: ~600 bytes, Total Data: ~780MB, Total Objects: 1.3Million
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    sync_mode: full
+    run_put_workload: true
+    verify_sync: true
+    objects_per_bucket: 1300000
+    threads: 200
+    use_special_chars: false
+    enable_versioning: false
+    run_lc_delete: false
+    initial_sync_wait: 60

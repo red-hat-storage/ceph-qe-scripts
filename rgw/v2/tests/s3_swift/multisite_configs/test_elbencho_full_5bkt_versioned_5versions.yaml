@@ -1,0 +1,20 @@
+# Test Scenario 4: FULL SYNC - 5 versioned buckets and 1.3M objects/bkt
+# Full sync: Stop secondary → Write all to primary → Restart secondary → Verify full sync
+# 5 versions of every logical object (all versions are 2 bytes)
+# Total Data: ~65MB, Total Objects: 6.5Million (logical)
+# Total versions: 32.5Million
+config:
+  user_count: 1
+  bucket_count: 5
+  test_ops:
+    sync_mode: full
+    run_put_workload: true
+    verify_sync: true
+    objects_per_bucket: 1300000
+    threads: 200
+    use_special_chars: false
+    enable_versioning: true
+    version_count: 5
+    run_lc_delete: false
+    sleep_between_versions: 30
+    initial_sync_wait: 180
