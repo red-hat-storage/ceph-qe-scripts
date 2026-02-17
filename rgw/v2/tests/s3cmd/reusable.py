@@ -415,6 +415,67 @@ def debt_ratelimit(bucket, debt_limit, ssl=None):
     assert "503" not in str(stderr), "Rate limit slowdown observed, failing!"
 
 
+def rate_limit_list(bucket, max_list_ops, ssl=None):
+    """
+    Test LIST operations rate limit enforcement
+    :param bucket: bucket to list
+    :param max_list_ops: Loop until the max_list_ops value to check for a 503
+    :param ssl: Use SSL for s3cmd commands
+    """
+    # increment max_list_ops to induce warning
+    if "/" in bucket:
+        bucket = bucket.split("/")[1]
+    max_list_ops += 1
+    range_val = f"1..{max_list_ops}"
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = ""
+    cmd = (
+        f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd ls "
+        f"s3://{bucket}/ {ssl_param};done;"
+    )
+    stdout, stderr = run_subprocess(cmd)
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
+
+
+def rate_limit_delete(bucket, max_delete_ops, ssl=None):
+    """
+    Test DELETE operations rate limit enforcement
+    :param bucket: bucket to delete from
+    :param max_delete_ops: Loop until the max_delete_ops value to check for a 503
+    :param ssl: Use SSL for s3cmd commands
+    """
+    # increment max_delete_ops to induce warning
+    if "/" in bucket:
+        bucket = bucket.split("/")[1]
+    max_delete_ops += 1
+
+    # First, create objects to delete
+    log.info(f"Creating {max_delete_ops} objects for deletion test")
+    create_local_file("1k", "delete_test_file")
+    for i in range(1, max_delete_ops + 1):
+        if ssl:
+            ssl_param = "-s"
+        else:
+            ssl_param = ""
+        cmd = f"/home/cephuser/venv/bin/s3cmd put delete_test_file s3://{bucket}/delete_obj{i} {ssl_param}"
+        run_subprocess(cmd)
+
+    # Now delete objects in a loop to trigger rate limit
+    range_val = f"1..{max_delete_ops}"
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = ""
+    cmd = (
+        f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd rm "
+        f"s3://{bucket}/delete_obj$i {ssl_param};done;"
+    )
+    stdout, stderr = run_subprocess(cmd)
+    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
+
+
 def remote_zone_bucket_stats(bucket_name, config):
     """
     get bucket stats at the remote zone

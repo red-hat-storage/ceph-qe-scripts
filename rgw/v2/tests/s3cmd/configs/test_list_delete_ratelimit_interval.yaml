@@ -1,0 +1,15 @@
+# script: test_list_delete_ratelimit.py
+# Test rgw_ratelimit_interval configuration
+config:
+  user_count: 1
+  bucket_count: 1
+  user_type: non-tenanted
+  version_enable: False
+  # User-level LIST and DELETE rate limits (low values for quick testing)
+  user_max_list_ops: 10
+  user_max_delete_ops: 10
+  # rgw_ratelimit_interval in seconds (default is 60)
+  rgw_ratelimit_interval: 30
+  # Enable rgw_ratelimit_interval test
+  test_ops:
+    test_rgw_ratelimit_interval: true

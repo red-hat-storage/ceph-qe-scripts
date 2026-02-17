@@ -288,6 +288,11 @@ class Config(object):
         self.version_count = self.doc["config"].get("version_count")
         self.version_enable = self.doc["config"].get("version_enable", False)
         self.deletelc = self.doc["config"].get("deletelc", False)
+        self.bucket_max_list_ops = self.doc["config"].get("bucket_max_list_ops")
+        self.bucket_max_delete_ops = self.doc["config"].get("bucket_max_delete_ops")
+        self.user_max_list_ops = self.doc["config"].get("user_max_list_ops")
+        self.user_max_delete_ops = self.doc["config"].get("user_max_delete_ops")
+        self.rgw_ratelimit_interval = self.doc["config"].get("rgw_ratelimit_interval")
         self.disable_dynamic_shard = self.doc["config"].get(
             "disable_dynamic_shard", False
         )
