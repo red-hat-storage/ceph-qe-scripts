@@ -6,6 +6,7 @@ import glob
 import json
 import logging
 import os
+import random
 import re
 import shlex
 import socket
@@ -579,6 +580,64 @@ def delete_object(aws_auth, bucket_name, object_name, end_point, versionid=None)
         return delete_response
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
+
+
+def delete_objects(
+    aws_auth,
+    bucket_name,
+    objects_list,
+    end_point,
+    quiet=False,
+    return_err=False,
+):
+    """
+    Delete multiple objects in a single request (DeleteObjects API).
+    Supports conditional delete per object via ETag, VersionId, etc.
+    See: https://docs.aws.amazon.com/cli/latest/reference/s3api/delete-objects.html
+
+    Each entry in objects_list is a dict with:
+      - Key (required): object key
+      - VersionId (optional): version to delete
+      - ETag (optional): delete only if current ETag matches (conditional delete)
+      - LastModifiedTime (optional): directory buckets
+      - Size (optional): directory buckets
+
+    Args:
+        aws_auth: authentication for awscli
+        bucket_name(str): Name of the bucket
+        objects_list(list): List of dicts, each with at least "Key"; optionally "ETag", "VersionId"
+        end_point(str): endpoint URL
+        quiet(bool): If True, response includes only keys that had errors
+        return_err(bool): If True, return stderr/output on failure instead of raising
+
+    Returns:
+        Command output (JSON string) with "Deleted" and/or "Errors" list
+    """
+    delete_spec = {"Objects": objects_list, "Quiet": quiet}
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".json", prefix="delete_objects_", delete=False
+    ) as f:
+        json.dump(delete_spec, f)
+        tmp_path = f.name
+    try:
+        command = aws_auth.command(
+            operation="delete-objects",
+            params=[
+                f"--bucket {bucket_name} --delete file://{tmp_path} --endpoint-url {end_point}",
+            ],
+        )
+        response = utils.exec_shell_cmd(command, return_err=return_err)
+        log.info(f"delete-objects response: {response}")
+        if response is False and not return_err:
+            raise Exception(
+                f"delete-objects failed for bucket {bucket_name} ({len(objects_list)} objects)"
+            )
+        return response
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
 
 
 def put_get_bucket_versioning(aws_auth, bucket_name, end_point, status="Enabled"):
@@ -1945,3 +2004,11 @@ def check_rgw_debug_logs_and_reset(
 
     if "validation_error" in locals() and validation_error is not None:
         raise validation_error
+
+
+def wrong_etag(etag):
+    if not etag:
+        return "wrong"
+    s = etag
+    pos = random.randint(0, len(s))
+    return s[:pos] + "x" + s[pos:]
