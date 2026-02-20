@@ -37,9 +37,9 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import v2.utils.utils as utils
 from v2.lib.exceptions import TestExecError
 from v2.lib.resource_op import Config
+from v2.tests.s3_swift.reusables import rgw_user_keys_create_date as user_keys_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
-from v2.tests.s3_swift.reusables import rgw_user_keys_create_date as user_keys_reusable
 
 log = logging.getLogger()
 
