@@ -26,6 +26,7 @@ Covered:
     - User with many keys 100+ (configurable many_keys_large_count).
     - Assertion bad data (empty/null/invalid create_date rejected).
 """
+
 import argparse
 import logging
 import os
@@ -121,7 +122,9 @@ def test_custom_access_key(config, ssh_con):
         user_keys_reusable.add_rgw_s3_key_custom(uid, cluster_name=cluster_name)
         keys = user_keys_reusable.get_rgw_user_keys(uid, cluster_name)
         if len(keys) != 2:
-            raise TestExecError("Expected 2 keys (1 default + 1 custom), got %d" % len(keys))
+            raise TestExecError(
+                "Expected 2 keys (1 default + 1 custom), got %d" % len(keys)
+            )
         user_keys_reusable.assert_keys_have_create_date(keys)
         user_keys_reusable.assert_keys_sortable_by_create_date(keys)
         log.info("Passed: custom access_key and secret_key")
@@ -146,7 +149,9 @@ def test_key_deletion_recreation(config, ssh_con):
         user_keys_reusable.add_rgw_s3_keys(uid, cluster_name, count=1)
         keys_after = user_keys_reusable.get_rgw_user_keys(uid, cluster_name)
         if len(keys_after) != 3:
-            raise TestExecError("After rm+create expected 3 keys, got %d" % len(keys_after))
+            raise TestExecError(
+                "After rm+create expected 3 keys, got %d" % len(keys_after)
+            )
         user_keys_reusable.assert_keys_have_create_date(keys_after)
         log.info("Passed: key deletion and recreation")
     finally:
@@ -170,7 +175,9 @@ def test_key_rotation(config, ssh_con):
         user_keys_reusable.add_rgw_s3_keys(uid, cluster_name, count=1)
         keys_after = user_keys_reusable.get_rgw_user_keys(uid, cluster_name)
         if len(keys_after) != 2:
-            raise TestExecError("After rotation expected 2 keys, got %d" % len(keys_after))
+            raise TestExecError(
+                "After rotation expected 2 keys, got %d" % len(keys_after)
+            )
         user_keys_reusable.assert_keys_have_create_date(keys_after)
         log.info("Passed: key rotation")
     finally:
@@ -189,7 +196,9 @@ def test_suspended_user_keys(config, ssh_con):
         user_keys_reusable.suspend_rgw_user(uid, cluster_name)
         keys = user_keys_reusable.get_rgw_user_keys(uid, cluster_name)
         if len(keys) != 2:
-            raise TestExecError("Expected 2 keys for suspended user, got %d" % len(keys))
+            raise TestExecError(
+                "Expected 2 keys for suspended user, got %d" % len(keys)
+            )
         user_keys_reusable.assert_keys_have_create_date(keys)
         user_keys_reusable.enable_rgw_user(uid, cluster_name)
         log.info("Passed: suspended user keys have create_date")
@@ -215,7 +224,8 @@ def test_many_keys_100(config, ssh_con):
         expected = 1 + large_count
         if len(keys) != expected:
             raise TestExecError(
-                "Expected %d keys (1 + %d extra), got %d" % (expected, large_count, len(keys))
+                "Expected %d keys (1 + %d extra), got %d"
+                % (expected, large_count, len(keys))
             )
         user_keys_reusable.assert_keys_have_create_date(keys)
         user_keys_reusable.assert_keys_sortable_by_create_date(keys)
@@ -228,7 +238,9 @@ if __name__ == "__main__":
     test_info = AddTestInfo("RGW user keys create_date (RFE)")
     test_info.started_info()
     try:
-        parser = argparse.ArgumentParser(description="RGW user keys create_date RFE test")
+        parser = argparse.ArgumentParser(
+            description="RGW user keys create_date RFE test"
+        )
         parser.add_argument("-c", dest="config", help="RGW Test yaml configuration")
         parser.add_argument(
             "-log_level",

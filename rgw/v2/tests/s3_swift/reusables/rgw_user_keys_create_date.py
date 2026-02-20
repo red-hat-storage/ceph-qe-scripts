@@ -4,6 +4,7 @@ Reusable helpers for RGW user keys create_date (radosgw-admin user info keys).
 Used by test_rgw_user_keys_create_date.py. Uses reusable.run_command for
 radosgw-admin. Assertions for create_date on user keys (ceph-20.1.0-26+).
 """
+
 import json
 import logging
 import random
@@ -17,9 +18,7 @@ from v2.tests.s3_swift import reusable
 log = logging.getLogger()
 
 # ISO 8601 with optional fractional seconds and Z (e.g. 2025-10-08T03:13:39.792729Z)
-ISO_DATE_PATTERN = re.compile(
-    r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$"
-)
+ISO_DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
 
 
 def gen_test_user_uid(prefix="rgwkeys"):
@@ -33,9 +32,10 @@ def create_rgw_user(cluster_name, display_name="RGW test user"):
     Caller must remove with remove_rgw_user().
     """
     uid = gen_test_user_uid()
-    cmd = (
-        "radosgw-admin user create --uid=%s --display-name='%s' --cluster %s"
-        % (uid, display_name, cluster_name)
+    cmd = "radosgw-admin user create --uid=%s --display-name='%s' --cluster %s" % (
+        uid,
+        display_name,
+        cluster_name,
     )
     log.info("Creating user: %s", cmd)
     out = reusable.run_command(cmd)
@@ -66,7 +66,9 @@ def get_rgw_user_keys(uid, cluster_name="ceph"):
         except json.JSONDecodeError as e:
             raise TestExecError("user info output is not valid JSON: %s" % e)
     if not isinstance(out, dict):
-        raise TestExecError("radosgw-admin user info returned no valid JSON for uid=%s" % uid)
+        raise TestExecError(
+            "radosgw-admin user info returned no valid JSON for uid=%s" % uid
+        )
     return out.get("keys") or []
 
 
@@ -100,7 +102,10 @@ def add_rgw_s3_key_custom(uid, access_key=None, secret_key=None, cluster_name="c
         "radosgw-admin key create --uid=%s --key-type=s3 --access-key=%s --secret-key=%s --cluster %s"
         % (uid, access_key, secret_key, cluster_name)
     )
-    log.info("Adding custom key (access_key=%s...)", access_key[:8] if len(access_key) >= 8 else access_key)
+    log.info(
+        "Adding custom key (access_key=%s...)",
+        access_key[:8] if len(access_key) >= 8 else access_key,
+    )
     out = reusable.run_command(cmd)
     if not out or not isinstance(out, dict):
         raise TestExecError("key create (custom) failed for uid=%s" % uid)
@@ -109,9 +114,10 @@ def add_rgw_s3_key_custom(uid, access_key=None, secret_key=None, cluster_name="c
 
 def remove_rgw_key(uid, access_key, cluster_name="ceph"):
     """Remove one key from user by access_key."""
-    cmd = (
-        "radosgw-admin key rm --uid=%s --access-key=%s --cluster %s"
-        % (uid, access_key, cluster_name)
+    cmd = "radosgw-admin key rm --uid=%s --access-key=%s --cluster %s" % (
+        uid,
+        access_key,
+        cluster_name,
     )
     log.info("Removing key: %s", cmd)
     reusable.run_command(cmd)
@@ -199,7 +205,9 @@ def run_assertion_bad_data():
     Run assertion helpers against bad data; expect TestExecError.
     No cluster needed.
     """
-    log.info("Assertion bad data (non-list, empty keys, missing/null/empty/invalid create_date)")
+    log.info(
+        "Assertion bad data (non-list, empty keys, missing/null/empty/invalid create_date)"
+    )
     checks = [
         ({"not": "a list"}, "must be a list"),
         ([], "no keys"),
