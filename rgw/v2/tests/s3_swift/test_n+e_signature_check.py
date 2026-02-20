@@ -45,6 +45,7 @@ from v2.lib.rgw_config_opts import CephConfOp, ConfigOpts
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import ne_signature as ne_sig
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
@@ -101,7 +102,7 @@ def test_exec(config, ssh_con):
         try:
             ibm_cloud_cli_path = config.doc["config"].get("ibm_cloud_cli_path", None)
             # Load and set API key (equivalent to 'export IBM_CLOUD_API_KEY')
-            api_key = reusable.load_and_set_api_key()
+            api_key = ne_sig.load_and_set_api_key()
             if not api_key:
                 log.warning(
                     "Note: If using sudo, environment variables are not preserved. "
@@ -109,7 +110,7 @@ def test_exec(config, ssh_con):
                     "is set in parent shell before sudo."
                 )
             region = os.getenv("IBM_CLOUD_REGION", "in-mum")
-            jwt_token = reusable.get_ibm_iam_jwt_token(
+            jwt_token = ne_sig.get_ibm_iam_jwt_token(
                 ibm_cloud_cli_path,
                 api_key=api_key,
                 region=region,
@@ -118,7 +119,7 @@ def test_exec(config, ssh_con):
         except Exception as e:
             raise TestExecError(f"Failed to get JWT token: {e}")
 
-    client_id = reusable.get_jwt_client_id(jwt_token)
+    client_id = ne_sig.get_jwt_client_id(jwt_token)
     thumbprint = config.test_ops.get("thumbprint")
     if not thumbprint:
         thumbprint = os.getenv("IBM_IAM_THUMBPRINT")
@@ -130,12 +131,12 @@ def test_exec(config, ssh_con):
             "Thumbprint not provided in config or environment, attempting to get from certificate"
         )
         try:
-            thumbprint = reusable.get_ibm_iam_thumbprint(ibm_region)
+            thumbprint = ne_sig.get_ibm_iam_thumbprint(ibm_region)
         except Exception as e:
             raise TestExecError(f"Failed to get thumbprint: {e}")
 
     log.info("Creating OIDC provider for IBM IAM")
-    oidc_response = reusable.create_oidc_provider_ibm_iam(
+    oidc_response = ne_sig.create_oidc_provider_ibm_iam(
         iam_client, oidc_url, client_id, thumbprint
     )
     oidc_provider_arn = oidc_response["OpenIDConnectProviderArn"]
@@ -326,7 +327,7 @@ def test_exec(config, ssh_con):
             log.info("Testing with wrong thumbprint")
             wrong_thumbprint = "0000000000000000000000000000000000000000"
             try:
-                wrong_thumbprint_response = reusable.create_oidc_provider_ibm_iam(
+                wrong_thumbprint_response = ne_sig.create_oidc_provider_ibm_iam(
                     iam_client, oidc_url, client_id, wrong_thumbprint
                 )
                 wrong_thumbprint_arn = wrong_thumbprint_response[
@@ -363,7 +364,7 @@ def test_exec(config, ssh_con):
 
                 finally:
                     try:
-                        restored_response = reusable.create_oidc_provider_ibm_iam(
+                        restored_response = ne_sig.create_oidc_provider_ibm_iam(
                             iam_client, oidc_url, client_id, thumbprint
                         )
                         restored_arn = restored_response["OpenIDConnectProviderArn"]
