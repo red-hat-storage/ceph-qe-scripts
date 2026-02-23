@@ -1945,3 +1945,15 @@ def check_rgw_debug_logs_and_reset(
 
     if "validation_error" in locals() and validation_error is not None:
         raise validation_error
+
+
+def normalize_last_modified(last_modified_str, ceph_version_id):
+    """
+    Normalize LastModified from list-object-versions for use as LastModifiedTime
+    in delete-objects. Ceph 20+ may return ISO8601 with '+' timezone suffix.
+    """
+    if not last_modified_str:
+        return ""
+    if len(ceph_version_id) > 0 and float(ceph_version_id[0]) >= 20:
+        return last_modified_str.split("+")[0]
+    return last_modified_str.split(".")[0]
