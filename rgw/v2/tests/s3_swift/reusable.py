@@ -1,12 +1,17 @@
+import base64
 import glob
 import json
 import os
 import random
+import shutil
 import subprocess
 import sys
+import urllib.request
 from datetime import datetime
+from urllib.parse import urlparse
 
 import boto3
+from botocore.exceptions import ClientError
 
 sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 import logging
@@ -181,8 +186,7 @@ def create_rgw_account_with_iam_user(
         }
     )
     write_user_info.add_user_info(user_info)
-    lib_dir = "/home/cephuser/rgw-ms-tests/ceph-qe-scripts/rgw/v2/lib"
-    user_detail_file = os.path.join(lib_dir, "user_details.json")
+    user_detail_file = s3lib.get_writable_user_details_file()
     with open(user_detail_file, "w") as fout:
         json.dump(iam_user_details, fout)
     return iam_user_details
@@ -1973,7 +1977,7 @@ def get_datalog_marker():
     shard_id = -1
     datalog_num_shards = int(datalog_num_shards) - 1
     for i in range(datalog_num_shards):
-        if datalog_status[i]["marker"] is "":
+        if datalog_status[i]["marker"] == "":
             continue
         else:
             get_datalog_marker = datalog_status[i]["marker"]

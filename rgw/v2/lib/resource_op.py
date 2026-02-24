@@ -7,6 +7,7 @@ import json
 import logging
 import random
 import string
+import tempfile
 
 import names
 import v2.lib.s3.write_io_info as write_io_info
@@ -14,14 +15,73 @@ import v2.utils.utils as utils
 import yaml
 from v2.lib.admin import AddUserInfo, BasicIOInfoStructure, TenantInfo, UserMgmt
 from v2.lib.exceptions import ConfigError
-
-# import v2.lib.frontend_configure as frontend_configure
 from v2.lib.frontend_configure import Frontend, Frontend_CephAdm
 from v2.utils.io_info_config import IoInfoConfig
 
 log = logging.getLogger()
 
 lib_dir = os.path.abspath(os.path.join(__file__, "../"))
+
+
+def get_writable_user_details_file():
+    """
+    Get a writable path for user_details.json file.
+    If lib_dir is writable, use it. Otherwise, use a fallback location.
+    """
+    default_file = os.path.join(lib_dir, "user_details.json")
+    try:
+        # Check if lib_dir exists and is writable
+        if os.path.exists(lib_dir):
+            # Test if we can actually write to the directory
+            test_file = os.path.join(lib_dir, ".write_test")
+            try:
+                with open(test_file, "w") as f:
+                    f.write("test")
+                os.remove(test_file)
+                return default_file
+            except (OSError, IOError, PermissionError):
+                # Directory exists but not writable, try fallback
+                pass
+        else:
+            # Try to create the directory
+            try:
+                os.makedirs(lib_dir, exist_ok=True)
+                # Test write access
+                test_file = os.path.join(lib_dir, ".write_test")
+                with open(test_file, "w") as f:
+                    f.write("test")
+                os.remove(test_file)
+                return default_file
+            except (OSError, IOError, PermissionError):
+                # Cannot create or write to lib_dir, try fallback
+                pass
+    except (OSError, AttributeError):
+        pass
+
+    # Fall back to user's home directory
+    try:
+        home_dir = os.path.expanduser("~")
+        if home_dir and os.path.exists(home_dir):
+            fallback_file = os.path.join(home_dir, "user_details.json")
+            # Test write access
+            test_file = os.path.join(home_dir, ".write_test")
+            try:
+                with open(test_file, "w") as f:
+                    f.write("test")
+                os.remove(test_file)
+                return fallback_file
+            except (OSError, IOError, PermissionError):
+                pass
+    except (OSError, AttributeError):
+        pass
+
+    # Last resort: use temp directory
+    try:
+        temp_dir = tempfile.gettempdir()
+        return os.path.join(temp_dir, "user_details.json")
+    except (OSError, AttributeError):
+        # Absolute last resort: current directory
+        return os.path.join(os.getcwd(), "user_details.json")
 
 
 @write_io_info.logioinfo
@@ -84,7 +144,7 @@ def create_users(
     admin_ops = UserMgmt()
     all_users_details = []
     primary = utils.is_cluster_primary()
-    user_detail_file = os.path.join(lib_dir, "user_details.json")
+    user_detail_file = get_writable_user_details_file()
     if primary or (config and config.user_names):
         for i in range(no_of_users_to_create):
             if user_names:
@@ -174,7 +234,7 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name="ceph")
     admin_ops = UserMgmt()
     all_users_details = []
     primary = utils.is_cluster_primary()
-    user_detail_file = os.path.join(lib_dir, "user_details.json")
+    user_detail_file = get_writable_user_details_file()
     if primary:
         for i in range(no_of_users_to_create):
             user_details = admin_ops.create_tenant_user(
@@ -474,7 +534,7 @@ class Config(object):
                 log.info("ssl is not set in config.yaml")
                 self.ssl = frontend_config.curr_ssl
             # configuring frontend
-            frontend_config.set_frontend(self.frontend, ssh_con, ssl=self.ssl)
+            frontend_config.set_frontend(self.frontend, ssh_con=ssh_con, ssl=self.ssl)
 
         # if ssl is True or False in config yaml
         # and if frontend is not set in config yaml,
@@ -483,7 +543,7 @@ class Config(object):
             log.info("ssl is set in config.yaml")
             log.info("frontend is not set in config.yaml")
             frontend_config.set_frontend(
-                frontend_config.curr_frontend, ssh_con, ssl=self.ssl
+                frontend_config.curr_frontend, ssh_con=ssh_con, ssl=self.ssl
             )
 
         elif self.ssl is None:
