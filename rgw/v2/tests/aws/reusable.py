@@ -1002,9 +1002,13 @@ def put_keystone_conf(rgw_service_name, user, passw, project, tenant="true"):
     Apply the conf options required for keystone integration to rgw service
     """
     log.info("Apply keystone conf options")
-    utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_keystone_api_version 3"
-    )
+    ceph_version_id, version_name = utils.get_ceph_version()
+    ceph_version_id = ceph_version_id.split("-")[0]
+    ceph_version_id = ceph_version_id.split(".")[0]
+    if ceph_version_id < "20":
+        utils.exec_shell_cmd(
+            f"ceph config set client.{rgw_service_name} rgw_keystone_api_version 3"
+        )
     utils.exec_shell_cmd(
         f"ceph config set client.{rgw_service_name} rgw_keystone_admin_user {user}"
     )
