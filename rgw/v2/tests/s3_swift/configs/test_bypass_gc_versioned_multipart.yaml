@@ -1,0 +1,32 @@
+# Bypass GC Corruption Test - Versioned Buckets and Multipart Uploads
+# Validates the fix for issues #73138 and #73348
+#
+# This test covers:
+# 1. Multipart uploads with server-side copy + bypass-gc deletion
+# 2. Versioned buckets with server-side copy + bypass-gc deletion
+#
+# Issues addressed:
+# - #73138: cls_refcount_put corruption with bypass-gc and server-side copy
+# - #73348: Data corruption when destination buckets are deleted with bypass-gc
+#
+# Usage:
+#   python test_bypass_gc_corruption.py -c configs/test_bypass_gc_versioned_multipart.yaml
+
+config:
+  user_count: 1
+  ssl: false
+  haproxy: false
+  local_file_delete: true
+
+  test_ops:
+    # Run all tests (multipart and versioned)
+    tests_to_run: all
+
+    # Multipart upload configuration
+    # Creates 30MB object split into 10MB parts
+    multipart_obj_size: 30
+    multipart_part_size: 10
+
+    # Versioning configuration
+    object_size: 10  # Object size in MB for versioned test
+    version_count: 2  # Number of versions to create per object
