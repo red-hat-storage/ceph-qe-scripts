@@ -58,7 +58,9 @@ def test_exec(config, ssh_con):
     keystone_server = keystone_url.replace("http://", "").split(":")[0]
     # Put keystone conf options for user demo and implicit tenants Swift only
     log.info("Interating with Keystone for implicit tenants Swift only")
-    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "demo1", "demo", "swift")
+    aws_reusable.put_keystone_conf(
+        rgw_service_name, "demo", "admin123", "demo", "swift"
+    )
 
     access_demo, secret_demo, project_demo = aws_reusable.get_ec2_details(
         keystone_server, "demo"
@@ -108,7 +110,7 @@ def test_exec(config, ssh_con):
         log.info(f"Listing bucket {bucket_name}: {out}")
 
     log.info("Switching to implicit Tenant S3 only")
-    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "demo1", "demo", "s3")
+    aws_reusable.put_keystone_conf(rgw_service_name, "demo", "admin123", "demo", "s3")
     cmd = f"AWS_ACCESS_KEY_ID={access_demo} AWS_SECRET_ACCESS_KEY={secret_demo} /usr/local/bin/aws s3 ls --endpoint http://{rgw_ip}:{rgw_port}"
     utils.exec_shell_cmd(cmd)
     time.sleep(2)
