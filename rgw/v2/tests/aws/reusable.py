@@ -52,13 +52,21 @@ def create_bucket(aws_auth, bucket_name, end_point, retries=3, wait_time=5):
         operation="create-bucket",
         params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
     )
-    try:
-        create_response = utils.exec_shell_cmd(command, return_err=True)
-        log.info(f"bucket creation response is {create_response}")
-        if create_response:
-            raise Exception(f"Create bucket failed for {bucket_name}")
-    except Exception as e:
-        raise AWSCommandExecError(message=str(e))
+    last_error = None
+    for attempt in range(1, retries + 1):
+        try:
+            create_response = utils.exec_shell_cmd(command)
+            log.info(f"bucket creation response is {create_response}")
+            return
+        except Exception as e:
+            last_error = e
+            log.warning(
+                f"Attempt {attempt}: Create bucket {bucket_name} failed: {e}. "
+                f"Retrying in {wait_time}s..."
+            )
+            if attempt < retries:
+                time.sleep(wait_time)
+    raise AWSCommandExecError(message=str(last_error))
 
 
 def delete_bucket(aws_auth, bucket_name, end_point):
