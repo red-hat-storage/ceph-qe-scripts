@@ -157,13 +157,17 @@ def test_exec(config, ssh_con):
                     if not acc_id or acc_id == "0":
                         continue
                     try:
-                        acc_info_cmd = f"radosgw-admin account get --account-id {acc_id}"
+                        acc_info_cmd = (
+                            f"radosgw-admin account get --account-id {acc_id}"
+                        )
                         acc_info_output = utils.exec_shell_cmd(acc_info_cmd)
                         if acc_info_output:
                             acc_info = json.loads(acc_info_output)
                             if acc_info.get("email") == account_email:
                                 account_id = acc_id
-                                log.info(f"Found existing account with ID: {account_id}")
+                                log.info(
+                                    f"Found existing account with ID: {account_id}"
+                                )
                                 break
                     except Exception:
                         continue
@@ -321,9 +325,7 @@ def test_exec(config, ssh_con):
             "policy_arn", "arn:aws:iam::aws:policy/AmazonS3FullAccess"
         )
         try:
-            iam_client.attach_user_policy(
-                UserName=iam_user_name, PolicyArn=policy_arn
-            )
+            iam_client.attach_user_policy(UserName=iam_user_name, PolicyArn=policy_arn)
             log.info(f"Attached policy {policy_arn} to {iam_user_name}")
         except iam_client.exceptions.PolicyNotAttachableException:
             log.warning(f"Policy {policy_arn} not attachable for {iam_user_name}")
@@ -362,9 +364,7 @@ def test_exec(config, ssh_con):
 
         for bc in range(user_bucket_count):
             # Generate bucket name - ensure it's valid (lowercase, no special chars)
-            bucket_name = utils.gen_bucket_name_from_userid(
-                user["user_id"], rand_no=bc
-            )
+            bucket_name = utils.gen_bucket_name_from_userid(user["user_id"], rand_no=bc)
             # Ensure bucket name is lowercase and valid (S3 bucket naming rules)
             bucket_name = bucket_name.lower()
             # Remove any invalid characters if present
@@ -376,7 +376,7 @@ def test_exec(config, ssh_con):
                 bucket_name = bucket_name[:63]
             if len(bucket_name) < 3:
                 bucket_name = f"{bucket_name}-{bc}"
-            
+
             log.info(
                 f"Creating bucket '{bucket_name}' for user '{user['user_id']}' ({i+1}/{num_users_with_buckets}, bucket {bc+1}/{user_bucket_count})"
             )
@@ -387,13 +387,17 @@ def test_exec(config, ssh_con):
                 s3_client = user_auth.do_auth_using_client()
 
                 # Create bucket using boto3 S3 client directly
-                log.info(f"Creating bucket '{bucket_name}' using S3 client for user '{user['user_id']}'")
+                log.info(
+                    f"Creating bucket '{bucket_name}' using S3 client for user '{user['user_id']}'"
+                )
                 response = s3_client.create_bucket(Bucket=bucket_name)
-                
+
                 buckets_created.append(
                     {"bucket_name": bucket_name, "user_id": user["user_id"]}
                 )
-                log.info(f"Successfully created bucket '{bucket_name}' for user '{user['user_id']}'")
+                log.info(
+                    f"Successfully created bucket '{bucket_name}' for user '{user['user_id']}'"
+                )
                 if response:
                     log.debug(f"Bucket creation response: {response}")
 
@@ -401,7 +405,9 @@ def test_exec(config, ssh_con):
                 error_code = e.response.get("Error", {}).get("Code", "Unknown")
                 error_message = e.response.get("Error", {}).get("Message", str(e))
                 if error_code in ["BucketAlreadyExists", "BucketAlreadyOwnedByYou"]:
-                    log.info(f"Bucket '{bucket_name}' already exists for user '{user['user_id']}', continuing...")
+                    log.info(
+                        f"Bucket '{bucket_name}' already exists for user '{user['user_id']}', continuing..."
+                    )
                     buckets_created.append(
                         {"bucket_name": bucket_name, "user_id": user["user_id"]}
                     )
@@ -412,8 +418,14 @@ def test_exec(config, ssh_con):
             except Exception as e:
                 error_msg = str(e)
                 # If bucket already exists, that's okay - continue
-                if "BucketAlreadyExists" in error_msg or "BucketAlreadyOwnedByYou" in error_msg or "already exists" in error_msg.lower():
-                    log.info(f"Bucket '{bucket_name}' already exists for user '{user['user_id']}', continuing...")
+                if (
+                    "BucketAlreadyExists" in error_msg
+                    or "BucketAlreadyOwnedByYou" in error_msg
+                    or "already exists" in error_msg.lower()
+                ):
+                    log.info(
+                        f"Bucket '{bucket_name}' already exists for user '{user['user_id']}', continuing..."
+                    )
                     buckets_created.append(
                         {"bucket_name": bucket_name, "user_id": user["user_id"]}
                     )
@@ -423,13 +435,17 @@ def test_exec(config, ssh_con):
                     )
 
     log.info(f"Total buckets created: {len(buckets_created)}")
-    
+
     # Validate that at least some buckets were created
     if len(buckets_created) == 0:
-        log.warning("No buckets were created. This may indicate permission or configuration issues.")
+        log.warning(
+            "No buckets were created. This may indicate permission or configuration issues."
+        )
         log.warning("Continuing with account summary validation...")
     else:
-        log.info(f"Successfully created {len(buckets_created)} bucket(s) across {len(set(b['user_id'] for b in buckets_created))} user(s)")
+        log.info(
+            f"Successfully created {len(buckets_created)} bucket(s) across {len(set(b['user_id'] for b in buckets_created))} user(s)"
+        )
 
     # Step 8: Validate account summary after creating buckets
     log.info("=" * 80)
@@ -555,21 +571,22 @@ if __name__ == "__main__":
             config.read()
         except TypeError as e:
             if "set_frontend() takes" in str(e) and "positional arguments" in str(e):
-                log.warning(
-                    f"Frontend configuration error (known framework bug): {e}"
-                )
+                log.warning(f"Frontend configuration error (known framework bug): {e}")
                 log.info(
                     "Continuing test execution - frontend configuration not required for this test"
                 )
                 # Manually read YAML and set essential config attributes
                 import yaml
+
                 with open(yaml_file, "r") as f:
                     doc = yaml.safe_load(f)
                     cfg = doc.get("config", {})
                     # Set essential attributes that config.read() would set
                     # Check if cluster has SSL enabled (port 443 typically means SSL)
                     detected_ssl = utils.get_radosgw_port_no(ssh_con) == 443
-                    config.ssl = cfg.get("ssl", detected_ssl)  # Use config value or detect from port
+                    config.ssl = cfg.get(
+                        "ssl", detected_ssl
+                    )  # Use config value or detect from port
                     config.haproxy = cfg.get("haproxy", False)
                     config.user_count = cfg.get("user_count", 0)
                     config.bucket_count = cfg.get("bucket_count", 0)
