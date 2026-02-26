@@ -7,6 +7,8 @@ Usage: test_server_access_logging.py -c <input_yaml>
     test_bucket_logging_journal_mode_multipart.yaml
     test_bucket_logging_standard_mode.yaml
     test_bucket_logging_standard_mode_multipart.yaml
+    test_bucket_logging_same_bucket_fails.yaml
+    test_bucket_logging_tenanted_flush.yaml
 Operation:
     create user (tenant/non-tenant)
     Create src and dest buckets
@@ -30,6 +32,7 @@ import time
 import traceback
 import uuid
 
+import botocore.exceptions
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -129,6 +132,31 @@ def test_exec(config, ssh_con):
                         src_bucket, rgw_conn, each_user, write_bucket_io_info
                     )
 
+                # test that put-bucket-logging fails with InvalidArgument when target bucket is same as source
+                if config.test_ops.get("test_same_bucket_logging_fails", False):
+                    log.info(
+                        f"Testing that put-bucket-logging fails with InvalidArgument when target bucket is same as source bucket"
+                    )
+                    try:
+                        bkt_logging.put_bucket_logging(
+                            rgw_s3_client, src_bucket_name, src_bucket_name, config
+                        )
+                        raise TestExecError(
+                            f"put bucket logging should have failed with InvalidArgument error when target bucket is the same as source bucket"
+                        )
+                    except botocore.exceptions.ClientError as e:
+                        error_code = e.response.get("Error", {}).get("Code", "")
+                        log.info(
+                            f"put bucket logging failed as expected. Error code: {error_code}"
+                        )
+                        if error_code != "InvalidArgument":
+                            raise TestExecError(
+                                f"Expected InvalidArgument error, but got {error_code}. Error: {e}"
+                            )
+                        log.info(
+                            f"Successfully verified that put bucket logging fails with InvalidArgument error when target bucket is the same as source bucket"
+                        )
+
                 # put bucket policy on dest bucket to allow logging service for src bucket
                 bucket_policy_generated = config.test_ops["policy_document"]
                 bucket_policy = json.dumps(bucket_policy_generated)
@@ -185,10 +213,11 @@ def test_exec(config, ssh_con):
                 bkt_logging.get_bucket_logging(rgw_s3_client, src_bucket_name)
 
                 # get bucket logging with radosgw-admin command
+                tenant_name = each_user.get("tenant")
                 log.info(
                     f"radosgw-admin bucket logging info on source bucket: {src_bucket_name}"
                 )
-                out = bkt_logging.rgw_admin_logging_info(src_bucket_name)
+                out = bkt_logging.rgw_admin_logging_info(src_bucket_name, tenant_name)
                 if not out:
                     raise Exception(
                         "radosgw-admin bucket logging info on source bucket failed"
@@ -197,7 +226,7 @@ def test_exec(config, ssh_con):
                 log.info(
                     f"radosgw-admin bucket logging info on target bucket: {dest_bucket_name}"
                 )
-                out = bkt_logging.rgw_admin_logging_info(dest_bucket_name)
+                out = bkt_logging.rgw_admin_logging_info(dest_bucket_name, tenant_name)
                 if not out:
                     raise Exception(
                         "radosgw-admin bucket logging info on target bucket failed"
@@ -281,12 +310,45 @@ def test_exec(config, ssh_con):
                     else:
                         reusable.delete_objects(src_bucket)
 
+                tenant_name = each_user.get("tenant")
+                
+                # test that radosgw-admin bucket logging flush works with tenanted buckets
+                if config.test_ops.get("test_tenanted_bucket_logging_flush", False):
+                    if not tenant_name:
+                        raise TestExecError(
+                            "test_tenanted_bucket_logging_flush requires tenanted users. Set user_type to 'tenanted' in config"
+                        )
+                    log.info(
+                        f"Testing that radosgw-admin bucket logging flush works with tenanted bucket: {src_bucket_name} (tenant: {tenant_name})"
+                    )
+                    # Perform some operations to generate log records
+                    if not config.test_ops.get("create_object", False):
+                        # Create at least one object for logging
+                        test_obj_name = f"test-obj-{uuid.uuid4().hex[:8]}"
+                        log.info(f"Creating test object {test_obj_name} for logging")
+                        rgw_s3_client.put_object(
+                            Bucket=src_bucket_name, Key=test_obj_name, Body=b"test data"
+                        )
+                    
+                    # Test radosgw-admin bucket logging flush with tenanted bucket
+                    flushed_log_object_name = bkt_logging.rgw_admin_logging_flush(
+                        src_bucket_name, tenant_name
+                    )
+                    if not flushed_log_object_name:
+                        raise TestExecError(
+                            f"radosgw-admin bucket logging flush failed for tenanted bucket {src_bucket_name} (tenant: {tenant_name})"
+                        )
+                    log.info(
+                        f"Successfully verified that radosgw-admin bucket logging flush works with tenanted bucket. Flushed log object: {flushed_log_object_name}"
+                    )
+                
                 bkt_logging.verify_log_records(
                     rgw_s3_client,
                     each_user["user_id"],
                     src_bucket_name,
                     dest_bucket_name,
                     config,
+                    tenant_name,
                 )
 
                 # delete src-bucket and verify if associated logging conf on the dest-bucket is also deleted
@@ -296,7 +358,8 @@ def test_exec(config, ssh_con):
                     log.info(
                         f"test radosgw-admin bucket logging info on target bucket is empty after source bucket deletion"
                     )
-                    out = bkt_logging.rgw_admin_logging_info(dest_bucket_name)
+                    tenant_name = each_user.get("tenant")
+                    out = bkt_logging.rgw_admin_logging_info(dest_bucket_name, tenant_name)
                     if out:
                         raise Exception(
                             "radosgw-admin bucket logging info on target bucket is not empty after source bucket deletion"
