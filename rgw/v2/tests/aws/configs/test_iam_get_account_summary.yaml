@@ -1,0 +1,27 @@
+# script: test_iam_get_account_summary.py
+# polarion-ID:
+config:
+  user_count: 0
+  bucket_count: 0
+  objects_count: 0
+  user_remove: false
+  ssl: false
+  haproxy: false
+  test_ops:
+    account_name: "ceph-root"
+    display_name: "Ceph Root Account"
+    account_email: "ceph-root@example.com"
+    root_user_name: "rgwroot"
+    root_display_name: "RGWRootUser"
+    num_iam_users: 5
+    iam_user_names:
+      - "Alice"
+      - "Bob"
+      - "Charlie"
+      - "Diana"
+      - "Eve"
+    policy_arn: "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+    buckets_per_user: 2
+    bucket_count: 5
+    region: "us-east-1"
+    cleanup: false
