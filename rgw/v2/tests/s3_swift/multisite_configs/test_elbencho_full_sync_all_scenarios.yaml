@@ -1,0 +1,70 @@
+# Multisite RGW Full Sync Test - All 5 Scenarios
+#
+# This config runs all 5 full sync scenarios sequentially:
+# 1. PUT: 1 bucket with configurable objects
+# 2. PUT: 5 buckets with configurable objects each
+# 3. PUT: 5 versioned buckets with configurable objects, 5 versions per object
+# 4. LC DELETE: Use buckets from scenario 3, add 5 more versions (total 10), then delete all
+# 5. PUT: 1 bucket with special character object names (%-+) using boto3
+#
+# Each scenario can have different object counts using scenario*_objects_per_bucket parameters
+#
+# Full Sync Workflow:
+# - Stop secondary zone RGW sync services
+# - Create buckets and upload objects on primary
+# - Start secondary zone RGW sync services
+# - Verify sync using radosgw-admin bucket stats
+#
+# Size Distribution (for non-versioned scenarios):
+# - 25% objects: 1-2B
+# - 37% objects: 2-4B
+# - 25% objects: 4-8B
+# - 3% objects: 8-256B
+# - 10% objects: 1KB-10KB
+# Average size: ~600 bytes per object
+
+config:
+  # User and bucket configuration (required by framework)
+  user_count: 1
+  bucket_count: 1
+
+  # Test parameters
+  test_ops:
+    # Report generation (optional - generates HTML report and individual scenario logs)
+    generate_report: true
+
+    # Sanity check (optional - runs minimal test first to verify setup)
+    run_sanity_check: false
+
+    # Multisite configuration (optional - will auto-detect if not specified)
+    rgw_realm: india           # RGW realm name
+    rgw_zones: primary,secondary  # Comma-separated list of zone names
+    rgw_zonegroup: shared      # RGW zonegroup name
+
+    # Scenario control flags - set to true to run each scenario
+    run_scenario1: true   # 1 bucket, 1.3M objects
+    run_scenario2: true   # 5 buckets, 1.3M objects each
+    run_scenario3: true   # 5 versioned buckets, 1.3M objects, 5 versions
+    run_scenario4: true   # LC DELETE on scenario 3 buckets
+    run_scenario5: true   # 1 bucket with special character object names (boto3)
+
+    # Workload parameters
+    objects_per_bucket: 1300000  # Default objects per bucket (used if scenario-specific not set)
+    threads: 200                 # Elbencho threads for parallel uploads
+
+    # Per-scenario object counts (optional - if not set, uses objects_per_bucket above)
+    scenario1_objects_per_bucket: 1300000   # Scenario 1: 1 bucket
+    scenario2_objects_per_bucket: 1300000   # Scenario 2: 5 buckets
+    scenario3_objects_per_bucket: 1300000   # Scenario 3: 5 versioned buckets (5 versions)
+    scenario4_objects_per_bucket: 1300000   # Scenario 4: Adds 5 more versions (should match scenario3)
+    scenario5_objects_per_bucket: 1300000   # Scenario 5: 1 bucket with special chars (boto3)
+
+    # Lifecycle deletion parameters (for scenario 4)
+    lc_expiration_days: 1        # Days until LC deletes objects
+    lc_processing_wait: 600      # Seconds to wait for LC to process (10 minutes)
+    lc_max_wait_time: 7200       # Max wait time for LC deletion (2 hours)
+    lc_sync_wait: 120            # Seconds to wait for LC deletion to sync
+
+    # Sync verification parameters
+    sync_verify_max_retries: 240      # Max retries for sync verification (240 * 30s = 2 hours)
+    sync_verify_check_interval: 30    # Seconds between sync verification checks
