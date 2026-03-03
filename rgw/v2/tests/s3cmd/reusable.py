@@ -82,12 +82,20 @@ def set_lc_lifecycle(lifecycle_rule, config, bucket_name):
     """
     log.info("Generate a LC rule xml file")
     Generate_LC_xml(lifecycle_rule, config)
+    try:
+        with open(lifecycle_rule, "r") as f:
+            lc_xml_content = f.read()
+        log.info("Lifecycle rule applied (XML):\n%s", lc_xml_content)
+    except OSError as e:
+        log.warning("Could not read lifecycle rule file to print: %s", e)
     log.info(f"Apply the LC rule via the xml file on bucket {bucket_name}")
     utils.exec_shell_cmd(
         f"{s3cmd_path} setlifecycle {lifecycle_rule} s3://{bucket_name}"
     )
-
-    utils.exec_shell_cmd(f"{s3cmd_path} getlifecycle s3://{bucket_name}")
+    getlifecycle_out = utils.exec_shell_cmd(
+        f"{s3cmd_path} getlifecycle s3://{bucket_name}"
+    )
+    log.info("Lifecycle rule on bucket (getlifecycle):\n%s", getlifecycle_out)
 
 
 def enable_versioning_for_a_bucket(user_info, bucket_name, ip_and_port, ssl=False):
@@ -133,6 +141,29 @@ def create_versioned_bucket(user_info, bucket_name, ip_and_port, ssl=False):
     bucket = s3.create_bucket(Bucket=bucket_name)
     bucket_versioning = bucket.Versioning()
     bucket_versioning.enable()
+
+
+def suspend_versioning_for_a_bucket(user_info, bucket_name, ip_and_port, ssl=False):
+    """
+    Suspend versioning for an existing bucket
+    Args:
+        user_info: User details dict
+        bucket_name(str): Name of the bucket
+        ip_and_port(str): Hostname and port where rgw daemon is running
+        ssl(bool): Use HTTPS if True
+    """
+    protocol = "https" if ssl else "http"
+    endpoint_url = f"{protocol}://{ip_and_port}"
+    s3 = boto3.resource(
+        "s3",
+        aws_access_key_id=user_info["access_key"],
+        aws_secret_access_key=user_info["secret_key"],
+        endpoint_url=endpoint_url,
+        use_ssl=ssl,
+    )
+    bucket = s3.Bucket(bucket_name)
+    versioning = bucket.Versioning()
+    versioning.suspend()
 
 
 def upload_file(bucket_name, file_name=None, file_size=1024, test_data_path=None):
@@ -568,11 +599,18 @@ def Generate_LC_xml(fileName, config):
         and_ObjectSizeGreaterThan.text = "500"
         and_prefix.text = "tax"
     else:
-        filter_prefix = xml.SubElement(rule_filter, "Prefix")
-        filter_prefix.text = "tax"
+        lc_prefix = config.test_ops.get("lc_prefix", "tax")
+        if lc_prefix != "" and lc_prefix is not None:
+            filter_prefix = xml.SubElement(rule_filter, "Prefix")
+            filter_prefix.text = lc_prefix
+        # empty Filter (no Prefix) = rule applies to all objects; empty Prefix causes MalformedXML
     if config.test_ops.get("test_lc_archive_zone"):
         filter_archive_zone = xml.SubElement(rule_filter, "ArchiveZone")
-    if config.test_ops.get("test_current_expiration"):
+    if config.test_ops.get("expired_object_delete_marker"):
+        rule_Expiration = xml.SubElement(lc_rule, "Expiration")
+        expired_dm = xml.SubElement(rule_Expiration, "ExpiredObjectDeleteMarker")
+        expired_dm.text = "true"
+    elif config.test_ops.get("test_current_expiration"):
         rule_Expiration = xml.SubElement(lc_rule, "Expiration")
         Days = xml.SubElement(rule_Expiration, "Days")
         Days.text = str(config.test_ops.get("days"))
@@ -603,7 +641,12 @@ def Generate_LC_xml(fileName, config):
             Noncurrentdays.text = config.test_ops.get["days"]
 
     tree = xml.ElementTree(lifecycle_configuration)
-    tree.write(fileName)
+    tree.write(fileName, xml_declaration=True, encoding="UTF-8", method="xml")
+    try:
+        with open(fileName, "r", encoding="utf-8") as f:
+            log.info("Lifecycle rule file content:\n%s", f.read())
+    except OSError as e:
+        log.warning("Could not read lifecycle rule file to print: %s", e)
 
 
 def lc_validation_at_archive_zone(bucket_name, config):
