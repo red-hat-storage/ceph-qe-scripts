@@ -1,0 +1,10 @@
+# script: ceph-qe-scripts/rgw/v2/tests/aws/test_conditional_delete_objects.py
+# Validates conditional deletes of multiple objects using delete-objects with LastModifiedTime.
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  user_remove: false
+  test_ops:
+    conditional_delete_objects_lmt: true
+    wrong_lmt_first: true
