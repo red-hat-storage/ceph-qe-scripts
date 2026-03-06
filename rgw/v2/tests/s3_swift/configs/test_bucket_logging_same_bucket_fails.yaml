@@ -1,0 +1,39 @@
+# Test that put-bucket-logging fails with InvalidArgument error when
+# target bucket is the same as source bucket
+# script: test_server_access_logging.py
+# bz: https://bugzilla.redhat.com/show_bug.cgi?id=2321568
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 5
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    test_same_bucket_logging_fails: true
+    logging_type: Standard
+    target_obj_key_format: SimplePrefix
+    policy_document:
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+         {
+          "Sid": "AllowLoggingFromSourceBucketPolicy1",
+          "Effect": "Allow",
+          "Principal": {
+           "Service": "logging.s3.amazonaws.com"
+          },
+          "Action": "s3:PutObject",
+          "Resource": "arn:aws:s3:::<dest_bucket_name>/*",
+          "Condition": {
+           "StringEquals": {
+            "aws:SourceAccount": "<source_user_name>"
+           },
+           "ArnLike": {
+            "aws:SourceArn": "arn:aws:s3:::<source_bucket_name>"
+           }
+          }
+         }
+        ]
+      }
