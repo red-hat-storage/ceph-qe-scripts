@@ -2020,3 +2020,15 @@ def wrong_etag(etag):
     s = etag
     pos = random.randint(0, len(s))
     return s[:pos] + "x" + s[pos:]
+
+
+def normalize_last_modified(last_modified_str, ceph_version_id):
+    """
+    Normalize LastModified from list-object-versions for use as LastModifiedTime
+    in delete-objects. Ceph 20+ may return ISO8601 with '+' timezone suffix.
+    """
+    if not last_modified_str:
+        return ""
+    if len(ceph_version_id) > 0 and float(ceph_version_id[0]) >= 20:
+        return last_modified_str.split("+")[0]
+    return last_modified_str.split(".")[0]

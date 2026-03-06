@@ -2,11 +2,21 @@
 Usage: test_conditional_delete_objects.py -c <input_yaml>
 
 Validates conditional deletes of multiple objects using the delete-objects API
+with ETag or LastModifiedTime conditions. See:
 with ETag conditions. See:
 https://docs.aws.amazon.com/cli/latest/reference/s3api/delete-objects.html
 
 <input_yaml>
     configs/test_cond_delete_objects_etag.yaml
+    configs/test_cond_delete_objects_lmt.yaml
+
+Operation:
+    - Creates a bucket and uploads N objects (default 10).
+    - ETag mode: Fetches ETags via list-object-versions; optionally verifies
+      wrong ETag returns errors; delete-objects with correct ETags.
+    - LMT mode: Fetches LastModified via list-object-versions; optionally
+      verifies wrong LastModifiedTime returns errors; delete-objects with
+      correct LastModifiedTime for all objects.
 
 Operation:
     - Creates a bucket and uploads N objects (default 10).
@@ -42,17 +52,30 @@ TEST_DATA_PATH = None
 
 def test_exec(config, ssh_con):
     """
+    Executes test: conditional delete of multiple objects with ETag or
+    LastModifiedTime via delete-objects API.
     Executes test: conditional delete of multiple objects with ETag via delete-objects API.
     """
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
 
+    use_lmt = config.test_ops.get("conditional_delete_objects_lmt", False)
+    use_etag = config.test_ops.get("conditional_delete_objects_etag", False)
+    if not use_lmt and not use_etag:
+        use_etag = True  # default to ETag for backward compatibility
+
+    ceph_version_id = []
+    if use_lmt:
+        ceph_version_id, _ = utils.get_ceph_version()
+        ceph_version_id = ceph_version_id.split("-")[0].split(".")
+
     user_names = (
         [(config.test_ops.get("user_name"), None)]
         if config.test_ops.get("user_name")
         else None
     )
+
     if user_names and type(user_names[0]) != list:
         user_names = [user_names[0]]
 
@@ -117,64 +140,135 @@ def test_exec(config, ssh_con):
                 aws_reusable.list_object_versions(cli_aws, bucket_name, endpoint)
             )
             versions = version_list.get("Versions") or []
-            key_to_etag = {}
+            if len(versions) < config.objects_count:
+                raise TestExecError(
+                    f"Expected {config.objects_count} objects in list-object-versions, got {len(versions)}"
+                )
+
+            key_to_obj = {}
             for v in versions:
                 k = v["Key"]
-                if k in object_names:
-                    etag_raw = v.get("ETag") or ""
-                    etag_clean = etag_raw.strip('"')
-                    key_to_etag[k] = etag_clean
-            if len(key_to_etag) != config.objects_count:
+                if k in object_names and k not in key_to_obj:
+                    key_to_obj[k] = v
+            if len(key_to_obj) != config.objects_count:
                 raise TestExecError(
-                    f"Expected {config.objects_count} objects in list-object-versions, got {len(key_to_etag)}"
+                    f"Expected {config.objects_count} objects in list-object-versions, got {len(key_to_obj)}"
                 )
 
-            objects_with_etag = [
-                {"Key": k, "ETag": key_to_etag[k]} for k in object_names
-            ]
-
-            if config.test_ops.get("wrong_etag_first", True):
-                log.info("Verify delete-objects with wrong ETag returns errors")
-                wrong_list = [
-                    {
-                        "Key": k,
-                        "ETag": aws_reusable.wrong_etag(key_to_etag[k]),
-                    }
-                    for k in object_names[:1]
+            if use_etag:
+                key_to_etag = {}
+                for k, v in key_to_obj.items():
+                    etag_raw = v.get("ETag") or ""
+                    key_to_etag[k] = etag_raw.strip('"')
+                objects_to_delete = [
+                    {"Key": k, "ETag": key_to_etag[k]} for k in object_names
                 ]
-                log.info(f"wrong list is {wrong_list}")
-                out_err = aws_reusable.delete_objects(
-                    cli_aws, bucket_name, wrong_list, endpoint, return_err=True
-                )
-                if out_err is not False and out_err:
-                    try:
-                        err_resp = json.loads(out_err)
-                        if err_resp.get("Errors"):
-                            log.info(
-                                "Wrong ETag produced Errors: %s",
-                                err_resp["Errors"],
-                            )
-                            if err_resp["Errors"][0]["Code"] != "PreconditionFailed":
-                                raise AssertionError(
-                                    "delete-objects is not failed with Precondition!!"
+                if config.test_ops.get("wrong_etag_first", True):
+                    log.info("Verify delete-objects with wrong ETag returns errors")
+                    wrong_list = [
+                        {
+                            "Key": k,
+                            "ETag": aws_reusable.wrong_etag(key_to_etag[k]),
+                        }
+                        for k in object_names[:1]
+                    ]
+                    log.info("Wrong ETag list: %s", wrong_list)
+                    out_err = aws_reusable.delete_objects(
+                        cli_aws, bucket_name, wrong_list, endpoint, return_err=True
+                    )
+                    if out_err is not False and out_err:
+                        try:
+                            err_resp = json.loads(out_err)
+                            if err_resp.get("Errors"):
+                                log.info(
+                                    "Wrong ETag produced Errors: %s",
+                                    err_resp["Errors"],
                                 )
-                        else:
-                            raise AssertionError(
-                                "delete-objects succeeded with wrong ETag!!"
+                                if (
+                                    err_resp["Errors"][0]["Code"]
+                                    != "PreconditionFailed"
+                                ):
+                                    raise AssertionError(
+                                        "delete-objects did not fail with PreconditionFailed"
+                                    )
+                            else:
+                                raise AssertionError(
+                                    "delete-objects succeeded with wrong ETag"
+                                )
+                        except (json.JSONDecodeError, TypeError):
+                            log.info(
+                                "Wrong ETag caused CLI/API failure: %s",
+                                str(out_err)[:200],
                             )
-                    except (json.JSONDecodeError, TypeError):
-                        log.info(
-                            "Wrong ETag caused CLI/API failure (non-JSON output): %s",
-                            str(out_err)[:200],
-                        )
-                log.info("Conditional delete with wrong ETag check completed")
+                    log.info("Conditional delete with wrong ETag check completed")
+                log.info(
+                    "Conditional delete-objects with correct ETag for all %d objects",
+                    config.objects_count,
+                )
 
-            log.info(
-                "Conditional delete-objects with correct ETag for all %d objects",
-                config.objects_count,
-            )
+            else:
+                # LastModifiedTime conditional delete
+                key_to_lmt = {}
+                for k, v in key_to_obj.items():
+                    raw = v.get("LastModified") or ""
+                    key_to_lmt[k] = aws_reusable.normalize_last_modified(
+                        raw, ceph_version_id
+                    )
+                objects_to_delete = [
+                    {"Key": k, "LastModifiedTime": key_to_lmt[k]} for k in object_names
+                ]
+                if config.test_ops.get("wrong_lmt_first", True):
+                    log.info(
+                        "Verify delete-objects with wrong LastModifiedTime returns errors"
+                    )
+                    correct_lmt = key_to_lmt[object_names[0]]
+                    wrong_lmt = (
+                        correct_lmt[:-1]
+                        if len(correct_lmt) > 1
+                        else "1970-01-01T00:00:00"
+                    )
+                    wrong_list = [
+                        {"Key": object_names[0], "LastModifiedTime": wrong_lmt}
+                    ]
+                    log.info("Wrong LastModifiedTime list: %s", wrong_list)
+                    out_err = aws_reusable.delete_objects(
+                        cli_aws, bucket_name, wrong_list, endpoint, return_err=True
+                    )
+                    if out_err is not False and out_err:
+                        try:
+                            err_resp = json.loads(out_err)
+                            if err_resp.get("Errors"):
+                                log.info(
+                                    "Wrong LastModifiedTime produced Errors: %s",
+                                    err_resp["Errors"],
+                                )
+                                if (
+                                    err_resp["Errors"][0]["Code"]
+                                    != "PreconditionFailed"
+                                ):
+                                    raise AssertionError(
+                                        "delete-objects did not fail with PreconditionFailed"
+                                    )
+                            else:
+                                raise AssertionError(
+                                    "delete-objects succeeded with wrong LastModifiedTime"
+                                )
+                        except (json.JSONDecodeError, TypeError):
+                            log.info(
+                                "Wrong LastModifiedTime caused CLI/API failure: %s",
+                                str(out_err)[:200],
+                            )
+                    log.info(
+                        "Conditional delete with wrong LastModifiedTime check completed"
+                    )
+                log.info(
+                    "Conditional delete-objects with correct LastModifiedTime for all %d objects",
+                    config.objects_count,
+                )
+
+            log.info("Objects to delete: %s", objects_to_delete)
             response = aws_reusable.delete_objects(
-                cli_aws, bucket_name, objects_with_etag, endpoint
+                cli_aws, bucket_name, objects_to_delete, endpoint
             )
             resp = json.loads(response)
             deleted = resp.get("Deleted") or []
@@ -211,6 +305,7 @@ def test_exec(config, ssh_con):
 
 if __name__ == "__main__":
     test_info = AddTestInfo(
+        "Conditional delete of multiple objects with ETag or LastModifiedTime (delete-objects API)"
         "Conditional delete of multiple objects with ETag (delete-objects API)"
     )
 
@@ -223,7 +318,7 @@ if __name__ == "__main__":
             os.makedirs(TEST_DATA_PATH)
 
         parser = argparse.ArgumentParser(
-            description="Conditional delete of multiple objects with ETag (delete-objects)"
+            description="Conditional delete of multiple objects with ETag or LastModifiedTime (delete-objects)"
         )
         parser.add_argument("-c", dest="config", help="Path to YAML config")
         parser.add_argument(
