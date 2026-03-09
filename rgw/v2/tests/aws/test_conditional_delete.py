@@ -14,6 +14,8 @@ Polarion ID :
     configs/test_cond_put_if_match.yaml
     configs/test_cond_put_if_none_match_ver.yaml
     configs/test_cond_put_if_match_ver.yaml
+    configs/test_cond_put_multipart_if_none_match.yaml
+    configs/test_cond_put_multipart_if_match.yaml
 
 Operation:
 Conditional delete scenarios
@@ -176,6 +178,90 @@ def test_exec(config, ssh_con):
                 log.info("Validate conditional put with if-match with correct Etag")
                 aws_reusable.conditional_put_object(
                     cli_aws, bucket_name, object_name, endpoint, etag=etag
+                )
+
+            if config.test_ops.get("conditional_put_multipart_if_none_match", False):
+                if config.test_ops.get("enable_version", False):
+                    gc_verify = False
+                log.info("Validate conditional Put (multipart) with if-none-match")
+                multipart_key = "testobj-mp"
+                if not hasattr(config, "obj_size") or config.obj_size is None:
+                    config.obj_size = 15 * 1024 * 1024
+                if not hasattr(config, "split_size") or config.split_size is None:
+                    config.split_size = 5
+                if not hasattr(config, "local_file_delete"):
+                    config.local_file_delete = True
+                log.info(
+                    "Validate conditional put multipart with if-none-match * for 1st upload"
+                )
+                aws_reusable.conditional_put_multipart_upload(
+                    cli_aws,
+                    bucket_name,
+                    multipart_key,
+                    TEST_DATA_PATH,
+                    endpoint,
+                    config,
+                )
+                log.info(
+                    "Validate conditional put multipart with if-none-match * for 2nd upload"
+                )
+                err = aws_reusable.conditional_put_multipart_upload(
+                    cli_aws,
+                    bucket_name,
+                    multipart_key,
+                    TEST_DATA_PATH,
+                    endpoint,
+                    config,
+                    return_err=True,
+                )
+                if isinstance(err, dict) or not err:
+                    raise AssertionError(
+                        "2nd multipart upload of same object with if-none-match should fail!"
+                    )
+
+            if config.test_ops.get("conditional_put_multipart_if_match", False):
+                if config.test_ops.get("enable_version", False):
+                    gc_verify = False
+                log.info("Validate conditional Put (multipart) with if-match")
+                version_list = json.loads(
+                    aws_reusable.list_object_versions(cli_aws, bucket_name, endpoint)
+                )
+                etag = version_list["Versions"][0]["ETag"].split('"')[1]
+                incorrect_etag = etag[:-1]
+                if not hasattr(config, "obj_size") or config.obj_size is None:
+                    config.obj_size = 15 * 1024 * 1024
+                if not hasattr(config, "split_size") or config.split_size is None:
+                    config.split_size = 5
+                if not hasattr(config, "local_file_delete"):
+                    config.local_file_delete = True
+                log.info(
+                    "Validate conditional put multipart with if-match with incorrect etag"
+                )
+                err = aws_reusable.conditional_put_multipart_upload(
+                    cli_aws,
+                    bucket_name,
+                    object_name,
+                    TEST_DATA_PATH,
+                    endpoint,
+                    config,
+                    etag=incorrect_etag,
+                    return_err=True,
+                )
+                if isinstance(err, dict) or not err:
+                    raise AssertionError(
+                        "conditional put multipart with if-match and incorrect etag should fail"
+                    )
+                log.info(
+                    "Validate conditional put multipart with if-match with correct Etag"
+                )
+                aws_reusable.conditional_put_multipart_upload(
+                    cli_aws,
+                    bucket_name,
+                    object_name,
+                    TEST_DATA_PATH,
+                    endpoint,
+                    config,
+                    etag=etag,
                 )
 
             if config.test_ops.get("conditional_delete_with_etag", False):
