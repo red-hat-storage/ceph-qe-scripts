@@ -2032,3 +2032,193 @@ def normalize_last_modified(last_modified_str, ceph_version_id):
     if len(ceph_version_id) > 0 and float(ceph_version_id[0]) >= 20:
         return last_modified_str.split("+")[0]
     return last_modified_str.split(".")[0]
+
+
+def complete_multipart_upload_conditional(
+    aws_auth,
+    bucket_name,
+    key_name,
+    upload_file,
+    upload_id,
+    end_point,
+    if_match_etag=None,
+    if_none_match=False,
+):
+    """
+    Complete multipart upload with conditional write headers (if-match or if-none-match).
+    Per AWS S3 conditional writes, condition is applied at CompleteMultipartUpload.
+    Ex: /usr/local/bin/aws s3api complete-multipart-upload --multipart-upload file://<upload_file>
+        --bucket <bucket_name> --key <key_name> --upload-id <upload_id> --endpoint <endpoint_url>
+        [--if-match <etag> | --if-none-match "*"]
+    Args:
+        upload_file(str): Name of a file containing mpstructure (Parts with PartNumber, ETag).
+        bucket_name(str): Name of the bucket
+        key_name(str): Name of the object for which multipart upload has to be completed
+        upload_id(str): upload id from create-multipart-upload
+        end_point(str): endpoint
+        if_match_etag(str|None): If set, add --if-match <etag> (complete only when existing object ETag matches).
+        if_none_match(bool): If True, add --if-none-match "*" (complete only when object does not exist).
+    Return:
+        Response of complete-multipart-upload
+    """
+    params_str = (
+        f"--multipart-upload file://{upload_file} --bucket {bucket_name} --key {key_name} "
+        f"--upload-id {upload_id} --endpoint-url {end_point}"
+    )
+    if if_match_etag:
+        params_str += f" --if-match {if_match_etag}"
+    elif if_none_match:
+        params_str += ' --if-none-match "*"'
+    command = aws_auth.command(
+        operation="complete-multipart-upload",
+        params=[params_str],
+    )
+    try:
+        response = utils.exec_shell_cmd(command)
+        if not response:
+            raise Exception(
+                f"complete multipart upload (conditional) failed for bucket {bucket_name} with key {key_name} and"
+                f" upload id {upload_id}"
+            )
+        return response
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def conditional_put_multipart_upload(
+    aws_auth,
+    bucket_name,
+    key_name,
+    TEST_DATA_PATH,
+    endpoint,
+    config,
+    etag=None,
+    return_err=False,
+    checksum_algo=None,
+):
+    """
+    Perform multipart upload with conditional complete (if-match or if-none-match).
+    Covers both conditional put scenarios for multipart upload; condition is applied
+    at CompleteMultipartUpload per AWS S3 conditional writes.
+    Ex: create-multipart-upload -> upload-part (x N) -> complete-multipart-upload
+        with --if-match <etag> or --if-none-match "*"
+
+    Args:
+        aws_auth: AWS auth instance
+        bucket_name(str): Name of the bucket
+        key_name(str): Name of the object
+        TEST_DATA_PATH(str): Test data path for part files
+        endpoint(str): Endpoint URL
+        config: Config object with obj_size, split_size, local_file_delete, etc.
+        etag(str|None): If given, use if-match <etag> (complete only when existing
+            object ETag matches). If None, use if-none-match "*" (complete only
+            when object does not exist).
+        return_err(bool): If True, on conditional failure return error string instead
+            of raising.
+        checksum_algo(str|None): Optional checksum algorithm for create/upload-part.
+
+    Return:
+        Response of complete-multipart-upload (dict), or on conditional failure
+        when return_err=True, the error string.
+    """
+    log.info("Create multipart upload (conditional put)")
+    create_mp_upload_resp = create_multipart_upload(
+        aws_auth, bucket_name, key_name, endpoint, checksum_algo
+    )
+    if not create_mp_upload_resp or create_mp_upload_resp is False:
+        raise TestExecError(
+            f"Failed to create multipart upload for bucket {bucket_name} with key {key_name}. "
+            f"Response was: {create_mp_upload_resp}"
+        )
+    if not isinstance(create_mp_upload_resp, str):
+        raise TestExecError(
+            f"Invalid response type for multipart upload. Expected string, "
+            f"got {type(create_mp_upload_resp)}: {create_mp_upload_resp}"
+        )
+    try:
+        upload_id = json.loads(create_mp_upload_resp)["UploadId"]
+    except (json.JSONDecodeError, KeyError, TypeError) as e:
+        raise TestExecError(
+            f"Failed to parse multipart upload response for bucket {bucket_name} with key {key_name}. "
+            f"Response: {create_mp_upload_resp}, Error: {e}"
+        )
+
+    object_path = os.path.join(TEST_DATA_PATH, key_name)
+    object_size = config.obj_size
+    split_size = config.split_size if hasattr(config, "split_size") else 5
+    data_info = io_generator(object_path, object_size)
+    if data_info is False:
+        raise TestExecError("data creation failed")
+
+    mp_dir = os.path.join(TEST_DATA_PATH, key_name + ".mp.parts")
+    mkdir = utils.exec_shell_cmd(f"sudo mkdir {mp_dir}")
+    if mkdir is False:
+        raise TestExecError("mkdir failed creating mp_dir_name")
+    utils.split_file(object_path, split_size, mp_dir + "/")
+    parts_list = sorted(glob.glob(mp_dir + "/" + "*"))
+
+    part_number = 1
+    mpstructure = {"Parts": []}
+    for each_part in parts_list:
+        upload_part_resp = json.loads(
+            upload_part(
+                aws_auth,
+                bucket_name,
+                key_name,
+                part_number,
+                upload_id,
+                each_part,
+                endpoint,
+                checksum_algo=checksum_algo,
+            )
+        )
+        part_info = {"PartNumber": part_number, "ETag": upload_part_resp["ETag"]}
+        mpstructure["Parts"].append(part_info)
+        if each_part != parts_list[-1]:
+            part_number += 1
+    with open("mpstructure.json", "w") as fd:
+        json.dump(mpstructure, fd)
+    if getattr(config, "local_file_delete", False):
+        utils.exec_shell_cmd(f"rm -rf {mp_dir}")
+
+    if_match_etag = etag if etag else None
+    if_none_match = not etag
+
+    try:
+        if return_err:
+            complete_resp = utils.exec_shell_cmd(
+                aws_auth.command(
+                    operation="complete-multipart-upload",
+                    params=[
+                        f"--multipart-upload file://mpstructure.json --bucket {bucket_name} "
+                        f"--key {key_name} --upload-id {upload_id} --endpoint-url {endpoint}"
+                        + (
+                            f" --if-match {if_match_etag}"
+                            if if_match_etag
+                            else ' --if-none-match "*"'
+                        )
+                    ],
+                ),
+                return_err=True,
+            )
+            if complete_resp:
+                try:
+                    return json.loads(complete_resp)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            return complete_resp
+        response = complete_multipart_upload_conditional(
+            aws_auth,
+            bucket_name,
+            key_name,
+            "mpstructure.json",
+            upload_id,
+            endpoint,
+            if_match_etag=if_match_etag,
+            if_none_match=if_none_match,
+        )
+        return json.loads(response)
+    except Exception as e:
+        if return_err:
+            return str(e)
+        raise AWSCommandExecError(message=str(e))
