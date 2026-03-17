@@ -162,6 +162,52 @@ def test_exec(config, ssh_con):
         log.info("Verify object unlink behaviour")
         obj_to_unlink = objects_created_list[0][0]
         resp = reusable.object_unlink(bucket_name_to_create1, obj_to_unlink)
+
+    # Set the bucket index max shards to 0 and test object unlink
+    if config.test_ops.get("index_max_shards_zero", False):
+        log.info("Set the bucket index max shards to 0 at zonegroup level")
+        shard_count = 0
+        ret = reusable.set_bi_max_shards(shard_count)
+        log.info(f"return value is {ret}")
+        if not ret:
+            raise TestExecError("Failure to change max bucket index shards")
+        bucket_name_to_create3 = utils.gen_bucket_name_from_userid(
+            non_ten_users[0]["user_id"]
+        )
+        log.info("Verify number of bucket shards is 0")
+        look_for = "num_shards"
+        ret = reusable.verify_bucket_stats(bucket_name_to_create3, look_for, 0)
+        if not ret:
+            raise TestExecError("num bucket shards is not 0")
+
+        log.info(f"s3 objects to create: {config.objects_count}")
+        config.mapped_sizes = utils.make_mapped_sizes(config)
+        user1 = non_ten_users[0]
+        for oc, size in list(config.mapped_sizes.items()):
+            config.obj_size = size
+            s3_object_name = utils.gen_s3_object_name(bucket_name_to_create1, oc)
+            log.info(f"s3 object name: {s3_object_name}")
+            s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
+            log.info(f"s3 object path: {s3_object_path}")
+            reusable.upload_object(
+                s3_object_name,
+                bucket1,
+                TEST_DATA_PATH,
+                config,
+                user1,
+            )
+            objects_created_list.append((s3_object_name, s3_object_path))
+
+        log.info("Verify object unlink behaviour")
+        obj_to_unlink = objects_created_list[0][0]
+        resp = reusable.object_unlink(bucket_name_to_create1, obj_to_unlink)
+
+        log.info("Set the bi max shards back to 11 at zonegroup")
+        shard_count = 11
+        ret = reusable.set_bi_max_shards(shard_count)
+        if not ret:
+            raise TestExecError("Failure to change max bucket index shards")
+
     # check for any crashes during the execution
     crash_info = reusable.check_for_crash()
     if crash_info:
