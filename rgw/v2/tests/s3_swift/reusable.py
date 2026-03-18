@@ -1402,6 +1402,36 @@ def object_unlink(bucket, object):
     return out1
 
 
+def set_bi_max_shards(shard_count):
+    cmd = "radosgw-admin zonegroup get"
+    out1 = utils.exec_shell_cmd(cmd)
+    data = json.loads(out1)
+    data["zones"][0]["bucket_index_max_shards"] = shard_count
+    with open("a1", "w") as ptr:
+        json.dump(data, ptr)
+
+    cmd = "radosgw-admin zonegroup set < a1"
+    out1 = utils.exec_shell_cmd(cmd)
+    log.info("trying to restart services")
+    srv_restarted = rgw_service.restart()
+    time.sleep(30)
+    if srv_restarted is False:
+        raise TestExecError("RGW service restart failed")
+    else:
+        log.info("RGW service restarted")
+    return True
+
+
+def verify_bucket_stats(bucket, field_to_verify, value):
+    cmd = f"radosgw-admin bucket stats --bucket {bucket}"
+    out1 = utils.exec_shell_cmd(cmd)
+    out1 = json.loads(out1)
+    ret_value = out1[field_to_verify]
+    if ret_value != value:
+        raise TestExecError("Requested stats is not the actual value")
+    return True
+
+
 def get_multisite_info():
     cmd = "radosgw-admin period get"
     period_list = utils.exec_shell_cmd(cmd)
