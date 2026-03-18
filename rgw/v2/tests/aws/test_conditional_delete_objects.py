@@ -9,9 +9,16 @@ https://docs.aws.amazon.com/cli/latest/reference/s3api/delete-objects.html
     configs/test_cond_delete_objects_etag.yaml
     configs/test_cond_delete_objects_lmt.yaml
     configs/test_cond_delete_objects_size.yaml
+    configs/test_cond_delete_objects_versioned_bucket_etag.yaml  # versioned bucket + ETag
+    configs/test_cond_delete_objects_versioned_bucket_size.yaml  # versioned bucket + Size
+    configs/test_cond_delete_objects_versioned_bucket_lmt.yaml  # versioned bucket + Last Modified time
 
 Operation:
     - Creates a bucket and uploads N objects (default 10).
+    - Optional: versioned_bucket=true enables bucket versioning; conditional
+      delete-objects then includes VersionId per object (see delete-objects API).
+    - Optional: versions_per_object=N (default 1) with versioned_bucket creates
+      N versions per key (e.g. 3) and conditionally deletes all N versions.
     - ETag mode: Fetches ETags via list-object-versions; optionally verifies
       wrong ETag returns errors; delete-objects with correct ETags.
     - LMT mode: Fetches LastModified via list-object-versions; optionally
@@ -122,33 +129,70 @@ def test_exec(config, ssh_con):
             aws_reusable.create_bucket(cli_aws, bucket_name, endpoint)
             log.info("Bucket created: %s", bucket_name)
 
+            versioned_bucket = config.test_ops.get("versioned_bucket", False)
+            if versioned_bucket:
+                aws_reusable.put_get_bucket_versioning(cli_aws, bucket_name, endpoint)
+                log.info("Bucket versioning enabled: %s", bucket_name)
+
+            versions_per_object = config.test_ops.get("versions_per_object", 1)
+            if versioned_bucket and versions_per_object < 1:
+                versions_per_object = 1
             object_names = []
             for i in range(config.objects_count):
                 obj_name = utils.gen_s3_object_name(bucket_name, i)
                 object_names.append(obj_name)
                 utils.exec_shell_cmd(f"fallocate -l 1M {obj_name}")
                 aws_reusable.put_object(cli_aws, bucket_name, obj_name, endpoint)
-            log.info("Uploaded %d objects", config.objects_count)
+            if versioned_bucket and versions_per_object > 1:
+                for _ in range(versions_per_object - 1):
+                    for obj_name in object_names:
+                        aws_reusable.put_object(
+                            cli_aws, bucket_name, obj_name, endpoint
+                        )
+                log.info(
+                    "Uploaded %d objects with %d versions each",
+                    config.objects_count,
+                    versions_per_object,
+                )
+            else:
+                log.info("Uploaded %d objects", config.objects_count)
             for obj in object_names:
                 utils.exec_shell_cmd(f"rm -rf {obj}")
             version_list = json.loads(
                 aws_reusable.list_object_versions(cli_aws, bucket_name, endpoint)
             )
             versions = version_list.get("Versions") or []
-            if len(versions) < config.objects_count:
+            expected_version_count = (
+                config.objects_count * versions_per_object
+                if (versioned_bucket and versions_per_object > 1)
+                else config.objects_count
+            )
+            if len(versions) < expected_version_count:
                 raise TestExecError(
-                    f"Expected {config.objects_count} objects in list-object-versions, got {len(versions)}"
+                    f"Expected at least {expected_version_count} versions in list-object-versions, got {len(versions)}"
                 )
 
             key_to_obj = {}
+            key_to_versions = {}
             for v in versions:
                 k = v["Key"]
-                if k in object_names and k not in key_to_obj:
+                if k not in object_names:
+                    continue
+                if k not in key_to_obj:
                     key_to_obj[k] = v
+                if k not in key_to_versions:
+                    key_to_versions[k] = []
+                key_to_versions[k].append(v)
             if len(key_to_obj) != config.objects_count:
                 raise TestExecError(
-                    f"Expected {config.objects_count} objects in list-object-versions, got {len(key_to_obj)}"
+                    f"Expected {config.objects_count} keys in list-object-versions, got {len(key_to_obj)}"
                 )
+            if versioned_bucket and versions_per_object > 1:
+                for k in object_names:
+                    if len(key_to_versions.get(k, [])) != versions_per_object:
+                        raise TestExecError(
+                            f"Key {k}: expected {versions_per_object} versions, got {len(key_to_versions.get(k, []))}"
+                        )
 
             if use_etag:
                 key_to_etag = {}
@@ -158,6 +202,28 @@ def test_exec(config, ssh_con):
                 objects_to_delete = [
                     {"Key": k, "ETag": key_to_etag[k]} for k in object_names
                 ]
+                if versioned_bucket:
+                    if versions_per_object > 1:
+                        objects_to_delete = []
+                        for k in object_names:
+                            for v in key_to_versions[k]:
+                                etag_raw = v.get("ETag") or ""
+                                objects_to_delete.append(
+                                    {
+                                        "Key": k,
+                                        "VersionId": v["VersionId"],
+                                        "ETag": etag_raw.strip('"'),
+                                    }
+                                )
+                    else:
+                        objects_to_delete = [
+                            {
+                                "Key": k,
+                                "VersionId": key_to_obj[k]["VersionId"],
+                                "ETag": key_to_etag[k],
+                            }
+                            for k in object_names
+                        ]
                 if config.test_ops.get("wrong_etag_first", True):
                     log.info("Verify delete-objects with wrong ETag returns errors")
                     wrong_list = [
@@ -167,6 +233,16 @@ def test_exec(config, ssh_con):
                         }
                         for k in object_names[:1]
                     ]
+                    if versioned_bucket:
+                        wrong_list = [
+                            {
+                                "Key": object_names[0],
+                                "VersionId": key_to_obj[object_names[0]]["VersionId"],
+                                "ETag": aws_reusable.wrong_etag(
+                                    key_to_etag[object_names[0]]
+                                ),
+                            }
+                        ]
                     log.info("Wrong ETag list: %s", wrong_list)
                     out_err = aws_reusable.delete_objects(
                         cli_aws, bucket_name, wrong_list, endpoint, return_err=True
@@ -213,11 +289,45 @@ def test_exec(config, ssh_con):
                 objects_to_delete = [
                     {"Key": k, "Size": key_to_size[k]} for k in object_names
                 ]
+                if versioned_bucket:
+                    if versions_per_object > 1:
+                        objects_to_delete = []
+                        for k in object_names:
+                            for v in key_to_versions[k]:
+                                sz = v.get("Size")
+                                if sz is None:
+                                    raise TestExecError(
+                                        f"list-object-versions did not return Size for key {k}"
+                                    )
+                                objects_to_delete.append(
+                                    {
+                                        "Key": k,
+                                        "VersionId": v["VersionId"],
+                                        "Size": sz,
+                                    }
+                                )
+                    else:
+                        objects_to_delete = [
+                            {
+                                "Key": k,
+                                "VersionId": key_to_obj[k]["VersionId"],
+                                "Size": key_to_size[k],
+                            }
+                            for k in object_names
+                        ]
                 if config.test_ops.get("wrong_size_first", True):
                     log.info("Verify delete-objects with wrong Size returns errors")
                     correct_size = key_to_size[object_names[0]]
                     wrong_size = correct_size + 1 if correct_size is not None else 0
                     wrong_list = [{"Key": object_names[0], "Size": wrong_size}]
+                    if versioned_bucket:
+                        wrong_list = [
+                            {
+                                "Key": object_names[0],
+                                "VersionId": key_to_obj[object_names[0]]["VersionId"],
+                                "Size": wrong_size,
+                            }
+                        ]
                     log.info("Wrong Size list: %s", wrong_list)
                     out_err = aws_reusable.delete_objects(
                         cli_aws, bucket_name, wrong_list, endpoint, return_err=True
@@ -263,6 +373,31 @@ def test_exec(config, ssh_con):
                 objects_to_delete = [
                     {"Key": k, "LastModifiedTime": key_to_lmt[k]} for k in object_names
                 ]
+                if versioned_bucket:
+                    if versions_per_object > 1:
+                        objects_to_delete = []
+                        for k in object_names:
+                            for v in key_to_versions[k]:
+                                raw = v.get("LastModified") or ""
+                                lmt = aws_reusable.normalize_last_modified(
+                                    raw, ceph_version_id
+                                )
+                                objects_to_delete.append(
+                                    {
+                                        "Key": k,
+                                        "VersionId": v["VersionId"],
+                                        "LastModifiedTime": lmt,
+                                    }
+                                )
+                    else:
+                        objects_to_delete = [
+                            {
+                                "Key": k,
+                                "VersionId": key_to_obj[k]["VersionId"],
+                                "LastModifiedTime": key_to_lmt[k],
+                            }
+                            for k in object_names
+                        ]
                 if config.test_ops.get("wrong_lmt_first", True):
                     log.info(
                         "Verify delete-objects with wrong LastModifiedTime returns errors"
@@ -276,6 +411,14 @@ def test_exec(config, ssh_con):
                     wrong_list = [
                         {"Key": object_names[0], "LastModifiedTime": wrong_lmt}
                     ]
+                    if versioned_bucket:
+                        wrong_list = [
+                            {
+                                "Key": object_names[0],
+                                "VersionId": key_to_obj[object_names[0]]["VersionId"],
+                                "LastModifiedTime": wrong_lmt,
+                            }
+                        ]
                     log.info("Wrong LastModifiedTime list: %s", wrong_list)
                     out_err = aws_reusable.delete_objects(
                         cli_aws, bucket_name, wrong_list, endpoint, return_err=True
@@ -322,13 +465,14 @@ def test_exec(config, ssh_con):
 
             if errors:
                 raise TestExecError(f"delete-objects returned Errors: {errors}")
-            if len(deleted) != config.objects_count:
+            expected_deleted = len(objects_to_delete)
+            if len(deleted) != expected_deleted:
                 raise TestExecError(
-                    f"Expected {config.objects_count} entries in Deleted, got {len(deleted)}"
+                    f"Expected {expected_deleted} entries in Deleted, got {len(deleted)}"
                 )
             log.info(
-                "All %d objects conditionally deleted successfully",
-                config.objects_count,
+                "All %d object version(s) conditionally deleted successfully",
+                expected_deleted,
             )
 
             list_out = json.loads(
