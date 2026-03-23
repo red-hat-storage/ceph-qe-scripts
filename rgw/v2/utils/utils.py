@@ -225,14 +225,40 @@ class FileOps(object):
 
 
 class ConfigParse(object):
-    def __init__(self, fname, ssh_con=None):
+    def __init__(self, fname, ssh_con=None, no_remote_read=False):
         self.fname = fname
         self.cfg = configparser.ConfigParser()
+        if no_remote_read:
+            # Empty parser; used when cluster config is applied via ceph config set only
+            return
         if ssh_con is not None:
             tmp_file = fname + ".rgw.tmp"
+            remote_path = fname
             sftp_client = ssh_con.open_sftp()
-            fname = sftp_client.get(fname, tmp_file)
-            sftp_client.close()
+            try:
+                sftp_client.get(remote_path, tmp_file)
+            except Exception as e:
+                # SFTP cannot stat/read (e.g. /etc/ceph/ceph.conf is root-only); use sudo
+                log.info(
+                    "SFTP get %s failed (%s); reading via sudo cat on remote",
+                    remote_path,
+                    e,
+                )
+                stdin, stdout, stderr = ssh_con.exec_command(
+                    "sudo cat %s" % remote_path
+                )
+                exit_status = stdout.channel.recv_exit_status()
+                out_b = stdout.read()
+                err_b = stderr.read().decode()
+                if exit_status != 0:
+                    raise OSError(
+                        "Could not read %s on remote (sudo cat failed): %s"
+                        % (remote_path, err_b)
+                    )
+                with open(tmp_file, "wb") as fp:
+                    fp.write(out_b)
+            finally:
+                sftp_client.close()
             self.cfg.read(tmp_file)
             self.fname = tmp_file
         else:
