@@ -180,10 +180,13 @@ def delete_open_id_connect_provider(iam_client):
         log.info("No openid connect providers exists to delete")
 
 
+# BZ 2324153: wrong OIDC thumbprint negative test
+DUMMY_THUMBPRINT = "0000000000000000000000000000000000000000"
+
+
 def create_open_id_connect_provider(
-    iam_client, identity_provider="Keycloak", keycloak=None
+    iam_client, identity_provider="Keycloak", keycloak=None, use_dummy_thumbprint=False
 ):
-    # obtain oidc idp thumbprint
     global obtain_oidc_thumbprint_sh
     if identity_provider == "Keycloak":
         with open("obtain_oidc_thumbprint.sh", "w") as rsh:
@@ -197,9 +200,13 @@ def create_open_id_connect_provider(
         out = utils.exec_shell_cmd("cat /home/cephuser/configs/rgw/ibm_isv/oidc_url")
         url = out.strip()
         client_id_list = []
-    utils.exec_shell_cmd("chmod +rwx obtain_oidc_thumbprint.sh")
-    thumbprints = utils.exec_shell_cmd("./obtain_oidc_thumbprint.sh")
-    thumbprints = thumbprints.strip().split("\n")
+    if use_dummy_thumbprint:
+        thumbprints = [DUMMY_THUMBPRINT]
+        log.info("OIDC provider using dummy thumbprint (BZ 2324153)")
+    else:
+        utils.exec_shell_cmd("chmod +rwx obtain_oidc_thumbprint.sh")
+        thumbprints = utils.exec_shell_cmd("./obtain_oidc_thumbprint.sh")
+        thumbprints = thumbprints.strip().split("\n")
     # create openid connect provider
     oidc_response = iam_client.create_open_id_connect_provider(
         Url=url,
@@ -249,7 +256,8 @@ class Keycloak:
                 client_name=self.client_id, client_scope_name=set_audience_scope_name
             )
             self.set_session_tags_in_token(self.client_id)
-            self.realm_keys_workaround()
+            # Commenting this as its fixed as part of https://bugzilla.redhat.com/show_bug.cgi?id=2237854
+            # self.realm_keys_workaround()
         if attributes is None:
             self.remove_user_attributes(username=f"service-account-{self.client_id}")
         else:
