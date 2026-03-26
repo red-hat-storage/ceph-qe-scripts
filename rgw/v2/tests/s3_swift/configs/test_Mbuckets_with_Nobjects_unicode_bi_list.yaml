@@ -1,0 +1,23 @@
+# Test bucket index listing with unicode characters
+# Reproducer for unicode bi list backward iteration bug
+# script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_Mbuckets_with_Nobjects.py
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 600  # 300 ASCII + 300 unicode objects
+  objects_size_range:
+    min: 5
+    max: 10
+  test_ops:
+    create_bucket: true
+    create_object: true
+    download_object: false
+    delete_bucket_object: false
+    enable_version: true  # Create versioned bucket
+    test_unicode_bi_list: true  # New test flag
+    sharding:
+      enable: false
+      max_shards: 0
+    compression:
+      enable: false
+      type: zlib
