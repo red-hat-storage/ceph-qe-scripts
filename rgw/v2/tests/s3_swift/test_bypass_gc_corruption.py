@@ -370,6 +370,8 @@ if __name__ == "__main__":
         ssh_con = None
         if rgw_node != "127.0.0.1":
             ssh_con = utils.connect_remote(rgw_node)
+        ssh_con = None
+        rgw_node = args.rgw_node
         log_level = args.log_level
 
         # Configure logging before using log

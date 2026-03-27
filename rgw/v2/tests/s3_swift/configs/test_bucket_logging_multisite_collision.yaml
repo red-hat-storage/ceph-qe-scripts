@@ -1,0 +1,45 @@
+# Test for BZ 2373177: Verify that log object names don't collide in multisite
+# when flushing logs from different sites
+# script: test_server_access_logging_multisite_collision.py
+# polarion: CEPH-83623532 (to be updated)
+# bz: https://bugzilla.redhat.com/show_bug.cgi?id=2373177
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  objects_size_range:
+    min: 5
+    max: 15
+  enable_resharding: false
+  test_ops:
+    create_bucket: true
+    create_object: true
+    upload_type: normal
+    enable_version: false
+    put_get_bucket_logging: true
+    logging_type: Standard
+    target_obj_key_format: SimplePrefix
+    rgw_admin_flush: true
+    policy_document:
+     {
+       "Version": "2012-10-17",
+       "Statement": [
+        {
+         "Sid": "AllowLoggingFromSourceBucketPolicy1",
+         "Effect": "Allow",
+         "Principal": {
+          "Service": "logging.s3.amazonaws.com"
+         },
+         "Action": "s3:PutObject",
+         "Resource": "arn:aws:s3:::<dest_bucket_name>/*",
+         "Condition": {
+          "StringEquals": {
+           "aws:SourceAccount": "<source_user_name>"
+          },
+          "ArnLike": {
+           "aws:SourceArn": "arn:aws:s3:::<source_bucket_name>"
+          }
+         }
+        }
+       ]
+     }

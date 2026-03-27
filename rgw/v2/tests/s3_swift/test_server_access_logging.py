@@ -7,14 +7,16 @@ Usage: test_server_access_logging.py -c <input_yaml>
     test_bucket_logging_journal_mode_multipart.yaml
     test_bucket_logging_standard_mode.yaml
     test_bucket_logging_standard_mode_multipart.yaml
+    test_bucket_logging_same_bucket_fails.yaml
+    test_bucket_logging_tenanted_flush.yaml
+    test_bucket_logging_operation_names.yaml  # BZ 2372311: verify operation names match AWS
 Operation:
     create user (tenant/non-tenant)
     Create src and dest buckets
     put-bucket-policy on the target bucket to allow logging_service_principal send log objects to it from src bucket
     put-bucket-logging on the src-bucket
-    perform operations on the src-bucket
-    flush out the log records as log object to target bucket
-    verify the log records for correctness and completeness
+    If verify_operation_names: perform many bucket/object ops, flush, verify operation names in logs
+    Else: perform operations on the src-bucket, flush, verify the log records for correctness and completeness
 """
 
 import os
@@ -30,6 +32,7 @@ import time
 import traceback
 import uuid
 
+import botocore.exceptions
 import v2.lib.manage_data as manage_data
 import v2.lib.resource_op as s3lib
 import v2.utils.utils as utils
@@ -92,6 +95,7 @@ def test_exec(config, ssh_con):
     # create user
     elif config.user_type == "non-tenanted":
         all_users_info = s3lib.create_users(config.user_count)
+        tenant_name = ""
     else:
         umgmt = UserMgmt()
         all_users_info = []
@@ -129,6 +133,10 @@ def test_exec(config, ssh_con):
                         src_bucket, rgw_conn, each_user, write_bucket_io_info
                     )
 
+                # test that put-bucket-logging fails with InvalidArgument when target bucket is same as source
+                if config.test_ops.get("test_same_bucket_logging_fails", False):
+                    dest_bucket_name = src_bucket_name
+
                 # put bucket policy on dest bucket to allow logging service for src bucket
                 bucket_policy_generated = config.test_ops["policy_document"]
                 bucket_policy = json.dumps(bucket_policy_generated)
@@ -141,6 +149,7 @@ def test_exec(config, ssh_con):
                 bucket_policy = bucket_policy.replace(
                     "<source_user_name>", each_user["user_id"]
                 )
+                bucket_policy = bucket_policy.replace("<tenant_name>", tenant_name)
                 bucket_policy_generated = json.loads(bucket_policy)
                 config.test_ops["policy_document"] = bucket_policy_generated
                 log.info(f"jsoned policy: {bucket_policy}")
@@ -176,6 +185,32 @@ def test_exec(config, ssh_con):
                     else:
                         raise TestExecError("put bucket policy failed")
 
+                # test that put-bucket-logging fails with InvalidArgument when target bucket is same as source
+                if config.test_ops.get("test_same_bucket_logging_fails", False):
+                    log.info(
+                        f"Testing that put-bucket-logging fails with InvalidArgument when target bucket is same as source bucket"
+                    )
+                    try:
+                        bkt_logging.put_bucket_logging(
+                            rgw_s3_client, src_bucket_name, src_bucket_name, config
+                        )
+                        raise TestExecError(
+                            f"put bucket logging should have failed with InvalidArgument error when target bucket is the same as source bucket"
+                        )
+                    except botocore.exceptions.ClientError as e:
+                        error_code = e.response.get("Error", {}).get("Code", "")
+                        log.info(
+                            f"put bucket logging failed as expected. Error code: {error_code}"
+                        )
+                        if error_code != "InvalidArgument":
+                            raise TestExecError(
+                                f"Expected InvalidArgument error, but got {error_code}. Error: {e}"
+                            )
+                        log.info(
+                            f"Successfully verified that put bucket logging fails with InvalidArgument error when target bucket is the same as source bucket"
+                        )
+                        break
+
                 # put bucket logging
                 bkt_logging.put_bucket_logging(
                     rgw_s3_client, src_bucket_name, dest_bucket_name, config
@@ -185,10 +220,11 @@ def test_exec(config, ssh_con):
                 bkt_logging.get_bucket_logging(rgw_s3_client, src_bucket_name)
 
                 # get bucket logging with radosgw-admin command
+                tenant_name = each_user.get("tenant")
                 log.info(
                     f"radosgw-admin bucket logging info on source bucket: {src_bucket_name}"
                 )
-                out = bkt_logging.rgw_admin_logging_info(src_bucket_name)
+                out = bkt_logging.rgw_admin_logging_info(src_bucket_name, tenant_name)
                 if not out:
                     raise Exception(
                         "radosgw-admin bucket logging info on source bucket failed"
@@ -197,113 +233,156 @@ def test_exec(config, ssh_con):
                 log.info(
                     f"radosgw-admin bucket logging info on target bucket: {dest_bucket_name}"
                 )
-                out = bkt_logging.rgw_admin_logging_info(dest_bucket_name)
+                out = bkt_logging.rgw_admin_logging_info(dest_bucket_name, tenant_name)
                 if not out:
                     raise Exception(
                         "radosgw-admin bucket logging info on target bucket failed"
                     )
 
-                # create objects
-                if config.test_ops.get("create_object", False):
-                    # uploading data
-                    log.info("s3 objects to create: %s" % config.objects_count)
-                    for oc, size in list(config.mapped_sizes.items()):
-                        config.obj_size = size
-                        s3_object_name = utils.gen_s3_object_name(src_bucket_name, oc)
-                        obj_name_temp = s3_object_name
-                        log.info("s3 object name: %s" % s3_object_name)
-                        s3_object_path = os.path.join(TEST_DATA_PATH, s3_object_name)
-                        log.info("s3 object path: %s" % s3_object_path)
-                        if config.test_ops.get("upload_type") == "multipart":
-                            log.info("upload type: multipart")
-                            reusable.upload_mutipart_object(
-                                s3_object_name,
-                                src_bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                each_user,
-                            )
-                        if config.test_ops.get("upload_type") == "normal":
-                            log.info("upload type: normal")
-                            reusable.upload_object(
-                                s3_object_name,
-                                src_bucket,
-                                TEST_DATA_PATH,
-                                config,
-                                each_user,
-                            )
-
-                        objects_created_list.append((s3_object_name, s3_object_path))
-
-                        # copy objects
-                        if config.test_ops.get("copy_object", False):
-                            obj_name = "copy_of_object" + obj_name_temp
-                            log.info(f"copy object {s3_object_name} to {obj_name}")
-                            status = rgw_s3_client.copy_object(
-                                Bucket=src_bucket_name,
-                                Key=obj_name,
-                                CopySource={
-                                    "Bucket": src_bucket_name,
-                                    "Key": s3_object_name,
-                                },
-                            )
-                            if status is None:
-                                raise TestExecError("copy object failed")
-                            objects_created_list.append((obj_name, s3_object_path))
-
-                # verify resharding
-                if config.enable_resharding:
-                    if config.sharding_type == "manual":
-                        reusable.bucket_reshard_manual(src_bucket, config)
-                        reusable.bucket_reshard_manual(dest_bucket, config)
-                    if config.sharding_type == "dynamic":
-                        reusable.bucket_reshard_dynamic(src_bucket, config)
-                        reusable.bucket_reshard_dynamic(dest_bucket, config)
-
-                # download objects
-                if config.test_ops.get("download_object", False):
-                    for name, path in objects_created_list:
-                        reusable.download_object(
-                            name,
-                            src_bucket,
-                            TEST_DATA_PATH,
-                            path,
-                            config,
+                if config.test_ops.get("verify_operation_names", False):
+                    # BZ 2372311: Verify operation names in server access logs match AWS
+                    operations_performed = (
+                        bkt_logging.perform_operation_names_operations(
+                            rgw_s3_client, src_bucket_name, config
                         )
-
-                # delete objects
-                if config.test_ops.get("delete_bucket_object", False):
-                    if config.test_ops.get("enable_version", False):
-                        for name, path in objects_created_list:
-                            reusable.delete_version_object(
-                                src_bucket, name, path, rgw_conn, each_user
-                            )
-                    else:
-                        reusable.delete_objects(src_bucket)
-
-                bkt_logging.verify_log_records(
-                    rgw_s3_client,
-                    each_user["user_id"],
-                    src_bucket_name,
-                    dest_bucket_name,
-                    config,
-                )
-
-                # delete src-bucket and verify if associated logging conf on the dest-bucket is also deleted
-                if config.test_ops.get("delete_bucket_object", False):
-                    reusable.delete_bucket(src_bucket)
-
-                    log.info(
-                        f"test radosgw-admin bucket logging info on target bucket is empty after source bucket deletion"
                     )
-                    out = bkt_logging.rgw_admin_logging_info(dest_bucket_name)
-                    if out:
-                        raise Exception(
-                            "radosgw-admin bucket logging info on target bucket is not empty after source bucket deletion"
-                        )
+                    time.sleep(5)
+                    flushed_log_object_name = bkt_logging.rgw_admin_logging_flush(
+                        src_bucket_name, tenant_name
+                    )
+                    log.info("Waiting for log object to be written...")
+                    time.sleep(10)
+                    objects_list = reusable.list_bucket_objects(
+                        rgw_s3_client, dest_bucket_name
+                    )
+                    total_log_records = []
+                    for obj in objects_list:
+                        key = obj["Key"]
+                        if key == flushed_log_object_name:
+                            response = rgw_s3_client.get_object(
+                                Bucket=dest_bucket_name, Key=key
+                            )
+                            content = response["Body"].read().decode("utf-8").strip()
+                            obj_records = content.split("\n")
+                            total_log_records.extend(obj_records)
+                            break
+                    bkt_logging.verify_operation_name_in_logs(
+                        total_log_records, operations_performed
+                    )
+                else:
+                    # create objects
+                    if config.test_ops.get("create_object", False):
+                        # uploading data
+                        log.info("s3 objects to create: %s" % config.objects_count)
+                        for oc, size in list(config.mapped_sizes.items()):
+                            config.obj_size = size
+                            s3_object_name = utils.gen_s3_object_name(
+                                src_bucket_name, oc
+                            )
+                            obj_name_temp = s3_object_name
+                            log.info("s3 object name: %s" % s3_object_name)
+                            s3_object_path = os.path.join(
+                                TEST_DATA_PATH, s3_object_name
+                            )
+                            log.info("s3 object path: %s" % s3_object_path)
+                            if config.test_ops.get("upload_type") == "multipart":
+                                log.info("upload type: multipart")
+                                reusable.upload_mutipart_object(
+                                    s3_object_name,
+                                    src_bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                )
+                            if config.test_ops.get("upload_type") == "normal":
+                                log.info("upload type: normal")
+                                reusable.upload_object(
+                                    s3_object_name,
+                                    src_bucket,
+                                    TEST_DATA_PATH,
+                                    config,
+                                    each_user,
+                                )
 
-                    reusable.delete_objects(dest_bucket)
-                    reusable.delete_bucket(dest_bucket)
+                            objects_created_list.append(
+                                (s3_object_name, s3_object_path)
+                            )
+
+                            # copy objects
+                            if config.test_ops.get("copy_object", False):
+                                obj_name = "copy_of_object" + obj_name_temp
+                                log.info(f"copy object {s3_object_name} to {obj_name}")
+                                status = rgw_s3_client.copy_object(
+                                    Bucket=src_bucket_name,
+                                    Key=obj_name,
+                                    CopySource={
+                                        "Bucket": src_bucket_name,
+                                        "Key": s3_object_name,
+                                    },
+                                )
+                                if status is None:
+                                    raise TestExecError("copy object failed")
+                                objects_created_list.append((obj_name, s3_object_path))
+
+                    # verify resharding
+                    if config.enable_resharding:
+                        if config.sharding_type == "manual":
+                            reusable.bucket_reshard_manual(src_bucket, config)
+                            reusable.bucket_reshard_manual(dest_bucket, config)
+                        if config.sharding_type == "dynamic":
+                            reusable.bucket_reshard_dynamic(src_bucket, config)
+                            reusable.bucket_reshard_dynamic(dest_bucket, config)
+
+                    # download objects
+                    if config.test_ops.get("download_object", False):
+                        for name, path in objects_created_list:
+                            reusable.download_object(
+                                name,
+                                src_bucket,
+                                TEST_DATA_PATH,
+                                path,
+                                config,
+                            )
+
+                    # delete objects
+                    if config.test_ops.get("delete_bucket_object", False):
+                        if config.test_ops.get("enable_version", False):
+                            for name, path in objects_created_list:
+                                reusable.delete_version_object(
+                                    src_bucket, name, path, rgw_conn, each_user
+                                )
+                        else:
+                            reusable.delete_objects(src_bucket)
+
+                    tenant_name = each_user.get("tenant")
+
+                    bkt_logging.verify_log_records(
+                        rgw_s3_client,
+                        each_user["user_id"],
+                        src_bucket_name,
+                        dest_bucket_name,
+                        config,
+                        tenant_name,
+                    )
+
+                    # delete src-bucket and verify if associated logging conf on the dest-bucket is also deleted
+                    if config.test_ops.get("delete_bucket_object", False):
+                        reusable.delete_bucket(src_bucket)
+
+                        log.info(
+                            f"test radosgw-admin bucket logging info on target bucket is empty after source bucket deletion"
+                        )
+                        tenant_name = each_user.get("tenant")
+                        out = bkt_logging.rgw_admin_logging_info(
+                            dest_bucket_name, tenant_name
+                        )
+                        if out:
+                            raise Exception(
+                                "radosgw-admin bucket logging info on target bucket is not empty after source bucket deletion"
+                            )
+
+                        reusable.delete_objects(dest_bucket)
+                        reusable.delete_bucket(dest_bucket)
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()

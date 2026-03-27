@@ -20,6 +20,7 @@ Usage: test_sts_aswi.py -c <input_yaml>
     test_sts_aswi_isv.yaml
     test_sts_aswi_isv_verify_role_policy_allow_actions.yaml
     test_sts_aswi_isv_verify_role_policy_deny_actions.yaml
+    test_sts_aswi_wrong_thumbprint.yaml
 
 Operation:
     s1: Create 2 Users.
@@ -113,7 +114,12 @@ def test_exec(config, ssh_con):
         )
         ceph_config_set.set_to_ceph_conf("global", "log_to_file", "true", ssh_con)
 
-    srv_restarted = rgw_service.restart(ssh_con)
+    _, ceph_version_name = utils.get_ceph_version()
+    if ceph_version_name in ["luminous", "nautilus"]:
+        srv_restarted = rgw_service.restart(ssh_con)
+    else:
+        srv_restarted = rgw_service.restart(None)
+
     time.sleep(30)
     if srv_restarted is False:
         raise TestExecError("RGW service restart failed")
@@ -177,7 +183,12 @@ def test_exec(config, ssh_con):
         policy_document = policy_document.replace("ip_addr", local_ip_addr)
         policy_document = policy_document.replace("azp_claim", jwt["azp"])
         policy_document = policy_document.replace("sub_claim", jwt["sub"])
-        stsaswi.create_open_id_connect_provider(iam_client, identity_provider, keycloak)
+        stsaswi.create_open_id_connect_provider(
+            iam_client,
+            identity_provider,
+            keycloak,
+            use_dummy_thumbprint=config.test_ops.get("use_dummy_thumbprint", False),
+        )
     elif identity_provider == "IBM_Security_Verify":
         utils.exec_shell_cmd(
             "cp /home/cephuser/configs/rgw/ibm_isv/get_isv_web_token.sh /home/cephuser/get_isv_web_token.sh"
@@ -190,7 +201,11 @@ def test_exec(config, ssh_con):
         url = out.strip()
         idp_url_for_arn = url.replace("https://", "")
         policy_document = policy_document.replace("idp_url", idp_url_for_arn)
-        stsaswi.create_open_id_connect_provider(iam_client, identity_provider)
+        stsaswi.create_open_id_connect_provider(
+            iam_client,
+            identity_provider,
+            use_dummy_thumbprint=config.test_ops.get("use_dummy_thumbprint", False),
+        )
     stsaswi.list_open_id_connect_provider(iam_client)
 
     log.info(f"assume-role-policy-doc: {policy_document}")
@@ -224,12 +239,24 @@ def test_exec(config, ssh_con):
 
     sts_creds_created_time = time.time()
     sts_creds_validity_seconds = config.test_ops.get("sts_creds_validity_seconds", 3600)
-    assume_role_response = sts_client.assume_role_with_web_identity(
-        RoleArn=create_role_response["Role"]["Arn"],
-        RoleSessionName=user1["user_id"],
-        DurationSeconds=sts_creds_validity_seconds,
-        WebIdentityToken=web_token,
-    )
+    use_dummy_thumbprint = config.test_ops.get("use_dummy_thumbprint", False)
+    assume_role_response = None
+    try:
+        assume_role_response = sts_client.assume_role_with_web_identity(
+            RoleArn=create_role_response["Role"]["Arn"],
+            RoleSessionName=user1["user_id"],
+            DurationSeconds=sts_creds_validity_seconds,
+            WebIdentityToken=web_token,
+        )
+    except ClientError as e:
+        if use_dummy_thumbprint:
+            log.info("BZ 2324153: aswi rejected as expected: %s", e)
+            return
+        raise
+    if use_dummy_thumbprint and assume_role_response:
+        raise TestExecError(
+            "BZ 2324153: aswi succeeded with dummy thumbprint (expected failure)"
+        )
     log.info(f"assume role with web identity response: {assume_role_response}")
 
     assumed_role_user_info = {
