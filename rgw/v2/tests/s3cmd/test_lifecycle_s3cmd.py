@@ -11,6 +11,7 @@ Usage: test_lifecycle_s3cmd.py -c <input_yaml>
     test_s3cmd_lifecycle_archive_object_size.yaml
     test_s3cmd_lifecycle_archive_transition.yaml
     test_lc_expiration_noncurrent_when_current_object_deleted_via_s3cmd.yaml
+    test_lc_version_suspended_expired_delete_marker.yaml
 
 Operation:
     Create a user
@@ -156,6 +157,111 @@ def test_exec(config, ssh_con):
                 object_exist = True
         if object_exist:
             raise AssertionError("Non-current object expiration failed")
+    elif config.test_ops.get("lc_version_suspended_expired_delete_marker", False):
+        log.info(
+            "LC version suspended + ExpiredObjectDeleteMarker: enable versioning -> "
+            "suspend -> put object (null versionId) -> delete (delete marker) -> "
+            "apply LC ExpiredObjectDeleteMarker"
+        )
+        if getattr(config, "rgw_lc_debug_interval", None) is not None:
+            log.info("Making changes to ceph.conf for LC to run frequently")
+            ceph_conf.set_to_ceph_conf(
+                "global",
+                ConfigOpts.rgw_lc_debug_interval,
+                str(config.rgw_lc_debug_interval),
+                ssh_con,
+            )
+            ceph_conf.set_to_ceph_conf(
+                "global", ConfigOpts.rgw_lifecycle_work_time, "00:00-23:59"
+            )
+            s3cmd_reusable.rgw_service_restart(ssh_con)
+        bucket_name = utils.gen_bucket_name_from_userid(
+            user_info[0]["user_id"], rand_no=0
+        )
+        object_name = "lc-suspended-obj"
+        s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
+        log.info(f"Step 1: Enable versioning on bucket {bucket_name}")
+        s3cmd_reusable.enable_versioning_for_a_bucket(
+            user_info[0], bucket_name, ip_and_port, ssl=None
+        )
+        log.info(f"Step 2: Suspend versioning on bucket {bucket_name}")
+        s3cmd_reusable.suspend_versioning_for_a_bucket(
+            user_info[0], bucket_name, ip_and_port, ssl=None
+        )
+        utils.exec_shell_cmd("fallocate -l 1K lc_suspended_1k")
+        log.info(
+            f"Step 3: Write object to bucket (gets null versionId when versioning suspended)"
+        )
+        utils.exec_shell_cmd(
+            f"{s3cmd_path} put lc_suspended_1k s3://{bucket_name}/{object_name}"
+        )
+        head = rgw_conn.meta.client.head_object(Bucket=bucket_name, Key=object_name)
+        version_id = head.get("VersionId")
+        if version_id is not None and version_id != "null":
+            raise AssertionError(
+                f"Expected object to have version-id null (versioning suspended), "
+                f"got: {version_id!r}"
+            )
+        log.info(
+            "Validation: object has version-id null as expected (versioning suspended)"
+        )
+        log.info(f"Step 4: Delete object -> creates delete marker with null versionId")
+        utils.exec_shell_cmd(f"{s3cmd_path} rm s3://{bucket_name}/{object_name}")
+        resp = rgw_conn.meta.client.list_object_versions(
+            Bucket=bucket_name, Prefix=object_name
+        )
+        log.info(f"listing object versions {resp}")
+        delete_markers = resp.get("DeleteMarkers", [])
+        delete_marker_found = False
+        for dm in delete_markers:
+            if dm.get("Key") == object_name:
+                delete_marker_found = True
+                version_id = dm.get("VersionId")
+                if version_id not in (None, "", "null"):
+                    raise AssertionError(
+                        f"Expected delete marker to have version-id null "
+                        f"(list-object-versions), got: {version_id!r}"
+                    )
+                log.info(
+                    "Validation (list-object-versions): delete marker with "
+                    "version-id null is present as expected"
+                )
+                break
+        if not delete_marker_found:
+            raise AssertionError(
+                f"Delete marker for object {object_name} not found in "
+                "list_object_versions response"
+            )
+        bucket_list_out = utils.exec_shell_cmd(
+            f"radosgw-admin bucket list --bucket {bucket_name}"
+        )
+        log.info("Bucket list (before applying LC):\n%s", bucket_list_out)
+        log.info("Step 5: Apply LC rule with ExpiredObjectDeleteMarker: true")
+        s3cmd_reusable.set_lc_lifecycle(lifecycle_rule, config, bucket_name)
+        log.info("LC rule applied; lifecycle will remove expired delete marker")
+        sleep_time = (
+            int(config.rgw_lc_debug_interval) * int(config.test_ops.get("days", 2))
+            if getattr(config, "rgw_lc_debug_interval", None) is not None
+            else 120
+        )
+        log.info(f"Waiting {sleep_time}s for LC to process expired delete marker")
+        time.sleep(sleep_time)
+        out = json.loads(
+            utils.exec_shell_cmd(f"radosgw-admin bucket list --bucket {bucket_name}")
+        )
+        delete_marker_still_present = False
+        for entry in out:
+            if entry.get("name") == object_name and entry.get("tag") == "delete-marker":
+                delete_marker_still_present = True
+                break
+        if delete_marker_still_present:
+            raise AssertionError(
+                "Delete marker with version-id null was not removed by LC "
+                "(ExpiredObjectDeleteMarker); still present in bucket list"
+            )
+        log.info(
+            "Validation: delete marker with version-id null was deleted by LC as expected"
+        )
     else:
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(

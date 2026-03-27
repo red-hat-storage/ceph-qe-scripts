@@ -195,7 +195,6 @@ def create_rgw_account_with_iam_user(
 def create_bucket(
     bucket_name, rgw, user_info, endpoint=None, location=None, retries=3, wait_time=5
 ):
-
     if endpoint is not None:
         # Retry until endpoint is reachable or max retries reached
         for attempt in range(1, retries + 1):
@@ -1403,6 +1402,36 @@ def object_unlink(bucket, object):
     return out1
 
 
+def set_bi_max_shards(shard_count):
+    cmd = "radosgw-admin zonegroup get"
+    out1 = utils.exec_shell_cmd(cmd)
+    data = json.loads(out1)
+    data["zones"][0]["bucket_index_max_shards"] = shard_count
+    with open("a1", "w") as ptr:
+        json.dump(data, ptr)
+
+    cmd = "radosgw-admin zonegroup set < a1"
+    out1 = utils.exec_shell_cmd(cmd)
+    log.info("trying to restart services")
+    srv_restarted = rgw_service.restart()
+    time.sleep(30)
+    if srv_restarted is False:
+        raise TestExecError("RGW service restart failed")
+    else:
+        log.info("RGW service restarted")
+    return True
+
+
+def verify_bucket_stats(bucket, field_to_verify, value):
+    cmd = f"radosgw-admin bucket stats --bucket {bucket}"
+    out1 = utils.exec_shell_cmd(cmd)
+    out1 = json.loads(out1)
+    ret_value = out1[field_to_verify]
+    if ret_value != value:
+        raise TestExecError("Requested stats is not the actual value")
+    return True
+
+
 def get_multisite_info():
     cmd = "radosgw-admin period get"
     period_list = utils.exec_shell_cmd(cmd)
@@ -2285,8 +2314,10 @@ def prepare_for_bucket_lc_transition(config):
                 )
     else:
         if config.test_ops.get("test_ibm_cloud_transition", False):
-            wget_cmd = "curl -o ibm_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/ibm_cloud_file"
-            utils.exec_shell_cmd(cmd=f"{wget_cmd}")
+            # wget_cmd = "curl -o ibm_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/ibm_cloud_file"
+            utils.exec_shell_cmd(
+                cmd="cp /home/cephuser/configs/rgw/cloud_endpoints/ibm_cloud_file ibm_cloud.env"
+            )
             ibm_config = configobj.ConfigObj("ibm_cloud.env")
             target_path = ibm_config["TARGET"]
             access = ibm_config["ACCESS"]
@@ -2304,8 +2335,10 @@ def prepare_for_bucket_lc_transition(config):
                     f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
                 )
         else:
-            wget_cmd = "curl -o aws_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/aws_cloud_file"
-            utils.exec_shell_cmd(cmd=f"{wget_cmd}")
+            # wget_cmd = "curl -o aws_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/aws_cloud_file"
+            utils.exec_shell_cmd(
+                cmd="cp /home/cephuser/configs/rgw/cloud_endpoints/aws_cloud_file aws_cloud.env"
+            )
             aws_config = configobj.ConfigObj("aws_cloud.env")
             target_path = aws_config["TARGET"]
             access = aws_config["ACCESS"]
