@@ -69,7 +69,17 @@ class CephConfFileOP(FileOps, ConfigParse):
             self.ceph_conf_path = ceph_conf_path
             self.ceph_conf_path_tmp = ceph_conf_path + ".rgw.tmp"
             FileOps.__init__(self, self.ceph_conf_path_tmp, type="ceph.conf")
-            ConfigParse.__init__(self, self.ceph_conf_path, ssh_con)
+            version_id, version_name = utils.get_ceph_version()
+            if version_name in ["luminous", "nautilus"]:
+                ConfigParse.__init__(self, self.ceph_conf_path, ssh_con)
+            else:
+                log.info(
+                    "Skipping remote ceph.conf parse (%s); ceph config set only",
+                    version_name,
+                )
+                ConfigParse.__init__(
+                    self, self.ceph_conf_path, ssh_con=None, no_remote_read=True
+                )
         else:
             self.ceph_conf_path = ceph_conf_path
             FileOps.__init__(self, self.ceph_conf_path, type="ceph.conf")

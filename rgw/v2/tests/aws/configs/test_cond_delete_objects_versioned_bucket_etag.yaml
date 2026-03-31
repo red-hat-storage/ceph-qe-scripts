@@ -1,0 +1,13 @@
+# script: ceph-qe-scripts/rgw/v2/tests/aws/test_conditional_delete_objects.py
+# Conditional delete-objects on a versioned bucket (ETag + VersionId per object).
+# See: https://docs.aws.amazon.com/cli/latest/reference/s3api/delete-objects.html
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  user_remove: false
+  test_ops:
+    versioned_bucket: true
+    versions_per_object: 3
+    conditional_delete_objects_etag: true
+    wrong_etag_first: true

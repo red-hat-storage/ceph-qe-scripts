@@ -24,6 +24,7 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
     test_Mbuckets_with_Nobjects_get_object_attributes_checksum_sha256.yaml
     test_Mbuckets_with_Nobjects_get_object_attributes_multipart.yaml
     test_Mbuckets_with_Nobjects_multipart_upload_complete_abort_race.yaml
+    test_Mbuckets_with_Nobjects_unicode_bi_list.yaml
 
 Operation:
         Creates M bucket and N objects
@@ -38,6 +39,7 @@ Operation:
         Verify eTag
         Verify bi put on incomplete multipart upload
     Verify bucket instance shards are deleted from index pool post bucket delete
+    Verify bucket index listing with unicode characters does not cause backwards iteration
 """
 
 # test basic creation of buckets with objects
@@ -535,6 +537,129 @@ def test_exec(config, ssh_con):
                                         raise AssertionError(
                                             f"mismatch found in the eTAG from aws and radosgw"
                                         )
+
+                    if config.test_ops.get("test_unicode_bi_list", False):
+                        log.info("Testing bucket index listing with unicode characters")
+
+                        # Enable versioning on the bucket
+                        if not config.test_ops.get("enable_version", False):
+                            log.info(
+                                "Enable bucket versioning for unicode bi list test"
+                            )
+                            reusable.enable_versioning(
+                                bucket, rgw_conn, each_user, write_bucket_io_info
+                            )
+
+                        # Reshard bucket to 1 shard
+                        log.info(f"Resharding bucket {bkt} to 1 shard")
+                        utils.exec_shell_cmd(
+                            f"radosgw-admin bucket reshard --bucket {bkt} --num-shards 1 --yes-i-really-mean-it"
+                        )
+
+                        # Verify the bucket has 1 shard
+                        op = utils.exec_shell_cmd(
+                            f"radosgw-admin bucket stats --bucket {bkt}"
+                        )
+                        json_doc = json.loads(op)
+                        num_shards = json_doc["num_shards"]
+                        log.info(f"Number of shards after resharding: {num_shards}")
+                        if num_shards != 1:
+                            raise TestExecError(
+                                f"Expected 1 shard but got {num_shards}"
+                            )
+
+                        # Create 300 objects with ASCII names (school1 to school300)
+                        log.info(
+                            "Creating 300 objects with ASCII names (school1 to school300)"
+                        )
+                        for i in range(1, 301):
+                            s3_object_name = f"school{i}"
+                            log.info(f"Creating object: {s3_object_name}")
+                            s3_object_path = os.path.join(
+                                TEST_DATA_PATH, s3_object_name
+                            )
+                            reusable.upload_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                            )
+                            if config.local_file_delete is True:
+                                utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
+
+                        # Create 300 objects with unicode names (école1 to école300)
+                        log.info(
+                            "Creating 300 objects with unicode names (école1 to école300)"
+                        )
+                        for i in range(1, 301):
+                            s3_object_name = f"école{i}"
+                            log.info(f"Creating object: {s3_object_name}")
+                            s3_object_path = os.path.join(
+                                TEST_DATA_PATH, s3_object_name
+                            )
+                            reusable.upload_object(
+                                s3_object_name,
+                                bucket,
+                                TEST_DATA_PATH,
+                                config,
+                                each_user,
+                            )
+                            if config.local_file_delete is True:
+                                utils.exec_shell_cmd("rm -rf %s" % s3_object_path)
+
+                        # Run bi list and check for duplicates/backward listing
+                        log.info(f"Running bi list on bucket {bkt}")
+                        bi_list_output = utils.exec_shell_cmd(
+                            f"radosgw-admin bi list --bucket {bkt}"
+                        )
+
+                        # Parse the bi list output
+                        bi_entries = []
+                        try:
+                            bi_list_data = json.loads(bi_list_output)
+                            for entry in bi_list_data:
+                                if "entry" in entry and "key" in entry["entry"]:
+                                    key_name = entry["entry"]["key"]["name"]
+                                    bi_entries.append(key_name)
+                        except json.JSONDecodeError:
+                            log.error("Failed to parse bi list output as JSON")
+                            raise TestExecError("bi list output is not valid JSON")
+
+                        log.info(f"Total bi list entries: {len(bi_entries)}")
+
+                        # Check for duplicates (backwards listing issue)
+                        seen_entries = set()
+                        duplicate_entries = []
+                        for entry in bi_entries:
+                            if entry in seen_entries:
+                                duplicate_entries.append(entry)
+                            seen_entries.add(entry)
+
+                        if duplicate_entries:
+                            log.error(
+                                f"Found {len(duplicate_entries)} duplicate entries in bi list"
+                            )
+                            log.error(
+                                f"Duplicate entries: {duplicate_entries[:10]}"
+                            )  # Show first 10
+                            raise TestExecError(
+                                f"bi list shows duplicate entries (backwards listing bug). "
+                                f"Found {len(duplicate_entries)} duplicates"
+                            )
+                        else:
+                            log.info(
+                                "No duplicate entries found in bi list - test passed!"
+                            )
+
+                        # Additional check: verify expected number of entries
+                        # We created 600 objects (300 ASCII + 300 unicode), each with 1 version
+                        # So we should have at least 600 entries in bi list
+                        expected_min_entries = 600
+                        if len(bi_entries) < expected_min_entries:
+                            log.warning(
+                                f"Expected at least {expected_min_entries} entries but got {len(bi_entries)}"
+                            )
 
                     if config.reshard_cancel_cmd:
                         if utils.check_dbr_support():

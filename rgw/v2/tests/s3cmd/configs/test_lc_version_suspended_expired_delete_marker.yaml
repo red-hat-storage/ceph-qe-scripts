@@ -1,0 +1,15 @@
+# LC with versioning suspended: enable versioning -> suspend -> put object (null versionId)
+# -> delete object (delete marker with null versionId) -> apply LC ExpiredObjectDeleteMarker
+# Script: ceph-qe-scripts/rgw/v2/tests/s3cmd/test_lifecycle_s3cmd.py
+config:
+  test_ops:
+    lc_version_suspended_expired_delete_marker: true
+    expired_object_delete_marker: true
+    lc_prefix: "lc-suspended"
+    days: 2
+  rgw_lc_debug_interval: 30
+  user_count: 1
+  bucket_count: 1
+  objects_size_range:
+    min: 5
+    max: 15

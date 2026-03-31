@@ -28,6 +28,19 @@ else:
     sample_file_location = home_path + "/rgw-tests/ceph-qe-scripts/rgw/v2/tests/aws/"
 
 
+def _aws_cli_available(ssh_con=None):
+    """Return True if the aws CLI binary is available (in PATH or /usr/local/bin)."""
+    if ssh_con:
+        try:
+            stdin, stdout, stderr = ssh_con.exec_command(
+                "which aws 2>/dev/null || test -x /usr/local/bin/aws"
+            )
+            return stdout.channel.recv_exit_status() == 0
+        except Exception:
+            return False
+    return shutil.which("aws") is not None or os.path.isfile("/usr/local/bin/aws")
+
+
 def install_aws(ssh_con=None):
     """
     Method to install aws on any site
@@ -37,7 +50,9 @@ def install_aws(ssh_con=None):
 
     try:
         log.info(f"ssh connection is {ssh_con}")
-        if not os.path.exists(root_path + "credentials"):
+        credentials_exist = os.path.exists(root_path + "credentials")
+        aws_available = _aws_cli_available(ssh_con)
+        if not credentials_exist or not aws_available:
             if ssh_con:
                 ssh_con.exec_command(
                     "curl 'https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip' -o 'awscliv2.zip'"
@@ -45,7 +60,7 @@ def install_aws(ssh_con=None):
                 ssh_con.exec_command("yum install unzip -y")
                 ssh_con.exec_command("unzip awscliv2.zip")
                 ssh_con.exec_command("sudo aws/./install")
-                ssh_con.exec_command(f"mkdir {root_path}")
+                ssh_con.exec_command(f"mkdir -p {root_path}")
                 log.info(f"AWS version:")
                 ssh_con.exec_command("sudo /usr/local/bin/aws --version")
             else:
@@ -55,7 +70,7 @@ def install_aws(ssh_con=None):
                 utils.exec_shell_cmd("yum install unzip -y")
                 utils.exec_shell_cmd("unzip awscliv2.zip")
                 utils.exec_shell_cmd("sudo aws/./install")
-                utils.exec_shell_cmd(f"mkdir {root_path}")
+                utils.exec_shell_cmd(f"mkdir -p {root_path}")
                 log.info(f"AWS version:")
                 utils.exec_shell_cmd("sudo /usr/local/bin/aws --version")
     except:
