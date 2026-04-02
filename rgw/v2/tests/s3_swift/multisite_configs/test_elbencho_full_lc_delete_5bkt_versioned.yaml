@@ -1,0 +1,24 @@
+# Test Scenario 5: FULL SYNC + LC DELETE - 5 versioned buckets
+# PHASE 1 - Full sync: Stop sync services → Write all to primary → Restart sync → Verify full sync
+# PHASE 2 - LC delete: Stop ALL RGW → LC delete on primary → Monitor deletion → Restart ALL RGW → Monitor sync
+# Create 1.3M objects/bkt with 5 versions each (all 2 bytes), then delete via lifecycle
+# Total Data: ~65MB, Total Objects: 6.5Million (logical)
+# Total versions: 32.5Million
+# NOTE: LC deletion is actively monitored every 30s until all objects are deleted (max 3 hours)
+config:
+  user_count: 1
+  bucket_count: 5
+  test_ops:
+    sync_mode: full
+    run_put_workload: true
+    verify_sync: true
+    objects_per_bucket: 1300000
+    threads: 200
+    use_special_chars: false
+    enable_versioning: true
+    version_count: 5
+    run_lc_delete: true
+    lc_expiration_days: 1
+    lc_max_wait_time: 10800  # Max 3 hours (actively monitored every 30s)
+    sleep_between_versions: 30
+    initial_sync_wait: 180

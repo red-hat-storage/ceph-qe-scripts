@@ -1,0 +1,27 @@
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    generate_report: true
+    run_sanity_check: false
+    rgw_realm: usa
+    rgw_zones: east,west
+    rgw_zonegroup: coast
+    run_scenario1: true
+    run_scenario2: true
+    run_scenario3: true
+    run_scenario4: true
+    run_scenario5: true
+    objects_per_bucket: 1300000
+    threads: 200
+    scenario1_objects_per_bucket: 17570
+    scenario2_objects_per_bucket: 87850
+    scenario3_objects_per_bucket: 6500
+    scenario4_objects_per_bucket: 6500
+    scenario5_objects_per_bucket: 17570
+    lc_expiration_days: 1
+    lc_processing_wait: 600
+    lc_max_wait_time: 10800
+    lc_sync_wait: 10800
+    sync_verify_max_retries: 240
+    sync_verify_check_interval: 30
