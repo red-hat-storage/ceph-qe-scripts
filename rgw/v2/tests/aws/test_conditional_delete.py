@@ -151,7 +151,10 @@ def test_exec(config, ssh_con):
                 err = aws_reusable.conditional_put_object(
                     cli_aws, bucket_name, object_name, endpoint, return_err=True
                 )
-                if "argument of type 'NoneType' is not iterable" not in err:
+                if (
+                    "argument of type 'NoneType' is not a container or iterable"
+                    not in err
+                ):
                     raise AssertionError(f"2nd time upload of same object should fail!")
             if config.test_ops.get("conditional_put_if_match", False):
                 if config.test_ops.get("enable_version", False):
@@ -171,7 +174,10 @@ def test_exec(config, ssh_con):
                     etag=incorrect_etag,
                     return_err=True,
                 )
-                if "argument of type 'NoneType' is not iterable" not in err:
+                if (
+                    "argument of type 'NoneType' is not a container or iterable"
+                    not in err
+                ):
                     raise AssertionError(
                         f"conditional put with if-match with incorret etag should fail"
                     )
