@@ -1,14 +1,18 @@
 """
-Public Access Block (S3) with tenanted RGW account IAM users.
+Public Access Block (S3) with RGW account IAM users (tenanted or non-tenanted).
 
 Same scenarios as test_bucket_policy_ops.py for PublicAccessBlockConfiguration,
 but users are created via rgw_accounts.create_rgw_account_with_iam_user (account + IAM user).
+
+Set ``use_tenanted_account: false`` in test_ops for non-tenanted accounts; anonymous curl
+URLs use ``/bucket/key`` instead of ``/tenant:bucket/key``.
 
 Usage:
   test_public_access_block_rgw_accounts.py -c configs/test_public_access_block_rgw_accounts_acl.yaml
 
 See also configs:
   test_public_access_block_rgw_accounts_ignore_acl.yaml
+  test_public_access_block_rgw_accounts_ignore_acl_non_tenanted.yaml
   test_public_access_block_rgw_accounts_pre_bucket_policy.yaml
   test_public_access_block_rgw_accounts_post_bucket_policy.yaml
   test_public_access_block_rgw_accounts_restricted.yaml
@@ -43,11 +47,18 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
+def _path_style_bucket_base_url(rgw_endpoint_url, bucket_name, tenant_name=None):
+    """Path-style base URL for anonymous curl (``tenant:bucket`` vs ``bucket``)."""
+    if tenant_name:
+        return f"{rgw_endpoint_url}/{tenant_name}:{bucket_name}"
+    return f"{rgw_endpoint_url}/{bucket_name}"
+
+
 def _policy_json_str(config, bucket_name, tenant_name, user_id):
     doc = config.test_ops["policy_document"]
     s = json.dumps(doc)
     s = s.replace("<bucket_name>", bucket_name)
-    s = s.replace("<tenant_name>", tenant_name)
+    s = s.replace("<tenant_name>", tenant_name or "")
     s = s.replace("<user_name>", user_id)
     return s
 
@@ -115,9 +126,10 @@ def verify_public_acl_tests(
         log.info("upload object obj3 resp: %s", resp)
 
         log.info("download object obj3 without auth %s", bucket_name)
+        base = _path_style_bucket_base_url(rgw_endpoint_url, bucket_name, tenant_name)
         out = utils.exec_shell_cmd(
             f"curl --show-error --fail-with-body -v -s -X GET "
-            f"'{rgw_endpoint_url}/{tenant_name}:{bucket_name}/obj3' -o obj3.download"
+            f"'{base}/obj3' -o obj3.download"
         )
         if out is False:
             log.info(
@@ -150,11 +162,14 @@ def test_exec(config, ssh_con):
     log.info("RGW service restarted")
 
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
-    tenant_name = config.test_ops.get("tenant_name", "rgwacctenant")
+    tenanted = config.test_ops.get("use_tenanted_account", True)
+    tenant_name = (
+        config.test_ops.get("tenant_name", "rgwacctenant") if tenanted else ""
+    )
     region = config.test_ops.get("region", "shared")
 
     all_users_info = accounts.create_rgw_account_with_iam_user(
-        config, tenant_name, region
+        config, tenant_name if tenanted else "", region, tenanted=tenanted
     )
 
     for each_user in all_users_info:
@@ -241,9 +256,12 @@ def test_exec(config, ssh_con):
             log.info(
                 "put object obj4 into bucket %s without auth", bucket.name
             )
+            base = _path_style_bucket_base_url(
+                rgw_endpoint_url, bucket.name, tenant_name or None
+            )
             out = utils.exec_shell_cmd(
                 f"curl --show-error --fail-with-body -v -s -d 'randomdata4' -X PUT "
-                f"'{rgw_endpoint_url}/{tenant_name}:{bucket.name}/obj4'"
+                f"'{base}/obj4'"
             )
             if out is False:
                 raise TestExecError(
@@ -255,7 +273,7 @@ def test_exec(config, ssh_con):
             log.info("list objects in bucket %s without auth", bucket.name)
             out = utils.exec_shell_cmd(
                 f"curl --show-error --fail-with-body -v -s -X GET "
-                f"'{rgw_endpoint_url}/{tenant_name}:{bucket.name}/'"
+                f"'{base}/'"
             )
             if out is False:
                 raise TestExecError(
@@ -265,9 +283,12 @@ def test_exec(config, ssh_con):
 
         if config.test_ops.get("verify_restricted_public_buckets", False):
             log.info("verify_restricted_public_buckets")
+            rb = _path_style_bucket_base_url(
+                rgw_endpoint_url, bucket.name, tenant_name or None
+            )
             out = utils.exec_shell_cmd(
                 f"curl --show-error --fail-with-body -v -s -d 'randomdata5' -X PUT "
-                f"'{rgw_endpoint_url}/{tenant_name}:{bucket.name}/obj5'"
+                f"'{rb}/obj5'"
             )
             if out is False:
                 log.info(
@@ -281,7 +302,7 @@ def test_exec(config, ssh_con):
 
             out = utils.exec_shell_cmd(
                 f"curl --show-error --fail-with-body -v -s -X GET "
-                f"'{rgw_endpoint_url}/{tenant_name}:{bucket.name}/'"
+                f"'{rb}/'"
             )
             if out is False:
                 log.info(
