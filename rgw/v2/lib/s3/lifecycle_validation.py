@@ -84,6 +84,8 @@ def validate_prefix_rule(bucket, config):
 
     if config.conflict_transition_actions or config.test_ops.get("reverse_transition"):
         sleep_till_lc_not_processing(config, bucket)
+    if config.test_ops.get("reverse_transition"):
+        time.sleep(20)
     if config.test_ops.get("tenant_name"):
         tenant_name = config.test_ops.get("tenant_name")
         op2 = utils.exec_shell_cmd(
