@@ -1,0 +1,12 @@
+# script: test_admin_api_user_operations.py
+# Polarian id: CEPH-83623503
+config:
+  user_count: 1
+  bucket_count: 1
+  sync_wait_time: 10
+
+  test_ops:
+    create_bucket: true
+    verify_bucket: true
+    delete_bucket: true
+    user_remove: true
