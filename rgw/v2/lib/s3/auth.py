@@ -65,14 +65,20 @@ class Auth(object):
         """
         This function is to perform authentication using resource
         Parameters:
-            **config: Configuration details
+            **config: Configuration details (can include region_name for multisite)
         Returns:
             rgw: Connection status
         """
         log.info("performing authentication")
         additional_config = Config(
-            signature_version=config.get("signature_version", None)
+            signature_version=config.get("signature_version", None),
+            s3={"addressing_style": "path"},
         )
+
+        # Use region_name from config if provided, otherwise use 'default' as default
+        # In multisite setups, this should be the zonegroup name
+        region_name = config.get("region_name", "default")
+        log.info(f"Using region_name: {region_name}")
 
         rgw = boto3.resource(
             "s3",
@@ -82,7 +88,7 @@ class Auth(object):
             use_ssl=self.ssl,
             verify=False,
             config=additional_config,
-            region_name="",
+            region_name=region_name,
             aws_session_token=self.session_token if self.session_token else None,
         )
 
@@ -94,15 +100,22 @@ class Auth(object):
         This function is to perform authentication using client module
 
         Parameters:
-            **config: Configuration details
+            **config: Configuration details (can include region_name for multisite)
 
         Returns:
             rgw: Connection status
         """
         log.info("performing authentication using client module")
         additional_config = Config(
-            signature_version=config.get("signature_version", None)
+            signature_version=config.get("signature_version", None),
+            s3={"addressing_style": "path"},
         )
+
+        # Use region_name from config if provided, otherwise use 'default' as default
+        # In multisite setups, this should be the zonegroup name
+        region_name = config.get("region_name", "default")
+        log.info(f"Using region_name: {region_name}")
+
         rgw = boto3.client(
             "s3",
             aws_access_key_id=self.access_key,
@@ -110,7 +123,7 @@ class Auth(object):
             endpoint_url=self.endpoint_url,
             config=additional_config,
             verify=False,
-            region_name=config.get("region_name", ""),
+            region_name=region_name,
             aws_session_token=self.session_token if self.session_token else None,
         )
         return rgw
@@ -122,50 +135,75 @@ class Auth(object):
         :return: rgw connection object
         """
 
-        log.info("performing authentication using sts client")
+        log.info("performing authentication using iam client")
+        additional_config = Config(s3={"addressing_style": "path"})
+
+        # Use region_name from config if provided, otherwise use 'default' as default
+        # In multisite setups, this should be the zonegroup name
+        region_name = extra_config.get("region_name", "default")
+        log.info(f"Using region_name: {region_name}")
+
         rgw = boto3.client(
             "iam",
             aws_access_key_id=self.access_key,
             aws_secret_access_key=self.secret_key,
             endpoint_url=self.endpoint_url,
-            region_name="",
+            region_name=region_name,
+            config=additional_config,
             verify=False,
         )
 
         return rgw
 
-    def do_auth_sts_client(
-        self,
-    ):
+    def do_auth_sts_client(self, **config):
         """
+        perform authentication using sts client
+        :param config: Configuration details (can include region_name for multisite)
         :return: connection object
         """
+
+        additional_config = Config(s3={"addressing_style": "path"})
+
+        # Use region_name from config if provided, otherwise use 'default' as default
+        # In multisite setups, this should be the zonegroup name
+        region_name = config.get("region_name", "default")
+        log.info(f"Using region_name: {region_name}")
 
         sts_client = boto3.client(
             "sts",
             aws_access_key_id=self.access_key,
             aws_secret_access_key=self.secret_key,
             endpoint_url=self.endpoint_url,
-            region_name="",
+            region_name=region_name,
+            config=additional_config,
             verify=False,
         )
 
         return sts_client
 
-    def do_auth_sns_client(
-        self,
-    ):
+    def do_auth_sns_client(self, **config):
         """
+        perform authentication using sns client
+        :param config: Configuration details (can include region_name for multisite)
         :return: connection object
         """
+
+        additional_config = Config(
+            signature_version="s3", s3={"addressing_style": "path"}
+        )
+
+        # Use region_name from config if provided, otherwise use 'default' as default
+        # In multisite setups, this should be the zonegroup name
+        region_name = config.get("region_name", "default")
+        log.info(f"Using region_name: {region_name}")
 
         sns_client = boto3.client(
             "sns",
             aws_access_key_id=self.access_key,
             aws_secret_access_key=self.secret_key,
             endpoint_url=self.endpoint_url,
-            region_name="",
-            config=Config(signature_version="s3"),
+            region_name=region_name,
+            config=additional_config,
             verify=False,
         )
 
