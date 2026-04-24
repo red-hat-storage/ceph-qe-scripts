@@ -44,3 +44,6 @@ config:
       NoncurrentVersionTransitions:
         - NoncurrentDays: 1
           StorageClass: CLOUDIBM
+  restore_wait_time: 900  # Max time to wait for restore completion (seconds) - 15 minutes
+  restore_poll_interval: 45  # Check restore status every 45 seconds
+  restore_parallel_workers: 10  # Number of parallel restore operations (default: 10)

@@ -45,6 +45,7 @@ import json
 import logging
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 import v2.lib.resource_op as s3lib
@@ -741,19 +742,84 @@ def test_exec(config, ssh_con):
                 log.info(
                     f"Occurances of verion_ids in bucket list is {objs_total} times"
                 )
+                # Collect all restore tasks
+                restore_tasks = []
                 for i in range(0, objs_total):
                     if json_doc_list[i]["tag"] != "delete-marker":
-                        object_key = json_doc_list[i]["name"]
-                        version_id = json_doc_list[i]["instance"]
+                        restore_tasks.append(
+                            {
+                                "object_key": json_doc_list[i]["name"],
+                                "version_id": json_doc_list[i]["instance"],
+                            }
+                        )
+
+                # Parallel restore execution
+                max_workers = getattr(config, "restore_parallel_workers", 10)
+                log.info(
+                    f"Starting parallel restore of {len(restore_tasks)} objects "
+                    f"with {max_workers} workers..."
+                )
+
+                def restore_object_wrapper(task):
+                    """Wrapper function for parallel execution"""
+                    try:
                         reusables_s3_restore.restore_s3_object(
                             rgw_conn2,
                             each_user,
                             config,
                             bucket_name,
-                            object_key,
-                            version_id,
+                            task["object_key"],
+                            task["version_id"],
                             days=7,
+                            max_wait_time=getattr(config, "restore_wait_time", 600),
+                            poll_interval=getattr(config, "restore_poll_interval", 30),
                         )
+                        return {
+                            "success": True,
+                            "object": task["object_key"],
+                            "version": task["version_id"],
+                        }
+                    except Exception as e:
+                        log.error(
+                            f"Failed to restore {task['object_key']} "
+                            f"version {task['version_id']}: {e}"
+                        )
+                        return {
+                            "success": False,
+                            "object": task["object_key"],
+                            "version": task["version_id"],
+                            "error": str(e),
+                        }
+
+                # Execute restores in parallel
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = {
+                        executor.submit(restore_object_wrapper, task): task
+                        for task in restore_tasks
+                    }
+                    completed = 0
+                    failed = 0
+                    for future in as_completed(futures):
+                        result = future.result()
+                        completed += 1
+                        if result["success"]:
+                            log.info(
+                                f"Restore progress: {completed}/{len(restore_tasks)} "
+                                f"completed - {result['object']} "
+                                f"(version: {result['version']})"
+                            )
+                        else:
+                            failed += 1
+                            log.error(
+                                f"Restore failed: {result['object']} "
+                                f"(version: {result['version']}) - {result['error']}"
+                            )
+
+                log.info(
+                    f"Parallel restore completed: {completed-failed}/"
+                    f"{len(restore_tasks)} successful, {failed} failed"
+                )
+
                 # Test restored objects are not available after restore interval
                 log.info(
                     "Test restored objects are not available after restore interval"
