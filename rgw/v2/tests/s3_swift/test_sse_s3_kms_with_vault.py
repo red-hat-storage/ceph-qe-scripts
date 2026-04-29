@@ -73,10 +73,13 @@ def test_exec(config, ssh_con):
     if rgw_crypt_s3_kms_backend == "kmip":
         out = utils.exec_shell_cmd("ceph config get client.rgw rgw_crypt_kmip_addr")
         rgw_crypt_kmip_addr = out.strip()
-        if rgw_crypt_kmip_addr == "10.245.64.16:5696":
+        config.test_ops[
+            "encrypt_decrypt_key"
+        ] = "ibm005686891000000006"  # default to using gklm key from IBMC env
+        if rgw_crypt_kmip_addr == "10.0.215.90:5696":
             config.test_ops[
                 "encrypt_decrypt_key"
-            ] = "ibm000ee6a57000000000"  # use corresponding key id for ibmc env
+            ] = "rhd00dbd7832000000006"  # use corresponding gklm key id for rhosd env
     # create user
     all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
