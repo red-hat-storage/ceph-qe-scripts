@@ -214,7 +214,7 @@ def create_bucket(
     is_multisite = utils.is_cluster_multisite()
     if is_multisite and endpoint is not None:
         user_id = user_info.get("user_id")
-        
+
         # Verify user exists via radosgw-admin
         for attempt in range(1, retries + 1):
             try:
@@ -222,14 +222,20 @@ def create_bucket(
                 output = utils.exec_shell_cmd(verify_cmd)
                 if output and user_id in output:
                     log.info(f"User {user_id} verified on attempt {attempt}")
-                    log.info("Waiting for user metadata to sync across all RGW instances...")
+                    log.info(
+                        "Waiting for user metadata to sync across all RGW instances..."
+                    )
                     time.sleep(10)
                     break
                 else:
-                    log.warning(f"Attempt {attempt}: User {user_id} not found, retrying in {wait_time}s...")
+                    log.warning(
+                        f"Attempt {attempt}: User {user_id} not found, retrying in {wait_time}s..."
+                    )
                     time.sleep(wait_time)
             except Exception as e:
-                log.warning(f"Attempt {attempt}: Error verifying user - {str(e)}, retrying in {wait_time}s...")
+                log.warning(
+                    f"Attempt {attempt}: Error verifying user - {str(e)}, retrying in {wait_time}s..."
+                )
                 time.sleep(wait_time)
         else:
             log.error(f"User {user_id} not available after {retries} attempts")
@@ -243,7 +249,7 @@ def create_bucket(
     kw_args = None
     if location is not None:
         kw_args = dict(CreateBucketConfiguration={"LocationConstraint": location})
-    
+
     # Retry bucket creation for InvalidAccessKeyId errors
     created = None
     for attempt in range(1, retries + 1):
@@ -271,7 +277,7 @@ def create_bucket(
             else:
                 log.error(f"Bucket creation failed: {error_msg}")
                 raise
-    
+
     log.info(f"bucket creation data: {created}")
     if created is False:
         raise TestExecError("Resource execution failed: bucket creation failed")
