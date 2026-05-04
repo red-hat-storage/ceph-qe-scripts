@@ -1,0 +1,23 @@
+# Global CORS (GCORS) Configuration Test
+# Script: test_gcors_config.py
+# This test configures RGW global CORS settings and performs I/O operations
+# Polarion ID : CEPH-83632421
+
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 5
+  objects_size_range:
+    min: 5
+    max: 15
+
+  # Global CORS configuration options
+  test_ops:
+    gcors_allow_origins: "*"
+    gcors_allow_headers: "x-amz-*, Content-*, Authorization"
+    gcors_allow_methods: "GET,PUT,POST,DELETE,HEAD"
+    enable_gcors: true
+    create_bucket: true
+    create_object: true
+    download_object: true
+    delete_bucket_object: false
