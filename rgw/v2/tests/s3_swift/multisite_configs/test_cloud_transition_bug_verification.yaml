@@ -1,0 +1,32 @@
+# test_cloud_transition_bug_verification.py
+# Bug Verification Tests for Cloud Transition and Restore
+#
+# Bugs covered:
+# 1. Multipart Part Number 0 - https://tracker.ceph.com/issues/68324
+# 2. ETag Double Quotes - https://tracker.ceph.com/issues/67560
+# 3. Days=0 Restore - https://tracker.ceph.com/issues/67685
+#
+# These tests verify that known bugs are fixed in the current Ceph version.
+# All tests run with retain_head_object=true cloud tier configuration.
+
+config:
+  user_count: 1
+  ssl: false
+  haproxy: false
+  local_file_delete: true
+  test_ops:
+    # Cloud tier configuration
+    cloud_storage_class: CLOUDIBM  # or CLOUDAWS
+
+    # Which bug tests to run
+    # Options: "all", or specific tests:
+    # ["multipart_part_number", "etag_double_quotes", "days_zero_restore"]
+    bug_tests_to_run: all
+
+    # Restore configuration (for ETag and Days=0 tests)
+    restore_wait_time: 300  # Max time to wait for restore (5 minutes)
+    restore_poll_interval: 30  # Check status every 30 seconds
+
+  # Note: Ensure your cloud tier has low multipart_sync_threshold
+  # to trigger multipart for the multipart_part_number test
+  # Recommended: multipart_sync_threshold: 44432 (44KB)
