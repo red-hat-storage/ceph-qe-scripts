@@ -33,6 +33,12 @@ config:
     test_retain_head: true
     test_cloud_transition_at_remote: false
     test_s3_restore_from_cloud: true
+    # Cloud transition bug verification
+    # Bugs: #68324 (multipart part number 0), #67560 (ETag double quotes), #67685 (Days=0 restore)
+    verify_cloud_bugs: true
+    verify_multipart_bug: true  # Check multipart part number 0 bug (#68324)
+    verify_etag_bug: true  # Check ETag double quotes bug (#67560)
+    verify_days_zero_bug: false  # Check Days=0 restore bug (#67685) - optional, can be disruptive
   lifecycle_conf:
     - ID: LC_Rule_1
       Filter:

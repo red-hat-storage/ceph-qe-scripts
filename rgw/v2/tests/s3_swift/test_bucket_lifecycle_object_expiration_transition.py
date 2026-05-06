@@ -58,6 +58,7 @@ from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3_swift.reusables import s3_object_restore as reusables_s3_restore
+from v2.tests.s3_swift.reusables import cloud_transition_bug_checks
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
 from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
@@ -819,6 +820,72 @@ def test_exec(config, ssh_con):
                     f"Parallel restore completed: {completed-failed}/"
                     f"{len(restore_tasks)} successful, {failed} failed"
                 )
+
+                # Run cloud transition bug verification if enabled
+                if config.test_ops.get("verify_cloud_bugs", False):
+                    log.info("=" * 80)
+                    log.info("Running Cloud Transition Bug Verification")
+                    log.info("=" * 80)
+
+                    # Get storage class from lifecycle config
+                    storage_class = None
+                    for rule in config.lifecycle_conf:
+                        if "Transitions" in rule:
+                            storage_class = rule["Transitions"][0]["StorageClass"]
+                            break
+
+                    if storage_class:
+                        # Verify bugs for a sample of restored objects
+                        sample_tasks = restore_tasks[:min(3, len(restore_tasks))]
+                        for task in sample_tasks:
+                            try:
+                                log.info(
+                                    f"Verifying bugs for object: {task['object_key']} "
+                                    f"(version: {task['version_id']})"
+                                )
+
+                                # Run all bug checks
+                                bug_results = cloud_transition_bug_checks.verify_cloud_transition_bugs(
+                                    s3_client=rgw_conn2,
+                                    ssh_con=ssh_con,
+                                    bucket_name=bucket_name,
+                                    object_key=task["object_key"],
+                                    storage_class=storage_class,
+                                    version_id=task["version_id"],
+                                    check_multipart=config.test_ops.get(
+                                        "verify_multipart_bug", True
+                                    ),
+                                    check_etag=config.test_ops.get(
+                                        "verify_etag_bug", True
+                                    ),
+                                    check_days_zero=config.test_ops.get(
+                                        "verify_days_zero_bug", False
+                                    ),
+                                )
+
+                                log.info(f"Bug verification results: {bug_results}")
+
+                                # Check if any bugs were detected
+                                for bug_name, result in bug_results.items():
+                                    if "FAILED" in str(result):
+                                        raise TestExecError(
+                                            f"Bug verification failed for {bug_name}: {result}"
+                                        )
+
+                            except Exception as e:
+                                log.error(
+                                    f"Bug verification failed for {task['object_key']}: {e}"
+                                )
+                                raise
+
+                        log.info("=" * 80)
+                        log.info("Cloud Transition Bug Verification: ALL CHECKS PASSED")
+                        log.info("=" * 80)
+                    else:
+                        log.warning(
+                            "No storage class found in lifecycle config, "
+                            "skipping bug verification"
+                        )
 
                 # Test restored objects are not available after restore interval
                 log.info(
