@@ -1,0 +1,32 @@
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 1
+    max: 10
+  ssl: false
+  test_ops:
+    delete_bucket: true
+    enable_cors: true
+    cors_rules:
+      - allowed_origins:
+          - "http://example.com"
+        allowed_methods:
+          - GET
+          - PUT
+        allowed_headers:
+          - "*"
+        max_age_seconds: 3000
+      - allowed_origins:
+          - "http://another.com"
+          - "https://another.com"
+        allowed_methods:
+          - GET
+          - DELETE
+        allowed_headers:
+          - Content-Type
+          - Authorization
+        expose_headers:
+          - ETag
+        max_age_seconds: 1800

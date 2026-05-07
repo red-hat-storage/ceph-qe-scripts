@@ -1,0 +1,27 @@
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 1
+    max: 10
+  ssl: false
+  test_ops:
+    delete_bucket: true
+    enable_cors: true
+    cors_rules:
+      - allowed_origins:
+          - "*"
+        allowed_methods:
+          - GET
+          - HEAD
+          - PUT
+          - POST
+          - DELETE
+        allowed_headers:
+          - "*"
+        expose_headers:
+          - ETag
+          - x-amz-request-id
+          - x-amz-version-id
+        max_age_seconds: 3000
