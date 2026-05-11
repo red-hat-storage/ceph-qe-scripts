@@ -13,8 +13,8 @@ config:
 
   # Global CORS configuration options
   test_ops:
-    gcors_allow_origins: "*"
-    gcors_allow_headers: "x-amz-*, Content-*, Authorization"
+    gcors_allow_origins: '"*"'
+    gcors_allow_headers: "Content-Type,Authorization"
     gcors_allow_methods: "GET,PUT,POST,DELETE,HEAD"
     enable_gcors: true
     create_bucket: true

@@ -1,0 +1,25 @@
+# Global CORS (GCORS) Configuration Test - Strict Settings
+# Script: test_gcors_config.py
+# This test configures RGW global CORS with strict/specific settings
+
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 5
+  objects_size_range:
+    min: 5
+    max: 15
+
+  # Strict Global CORS configuration options
+  # Specific origins instead of wildcard
+  # Specific headers only
+  # Limited methods (no DELETE)
+  test_ops:
+    gcors_allow_origins: "https://example.com,https://app.example.com"
+    gcors_allow_headers: "x-amz-date,x-amz-content-sha256,Authorization,Content-Type"
+    gcors_allow_methods: "GET,PUT,POST,HEAD"
+    enable_gcors: true
+    create_bucket: true
+    create_object: true
+    download_object: true
+    delete_bucket_object: false
