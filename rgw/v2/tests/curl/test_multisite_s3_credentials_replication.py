@@ -29,8 +29,8 @@ import v2.utils.utils as utils
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.tests.curl import admin_api
 from v2.tests.s3_swift import reusable
-from v2.tests.s3_swift.reusables import admin_api
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
 
