@@ -211,6 +211,41 @@ def create_bucket(
             log.error(f"Endpoint {endpoint} is not reachable after {retries} attempts.")
             return
 
+    # IBM Cloud specific: Verify user exists before bucket creation in multisite with HAProxy
+    is_multisite = utils.is_cluster_multisite()
+    if is_multisite and endpoint is not None:
+        log.info(
+            "IBM Cloud multisite with HAProxy detected - verifying user availability"
+        )
+        user_id = user_info.get("user_id")
+
+        # Verify user exists via radosgw-admin
+        for attempt in range(1, retries + 1):
+            try:
+                verify_cmd = f"radosgw-admin user info --uid={user_id}"
+                output = utils.exec_shell_cmd(verify_cmd)
+                if output and user_id in output:
+                    log.info(f"User {user_id} verified on attempt {attempt}")
+                    # Additional wait for metadata sync across HAProxy backends
+                    log.info(
+                        "Waiting for user metadata to sync across all RGW instances..."
+                    )
+                    time.sleep(10)
+                    break
+                else:
+                    log.warning(
+                        f"Attempt {attempt}: User {user_id} not found, retrying in {wait_time}s..."
+                    )
+                    time.sleep(wait_time)
+            except Exception as e:
+                log.warning(
+                    f"Attempt {attempt}: Error verifying user - {str(e)}, retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+        else:
+            log.error(f"User {user_id} not available after {retries} attempts")
+            raise TestExecError(f"User {user_id} not available for bucket creation")
+
     log.info("creating bucket with name: %s" % bucket_name)
     # bucket = s3_ops.resource_op(rgw_conn, 'Bucket', bucket_name_to_create)
     bucket = s3lib.resource_op(
@@ -219,15 +254,35 @@ def create_bucket(
     kw_args = None
     if location is not None:
         kw_args = dict(CreateBucketConfiguration={"LocationConstraint": location})
-    created = s3lib.resource_op(
-        {
-            "obj": bucket,
-            "resource": "create",
-            "args": None,
-            "kwargs": kw_args,
-            "extra_info": {"access_key": user_info["access_key"]},
-        }
-    )
+
+    # Retry bucket creation for InvalidAccessKeyId errors (IBM Cloud HAProxy issue)
+    created = None
+    for attempt in range(1, retries + 1):
+        try:
+            created = s3lib.resource_op(
+                {
+                    "obj": bucket,
+                    "resource": "create",
+                    "args": None,
+                    "kwargs": kw_args,
+                    "extra_info": {"access_key": user_info["access_key"]},
+                }
+            )
+            if created:
+                log.info(f"Bucket creation succeeded on attempt {attempt}")
+                break
+        except Exception as e:
+            error_msg = str(e)
+            if "InvalidAccessKeyId" in error_msg and attempt < retries:
+                log.warning(
+                    f"Attempt {attempt}: InvalidAccessKeyId error, user may not be synced. "
+                    f"Retrying in {wait_time}s..."
+                )
+                time.sleep(wait_time)
+            else:
+                log.error(f"Bucket creation failed: {error_msg}")
+                raise
+
     log.info(f"bucket creation data: {created}")
     if created is False:
         raise TestExecError("Resource execution failed: bucket creation failed")
@@ -1401,7 +1456,6 @@ def object_unlink(bucket, object):
         log.info("Object unlinked from the BI as expected")
     return out1
 
-
 def set_bi_max_shards(shard_count):
     cmd = "radosgw-admin zonegroup get"
     out1 = utils.exec_shell_cmd(cmd)
@@ -1430,7 +1484,6 @@ def verify_bucket_stats(bucket, field_to_verify, value):
     if ret_value != value:
         raise TestExecError("Requested stats is not the actual value")
     return True
-
 
 def get_multisite_info():
     cmd = "radosgw-admin period get"
