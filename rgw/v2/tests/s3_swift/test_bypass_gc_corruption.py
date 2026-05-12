@@ -367,12 +367,10 @@ if __name__ == "__main__":
         args = parser.parse_args()
         yaml_file = args.config
         rgw_node = args.rgw_node
+        log_level = args.log_level
         ssh_con = None
         if rgw_node != "127.0.0.1":
             ssh_con = utils.connect_remote(rgw_node)
-        ssh_con = None
-        rgw_node = args.rgw_node
-        log_level = args.log_level
 
         # Configure logging before using log
         configure_logging(
