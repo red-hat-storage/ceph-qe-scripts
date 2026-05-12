@@ -51,14 +51,20 @@ def get_rgw_account():
         )
 
 
-def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
+def create_rgw_account_with_iam_user(
+    config, tenant_name, region="shared", tenanted=True
+):
     """
-    Automates the creation of an RGW tenanted account, root user, IAM user, and grants full S3 access.
+    Automates the creation of an RGW account, root user, IAM user, and grants full S3 access.
+
+    When tenanted is True (default), the account and users are created under ``--tenant``.
+    When False, creates a non-tenanted account (no ``--tenant`` on radosgw-admin).
 
     Returns:
-        dict: IAM user details, including access/secret keys and RGW IAM user info.
+        list: IAM user detail dicts with user_id, keys, etc.
     """
-    rgw_ip_primary_zone = utils.get_rgw_ip_zone("primary")
+    # rgw_ip_primary_zone = utils.get_rgw_ip_zone("primary")
+    rgw_ip_primary_zone = "10.0.67.87"
     rgw_port_primary_zone = utils.get_radosgw_port_no()
     endpoint_url = f"http://{rgw_ip_primary_zone}:{rgw_port_primary_zone}"
 
@@ -86,10 +92,15 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
 
         try:
             account_info = json.loads(account_info_output)
-            if (
-                isinstance(account_info, dict)
-                and account_info.get("tenant") == tenant_name
-            ):
+            acct_tenant = (
+                account_info.get("tenant") if isinstance(account_info, dict) else None
+            )
+            matches = (
+                acct_tenant == tenant_name
+                if tenanted
+                else not acct_tenant
+            )
+            if isinstance(account_info, dict) and matches:
                 log.info(f"Reusing existing account: {account}")
                 account_id = account
                 account_name = account_info.get(
@@ -105,9 +116,10 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         account_name = f"account-{random.randint(1000, 9999)}"
         account_email = f"{account_name}@email.com"
 
+        tenant_part = f"--tenant {tenant_name} " if tenanted else ""
         new_account = utils.exec_shell_cmd(
             f"radosgw-admin account create --account-name {account_name} "
-            f"--tenant {tenant_name} --email {account_email} --account-id {account_id}"
+            f"{tenant_part}--email {account_email} --account-id {account_id}"
         )
         if not new_account:
             raise RuntimeError("Failed to create account.")
@@ -127,13 +139,18 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
             root_user = user
         elif user != root_user:
             iam_user_uid = user
+    
+    root_user_name = f"{account_name}root-user"
 
     # Fetch credentials for root user if exists
+    tenant_opt = f" --tenant {tenant_name}" if tenanted else ""
+    user_create_tenant = f"--tenant {tenant_name} " if tenanted else ""
+
     if root_user:
         log.info(f"Found existing root user: {root_user}")
         root_user_info = json.loads(
             utils.exec_shell_cmd(
-                f"radosgw-admin user info --uid {root_user.split('$')[-1]} --tenant {tenant_name}"
+                f"radosgw-admin user info --uid {root_user.split('$')[-1]}{tenant_opt}"
             )
         )
         access_key = root_user_info["keys"][0]["access_key"]
@@ -144,7 +161,8 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         root_user_info = json.loads(
             utils.exec_shell_cmd(
                 f"radosgw-admin user create --uid {root_user_name} --display-name {root_user_name} "
-                f"--tenant {tenant_name} --account-id {account_id} --account-root --gen-secret --gen-access-key"
+                f"{user_create_tenant}"
+                f"--account-id {account_id} --account-root --gen-secret --gen-access-key"
             )
         )
         access_key = root_user_info["keys"][0]["access_key"]
@@ -169,7 +187,7 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         log.info(f"Found existing IAM user: {iam_user_uid}")
         iam_user_rgw_info = json.loads(
             utils.exec_shell_cmd(
-                f"radosgw-admin user info --uid {iam_user_uid.split('$')[-1]} --tenant {tenant_name}"
+                f"radosgw-admin user info --uid {iam_user_uid.split('$')[-1]}{tenant_opt}"
             )
         )
         # Attach AmazonSNSFullAccess if `testing_bucket_notification` is True
@@ -218,7 +236,7 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         # Extract IAM user ID (remove tenant prefix)
         iam_user_uid = iam_user_uid.split("$")[-1]
         iam_user_rgw_info = utils.exec_shell_cmd(
-            f"radosgw-admin user info --uid {iam_user_uid} --tenant {tenant_name}"
+            f"radosgw-admin user info --uid {iam_user_uid}{tenant_opt}"
         )
         log.info(f"Display the iam_user_rgw_info {iam_user_rgw_info}")
         # Ensure output is valid JSON
@@ -248,7 +266,7 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         }
     )
     write_user_info.add_user_info(user_info)
-    lib_dir = "/home/cephuser/rgw-ms-tests/ceph-qe-scripts/rgw/v2/lib"
+    lib_dir = "/home/cephuser/rgw-tests/ceph-qe-scripts/rgw/v2/lib"
     user_detail_file = os.path.join(lib_dir, "user_details.json")
     with open(user_detail_file, "w") as fout:
         json.dump(iam_user_details, fout)
