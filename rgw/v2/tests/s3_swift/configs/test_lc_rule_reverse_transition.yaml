@@ -4,6 +4,7 @@ config:
   haproxy: true
   user_count: 1
   bucket_count: 1
+  rgw_lc_debug_interval: 120
   objects_count: 10
   parallel_lc: False
   test_lc_transition: True
