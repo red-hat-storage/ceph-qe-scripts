@@ -24,6 +24,7 @@ config:
         modify_zg_policy_details: --storage-class cold
         modify_bucket_pipe: true
         modify_bkt_policy_details: --prefix abc
+        # Destination.Bucket: plain name on Ceph 8.1; ARN required on 9.0+ (20.2.1-272.el+)
         s3_replication:
           Role: ""
           Rules:
