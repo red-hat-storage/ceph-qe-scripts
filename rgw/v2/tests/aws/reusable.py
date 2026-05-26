@@ -2,6 +2,7 @@
 Reusable methods for aws
 """
 
+import copy
 import glob
 import json
 import logging
@@ -460,11 +461,15 @@ def put_object_checksum(
         algo = "crc64-nvme"
     else:
         algo = checksum_algorithm
+    body = s3_object_path if s3_object_path else object_name
+    cmd = (
+        f"--bucket {bucket_name} --key {object_name} --body {body} "
+        f"--endpoint-url {end_point} --checksum-algorithm {checksum_algorithm}"
+    )
+    cmd = cmd + f" --checksum-{algo} {checksum}"
     command = aws_auth.command(
         operation="put-object",
-        params=[
-            f"--bucket {bucket_name} --key {object_name} --body {s3_object_path if s3_object_path else object_name} --endpoint-url {end_point} --checksum-algorithm {checksum_algorithm} --checksum-{algo} {checksum}",
-        ],
+        params=[cmd],
     )
 
     out = utils.exec_shell_cmd(command)
@@ -1115,9 +1120,21 @@ def perform_gc_process_and_list():
 def create_s3_replication_json(config, bucket_name, json_file="replication.json"):
     """
     Extract replication config from a YAML file and apply it to a bucket.
+    Ceph 9.0+ (20.2.1- onward) requires Destination.Bucket ARN; 8.1 uses plain name.
     """
-    replication_config = config.test_ops["s3_replication"]
-    replication_config["Rules"][0]["Destination"]["Bucket"] = bucket_name
+    replication_config = copy.deepcopy(config.test_ops["s3_replication"])
+    dest_bucket = bucket_name
+    if dest_bucket.startswith("arn:aws:s3:::"):
+        dest_bucket = dest_bucket[len("arn:aws:s3:::") :]
+    ceph_version_id, _ = utils.get_ceph_version()
+    release = ceph_version_id.split("-")[0].split(".")
+    if len(release) >= 3:
+        try:
+            if (int(release[0]), int(release[1]), int(release[2])) >= (20, 2, 1):
+                dest_bucket = f"arn:aws:s3:::{dest_bucket}"
+        except ValueError:
+            pass
+    replication_config["Rules"][0]["Destination"]["Bucket"] = dest_bucket
     log.info(f"replication configuration data: {replication_config}")
     # Save replication config as JSON
     with open(json_file, "w") as f:
@@ -1145,7 +1162,7 @@ def put_bucket_s3_replication(
     )
     try:
         put_response = utils.exec_shell_cmd(command)
-        if put_response:
+        if put_response is False:
             raise Exception(f"put s3 replication failed for bucket {bucket_name}")
     except Exception as e:
         raise AWSCommandExecError(message=str(e))

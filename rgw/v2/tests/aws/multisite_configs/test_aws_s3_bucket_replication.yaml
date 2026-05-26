@@ -19,6 +19,7 @@ config:
         write_io_verify_another_site: true
         write_io_verify_should_sync: true
         zonegroup_group_remove: true
+        # Destination.Bucket: plain name on Ceph 8.1; ARN required on 9.0+ (20.2.1-272.el+)
         s3_replication:
           Role: ""
           Rules:
