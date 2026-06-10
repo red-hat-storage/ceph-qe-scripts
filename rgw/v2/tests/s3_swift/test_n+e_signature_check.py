@@ -88,7 +88,7 @@ def test_exec(config, ssh_con):
     time.sleep(30)
     auth = Auth(admin_user_info, ssh_con, ssl=config.ssl, haproxy=config.haproxy)
     iam_client = auth.do_auth_iam_client()
-    ibm_region = os.getenv("IBM_CLOUD_REGION", "in-mum")
+    ibm_region = os.getenv("IBM_CLOUD_REGION", "us-east")
     jwt_token = config.test_ops.get("jwt_token")
     if not jwt_token:
         jwt_token = os.getenv("IBM_IAM_JWT_TOKEN")
@@ -109,7 +109,7 @@ def test_exec(config, ssh_con):
                     "Use 'sudo -E' to preserve environment variables, or check if variable "
                     "is set in parent shell before sudo."
                 )
-            region = os.getenv("IBM_CLOUD_REGION", "in-mum")
+            region = os.getenv("IBM_CLOUD_REGION", "us-east")
             jwt_token = ne_sig.get_ibm_iam_jwt_token(
                 ibm_cloud_cli_path,
                 api_key=api_key,
