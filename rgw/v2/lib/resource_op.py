@@ -141,12 +141,23 @@ def create_users(
     Returns:
         all_users_details
     """
-    # Check cluster health before creating users
+    # Check cluster health and RGW status before creating users
     log.info("Checking cluster health before creating users")
     ceph_status = utils.exec_shell_cmd("ceph -s")
     log.info(f"Cluster status:\n{ceph_status}")
     if "HEALTH_ERR" in ceph_status:
         log.warning("Cluster is in HEALTH_ERR state, but proceeding with user creation")
+    
+    # Check if RGW services are running
+    log.info("Checking if RGW services are running on the cluster")
+    rgw_ps_check = utils.exec_shell_cmd("ceph orch ps --daemon-type rgw")
+    log.info(f"RGW daemon status:\n{rgw_ps_check}")
+    
+    if rgw_ps_check and "running" in str(rgw_ps_check).lower():
+        log.info("RGW services are running on the cluster")
+    else:
+        log.error("RGW services are NOT running on the cluster")
+        raise Exception("Cannot create users - RGW services are not running")
     
     admin_ops = UserMgmt()
     all_users_details = []
@@ -160,6 +171,10 @@ def create_users(
                     displayname=user_names[i][0],
                     cluster_name=cluster_name,
                 )
+                # Verify user was created successfully
+                if not user_details or not user_details.get("user_id"):
+                    raise Exception(f"Failed to create user: {user_names[i][0]}")
+                log.info(f"Successfully created user: {user_details['user_id']}")
                 all_users_details.append(user_details)
             else:
                 user_details = admin_ops.create_admin_user(
@@ -170,6 +185,10 @@ def create_users(
                     displayname=names.get_full_name().lower(),
                     cluster_name=cluster_name,
                 )
+                # Verify user was created successfully
+                if not user_details or not user_details.get("user_id"):
+                    raise Exception("Failed to create user")
+                log.info(f"Successfully created user: {user_details['user_id']}")
                 all_users_details.append(user_details)
         with open(user_detail_file, "w") as fout:
             json.dump(all_users_details, fout)
@@ -245,12 +264,23 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name="ceph")
     Returns:
         all_users_details
     """
-    # Check cluster health before creating tenant users
+    # Check cluster health and RGW status before creating tenant users
     log.info("Checking cluster health before creating tenant users")
     ceph_status = utils.exec_shell_cmd("ceph -s")
     log.info(f"Cluster status:\n{ceph_status}")
     if "HEALTH_ERR" in ceph_status:
         log.warning("Cluster is in HEALTH_ERR state, but proceeding with tenant user creation")
+    
+    # Check if RGW services are running
+    log.info("Checking if RGW services are running on the cluster")
+    rgw_ps_check = utils.exec_shell_cmd("ceph orch ps --daemon-type rgw")
+    log.info(f"RGW daemon status:\n{rgw_ps_check}")
+    
+    if rgw_ps_check and "running" in str(rgw_ps_check).lower():
+        log.info("RGW services are running on the cluster")
+    else:
+        log.error("RGW services are NOT running on the cluster")
+        raise Exception("Cannot create tenant users - RGW services are not running")
     
     admin_ops = UserMgmt()
     all_users_details = []
@@ -267,6 +297,10 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name="ceph")
                 cluster_name=cluster_name,
                 tenant_name=tenant_name,
             )
+            # Verify tenant user was created successfully
+            if not user_details or not user_details.get("user_id"):
+                raise Exception("Failed to create tenant user")
+            log.info(f"Successfully created tenant user: {user_details['user_id']}")
             all_users_details.append(user_details)
         with open(user_detail_file, "w") as fout:
             json.dump(all_users_details, fout)
