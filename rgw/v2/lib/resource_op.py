@@ -147,18 +147,18 @@ def create_users(
     log.info(f"Cluster status:\n{ceph_status}")
     if "HEALTH_ERR" in ceph_status:
         log.warning("Cluster is in HEALTH_ERR state, but proceeding with user creation")
-    
+
     # Check if RGW services are running
     log.info("Checking if RGW services are running on the cluster")
     rgw_ps_check = utils.exec_shell_cmd("ceph orch ps --daemon-type rgw")
     log.info(f"RGW daemon status:\n{rgw_ps_check}")
-    
+
     if rgw_ps_check and "running" in str(rgw_ps_check).lower():
         log.info("RGW services are running on the cluster")
     else:
         log.error("RGW services are NOT running on the cluster")
         raise Exception("Cannot create users - RGW services are not running")
-    
+
     admin_ops = UserMgmt()
     all_users_details = []
     primary = utils.is_cluster_primary()
@@ -199,7 +199,7 @@ def create_users(
         log.info(f"Cluster status:\n{ceph_status}")
         if "HEALTH_ERR" in ceph_status:
             log.warning("Cluster is in HEALTH_ERR state, but proceeding with user copy")
-        
+
         if not os.path.exists(user_detail_file):
             raise FileNotFoundError(
                 "user_details.json missing, this is needed in multisite setup"
@@ -269,19 +269,21 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name="ceph")
     ceph_status = utils.exec_shell_cmd("ceph -s")
     log.info(f"Cluster status:\n{ceph_status}")
     if "HEALTH_ERR" in ceph_status:
-        log.warning("Cluster is in HEALTH_ERR state, but proceeding with tenant user creation")
-    
+        log.warning(
+            "Cluster is in HEALTH_ERR state, but proceeding with tenant user creation"
+        )
+
     # Check if RGW services are running
     log.info("Checking if RGW services are running on the cluster")
     rgw_ps_check = utils.exec_shell_cmd("ceph orch ps --daemon-type rgw")
     log.info(f"RGW daemon status:\n{rgw_ps_check}")
-    
+
     if rgw_ps_check and "running" in str(rgw_ps_check).lower():
         log.info("RGW services are running on the cluster")
     else:
         log.error("RGW services are NOT running on the cluster")
         raise Exception("Cannot create tenant users - RGW services are not running")
-    
+
     admin_ops = UserMgmt()
     all_users_details = []
     primary = utils.is_cluster_primary()

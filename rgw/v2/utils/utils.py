@@ -1043,56 +1043,64 @@ def search_for_string_in_rgw_logs(search_string, ssh_con):
 def verify_rgw_after_restart(ssh_con=None, sleep_time=15):
     """
     Verify RGW services are up and running after restart
-    
+
     Parameters:
         ssh_con: SSH connection object for remote execution
         sleep_time: Time to wait before verification (default 15 seconds)
-    
+
     Returns:
         bool: True if all checks pass, False otherwise
     """
     import time
-    
-    log.info(f"Waiting {sleep_time} seconds for RGW services to stabilize after restart")
+
+    log.info(
+        f"Waiting {sleep_time} seconds for RGW services to stabilize after restart"
+    )
     time.sleep(sleep_time)
-    
+
     log.info("Verifying RGW services after restart")
-    
+
     # Check ceph orch ls
     log.info("Checking ceph orch ls for RGW services")
     ceph_orch_ls_cmd = "ceph orch ls --service-type rgw"
     if ssh_con:
-        orch_ls_output = remote_exec_shell_cmd(ssh_con, ceph_orch_ls_cmd, return_output=True)
+        orch_ls_output = remote_exec_shell_cmd(
+            ssh_con, ceph_orch_ls_cmd, return_output=True
+        )
     else:
         orch_ls_output = exec_shell_cmd(ceph_orch_ls_cmd)
     log.info(f"ceph orch ls output:\n{orch_ls_output}")
-    
+
     # Check ceph orch ps for RGW daemons
     log.info("Checking ceph orch ps for RGW daemon status")
     ceph_orch_ps_cmd = "ceph orch ps --daemon-type rgw"
     if ssh_con:
-        orch_ps_output = remote_exec_shell_cmd(ssh_con, ceph_orch_ps_cmd, return_output=True)
+        orch_ps_output = remote_exec_shell_cmd(
+            ssh_con, ceph_orch_ps_cmd, return_output=True
+        )
     else:
         orch_ps_output = exec_shell_cmd(ceph_orch_ps_cmd)
     log.info(f"ceph orch ps output:\n{orch_ps_output}")
-    
+
     # Verify all RGW daemons are running
     if orch_ps_output and "running" not in str(orch_ps_output).lower():
         log.error("RGW daemons are not in running state")
         return False
-    
+
     # Check ceph -s for cluster health
     log.info("Checking cluster health status")
     ceph_status_cmd = "ceph -s"
     if ssh_con:
-        ceph_status = remote_exec_shell_cmd(ssh_con, ceph_status_cmd, return_output=True)
+        ceph_status = remote_exec_shell_cmd(
+            ssh_con, ceph_status_cmd, return_output=True
+        )
     else:
         ceph_status = exec_shell_cmd(ceph_status_cmd)
     log.info(f"Cluster status:\n{ceph_status}")
-    
+
     if "HEALTH_ERR" in str(ceph_status):
         log.warning("Cluster is in HEALTH_ERR state after RGW restart")
-    
+
     log.info("RGW verification completed successfully")
     return True
 
@@ -1118,7 +1126,7 @@ def restart_rgw(restart_all=False, ssh_con=None):
             exec_shell_cmd(restart_cmd)
         if not restart_all:
             break
-    
+
     # Verify RGW is up after restart
     verify_rgw_after_restart(ssh_con=ssh_con, sleep_time=15)
 
