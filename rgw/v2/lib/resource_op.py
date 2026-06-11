@@ -141,6 +141,13 @@ def create_users(
     Returns:
         all_users_details
     """
+    # Check cluster health before creating users
+    log.info("Checking cluster health before creating users")
+    ceph_status = utils.exec_shell_cmd("ceph -s")
+    log.info(f"Cluster status:\n{ceph_status}")
+    if "HEALTH_ERR" in ceph_status:
+        log.warning("Cluster is in HEALTH_ERR state, but proceeding with user creation")
+    
     admin_ops = UserMgmt()
     all_users_details = []
     primary = utils.is_cluster_primary()
@@ -167,6 +174,13 @@ def create_users(
         with open(user_detail_file, "w") as fout:
             json.dump(all_users_details, fout)
     elif not primary:
+        # Check cluster health before copying users on secondary site
+        log.info("Checking cluster health before copying users on secondary site")
+        ceph_status = utils.exec_shell_cmd("ceph -s")
+        log.info(f"Cluster status:\n{ceph_status}")
+        if "HEALTH_ERR" in ceph_status:
+            log.warning("Cluster is in HEALTH_ERR state, but proceeding with user copy")
+        
         if not os.path.exists(user_detail_file):
             raise FileNotFoundError(
                 "user_details.json missing, this is needed in multisite setup"
@@ -231,6 +245,13 @@ def create_tenant_users(no_of_users_to_create, tenant_name, cluster_name="ceph")
     Returns:
         all_users_details
     """
+    # Check cluster health before creating tenant users
+    log.info("Checking cluster health before creating tenant users")
+    ceph_status = utils.exec_shell_cmd("ceph -s")
+    log.info(f"Cluster status:\n{ceph_status}")
+    if "HEALTH_ERR" in ceph_status:
+        log.warning("Cluster is in HEALTH_ERR state, but proceeding with tenant user creation")
+    
     admin_ops = UserMgmt()
     all_users_details = []
     primary = utils.is_cluster_primary()

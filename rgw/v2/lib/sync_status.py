@@ -85,9 +85,42 @@ def sync_status(retry=25, delay=60, ssh_con=None, return_while_sync_inprogress=F
         if (retry_count > retry) and (
             "behind" in check_sync_status or "recovering" in check_sync_status
         ):
-            raise SyncFailedError(
-                f"sync looks slow or stuck. with {retry} retries and sleep of {delay}secs between each retry"
-            )
+            # Sync loop terminated after max retries - verify if error persists for 120 seconds
+            log.info("Sync loop terminated after max retries. Verifying if error persists for 120 seconds...")
+            
+            # Check if sync error persists for 120 seconds (with 10 second intervals)
+            error_persists = True
+            verification_retries = 12  # 12 retries * 10 seconds = 120 seconds
+            
+            for verify_count in range(verification_retries):
+                log.info(f"Verification attempt {verify_count + 1}/{verification_retries} - waiting 10 seconds...")
+                time.sleep(10)
+                
+                # Re-check sync status
+                if ssh_con:
+                    stdin, stdout, stderr = ssh_con.exec_command(cmd)
+                    check_sync_status = stdout.read().decode()
+                else:
+                    check_sync_status = utils.exec_shell_cmd(cmd)
+                
+                log.info(f"Sync status verification {verify_count + 1}:\n{check_sync_status}")
+                
+                # If sync is no longer behind or recovering, error has cleared
+                if "behind" not in check_sync_status and "recovering" not in check_sync_status:
+                    log.info("Sync error cleared during verification period!")
+                    error_persists = False
+                    break
+            
+            # After 120 seconds verification, check RGW status
+            log.info("Checking RGW status after sync timeout verification...")
+            check_rgw_status_after_sync_timeout(ssh_con)
+            
+            if error_persists:
+                raise SyncFailedError(
+                    f"sync looks slow or stuck. Error persisted for 120 seconds after {retry} retries with {delay}secs sleep between each retry"
+                )
+            else:
+                log.info("Sync recovered during verification period. Continuing...")
 
     # check metadata sync status
     if "metadata is behind" in check_sync_status:
@@ -103,6 +136,67 @@ def sync_status(retry=25, delay=60, ssh_con=None, return_while_sync_inprogress=F
 
     # check for cluster health status and omap if any
     ceph_status = check_ceph_status()
+
+
+def check_rgw_status_after_sync_timeout(ssh_con=None):
+    """
+    Check RGW status when sync loop terminates with timeout (e.g., 2200 seconds)
+    Verifies if RGW is running and checks cluster health
+    
+    Parameters:
+        ssh_con: SSH connection object for remote execution
+    """
+    log.info("=" * 80)
+    log.info("Checking RGW status after sync timeout")
+    log.info("=" * 80)
+    
+    # Check if RGW daemons are running
+    log.info("Checking RGW daemon status with ceph orch ps")
+    cmd_orch_ps = "ceph orch ps --daemon-type rgw"
+    if ssh_con:
+        stdin, stdout, stderr = ssh_con.exec_command(cmd_orch_ps)
+        rgw_ps_output = stdout.read().decode()
+    else:
+        rgw_ps_output = utils.exec_shell_cmd(cmd_orch_ps)
+    
+    log.info(f"RGW daemon status:\n{rgw_ps_output}")
+    
+    # Check RGW service status
+    log.info("Checking RGW service status with ceph orch ls")
+    cmd_orch_ls = "ceph orch ls --service-type rgw"
+    if ssh_con:
+        stdin, stdout, stderr = ssh_con.exec_command(cmd_orch_ls)
+        rgw_ls_output = stdout.read().decode()
+    else:
+        rgw_ls_output = utils.exec_shell_cmd(cmd_orch_ls)
+    
+    log.info(f"RGW service status:\n{rgw_ls_output}")
+    
+    # Check cluster health
+    log.info("Checking cluster health with ceph -s")
+    cmd_ceph_s = "ceph -s"
+    if ssh_con:
+        stdin, stdout, stderr = ssh_con.exec_command(cmd_ceph_s)
+        ceph_s_output = stdout.read().decode()
+    else:
+        ceph_s_output = utils.exec_shell_cmd(cmd_ceph_s)
+    
+    log.info(f"Cluster health status:\n{ceph_s_output}")
+    
+    # Analyze RGW status
+    if rgw_ps_output and "running" in rgw_ps_output.lower():
+        log.info("RGW daemons are in running state")
+    else:
+        log.error("RGW daemons are NOT in running state")
+    
+    if "HEALTH_ERR" in str(ceph_s_output):
+        log.error("Cluster is in HEALTH_ERR state")
+    elif "HEALTH_WARN" in str(ceph_s_output):
+        log.warning("Cluster is in HEALTH_WARN state")
+    else:
+        log.info("Cluster health is OK")
+    
+    log.info("=" * 80)
 
 
 def check_ceph_status():
