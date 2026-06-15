@@ -618,12 +618,18 @@ def test_exec(config, ssh_con):
                             version_id = item["instance"]
                             checksum_key = f"{object_key}:{version_id}"
                             try:
-                                object_checksums[checksum_key] = reusables_s3_restore.store_object_checksum(
+                                object_checksums[
+                                    checksum_key
+                                ] = reusables_s3_restore.store_object_checksum(
                                     rgw_conn2, bucket_name, object_key, version_id
                                 )
-                                log.info(f"Stored checksum for {object_key} (version: {version_id})")
+                                log.info(
+                                    f"Stored checksum for {object_key} (version: {version_id})"
+                                )
                             except Exception as e:
-                                log.error(f"Failed to store checksum for {object_key}: {e}")
+                                log.error(
+                                    f"Failed to store checksum for {object_key}: {e}"
+                                )
                                 raise
 
                 if not config.parallel_lc and config.lifecycle_conf:
@@ -792,13 +798,18 @@ def test_exec(config, ssh_con):
                         json_doc_list = json.loads(bucket_list_op)
 
                         # Count total objects and transitioned objects
-                        total_objects = sum(1 for item in json_doc_list
-                                          if "instance" in item and item.get("tag") != "delete-marker")
+                        total_objects = sum(
+                            1
+                            for item in json_doc_list
+                            if "instance" in item and item.get("tag") != "delete-marker"
+                        )
                         transitioned_objects = sum(
-                            1 for item in json_doc_list
+                            1
+                            for item in json_doc_list
                             if "instance" in item
                             and item.get("tag") != "delete-marker"
-                            and item.get("meta", {}).get("storage_class") == target_storage_class
+                            and item.get("meta", {}).get("storage_class")
+                            == target_storage_class
                         )
 
                         log.info(
@@ -843,9 +854,11 @@ def test_exec(config, ssh_con):
                 )
 
                 # Ensure object_checksums dictionary exists (might have been populated earlier)
-                if 'object_checksums' not in locals():
+                if "object_checksums" not in locals():
                     object_checksums = {}
-                    log.warning("object_checksums not found - initializing empty dictionary. Checksums will not be verified.")
+                    log.warning(
+                        "object_checksums not found - initializing empty dictionary. Checksums will not be verified."
+                    )
 
                 # Collect all restore tasks
                 restore_tasks = []
@@ -1143,7 +1156,11 @@ def test_exec(config, ssh_con):
                 log.info("=" * 80)
                 cleanup_count = 0
                 for item in os.listdir("."):
-                    if item.startswith("original-") or item.startswith("restored-") or item.startswith("permanently-restored-"):
+                    if (
+                        item.startswith("original-")
+                        or item.startswith("restored-")
+                        or item.startswith("permanently-restored-")
+                    ):
                         try:
                             os.remove(item)
                             log.info(f"Removed downloaded file: {item}")

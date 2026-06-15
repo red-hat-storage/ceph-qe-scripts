@@ -2414,7 +2414,10 @@ def prepare_for_bucket_lc_transition(config):
     if is_multisite and not skip_tier_setup:
         utils.exec_shell_cmd("radosgw-admin period update --commit")
         time.sleep(70)
-        if config.test_ops.get("test_ibm_cloud_transition", False) and not modify_retain_head_only:
+        if (
+            config.test_ops.get("test_ibm_cloud_transition", False)
+            and not modify_retain_head_only
+        ):
             # CEPH-83581977, test cloud transition of encrypted and compressed objects
             utils.exec_shell_cmd(
                 "radosgw-admin zone placement modify --rgw-zone primary --placement-id default-placement  --compression zlib"

@@ -45,7 +45,9 @@ def restart_rgw_services_and_retry(ssh_con=None):
             zone_name = zone.get("name", "")
             endpoints = zone.get("endpoints", [])
 
-            if "primary" in zone_name.lower() or zone.get("id") == zonegroup_data.get("master_zone"):
+            if "primary" in zone_name.lower() or zone.get("id") == zonegroup_data.get(
+                "master_zone"
+            ):
                 primary_zone = {"name": zone_name, "endpoints": endpoints}
             elif "secondary" in zone_name.lower():
                 secondary_zone = {"name": zone_name, "endpoints": endpoints}
@@ -56,14 +58,16 @@ def restart_rgw_services_and_retry(ssh_con=None):
         # Restart RGW services on primary zone
         if primary_zone:
             log.info(f"Restarting RGW services on primary zone: {primary_zone['name']}")
-            restart_rgw_on_node(None, primary_zone['name'])  # Local node
+            restart_rgw_on_node(None, primary_zone["name"])  # Local node
         else:
             log.warning("Primary zone not identified")
 
         # Restart RGW services on secondary zone
         if secondary_zone and ssh_con:
-            log.info(f"Restarting RGW services on secondary zone: {secondary_zone['name']}")
-            restart_rgw_on_node(ssh_con, secondary_zone['name'])
+            log.info(
+                f"Restarting RGW services on secondary zone: {secondary_zone['name']}"
+            )
+            restart_rgw_on_node(ssh_con, secondary_zone["name"])
         elif secondary_zone:
             log.warning("Secondary zone found but no SSH connection provided")
         else:
@@ -225,14 +229,18 @@ def sync_status(retry=25, delay=60, ssh_con=None, return_while_sync_inprogress=F
 
     # check metadata sync status - wait 5 minutes, then restart, then wait 5 more minutes
     if "metadata is behind" in check_sync_status:
-        log.warning("metadata is behind on shards - waiting 5 minutes before attempting RGW restart")
+        log.warning(
+            "metadata is behind on shards - waiting 5 minutes before attempting RGW restart"
+        )
 
         # Wait for up to 5 minutes (5 retries × 60 seconds = 300 seconds)
         metadata_retry = 5
         metadata_delay = 60
 
         for metadata_retry_count in range(metadata_retry):
-            log.info(f"Waiting {metadata_delay} seconds for metadata sync to catch up (attempt {metadata_retry_count + 1}/{metadata_retry})")
+            log.info(
+                f"Waiting {metadata_delay} seconds for metadata sync to catch up (attempt {metadata_retry_count + 1}/{metadata_retry})"
+            )
             time.sleep(metadata_delay)
 
             # Recheck sync status
@@ -250,13 +258,17 @@ def sync_status(retry=25, delay=60, ssh_con=None, return_while_sync_inprogress=F
                 break
         else:
             # After 5 minutes, metadata is still stuck - attempt RGW restart
-            log.warning("Metadata sync still stuck after 5 minutes - restarting RGW services")
+            log.warning(
+                "Metadata sync still stuck after 5 minutes - restarting RGW services"
+            )
             try:
                 # Attempt to restart RGW services
                 restart_rgw_services_and_retry(ssh_con)
 
                 # Wait for services to restart and stabilize
-                log.info("Waiting 5 minutes for RGW services to stabilize and metadata sync to catch up")
+                log.info(
+                    "Waiting 5 minutes for RGW services to stabilize and metadata sync to catch up"
+                )
                 time.sleep(300)
 
                 # Recheck sync status after restart
@@ -270,12 +282,16 @@ def sync_status(retry=25, delay=60, ssh_con=None, return_while_sync_inprogress=F
 
                 # If still stuck, raise exception
                 if "metadata is behind" in check_sync_status:
-                    raise Exception("metadata sync looks slow or stuck even after RGW service restart.")
+                    raise Exception(
+                        "metadata sync looks slow or stuck even after RGW service restart."
+                    )
                 else:
                     log.info("✓ Metadata sync recovered after RGW service restart")
             except Exception as e:
                 log.error(f"Failed to recover from metadata sync stuck: {e}")
-                raise Exception(f"metadata sync looks slow or stuck. Recovery attempt failed: {e}")
+                raise Exception(
+                    f"metadata sync looks slow or stuck. Recovery attempt failed: {e}"
+                )
 
     # check status for complete sync
     if "data is caught up with source" in check_sync_status:
