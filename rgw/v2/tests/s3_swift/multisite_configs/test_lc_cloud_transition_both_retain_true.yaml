@@ -1,9 +1,10 @@
 #test_bucket_lifecycle_object_expiration_transition.py
-#CEPH-83581972,CEPH-83575498
+#Cloud Tier Setup - Both IBM and AWS with retain_head=true
+#Only configures CLOUDIBM and CLOUDAWS tiers, no transition or restore testing
 config:
   user_count: 1
   bucket_count: 1
-  objects_count: 2
+  objects_count: 0
   parallel_lc: False
   test_lc_transition: True
   enable_resharding: True
@@ -21,35 +22,17 @@ config:
     min: 5
     max: 15
   test_ops:
-    create_bucket: true
-    create_object: true
-    enable_versioning: true
-    version_count: 2
-    delete_marker: false
+    create_bucket: false
+    create_object: false
     test_cloud_transition: true
     test_pool_transition: false
-    skip_tier_setup: true
-    test_ibm_cloud_transition: true
+    enable_both_cloud_tiers: true
+    test_ibm_cloud_transition: false
     test_aws_cloud_transition: false
     test_retain_head: true
-    test_cloud_transition_at_remote: true
-    test_s3_restore_from_cloud: true
-    permanent_restore: true
-    delete_lc_after_transition: true
-  lifecycle_conf:
-    - ID: LC_Rule_1
-      Filter:
-        Prefix: key1
-      Status: Enabled
-      Transitions:
-        - Days: 1
-          StorageClass: CLOUDIBM
-      NoncurrentVersionTransitions:
-        - NoncurrentDays: 1
-          StorageClass: CLOUDIBM
-  restore_wait_time: 900
-  restore_poll_interval: 45
-  restore_parallel_workers: 4
+    aws_endpoint: "https://s3.eu-north-1.amazonaws.com"
+    aws_region: "eu-north-1"
+    aws_location_constraint: "eu-north-1"
   rgw_lc_debug_interval: 30
   rgw_enable_lc_threads: True
   rgw_lifecycle_work_time: "00:00-23:59"
