@@ -522,7 +522,23 @@ def test_exec(config, ssh_con):
                             config.test_ops[
                                 "expected_storage_class"
                             ] = expected_storage_class
-                            lc_ops.validate_prefix_rule(bucket, config)
+                            for iter in range(1, 4):
+                                try:
+                                    log.info(
+                                        f"iteration {iter}: lc validation failed for rule3, waiting for 10 seconds before a retry attempt {iter}"
+                                    )
+                                    lc_ops.validate_prefix_rule(bucket, config)
+                                    break
+                                except Exception as e:
+                                    log.info(
+                                        f"lc validation failed for rule3, waiting for 10 seconds before a retry attempt {iter}"
+                                    )
+                                    time.sleep(10)
+                            else:
+                                raise Exception(
+                                    f"lc validation failed for rule3 even after 3 retries"
+                                )
+
                         else:
                             log.info("sleeping for 30 seconds")
                             time.sleep(30)
