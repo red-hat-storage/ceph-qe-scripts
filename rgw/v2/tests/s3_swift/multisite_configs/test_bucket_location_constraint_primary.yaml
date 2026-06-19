@@ -1,0 +1,12 @@
+# script: test_bucket_location_constraint.py
+# Polarian id: CEPH-83623503
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    create_bucket: true
+    test_primary_zg: true
+    test_tertiary_zg: false
+    test_default_zg: false
+    primary_zonegroup: shared
+    tertiary_zonegroup: zg2
