@@ -442,15 +442,21 @@ def test_exec(config, ssh_con):
             rgw_tenant1_user1_c.meta.events.unregister(
                 "before-parameter-build.s3", validate_bucket_name
             )
-            bucket_policy_ops.verify_policy(
-                bucket_owner_rgw_client=rgw_tenant1_user1_c,
-                config=config,
-                rgw_client=rgw_tenant2_user1_c,
-                bucket_name=bucket_name_verify_policy,
-                object_name=f"{s3_object_name}-verify-policy",
-                rgw_s3_resource=rgw_tenant2_user1,
-                sns_client=rgw_tenant2_user1_sns_client,
-            )
+            try:
+                bucket_policy_ops.verify_policy(
+                    bucket_owner_rgw_client=rgw_tenant1_user1_c,
+                    config=config,
+                    rgw_client=rgw_tenant2_user1_c,
+                    bucket_name=bucket_name_verify_policy,
+                    object_name=f"{s3_object_name}-verify-policy",
+                    rgw_s3_resource=rgw_tenant2_user1,
+                    sns_client=rgw_tenant2_user1_sns_client,
+                )
+            except Exception as e:
+                if config.test_ops.get("verify_policy_failure_expected"):
+                    log.info("verify_policy failure is expected")
+                else:
+                    raise Exception(f"verify_policy failed with error '{e}'")
 
         # modifying bucket policy to take new policy
         if config.bucket_policy_op == "modify":
