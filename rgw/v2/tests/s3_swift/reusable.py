@@ -3384,6 +3384,35 @@ def put_get_public_access_block(rgw_s3_client, bucket_name, public_access_block_
     return True
 
 
+def put_get_account_public_access_block(
+    s3control_client, account_id, public_access_block_config
+):
+    """Set and read account-level PublicAccessBlock via s3control."""
+    log.info(
+        "setting account public access block for account %s with config %s",
+        account_id,
+        public_access_block_config,
+    )
+    put_response = s3control_client.put_public_access_block(
+        AccountId=account_id,
+        PublicAccessBlockConfiguration=public_access_block_config,
+    )
+    log.info("put account public access block response: %s", put_response)
+    get_response = s3control_client.get_public_access_block(AccountId=account_id)
+    log.info("get account public access block response: %s", get_response)
+    return True
+
+
+def delete_account_public_access_block(s3control_client, account_id):
+    """Remove account-level PublicAccessBlock configuration."""
+    log.info("deleting account public access block for account %s", account_id)
+    delete_response = s3control_client.delete_public_access_block(
+        AccountId=account_id
+    )
+    log.info("delete account public access block response: %s", delete_response)
+    return True
+
+
 def put_get_bucket_acl(rgw_client, bucket_name, acl):
     """
     put bucket acl for a given object

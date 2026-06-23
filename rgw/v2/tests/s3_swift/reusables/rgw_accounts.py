@@ -58,9 +58,13 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
     Returns:
         dict: IAM user details, including access/secret keys and RGW IAM user info.
     """
-    rgw_ip_primary_zone = utils.get_rgw_ip_zone("primary")
-    rgw_port_primary_zone = utils.get_radosgw_port_no()
-    endpoint_url = f"http://{rgw_ip_primary_zone}:{rgw_port_primary_zone}"
+    is_multisite = utils.is_cluster_multisite()
+    if is_multisite:
+        endpoint_url = utils.get_rgw_endpoint_url(ssh_con)
+    else:
+        rgw_ip_primary_zone = utils.get_rgw_ip_zone("primary")
+        rgw_port_primary_zone = utils.get_radosgw_port_no()
+        endpoint_url = f"http://{rgw_ip_primary_zone}:{rgw_port_primary_zone}"
 
     # Fetch existing accounts
     account_list_output = utils.exec_shell_cmd("radosgw-admin account list")
@@ -236,6 +240,10 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
             "display_name": iam_user_rgw_info["display_name"],
             "access_key": iam_user_rgw_info["keys"][0]["access_key"],
             "secret_key": iam_user_rgw_info["keys"][0]["secret_key"],
+            "account_id": account_id,
+            "root_access_key": access_key,
+            "root_secret_key": secret_key,
+            "tenant_name": tenant_name,
         }
     ]
     write_user_info = AddUserInfo()
@@ -248,7 +256,10 @@ def create_rgw_account_with_iam_user(config, tenant_name, region="shared"):
         }
     )
     write_user_info.add_user_info(user_info)
-    lib_dir = "/home/cephuser/rgw-ms-tests/ceph-qe-scripts/rgw/v2/lib"
+    if is_multisite:
+        lib_dir = "/home/cephuser/rgw-ms-tests/ceph-qe-scripts/rgw/v2/lib"
+    else:
+        lib_dir = "/home/cephuser/rgw-tests/ceph-qe-scripts/rgw/v2/lib"
     user_detail_file = os.path.join(lib_dir, "user_details.json")
     with open(user_detail_file, "w") as fout:
         json.dump(iam_user_details, fout)
