@@ -77,7 +77,7 @@ def test_exec(config, ssh_con):
         ceph_version_id, _ = utils.get_ceph_version()
         ceph_version_id = ceph_version_id.split("-")[0].split(".")
         if float(ceph_version_id[0]) >= 17:
-            cmd = " ceph orch ps | grep rgw"
+            cmd = " ceph orch ps --daemon_type=rgw"
             out = utils.exec_shell_cmd(cmd)
             rgw_process_name = out.split()[0]
             utils.exec_shell_cmd(
@@ -174,7 +174,7 @@ def test_exec(config, ssh_con):
             utils.exec_shell_cmd(f"ceph config set global log_to_file true")
 
         ceph_detail = json.loads(utils.exec_shell_cmd("ceph -s -f json"))
-        out = utils.exec_shell_cmd("ceph orch ps | grep rgw | cut -d ' ' -f 1")
+        out = utils.exec_shell_cmd("ceph orch ps --daemon_type=rgw | awk '{print $1}'")
         rgw_process_names = out.split()
 
         with open(root_path, "r") as file:
