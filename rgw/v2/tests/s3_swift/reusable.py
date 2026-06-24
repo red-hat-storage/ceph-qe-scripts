@@ -1942,7 +1942,7 @@ def time_to_list_via_boto(bucket_name, rgw):
     return time_taken
 
 
-def check_sync_status(retry=25, delay=60, return_while_sync_inprogress=False):
+def check_sync_status(retry=30, delay=60, return_while_sync_inprogress=False):
     """
     Check sync status if its a multisite cluster
     """
