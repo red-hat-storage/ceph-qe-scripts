@@ -28,7 +28,13 @@ from v2.lib.manage_data import io_generator
 
 
 def create_bucket(
-    aws_auth, bucket_name, end_point, retries=3, wait_time=5, object_lock_enabled=False
+    aws_auth,
+    bucket_name,
+    end_point,
+    region=None,
+    retries=3,
+    wait_time=5,
+    object_lock_enabled=False,
 ):
     """
     Creates bucket
@@ -54,6 +60,18 @@ def create_bucket(
         log.error(f"Endpoint {end_point} is not reachable after {retries} attempts.")
         return
 
+    if region:
+        command = aws_auth.command(
+            operation="create-bucket",
+            params=[
+                f"--bucket {bucket_name} --region {region} --create-bucket-configuration LocationConstraint={region} --endpoint-url {end_point}"
+            ],
+        )
+    else:
+        command = aws_auth.command(
+            operation="create-bucket",
+            params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
+        )
     bucket_params = f"--bucket {bucket_name} --endpoint-url {end_point}"
     if object_lock_enabled:
         bucket_params += " --object-lock-enabled-for-bucket"
@@ -2361,4 +2379,30 @@ def conditional_put_multipart_upload(
     except Exception as e:
         if return_err:
             return str(e)
+        raise AWSCommandExecError(message=str(e))
+
+
+def get_bucket_location(aws_auth, bucket_name, end_point):
+    """
+    Get bucket location
+    ex: /usr/local/bin/aws s3api get-bucket-location --bucket verbkt1 --endpoint-url http://x.x.x.x:xx
+    Args:
+        aws_auth: AWS auth object
+        bucket_name(str): Name of the bucket
+        end_point(str): endpoint
+    Returns:
+        Location constraint of the bucket
+    """
+    command = aws_auth.command(
+        operation="get-bucket-location",
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
+    )
+    try:
+        location_response = utils.exec_shell_cmd(command)
+        log.info(f"bucket location response is {location_response}")
+        if not location_response:
+            raise Exception(f"Get bucket location failed for {bucket_name}")
+        location_data = json.loads(location_response)
+        return location_data.get("LocationConstraint", "")
+    except Exception as e:
         raise AWSCommandExecError(message=str(e))
