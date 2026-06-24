@@ -150,7 +150,7 @@ def restart_rgw_on_node(ssh_con, zone_name):
         raise
 
 
-def sync_status(retry=25, delay=60, ssh_con=None, return_while_sync_inprogress=False):
+def sync_status(retry=30, delay=60, ssh_con=None, return_while_sync_inprogress=False):
     """
     verify multisite sync status
     """
