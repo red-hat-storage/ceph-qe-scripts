@@ -176,6 +176,7 @@ def test_exec(config, ssh_con):
             client_secret="client_secret1",
             ip_addr=local_ip_addr,
             attributes=config.test_ops.get("session_tags"),
+            ceph_version_name=ceph_version_name,
         )
 
         web_token = keycloak.get_web_access_token()

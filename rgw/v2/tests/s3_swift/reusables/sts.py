@@ -224,6 +224,7 @@ class Keycloak:
         client_secret="client_secret1",
         ip_addr="localhost",
         attributes=None,
+        ceph_version_name=None,
     ):
         """
         Keycloak deployment and administration through curl
@@ -256,8 +257,9 @@ class Keycloak:
                 client_name=self.client_id, client_scope_name=set_audience_scope_name
             )
             self.set_session_tags_in_token(self.client_id)
-            # Commenting this as its fixed as part of https://bugzilla.redhat.com/show_bug.cgi?id=2237854
-            # self.realm_keys_workaround()
+            # workaround for the issue mentioned in this bz https://bugzilla.redhat.com/show_bug.cgi?id=2237854
+            if ceph_version_name == "reef":
+                self.realm_keys_workaround()
         if attributes is None:
             self.remove_user_attributes(username=f"service-account-{self.client_id}")
         else:

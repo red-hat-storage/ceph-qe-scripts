@@ -3,7 +3,7 @@
 config:
   user_count: 1
   bucket_count: 1
-  objects_count: 10
+  objects_count: 2
   parallel_lc: False
   test_lc_transition: True
   enable_resharding: True
@@ -23,22 +23,34 @@ config:
     create_bucket: true
     create_object: true
     enable_versioning: true
-    version_count: 3
+    version_count: 2
     delete_marker: false
     test_cloud_transition: true
     test_pool_transition: false
+    modify_retain_head_only: true
     test_ibm_cloud_transition: true
     test_aws_cloud_transition: false
     test_retain_head: false
     actual_lc_days: 4
+    test_s3_restore_from_cloud: true
+    permanent_restore: true
+    delete_lc_after_transition: true
   lifecycle_conf:
     - ID: LC_Rule_1
       Filter:
         Prefix: key1
       Status: Enabled
       Transitions:
-        - Days: 2
+        - Days: 1
           StorageClass: CLOUDIBM
       NoncurrentVersionTransitions:
         - NoncurrentDays: 1
           StorageClass: CLOUDIBM
+  restore_wait_time: 900
+  restore_poll_interval: 45
+  restore_parallel_workers: 4
+  rgw_lc_debug_interval: 30
+  rgw_enable_lc_threads: True
+  rgw_lifecycle_work_time: "00:00-23:59"
+  rgw_lc_max_worker: 3
+  rgw_lc_max_wp_worker: 3

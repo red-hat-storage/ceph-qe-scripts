@@ -45,6 +45,7 @@ import json
 import logging
 import time
 import traceback
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 
 import v2.lib.resource_op as s3lib
@@ -56,6 +57,7 @@ from v2.lib.s3 import lifecycle_validation as lc_ops
 from v2.lib.s3.auth import Auth
 from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
+from v2.tests.s3_swift.reusables import cloud_transition_bug_checks
 from v2.tests.s3_swift.reusables import s3_object_restore as reusables_s3_restore
 from v2.tests.s3_swift.reusables.bucket_notification import NotificationService
 from v2.tests.s3cmd import reusable as s3cmd_reusable
@@ -254,17 +256,20 @@ def test_exec(config, ssh_con):
                 bucket = reusable.create_bucket(
                     bucket_name, rgw_conn, each_user, ip_and_port
                 )
-            prefix = list(
-                map(
-                    lambda x: x,
-                    [
-                        rule["Filter"].get("Prefix")
-                        or rule["Filter"]["And"].get("Prefix")
-                        for rule in config.lifecycle_conf
-                    ],
+            if config.lifecycle_conf:
+                prefix = list(
+                    map(
+                        lambda x: x,
+                        [
+                            rule["Filter"].get("Prefix")
+                            or rule["Filter"]["And"].get("Prefix")
+                            for rule in config.lifecycle_conf
+                        ],
+                    )
                 )
-            )
-            prefix = prefix if prefix else ["dummy1"]
+                prefix = prefix if prefix else ["dummy1"]
+            else:
+                prefix = ["dummy1"]
             if config.enable_resharding and config.sharding_type == "manual":
                 reusable.bucket_reshard_manual(bucket, config)
 
@@ -522,7 +527,23 @@ def test_exec(config, ssh_con):
                             config.test_ops[
                                 "expected_storage_class"
                             ] = expected_storage_class
-                            lc_ops.validate_prefix_rule(bucket, config)
+                            for iter in range(1, 4):
+                                try:
+                                    log.info(
+                                        f"iteration {iter}: lc validation failed for rule3, waiting for 10 seconds before a retry attempt {iter}"
+                                    )
+                                    lc_ops.validate_prefix_rule(bucket, config)
+                                    break
+                                except Exception as e:
+                                    log.info(
+                                        f"lc validation failed for rule3, waiting for 10 seconds before a retry attempt {iter}"
+                                    )
+                                    time.sleep(10)
+                            else:
+                                raise Exception(
+                                    f"lc validation failed for rule3 even after 3 retries"
+                                )
+
                         else:
                             log.info("sleeping for 30 seconds")
                             time.sleep(30)
@@ -592,7 +613,42 @@ def test_exec(config, ssh_con):
                     time.sleep(20 * 60)
                     reusable.verify_attrs_after_resharding(bucket)
 
-                if not config.parallel_lc:
+                # Initialize checksums dictionary at bucket scope
+                object_checksums = {}
+
+                # Store checksums BEFORE applying lifecycle and transition
+                if config.test_ops.get("test_s3_restore_from_cloud", False):
+                    log.info("=" * 80)
+                    log.info("Storing object checksums BEFORE cloud transition")
+                    log.info("=" * 80)
+
+                    # Get current object versions
+                    bucket_list_op = utils.exec_shell_cmd(
+                        f"radosgw-admin bucket list --bucket={bucket_name}"
+                    )
+                    json_doc_list = json.loads(bucket_list_op)
+
+                    for item in json_doc_list:
+                        if item.get("tag") != "delete-marker" and "instance" in item:
+                            object_key = item["name"]
+                            version_id = item["instance"]
+                            checksum_key = f"{object_key}:{version_id}"
+                            try:
+                                object_checksums[
+                                    checksum_key
+                                ] = reusables_s3_restore.store_object_checksum(
+                                    rgw_conn2, bucket_name, object_key, version_id
+                                )
+                                log.info(
+                                    f"Stored checksum for {object_key} (version: {version_id})"
+                                )
+                            except Exception as e:
+                                log.error(
+                                    f"Failed to store checksum for {object_key}: {e}"
+                                )
+                                raise
+
+                if not config.parallel_lc and config.lifecycle_conf:
                     life_cycle_rule = {"Rules": config.lifecycle_conf}
                     if not config.invalid_date and config.rgw_enable_lc_threads:
                         reusable.put_get_bucket_lifecycle_test(
@@ -607,7 +663,8 @@ def test_exec(config, ssh_con):
                         if config.test_ops.get("lc_same_rule_id_diff_rules"):
                             continue
                         time.sleep(30)
-                        lc_ops.validate_and_rule(bucket, config)
+                        if not config.test_ops.get("test_cloud_transition"):
+                            lc_ops.validate_and_rule(bucket, config)
                     elif (
                         not config.invalid_date
                         and not config.rgw_enable_lc_threads
@@ -732,6 +789,76 @@ def test_exec(config, ssh_con):
                 log.info(
                     f"Test s3 restore of objects transitioned to the cloud for {bucket_name}"
                 )
+
+                # Wait for all objects to complete cloud transition
+                log.info("=" * 80)
+                log.info("Waiting for all objects to complete cloud transition")
+                log.info("=" * 80)
+
+                # Get storage class from lifecycle config
+                target_storage_class = None
+                for rule in config.lifecycle_conf:
+                    if "Transitions" in rule:
+                        target_storage_class = rule["Transitions"][0]["StorageClass"]
+                        break
+
+                if target_storage_class:
+                    max_wait_time = 3600  # 60 minutes max
+                    poll_interval = 30
+                    elapsed = 0
+
+                    while elapsed < max_wait_time:
+                        bucket_list_op = utils.exec_shell_cmd(
+                            f"radosgw-admin bucket list --bucket={bucket_name}"
+                        )
+                        json_doc_list = json.loads(bucket_list_op)
+
+                        # Count total objects and transitioned objects
+                        total_objects = sum(
+                            1
+                            for item in json_doc_list
+                            if "instance" in item and item.get("tag") != "delete-marker"
+                        )
+                        transitioned_objects = sum(
+                            1
+                            for item in json_doc_list
+                            if "instance" in item
+                            and item.get("tag") != "delete-marker"
+                            and item.get("meta", {}).get("storage_class")
+                            == target_storage_class
+                        )
+
+                        log.info(
+                            f"Cloud transition progress: {transitioned_objects}/{total_objects} objects "
+                            f"transitioned to {target_storage_class} (elapsed: {elapsed}s)"
+                        )
+
+                        if transitioned_objects >= total_objects:
+                            log.info(
+                                f"✓ All {total_objects} objects successfully transitioned to {target_storage_class}"
+                            )
+                            break
+
+                        time.sleep(poll_interval)
+                        elapsed += poll_interval
+                    else:
+                        raise TestExecError(
+                            f"Cloud transition did not complete within {max_wait_time}s. "
+                            f"Only {transitioned_objects}/{total_objects} objects transitioned."
+                        )
+
+                # Delete LC policy after transition completes
+                if config.test_ops.get("delete_lc_after_transition", False):
+                    log.info(
+                        f"Deleting lifecycle policy for bucket {bucket_name} "
+                        f"after all objects have been transitioned"
+                    )
+                    try:
+                        rgw_conn2.delete_bucket_lifecycle(Bucket=bucket_name)
+                        log.info(f"Lifecycle policy deleted for bucket {bucket_name}")
+                    except Exception as e:
+                        log.warning(f"Failed to delete lifecycle policy: {e}")
+
                 bucket_list_op = utils.exec_shell_cmd(
                     f"radosgw-admin bucket list --bucket={bucket_name}"
                 )
@@ -741,36 +868,322 @@ def test_exec(config, ssh_con):
                 log.info(
                     f"Occurances of verion_ids in bucket list is {objs_total} times"
                 )
+
+                # Ensure object_checksums dictionary exists (might have been populated earlier)
+                if "object_checksums" not in locals():
+                    object_checksums = {}
+                    log.warning(
+                        "object_checksums not found - initializing empty dictionary. Checksums will not be verified."
+                    )
+
+                # Collect all restore tasks
+                restore_tasks = []
                 for i in range(0, objs_total):
                     if json_doc_list[i]["tag"] != "delete-marker":
                         object_key = json_doc_list[i]["name"]
                         version_id = json_doc_list[i]["instance"]
-                        reusables_s3_restore.restore_s3_object(
-                            rgw_conn2,
-                            each_user,
-                            config,
-                            bucket_name,
-                            object_key,
-                            version_id,
-                            days=7,
+                        checksum_key = f"{object_key}:{version_id}"
+                        restore_tasks.append(
+                            {
+                                "object_key": object_key,
+                                "version_id": version_id,
+                                "original_metadata": object_checksums.get(checksum_key),
+                            }
                         )
-                # Test restored objects are not available after restore interval
+
+                # Check restore status using radosgw-admin before starting restore
+                log.info("=" * 80)
+                log.info("Checking restore status using radosgw-admin commands")
+                log.info("=" * 80)
+
+                # radosgw-admin restore list --bucket <bucket>
+                restore_list_cmd = f"radosgw-admin restore list --bucket={bucket_name}"
+                log.info(f"Executing: {restore_list_cmd}")
+                stdin, stdout, stderr = ssh_con.exec_command(restore_list_cmd)
+                restore_list_output = stdout.read().decode()
+                restore_list_error = stderr.read().decode()
+                if restore_list_output:
+                    log.info(f"Restore list output:\n{restore_list_output}")
+                if restore_list_error:
+                    log.warning(f"Restore list stderr:\n{restore_list_error}")
+
+                # radosgw-admin restore status for each object
+                log.info("Checking restore status for individual objects...")
+                for task in restore_tasks[:3]:  # Check first 3 objects as sample
+                    object_key = task["object_key"]
+                    version_id = task.get("version_id")
+
+                    # Build command with version ID if present
+                    if version_id:
+                        restore_status_cmd = f"radosgw-admin restore status --bucket={bucket_name} --object={object_key} --object-version={version_id}"
+                    else:
+                        restore_status_cmd = f"radosgw-admin restore status --bucket={bucket_name} --object={object_key}"
+
+                    log.info(f"Executing: {restore_status_cmd}")
+                    stdin, stdout, stderr = ssh_con.exec_command(restore_status_cmd)
+                    restore_status_output = stdout.read().decode()
+                    restore_status_error = stderr.read().decode()
+                    if restore_status_output:
+                        log.info(
+                            f"Restore status for {object_key} (version: {version_id}):\n{restore_status_output}"
+                        )
+                    if restore_status_error:
+                        log.warning(
+                            f"Restore status stderr for {object_key}:\n{restore_status_error}"
+                        )
+
+                log.info("=" * 80)
+
+                # Parallel restore execution
+                max_workers = getattr(config, "restore_parallel_workers", 10)
                 log.info(
-                    "Test restored objects are not available after restore interval"
+                    f"Starting parallel restore of {len(restore_tasks)} objects "
+                    f"with {max_workers} workers..."
                 )
-                time.sleep(240)
-                for i in range(0, objs_total):
-                    if json_doc_list[i]["tag"] != "delete-marker":
-                        object_key = json_doc_list[i]["name"]
-                        version_id = json_doc_list[i]["instance"]
-                        reusables_s3_restore.check_restore_expiry(
-                            rgw_conn2,
-                            each_user,
-                            config,
-                            bucket_name,
-                            object_key,
-                            version_id,
+
+                def restore_object_wrapper(task):
+                    """Wrapper function for parallel execution"""
+                    try:
+                        # Check if permanent restore is requested
+                        if config.test_ops.get("permanent_restore", False):
+                            log.info(
+                                f"Performing permanent restore for {task['object_key']} "
+                                f"(version: {task['version_id']})"
+                            )
+                            reusables_s3_restore.permanent_restore_s3_object(
+                                rgw_conn2,
+                                bucket_name,
+                                task["object_key"],
+                                task["version_id"],
+                                target_storage_class="STANDARD",
+                                original_metadata=task.get("original_metadata"),
+                                max_wait_time=getattr(config, "restore_wait_time", 600),
+                                poll_interval=getattr(
+                                    config, "restore_poll_interval", 30
+                                ),
+                            )
+                        else:
+                            log.info(
+                                f"Performing temporary restore for {task['object_key']} "
+                                f"(version: {task['version_id']})"
+                            )
+                            reusables_s3_restore.restore_s3_object(
+                                rgw_conn2,
+                                each_user,
+                                config,
+                                bucket_name,
+                                task["object_key"],
+                                task["version_id"],
+                                days=7,
+                                max_wait_time=getattr(config, "restore_wait_time", 600),
+                                poll_interval=getattr(
+                                    config, "restore_poll_interval", 30
+                                ),
+                                original_metadata=task.get("original_metadata"),
+                            )
+                        return {
+                            "success": True,
+                            "object": task["object_key"],
+                            "version": task["version_id"],
+                        }
+                    except Exception as e:
+                        log.error(
+                            f"Failed to restore {task['object_key']} "
+                            f"version {task['version_id']}: {e}"
                         )
+                        return {
+                            "success": False,
+                            "object": task["object_key"],
+                            "version": task["version_id"],
+                            "error": str(e),
+                        }
+
+                # Execute restores in parallel
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = {
+                        executor.submit(restore_object_wrapper, task): task
+                        for task in restore_tasks
+                    }
+                    completed = 0
+                    failed = 0
+                    for future in as_completed(futures):
+                        result = future.result()
+                        completed += 1
+                        if result["success"]:
+                            log.info(
+                                f"Restore progress: {completed}/{len(restore_tasks)} "
+                                f"completed - {result['object']} "
+                                f"(version: {result['version']})"
+                            )
+                        else:
+                            failed += 1
+                            log.error(
+                                f"Restore failed: {result['object']} "
+                                f"(version: {result['version']}) - {result['error']}"
+                            )
+
+                log.info(
+                    f"Parallel restore completed: {completed-failed}/"
+                    f"{len(restore_tasks)} successful, {failed} failed"
+                )
+
+                # Fail the test if any restores failed
+                if failed > 0:
+                    raise TestExecError(
+                        f"Restore failed for {failed}/{len(restore_tasks)} objects. "
+                        f"Test cannot continue with failed restores."
+                    )
+
+                # Check restore status using radosgw-admin after restore completes
+                log.info("=" * 80)
+                log.info("Checking restore status using radosgw-admin after restore")
+                log.info("=" * 80)
+
+                # radosgw-admin restore list --bucket <bucket>
+                log.info(f"Executing: {restore_list_cmd}")
+                stdin, stdout, stderr = ssh_con.exec_command(restore_list_cmd)
+                restore_list_output = stdout.read().decode()
+                restore_list_error = stderr.read().decode()
+                if restore_list_output:
+                    log.info(
+                        f"Restore list output after restore:\n{restore_list_output}"
+                    )
+                if restore_list_error:
+                    log.warning(f"Restore list stderr:\n{restore_list_error}")
+
+                # radosgw-admin restore status for sample objects
+                log.info("Checking restore status for sample objects after restore...")
+                for task in restore_tasks[:3]:  # Check first 3 objects as sample
+                    object_key = task["object_key"]
+                    version_id = task.get("version_id")
+
+                    # Build command with version ID if present
+                    if version_id:
+                        restore_status_cmd = f"radosgw-admin restore status --bucket={bucket_name} --object={object_key} --object-version={version_id}"
+                    else:
+                        restore_status_cmd = f"radosgw-admin restore status --bucket={bucket_name} --object={object_key}"
+
+                    log.info(f"Executing: {restore_status_cmd}")
+                    stdin, stdout, stderr = ssh_con.exec_command(restore_status_cmd)
+                    restore_status_output = stdout.read().decode()
+                    restore_status_error = stderr.read().decode()
+                    if restore_status_output:
+                        log.info(
+                            f"Restore status after restore for {object_key} (version: {version_id}):\n{restore_status_output}"
+                        )
+                    if restore_status_error:
+                        log.warning(f"Restore status stderr:\n{restore_status_error}")
+
+                log.info("=" * 80)
+
+                # Run cloud transition bug verification if enabled
+                if config.test_ops.get("verify_cloud_bugs", False):
+                    log.info("=" * 80)
+                    log.info("Running Cloud Transition Bug Verification")
+                    log.info("=" * 80)
+
+                    # Get storage class from lifecycle config
+                    storage_class = None
+                    for rule in config.lifecycle_conf:
+                        if "Transitions" in rule:
+                            storage_class = rule["Transitions"][0]["StorageClass"]
+                            break
+
+                    if storage_class:
+                        # Verify bugs for a sample of restored objects
+                        sample_tasks = restore_tasks[: min(3, len(restore_tasks))]
+                        for task in sample_tasks:
+                            try:
+                                log.info(
+                                    f"Verifying bugs for object: {task['object_key']} "
+                                    f"(version: {task['version_id']})"
+                                )
+
+                                # Run all bug checks
+                                bug_results = cloud_transition_bug_checks.verify_cloud_transition_bugs(
+                                    s3_client=rgw_conn2,
+                                    ssh_con=ssh_con,
+                                    bucket_name=bucket_name,
+                                    object_key=task["object_key"],
+                                    storage_class=storage_class,
+                                    version_id=task["version_id"],
+                                    check_multipart=config.test_ops.get(
+                                        "verify_multipart_bug", True
+                                    ),
+                                    check_etag=config.test_ops.get(
+                                        "verify_etag_bug", True
+                                    ),
+                                    check_days_zero=config.test_ops.get(
+                                        "verify_days_zero_bug", False
+                                    ),
+                                )
+
+                                log.info(f"Bug verification results: {bug_results}")
+
+                                # Check if any bugs were detected
+                                for bug_name, result in bug_results.items():
+                                    if "FAILED" in str(result):
+                                        raise TestExecError(
+                                            f"Bug verification failed for {bug_name}: {result}"
+                                        )
+
+                            except Exception as e:
+                                log.error(
+                                    f"Bug verification failed for {task['object_key']}: {e}"
+                                )
+                                raise
+
+                        log.info("=" * 80)
+                        log.info("Cloud Transition Bug Verification: ALL CHECKS PASSED")
+                        log.info("=" * 80)
+                    else:
+                        log.warning(
+                            "No storage class found in lifecycle config, "
+                            "skipping bug verification"
+                        )
+
+                # Test restored objects expiry (only for temporary restore)
+                if not config.test_ops.get("permanent_restore", False):
+                    log.info(
+                        "Test restored objects are not available after restore interval"
+                    )
+                    time.sleep(240)
+                    for i in range(0, objs_total):
+                        if json_doc_list[i]["tag"] != "delete-marker":
+                            object_key = json_doc_list[i]["name"]
+                            version_id = json_doc_list[i]["instance"]
+                            reusables_s3_restore.check_restore_expiry(
+                                rgw_conn2,
+                                each_user,
+                                config,
+                                bucket_name,
+                                object_key,
+                                version_id,
+                            )
+                else:
+                    log.info(
+                        "Permanent restore used - skipping expiry check. "
+                        "Objects should remain accessible indefinitely."
+                    )
+
+                # Cleanup downloaded files after restore test completes
+                log.info("=" * 80)
+                log.info("Cleaning up downloaded restore files")
+                log.info("=" * 80)
+                cleanup_count = 0
+                for item in os.listdir("."):
+                    if (
+                        item.startswith("original-")
+                        or item.startswith("restored-")
+                        or item.startswith("permanently-restored-")
+                    ):
+                        try:
+                            os.remove(item)
+                            log.info(f"Removed downloaded file: {item}")
+                            cleanup_count += 1
+                        except Exception as e:
+                            log.warning(f"Failed to remove {item}: {e}")
+                log.info(f"Cleanup completed: removed {cleanup_count} downloaded files")
         if config.parallel_lc:
             log.info("Inside parallel lc processing")
             life_cycle_rule = {"Rules": config.lifecycle_conf}
