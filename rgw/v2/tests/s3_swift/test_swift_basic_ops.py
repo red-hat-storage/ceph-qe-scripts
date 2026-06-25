@@ -77,6 +77,30 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
+def _get_rgw_service_name():
+    out_ps = utils.exec_shell_cmd("ceph orch ps --daemon_type rgw -f json")
+    return json.loads(out_ps)[0]["service_name"]
+
+
+def _rm_rgw_service_config(service_name, option):
+    utils.exec_shell_cmd(f"sudo ceph config rm client.{service_name} {option}")
+
+
+def _wait_for_http_ok(url, timeout_sec=120, interval_sec=5):
+    deadline = time.time() + timeout_sec
+    last_status = None
+    while time.time() < deadline:
+        try:
+            response = requests.get(url, timeout=10)
+            last_status = response.status_code
+            if response.status_code == 200:
+                return response
+        except requests.RequestException as exc:
+            log.info("endpoint %s not ready yet: %s", url, exc)
+        time.sleep(interval_sec)
+    raise TestExecError(f"endpoint {url} not ready, last status: {last_status}")
+
+
 # create user
 # create subuser
 # create container
@@ -806,67 +830,46 @@ def test_exec(config, ssh_con):
                     )
 
         elif config.test_ops.get("swift_at_root", False):
-            log.info("making changes to ceph.conf")
+            log.info("Configuring swift-at-root (rgw_swift_url_prefix=/)")
             ceph_conf.set_to_ceph_conf(
                 "global", ConfigOpts.rgw_swift_url_prefix, "/", ssh_con
             )
-            log.info("trying to restart services ")
-            srv_restarted = rgw_service.restart(ssh_con)
-            time.sleep(30)
-            if srv_restarted is False:
-                raise TestExecError("RGW service restart failed")
-            else:
-                log.info("RGW service restarted")
-            log.info("Check the swift url works at root")
-            ip_and_port = rgw.authurl.split("/")[2]
-            proto = "https" if config.ssl else "http"
-            url = f"{proto}://{ip_and_port}/"
-
-            log.info("Check swift /info")
-            response = requests.get(f"{url}/info")
-            if response.status_code == 200:
-                log.info(f"{response.text}")
-            else:
-                raise TestExecError(
-                    f"Swift at root /info not working: {response.status_code}"
-                )
-
-            log.info("Check swift /crossdomain.xml")
-            response = requests.get(f"{url}/crossdomain.xml")
-            if response.status_code == 200:
-                log.info(f"{response.text}")
-            else:
-                raise TestExecError(
-                    f"Swift at root /crossdomain not working: {response.status_code}"
-                )
-
-            log.info("Check swift /healthcheck")
-            response = requests.get(f"{url}/healthcheck")
-            if response.status_code == 200:
-                log.info(f"{response.text}")
-            else:
-                raise TestExecError(
-                    f"Swift at root /healthcheck not working: {response.status_code}"
-                )
-            log.info("With swift at root set, S3 access should fail")
-            bucket_name_to_create = "test_bucket"
-            auth_s3 = s3_auth(user_info, ssh_con, ssl=config.ssl)
-            s3_rgw_conn = auth_s3.do_auth()
+            reusable.restart_and_wait_until_daemons_up(ssh_con)
             try:
-                bucket = reusable.create_bucket(
-                    bucket_name_to_create, s3_rgw_conn, user_info, ip_and_port
-                )
-            except Exception as e:
-                log.info(f"Bucket creation failed as expected with {e}")
-            else:
-                raise TestExecError("Bucket creation succeeded")
-            log.info("Unsetting the swift at root config option")
-            ceph_conf.set_to_ceph_conf(
-                "global", ConfigOpts.rgw_swift_url_prefix, "\ ", ssh_con
-            )
-            log.info("trying to restart services ")
-            srv_restarted = rgw_service.restart(ssh_con)
-            time.sleep(30)
+                log.info("Check the swift url works at root")
+                ip_and_port = rgw.authurl.split("/")[2]
+                proto = "https" if config.ssl else "http"
+                base_url = f"{proto}://{ip_and_port}"
+
+                log.info("Check swift /info")
+                response = _wait_for_http_ok(f"{base_url}/info")
+                log.info(response.text)
+
+                log.info("Check swift /crossdomain.xml")
+                response = _wait_for_http_ok(f"{base_url}/crossdomain.xml")
+                log.info(response.text)
+
+                log.info("Check swift /healthcheck")
+                response = _wait_for_http_ok(f"{base_url}/healthcheck")
+                log.info(response.text)
+
+                log.info("With swift at root set, S3 access should fail")
+                bucket_name_to_create = "test_bucket"
+                auth_s3 = s3_auth(user_info, ssh_con, ssl=config.ssl)
+                s3_rgw_conn = auth_s3.do_auth()
+                try:
+                    reusable.create_bucket(
+                        bucket_name_to_create, s3_rgw_conn, user_info, ip_and_port
+                    )
+                except Exception as e:
+                    log.info(f"Bucket creation failed as expected with {e}")
+                else:
+                    raise TestExecError("Bucket creation succeeded")
+            finally:
+                log.info("Restoring default rgw_swift_url_prefix")
+                service_name = _get_rgw_service_name()
+                _rm_rgw_service_config(service_name, ConfigOpts.rgw_swift_url_prefix)
+                reusable.restart_and_wait_until_daemons_up(ssh_con)
 
         else:
             container_name = utils.gen_bucket_name_from_userid(
