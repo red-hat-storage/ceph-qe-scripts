@@ -77,17 +77,16 @@ def test_exec(config, ssh_con):
         ceph_version_id, _ = utils.get_ceph_version()
         ceph_version_id = ceph_version_id.split("-")[0].split(".")
         if float(ceph_version_id[0]) >= 17:
-            cmd = " ceph orch ps | grep rgw"
-            out = utils.exec_shell_cmd(cmd)
-            rgw_process_name = out.split()[0]
+            out = utils.exec_shell_cmd("ceph orch ls --service_type=rgw --format json")
+            service_name = json.loads(out)[0]["service_name"]
             utils.exec_shell_cmd(
-                f"ceph config set client.{rgw_process_name} rgw_enable_ops_log true"
+                f"ceph config set client.{service_name} rgw_enable_ops_log true"
             )
             utils.exec_shell_cmd(
-                f"ceph config set client.{rgw_process_name} rgw_log_http_headers http_x_forwarded_for,http_expect,http_content_md5"
+                f"ceph config set client.{service_name} rgw_log_http_headers http_x_forwarded_for,http_expect,http_content_md5"
             )
             utils.exec_shell_cmd(
-                f"ceph config set client.{rgw_process_name} rgw_ops_log_socket_path /var/run/ceph/opslog"
+                f"ceph config set client.{service_name} rgw_ops_log_socket_path /var/run/ceph/opslog"
             )
             srv_restarted = rgw_service.restart()
             time.sleep(30)
@@ -174,8 +173,8 @@ def test_exec(config, ssh_con):
             utils.exec_shell_cmd(f"ceph config set global log_to_file true")
 
         ceph_detail = json.loads(utils.exec_shell_cmd("ceph -s -f json"))
-        out = utils.exec_shell_cmd("ceph orch ps | grep rgw | cut -d ' ' -f 1")
-        rgw_process_names = out.split()
+        out = utils.exec_shell_cmd("ceph orch ps --daemon_type=rgw --format json")
+        rgw_process_names = [d["daemon_name"] for d in json.loads(out)]
 
         with open(root_path, "r") as file:
             file_details = yaml.safe_load(file)
