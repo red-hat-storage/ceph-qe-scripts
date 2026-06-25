@@ -174,7 +174,7 @@ def test_exec(config, ssh_con):
 
         ceph_detail = json.loads(utils.exec_shell_cmd("ceph -s -f json"))
         out = utils.exec_shell_cmd("ceph orch ps --daemon_type=rgw --format json")
-        rgw_process_names = [d["service_name"] for d in json.loads(out)]
+        rgw_process_names = [d["daemon_name"] for d in json.loads(out)]
 
         with open(root_path, "r") as file:
             file_details = yaml.safe_load(file)
