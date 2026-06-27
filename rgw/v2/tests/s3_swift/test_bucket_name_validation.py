@@ -7,14 +7,9 @@ Usage: test_bucket_name_validation.py -c configs/test_bucket_name_validation.yam
     configs/test_bucket_name_validation.yaml
 
 Operation:
-    Create an RGW user and attempt bucket creation with names covering:
-      - Minimum length (3 chars) — expect success
-      - Below minimum (2 chars) — expect failure
-      - Maximum length (63 chars) — expect success
-      - Above maximum (64 chars) — expect failure
-      - Boundary at 62 chars — expect success
-      - Empty name — expect failure
-      - 5 chars with adjacent '.-' and non-adjacent '.'/'-' (length counts separators) — expect success
+    Create an RGW user and attempt bucket creation with names covering length
+    boundaries, empty names, hyphen/dot adjacency, and character-set rules
+    (lowercase, digits, mixed valid/invalid characters, unicode, etc.).
 """
 
 import argparse
@@ -92,8 +87,8 @@ def _name_with_hyphens_and_dots(length, adjacent=True):
     return name
 
 
-def _bucket_name_test_cases():
-    """Return (case_id, description, bucket_name, should_succeed)."""
+def _length_test_cases():
+    """Length boundary cases: (case_id, description, bucket_name, should_succeed)."""
     return [
         (
             "minimum_length_3",
@@ -144,6 +139,173 @@ def _bucket_name_test_cases():
             True,
         ),
     ]
+
+
+def _character_set_test_cases():
+    """Character-set cases: (case_id, description, bucket_name, should_succeed)."""
+    return [
+        (
+            "lowercase_letters_only",
+            "Lowercase letters only",
+            "abcxyz",
+            True,
+        ),
+        (
+            "digits_only",
+            "Digits only (start/end rule met)",
+            "123456",
+            True,
+        ),
+        (
+            "letters_and_digits",
+            "Letters + digits",
+            "ab1c2d",
+            True,
+        ),
+        (
+            "hyphens_in_middle",
+            "Hyphens in middle",
+            "a-b-c",
+            True,
+        ),
+        (
+            "single_period",
+            "Single period (not adjacent)",
+            "a.bc",
+            True,
+        ),
+        (
+            "uppercase_letters",
+            "Uppercase letters",
+            "ABCdef",
+            False,
+        ),
+        (
+            "underscore",
+            "Underscore",
+            "a_b_c",
+            False,
+        ),
+        (
+            "space",
+            "Space",
+            "a b c",
+            False,
+        ),
+        (
+            "slash_path_like",
+            "Slash / path-like",
+            "a/b/c",
+            False,
+        ),
+        (
+            "special_chars",
+            "Special chars @#%&",
+            "a@b#c",
+            False,
+        ),
+        (
+            "unicode_non_ascii",
+            "Unicode / non-ASCII",
+            "caf\u00e9",
+            False,
+        ),
+        (
+            "mixed_valid_set",
+            "Mixed valid set",
+            "a1b2-c3.d4",
+            True,
+        ),
+    ]
+
+
+def _bucket_name_test_cases():
+    """Return (case_id, description, bucket_name, should_succeed)."""
+    return _length_test_cases() + _character_set_test_cases()
+
+
+_CASE_PRECHECKS = {
+    "minimum_length_3": lambda n: _assert_bucket_name_length(n, 3) or None,
+    "below_minimum_2": lambda n: _assert_bucket_name_length(n, 2) or None,
+    "maximum_length_63": lambda n: _assert_bucket_name_length(n, 63) or None,
+    "above_maximum_64": lambda n: _assert_bucket_name_length(n, 64) or None,
+    "boundary_62_chars": lambda n: _assert_bucket_name_length(n, 62) or None,
+    "hyphens_dots_counted_adjacent": lambda n: _check_hyphens_dots_adjacent(n, 5),
+    "hyphens_dots_counted_non_adjacent": lambda n: _check_hyphens_dots_non_adjacent(
+        n, 5
+    ),
+    "lowercase_letters_only": lambda n: (
+        None if n.isalpha() and n.islower() else "expected lowercase letters only"
+    ),
+    "digits_only": lambda n: (
+        None if n.isdigit() and len(n) >= 3 else "expected digits only (len >= 3)"
+    ),
+    "letters_and_digits": lambda n: (
+        None
+        if any(c.isalpha() for c in n) and any(c.isdigit() for c in n) and n.islower()
+        else "expected lowercase letters and digits"
+    ),
+    "hyphens_in_middle": lambda n: (
+        None
+        if "-" in n[1:-1] and not n.startswith("-") and not n.endswith("-")
+        else "expected hyphen only in the middle"
+    ),
+    "single_period": lambda n: (
+        None
+        if n.count(".") == 1 and ".." not in n
+        else "expected a single period, not adjacent periods"
+    ),
+    "uppercase_letters": lambda n: (
+        None if any(c.isupper() for c in n) else "expected uppercase letters in name"
+    ),
+    "underscore": lambda n: (None if "_" in n else "expected underscore in name"),
+    "space": lambda n: (None if " " in n else "expected space in name"),
+    "slash_path_like": lambda n: (None if "/" in n else "expected slash in name"),
+    "special_chars": lambda n: (
+        None if any(c in n for c in "@#%&") else "expected @#%& in name"
+    ),
+    "unicode_non_ascii": lambda n: (
+        None if any(ord(c) > 127 for c in n) else "expected non-ASCII character in name"
+    ),
+    "mixed_valid_set": lambda n: (
+        None
+        if all(c.islower() or c.isdigit() or c in ".-" for c in n)
+        and any(c.isdigit() for c in n)
+        and any(c.isalpha() for c in n)
+        and "-" in n
+        and "." in n
+        else "expected mixed valid lowercase, digits, hyphen, and period"
+    ),
+}
+
+
+def _check_hyphens_dots_adjacent(name, expected_len):
+    _assert_bucket_name_length(name, expected_len)
+    if ".-" not in name:
+        return "expected adjacent '.-' in generated name"
+    return None
+
+
+def _check_hyphens_dots_non_adjacent(name, expected_len):
+    _assert_bucket_name_length(name, expected_len)
+    if "." not in name or "-" not in name:
+        return "expected both '.' and '-' in generated name"
+    if ".-" in name:
+        return "expected non-adjacent '.' and '-' in name"
+    return None
+
+
+def _precheck_case(case_id, bucket_name):
+    """Run shape validation for a case. Returns error message or None."""
+    if case_id == "empty_name":
+        return None
+    checker = _CASE_PRECHECKS.get(case_id)
+    if checker is None:
+        return None
+    try:
+        return checker(bucket_name)
+    except TestExecError as exc:
+        return str(exc)
 
 
 def _attempt_create_bucket(s3_client, bucket_name):
@@ -218,35 +380,10 @@ def test_exec(config, ssh_con):
                         should_succeed,
                     )
 
-                if case_id == "minimum_length_3":
-                    _assert_bucket_name_length(bucket_name, 3)
-                elif case_id == "below_minimum_2":
-                    _assert_bucket_name_length(bucket_name, 2)
-                elif case_id == "maximum_length_63":
-                    _assert_bucket_name_length(bucket_name, 63)
-                elif case_id == "above_maximum_64":
-                    _assert_bucket_name_length(bucket_name, 64)
-                elif case_id == "boundary_62_chars":
-                    _assert_bucket_name_length(bucket_name, 62)
-                elif case_id == "hyphens_dots_counted_adjacent":
-                    _assert_bucket_name_length(bucket_name, 5)
-                    if ".-" not in bucket_name:
-                        failures.append(
-                            f"{case_id}: expected adjacent '.-' in generated name"
-                        )
-                        continue
-                elif case_id == "hyphens_dots_counted_non_adjacent":
-                    _assert_bucket_name_length(bucket_name, 5)
-                    if "." not in bucket_name or "-" not in bucket_name:
-                        failures.append(
-                            f"{case_id}: expected both '.' and '-' in generated name"
-                        )
-                        continue
-                    if ".-" in bucket_name:
-                        failures.append(
-                            f"{case_id}: expected non-adjacent '.' and '-' in name"
-                        )
-                        continue
+                precheck_error = _precheck_case(case_id, bucket_name)
+                if precheck_error:
+                    failures.append(f"{case_id}: {precheck_error}")
+                    continue
 
                 created, error = _attempt_create_bucket(s3_client, bucket_name)
 
@@ -295,7 +432,7 @@ def test_exec(config, ssh_con):
 
 
 if __name__ == "__main__":
-    test_info = AddTestInfo("S3 bucket name length validation")
+    test_info = AddTestInfo("S3 bucket name length and character-set validation")
     test_info.started_info()
 
     try:
