@@ -1,0 +1,9 @@
+# script: test_quota_edge_cases.py
+# Test exact boundary - upload exactly at quota limit
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    quota_scope: bucket
+    test_exact_boundary: true
+    boundary_size: 10240  # 10KB

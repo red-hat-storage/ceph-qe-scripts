@@ -11,7 +11,7 @@ log = logging.getLogger()
 def set_quota(quota_scope, user_info, max_objects=None, max_size=None):
     log.info(f"setting {quota_scope} quota")
     cmd = f"radosgw-admin quota set --quota-scope={quota_scope} --uid={user_info['user_id']}"
-    if max_objects:
+    if max_objects is not None:
         cmd = cmd + f" --max-objects={max_objects}"
     if max_size:
         cmd = cmd + f" --max-size={max_size}"
