@@ -1,9 +1,12 @@
 #test_bucket_lifecycle_object_expiration_transition.py
-#CEPH-83591622, CEPH-83591672, CEPH-83591621
+#AWS Cloud Transition and Permanent Restore Test - Multipart Upload (EU-NORTH-1)
+#Tests AWS S3 cloud transition with non-versioned multipart object >50MB
+#Includes permanent restore and bug verification
+#Bugs: #68324 (multipart part number 0), #67560 (ETag double quotes), #67685 (Days=0 restore)
 config:
   user_count: 1
   bucket_count: 1
-  objects_count: 2
+  objects_count: 1
   parallel_lc: False
   test_lc_transition: True
   enable_resharding: True
@@ -18,25 +21,30 @@ config:
   second_storage_class: glacier
   remote_zone: secondary
   objects_size_range:
-    min: 5
-    max: 15
+    min: 55
+    max: 65
   test_ops:
     create_bucket: true
     create_object: true
-    enable_versioning: true
-    version_count: 2
+    enable_versioning: false
+    version_count: 1
     delete_marker: false
     test_cloud_transition: true
     test_pool_transition: false
     skip_tier_setup: true
-    test_ibm_cloud_transition: true
-    test_aws_cloud_transition: false
+    test_ibm_cloud_transition: false
+    test_aws_cloud_transition: true
     test_retain_head: true
     test_cloud_transition_at_remote: false
     test_s3_restore_from_cloud: true
+    upload_type: multipart
     permanent_restore: true  # Use permanent restore instead of temporary
     delete_lc_after_transition: true  # Delete LC policy after objects are transitioned
-    # Cloud transition bug verification
+    # AWS specific configuration for eu-north-1 region
+    aws_endpoint: "https://s3.eu-north-1.amazonaws.com"
+    aws_region: "eu-north-1"
+    aws_location_constraint: "eu-north-1"
+    # Cloud transition bug verification for multipart objects
     # Bugs: #68324 (multipart part number 0), #67560 (ETag double quotes), #67685 (Days=0 restore)
     verify_cloud_bugs: true
     verify_multipart_bug: true  # Check multipart part number 0 bug (#68324)
@@ -48,11 +56,14 @@ config:
         Prefix: key1
       Status: Enabled
       Transitions:
-        - Days: 1
-          StorageClass: CLOUDIBM
-      NoncurrentVersionTransitions:
-        - NoncurrentDays: 1
-          StorageClass: CLOUDIBM
+        - Days: 2
+          StorageClass: CLOUDAWS
   restore_wait_time: 900  # Max time to wait for restore completion (seconds) - 15 minutes
   restore_poll_interval: 45  # Check restore status every 45 seconds
-  restore_parallel_workers: 4  # Number of parallel restore operations (2 objects × 2 versions = 4 total)
+  restore_parallel_workers: 1  # Single object, 1 worker
+  # Lifecycle debug settings
+  rgw_lc_debug_interval: 30
+  rgw_enable_lc_threads: True
+  rgw_lifecycle_work_time: "00:00-23:59"
+  rgw_lc_max_worker: 3
+  rgw_lc_max_wp_worker: 3

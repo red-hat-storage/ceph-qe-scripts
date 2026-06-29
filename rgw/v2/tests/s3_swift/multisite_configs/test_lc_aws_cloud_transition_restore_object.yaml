@@ -1,5 +1,7 @@
 #test_bucket_lifecycle_object_expiration_transition.py
-#CEPH-83591622, CEPH-83591672, CEPH-83591621
+#AWS Cloud Transition and Permanent Restore Test - EU-NORTH-1 Region
+#Tests AWS S3 cloud transition with permanent restore (copy back to STANDARD)
+#Non-versioned objects, deletes LC policy after transition
 config:
   user_count: 1
   bucket_count: 1
@@ -29,19 +31,19 @@ config:
     test_cloud_transition: true
     test_pool_transition: false
     skip_tier_setup: true
-    test_ibm_cloud_transition: true
-    test_aws_cloud_transition: false
+    test_ibm_cloud_transition: false
+    test_aws_cloud_transition: true
     test_retain_head: true
     test_cloud_transition_at_remote: false
     test_s3_restore_from_cloud: true
     permanent_restore: true  # Use permanent restore instead of temporary
     delete_lc_after_transition: true  # Delete LC policy after objects are transitioned
-    # Cloud transition bug verification
-    # Bugs: #68324 (multipart part number 0), #67560 (ETag double quotes), #67685 (Days=0 restore)
-    verify_cloud_bugs: true
-    verify_multipart_bug: true  # Check multipart part number 0 bug (#68324)
-    verify_etag_bug: true  # Check ETag double quotes bug (#67560)
-    verify_days_zero_bug: false  # Check Days=0 restore bug (#67685) - optional, can be disruptive
+    # AWS specific configuration for eu-north-1 region
+    aws_endpoint: "https://s3.eu-north-1.amazonaws.com"
+    aws_region: "eu-north-1"
+    aws_location_constraint: "eu-north-1"
+    # Cloud transition bug verification disabled for regular objects test
+    verify_cloud_bugs: false
   lifecycle_conf:
     - ID: LC_Rule_1
       Filter:
@@ -49,10 +51,16 @@ config:
       Status: Enabled
       Transitions:
         - Days: 1
-          StorageClass: CLOUDIBM
+          StorageClass: CLOUDAWS
       NoncurrentVersionTransitions:
         - NoncurrentDays: 1
-          StorageClass: CLOUDIBM
+          StorageClass: CLOUDAWS
   restore_wait_time: 900  # Max time to wait for restore completion (seconds) - 15 minutes
   restore_poll_interval: 45  # Check restore status every 45 seconds
   restore_parallel_workers: 4  # Number of parallel restore operations (2 objects × 2 versions = 4 total)
+  # Lifecycle debug settings
+  rgw_lc_debug_interval: 30
+  rgw_enable_lc_threads: True
+  rgw_lifecycle_work_time: "00:00-23:59"
+  rgw_lc_max_worker: 3
+  rgw_lc_max_wp_worker: 3

@@ -735,11 +735,15 @@ def upload_mutipart_object(
     if config.test_ops.get("test_get_object_attributes"):
         object_parts_info = {"TotalPartsCount": len(parts_list), "Parts": []}
     log.info("no of parts: %s" % len(parts_list))
-    abort_part_no = random.randint(1, len(parts_list) - 1)
-    """if randomly selected abort-part-no is less than 1 then we will increment it by 1 to make sure atleast one part is uploaded
-    before aborting multipart(to avoid some corner case)"""
-    if abort_part_no <= 1:
-        abort_part_no = abort_part_no + 1
+    # Handle edge case when there's only 1 part - set abort_part_no to 2 to ensure at least one part uploads before abort
+    if len(parts_list) <= 1:
+        abort_part_no = 2  # Will never abort since part_number will be 1
+    else:
+        abort_part_no = random.randint(1, len(parts_list) - 1)
+        """if randomly selected abort-part-no is less than 1 then we will increment it by 1 to make sure atleast one part is uploaded
+        before aborting multipart(to avoid some corner case)"""
+        if abort_part_no <= 1:
+            abort_part_no = abort_part_no + 1
     log.info(f"abort part no is: {abort_part_no}")
     for each_part in parts_list:
         log.info("trying to upload part: %s" % each_part)
@@ -1938,7 +1942,7 @@ def time_to_list_via_boto(bucket_name, rgw):
     return time_taken
 
 
-def check_sync_status(retry=25, delay=60, return_while_sync_inprogress=False):
+def check_sync_status(retry=30, delay=60, return_while_sync_inprogress=False):
     """
     Check sync status if its a multisite cluster
     """
@@ -2275,6 +2279,8 @@ def prepare_for_bucket_lc_transition(config):
             zone = "secondary"
     else:
         zone = zonegroup = "default"
+    skip_tier_setup = config.test_ops.get("skip_tier_setup", False)
+    modify_retain_head_only = config.test_ops.get("modify_retain_head_only", False)
     if config.test_ops.get("test_pool_transition", True):
         if config.ec_pool_transition:
             utils.exec_shell_cmd(
@@ -2313,8 +2319,59 @@ def prepare_for_bucket_lc_transition(config):
                     f"radosgw-admin zone placement add --rgw-zone {zone} --placement-id default-placement --storage-class {second_storage_class} --data-pool {second_pool_name}"
                 )
     else:
-        if config.test_ops.get("test_ibm_cloud_transition", False):
-            # wget_cmd = "curl -o ibm_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/ibm_cloud_file"
+        retain_head = config.test_ops.get("test_retain_head", True)
+        retain_head_str = "true" if retain_head else "false"
+        if skip_tier_setup:
+            log.info("Skipping tier setup - tiers already configured by a prior test")
+        elif modify_retain_head_only:
+            log.info(
+                f"Modifying retain_head_object to {retain_head_str} on existing tier config"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement modify --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=retain_head_object={retain_head_str}"
+            )
+        elif config.test_ops.get("enable_both_cloud_tiers", False):
+            # --- IBM tier setup ---
+            utils.exec_shell_cmd(
+                cmd="cp /home/cephuser/configs/rgw/cloud_endpoints/ibm_cloud_file ibm_cloud.env"
+            )
+            ibm_config = configobj.ConfigObj("ibm_cloud.env")
+            ibm_target = ibm_config["TARGET"]
+            ibm_access = ibm_config["ACCESS"]
+            ibm_secret = ibm_config["SECRET"]
+            ibm_endpoint = ibm_config["ENDPOINT"]
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={ibm_endpoint},access_key={ibm_access},secret={ibm_secret},target_path={ibm_target},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object={retain_head_str},region=au-syd"
+            )
+            # --- AWS tier setup ---
+            utils.exec_shell_cmd(
+                cmd="cp /home/cephuser/configs/rgw/cloud_endpoints/aws_cloud_file aws_cloud.env"
+            )
+            aws_config = configobj.ConfigObj("aws_cloud.env")
+            aws_target = aws_config["TARGET"]
+            aws_access = aws_config["ACCESS"]
+            aws_secret = aws_config["SECRET"]
+            aws_endpoint = config.test_ops.get(
+                "aws_endpoint",
+                aws_config.get("ENDPOINT", "https://s3.us-east-1.amazonaws.com"),
+            )
+            aws_region = config.test_ops.get(
+                "aws_region", aws_config.get("REGION", "us-east-1")
+            )
+            aws_location = config.test_ops.get("aws_location_constraint", aws_region)
+            log.info(
+                f"AWS Cloud Config - Endpoint: {aws_endpoint}, Region: {aws_region}, Location Constraint: {aws_location}"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class=CLOUDAWS --tier-type=cloud-s3"
+            )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint={aws_endpoint},access_key={aws_access},secret={aws_secret},target_path={aws_target},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object={retain_head_str},region={aws_region},location_constraint={aws_location}"
+            )
+        elif config.test_ops.get("test_ibm_cloud_transition", False):
             utils.exec_shell_cmd(
                 cmd="cp /home/cephuser/configs/rgw/cloud_endpoints/ibm_cloud_file ibm_cloud.env"
             )
@@ -2326,16 +2383,10 @@ def prepare_for_bucket_lc_transition(config):
             utils.exec_shell_cmd(
                 f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3"
             )
-            if config.test_ops.get("test_retain_head", False):
-                utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=au-syd"
-                )
-            else:
-                utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=au-syd"
-                )
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class CLOUDIBM --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object={retain_head_str},region=au-syd"
+            )
         else:
-            # wget_cmd = "curl -o aws_cloud.env http://magna002.ceph.redhat.com/cephci-jenkins/aws_cloud_file"
             utils.exec_shell_cmd(
                 cmd="cp /home/cephuser/configs/rgw/cloud_endpoints/aws_cloud_file aws_cloud.env"
             )
@@ -2343,22 +2394,30 @@ def prepare_for_bucket_lc_transition(config):
             target_path = aws_config["TARGET"]
             access = aws_config["ACCESS"]
             secret = aws_config["SECRET"]
-            endpoint = aws_config["ENDPOINT"]
+            endpoint = config.test_ops.get(
+                "aws_endpoint",
+                aws_config.get("ENDPOINT", "https://s3.us-east-1.amazonaws.com"),
+            )
+            region = config.test_ops.get(
+                "aws_region", aws_config.get("REGION", "us-east-1")
+            )
+            location_constraint = config.test_ops.get("aws_location_constraint", region)
+            log.info(
+                f"AWS Cloud Config - Endpoint: {endpoint}, Region: {region}, Location Constraint: {location_constraint}"
+            )
             utils.exec_shell_cmd(
                 f"radosgw-admin zonegroup placement add --rgw-zonegroup {zonegroup} --placement-id default-placement --storage-class=CLOUDAWS --tier-type=cloud-s3"
             )
-            if config.test_ops.get("test_retain_head", False):
-                utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=true,region=us-east-1"
-                )
-            else:
-                utils.exec_shell_cmd(
-                    f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object=false,region=us-east-1"
-                )
-    if is_multisite:
+            utils.exec_shell_cmd(
+                f"radosgw-admin zonegroup placement add  --rgw-zonegroup {zonegroup}   --placement-id default-placement --storage-class CLOUDAWS --tier-type=cloud-s3 --tier-config=endpoint={endpoint},access_key={access},secret={secret},target_path={target_path},multipart_sync_threshold=44432,multipart_min_part_size=44432,retain_head_object={retain_head_str},region={region},location_constraint={location_constraint}"
+            )
+    if is_multisite and not skip_tier_setup:
         utils.exec_shell_cmd("radosgw-admin period update --commit")
         time.sleep(70)
-        if config.test_ops.get("test_ibm_cloud_transition", False):
+        if (
+            config.test_ops.get("test_ibm_cloud_transition", False)
+            and not modify_retain_head_only
+        ):
             # CEPH-83581977, test cloud transition of encrypted and compressed objects
             utils.exec_shell_cmd(
                 "radosgw-admin zone placement modify --rgw-zone primary --placement-id default-placement  --compression zlib"

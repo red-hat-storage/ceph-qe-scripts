@@ -176,6 +176,7 @@ def test_exec(config, ssh_con):
             client_secret="client_secret1",
             ip_addr=local_ip_addr,
             attributes=config.test_ops.get("session_tags"),
+            ceph_version_name=ceph_version_name,
         )
 
         web_token = keycloak.get_web_access_token()
@@ -190,14 +191,34 @@ def test_exec(config, ssh_con):
             use_dummy_thumbprint=config.test_ops.get("use_dummy_thumbprint", False),
         )
     elif identity_provider == "IBM_Security_Verify":
+        isv_token_script = "/home/cephuser/configs/rgw/ibm_isv/get_isv_web_token.sh"
+        if not os.path.isfile(isv_token_script):
+            raise TestExecError(
+                f"IBM Security Verify file does not exist: {isv_token_script}"
+            )
         utils.exec_shell_cmd(
-            "cp /home/cephuser/configs/rgw/ibm_isv/get_isv_web_token.sh /home/cephuser/get_isv_web_token.sh"
+            f"cp {isv_token_script} /home/cephuser/get_isv_web_token.sh"
         )
         utils.exec_shell_cmd("chmod +rwx /home/cephuser/get_isv_web_token.sh")
-        out = json.loads(utils.exec_shell_cmd("sh /home/cephuser/get_isv_web_token.sh"))
+        raw_out = utils.exec_shell_cmd("sh /home/cephuser/get_isv_web_token.sh")
+        if not isinstance(raw_out, str):
+            raise TestExecError(
+                f"IBM Security Verify file does not exist: {isv_token_script}"
+            )
+        try:
+            out = json.loads(raw_out)
+        except json.JSONDecodeError:
+            raise TestExecError("IBM Security Verify credentials invalid or expired")
         log.info(f"web token output: {out}")
+        if "id_token" not in out:
+            raise TestExecError("IBM Security Verify credentials invalid or expired")
         web_token = out["id_token"]
         out = utils.exec_shell_cmd("cat /home/cephuser/configs/rgw/ibm_isv/oidc_url")
+        if not isinstance(out, str):
+            raise TestExecError(
+                "IBM Security Verify file does not exist: "
+                "/home/cephuser/configs/rgw/ibm_isv/oidc_url"
+            )
         url = out.strip()
         idp_url_for_arn = url.replace("https://", "")
         policy_document = policy_document.replace("idp_url", idp_url_for_arn)

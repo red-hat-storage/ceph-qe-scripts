@@ -1,0 +1,12 @@
+# test script: test_bucket_name_validation.py
+config:
+  user_count: 1
+  user_remove: true
+  objects_count: 1
+  objects_size_range:
+      min: 5
+      max: 15
+  ssl: false
+  haproxy: false
+  test_ops:
+    bucket_name_validation: true

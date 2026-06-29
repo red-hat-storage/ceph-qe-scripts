@@ -2,6 +2,7 @@
 Reusable methods for aws
 """
 
+import copy
 import glob
 import json
 import logging
@@ -26,13 +27,23 @@ from v2.lib.exceptions import AWSCommandExecError, TestExecError
 from v2.lib.manage_data import io_generator
 
 
-def create_bucket(aws_auth, bucket_name, end_point, retries=3, wait_time=5):
+def create_bucket(
+    aws_auth,
+    bucket_name,
+    end_point,
+    region=None,
+    retries=3,
+    wait_time=5,
+    object_lock_enabled=False,
+):
     """
     Creates bucket
     ex: /usr/local/bin/aws s3api create-bucket --bucket verbkt1 --endpoint-url http://x.x.x.x:xx
+    ex: /usr/local/bin/aws s3api create-bucket --bucket bkt1 --object-lock-enabled-for-bucket ...
     Args:
         bucket_name(str): Name of the bucket to be created
         end_point(str): endpoint
+        object_lock_enabled(bool): pass --object-lock-enabled-for-bucket on create
     """
 
     for attempt in range(1, retries + 1):
@@ -49,9 +60,24 @@ def create_bucket(aws_auth, bucket_name, end_point, retries=3, wait_time=5):
         log.error(f"Endpoint {end_point} is not reachable after {retries} attempts.")
         return
 
+    if region:
+        command = aws_auth.command(
+            operation="create-bucket",
+            params=[
+                f"--bucket {bucket_name} --region {region} --create-bucket-configuration LocationConstraint={region} --endpoint-url {end_point}"
+            ],
+        )
+    else:
+        command = aws_auth.command(
+            operation="create-bucket",
+            params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
+        )
+    bucket_params = f"--bucket {bucket_name} --endpoint-url {end_point}"
+    if object_lock_enabled:
+        bucket_params += " --object-lock-enabled-for-bucket"
     command = aws_auth.command(
         operation="create-bucket",
-        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
+        params=[bucket_params],
     )
     last_error = None
     for attempt in range(1, retries + 1):
@@ -68,6 +94,97 @@ def create_bucket(aws_auth, bucket_name, end_point, retries=3, wait_time=5):
             if attempt < retries:
                 time.sleep(wait_time)
     raise AWSCommandExecError(message=str(last_error))
+
+
+def verify_bucket_object_lock_stats(bucket_name, expected_objects=None):
+    """
+    Verify bucket stats show versioning enabled and object lock enabled.
+    Optionally assert minimum object count in rgw.main usage.
+    """
+    out = utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket {bucket_name}")
+    data = json.loads(out)
+    info = data[0] if isinstance(data, list) else data
+    if info.get("versioning") != "enabled":
+        raise AssertionError(
+            f"Bucket {bucket_name}: expected versioning enabled, got {info.get('versioning')}"
+        )
+    if not info.get("object_lock_enabled"):
+        raise AssertionError(
+            f"Bucket {bucket_name}: expected object_lock_enabled true, got {info.get('object_lock_enabled')}"
+        )
+    if expected_objects is not None:
+        usage = info.get("usage", {})
+        main_usage = usage.get("rgw.main", {})
+        num_objects = main_usage.get("num_objects", 0)
+        if num_objects < expected_objects:
+            raise AssertionError(
+                f"Bucket {bucket_name}: expected at least {expected_objects} objects, got {num_objects}"
+            )
+    log.info(
+        f"Bucket {bucket_name}: versioning=enabled, object_lock_enabled=true"
+        + (f", num_objects>={expected_objects}" if expected_objects is not None else "")
+    )
+    return info
+
+
+def get_object_lock_configuration(aws_auth, bucket_name, end_point):
+    """Return parsed get-object-lock-configuration response."""
+    command = aws_auth.command(
+        operation="get-object-lock-configuration",
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
+    )
+    out = utils.exec_shell_cmd(command)
+    if not out:
+        raise Exception(f"get-object-lock-configuration failed for {bucket_name}")
+    return json.loads(out)
+
+
+def put_object_lock_default_retention(
+    aws_auth, bucket_name, end_point, mode="COMPLIANCE", days=1
+):
+    """Apply bucket default retention policy via put-object-lock-configuration."""
+    lock_cfg = json.dumps(
+        {
+            "ObjectLockEnabled": "Enabled",
+            "Rule": {"DefaultRetention": {"Mode": mode, "Days": days}},
+        }
+    )
+    command = aws_auth.command(
+        operation="put-object-lock-configuration",
+        params=[
+            f"--bucket {bucket_name} --endpoint-url {end_point} "
+            f"--object-lock-configuration '{lock_cfg}'"
+        ],
+    )
+    out = utils.exec_shell_cmd(command)
+    if out is False:
+        raise Exception(f"put-object-lock-configuration failed for {bucket_name}")
+    log.info(f"Set default retention {mode} {days} day(s) on {bucket_name}")
+
+
+LUA_ENABLE_OBJECT_LOCK_PREREQUEST = """
+-- enablog object lock on bucket creation
+
+if Request.RGWOp == "create_bucket" then
+  Request.HTTP.Metadata["x-amz-bucket-object-lock-enabled"] = "true"
+  RGWDebugLog("object lock is enabled on bucket: " .. Request.Bucket.Name)
+end
+"""
+
+LUA_ENABLE_OBJECT_LOCK_DEBUG_PATTERN = r"object lock is enabled on bucket"
+
+LUA_BLOCK_OBJECT_LOCK_PREREQUEST = """
+-- enforcing object lock on bucket creation
+
+if Request.RGWOp == "create_bucket" and
+  Request.HTTP.Metadata["x-amz-bucket-object-lock-enabled"] ~= "true" then
+  RGWDebugLog("object lock is missing on bucket: " .. Request.Bucket.Name)
+  Request.Response.Message = "Bucket must have object lock enabled"
+  return RGW_ABORT_REQUEST
+end
+"""
+
+LUA_BLOCK_OBJECT_LOCK_DEBUG_PATTERN = r"object lock is missing on bucket"
 
 
 def delete_bucket(aws_auth, bucket_name, end_point):
@@ -460,11 +577,15 @@ def put_object_checksum(
         algo = "crc64-nvme"
     else:
         algo = checksum_algorithm
+    body = s3_object_path if s3_object_path else object_name
+    cmd = (
+        f"--bucket {bucket_name} --key {object_name} --body {body} "
+        f"--endpoint-url {end_point} --checksum-algorithm {checksum_algorithm}"
+    )
+    cmd = cmd + f" --checksum-{algo} {checksum}"
     command = aws_auth.command(
         operation="put-object",
-        params=[
-            f"--bucket {bucket_name} --key {object_name} --body {s3_object_path if s3_object_path else object_name} --endpoint-url {end_point} --checksum-algorithm {checksum_algorithm} --checksum-{algo} {checksum}",
-        ],
+        params=[cmd],
     )
 
     out = utils.exec_shell_cmd(command)
@@ -1115,11 +1236,22 @@ def perform_gc_process_and_list():
 def create_s3_replication_json(config, bucket_name, json_file="replication.json"):
     """
     Extract replication config from a YAML file and apply it to a bucket.
+    Ceph 8.1 (< 20.2.1): plain bucket name. Ceph 9.0+ (>= 20.2.1): bucket ARN.
     """
-    replication_config = config.test_ops["s3_replication"]
-    replication_config["Rules"][0]["Destination"]["Bucket"] = bucket_name
+    replication_config = copy.deepcopy(config.test_ops["s3_replication"])
+    dest_bucket = bucket_name
+    if dest_bucket.startswith("arn:aws:s3:::"):
+        dest_bucket = dest_bucket[len("arn:aws:s3:::") :]
+    ceph_version_id, _ = utils.get_ceph_version()
+    release = ceph_version_id.split("-")[0].split(".")
+    if len(release) >= 3:
+        try:
+            if (int(release[0]), int(release[1]), int(release[2])) >= (20, 2, 1):
+                dest_bucket = f"arn:aws:s3:::{dest_bucket}"
+        except ValueError:
+            pass
+    replication_config["Rules"][0]["Destination"]["Bucket"] = dest_bucket
     log.info(f"replication configuration data: {replication_config}")
-    # Save replication config as JSON
     with open(json_file, "w") as f:
         json.dump(replication_config, f, indent=4)
 
@@ -1145,7 +1277,7 @@ def put_bucket_s3_replication(
     )
     try:
         put_response = utils.exec_shell_cmd(command)
-        if put_response:
+        if put_response is False:
             raise Exception(f"put s3 replication failed for bucket {bucket_name}")
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
@@ -1636,17 +1768,25 @@ def check_log_directory_exists(log_dir, ssh_con=None):
 
 
 def search_lua_messages_in_log_file(
-    log_file, message_pattern, ssh_con=None, node_name=None
+    log_file, message_pattern, ssh_con=None, node_name=None, since_epoch=None
 ):
     """
     Search for lua debug messages in a log file.
     Returns list of matching lines, or empty list if none found.
     """
     try:
-        if ssh_con:
-            grep_cmd = f"sudo grep 'Lua INFO:' {log_file} 2>/dev/null | tail -100"
+        # Bucket names contain '.'; only treat intentional regex (e.g. '.*') as regex.
+        use_regex_pattern = bool(
+            message_pattern
+            and re.search(r"(\.\*|\.\+|\[\^?|\(\?|\(\)|\||\^|\$|\\)", message_pattern)
+        )
+        if message_pattern and not use_regex_pattern:
+            grep_cmd = (
+                f"sudo grep 'Lua INFO:' {log_file} 2>/dev/null "
+                f"| grep -F '{message_pattern}'"
+            )
         else:
-            grep_cmd = f"grep 'Lua INFO:' {log_file} 2>/dev/null | tail -100"
+            grep_cmd = f"sudo grep 'Lua INFO:' {log_file} 2>/dev/null"
 
         if ssh_con:
             stdin, stdout, stderr = ssh_con.exec_command(grep_cmd)
@@ -1670,13 +1810,15 @@ def search_lua_messages_in_log_file(
         if grep_output:
             all_lines = grep_output.strip().split("\n")
             if message_pattern:
-                pattern_re = re.compile(message_pattern)
-                matching_lines = []
-                for line in all_lines:
-                    if pattern_re.search(line):
-                        matching_lines.append(line)
-                    else:
-                        log.debug(f"Line does not match pattern: {line[:100]}...")
+                if use_regex_pattern:
+                    pattern_re = re.compile(message_pattern)
+                    matching_lines = [
+                        line for line in all_lines if pattern_re.search(line)
+                    ]
+                else:
+                    matching_lines = [
+                        line for line in all_lines if message_pattern in line
+                    ]
                 log.info(
                     f"Found {len(all_lines)} Lua INFO messages, {len(matching_lines)} match pattern"
                     + (f" on {node_name}" if node_name else "")
@@ -1685,8 +1827,49 @@ def search_lua_messages_in_log_file(
                     log.warning(
                         f"Pattern '{message_pattern}' did not match any of {len(all_lines)} Lua INFO messages. Sample message: {all_lines[0][:150]}"
                     )
+                if since_epoch is not None:
+                    from datetime import datetime
+
+                    cutoff = since_epoch - 1
+                    recent_lines = []
+                    for line in matching_lines:
+                        ts_match = re.match(r"^(\S+)\s", line)
+                        if not ts_match:
+                            continue
+                        ts = ts_match.group(1)
+                        if ts.endswith("+0000"):
+                            ts = ts[:-5] + "+00:00"
+                        try:
+                            if datetime.fromisoformat(ts).timestamp() >= cutoff:
+                                recent_lines.append(line)
+                        except ValueError:
+                            continue
+                    matching_lines = recent_lines
+                if since_epoch is not None and matching_lines:
+                    log.info(
+                        f"{len(matching_lines)} matching message(s) after negative create"
+                        + (f" on {node_name}" if node_name else "")
+                    )
                 return matching_lines
             else:
+                if since_epoch is not None:
+                    from datetime import datetime
+
+                    cutoff = since_epoch - 1
+                    recent_lines = []
+                    for line in all_lines:
+                        ts_match = re.match(r"^(\S+)\s", line)
+                        if not ts_match:
+                            continue
+                        ts = ts_match.group(1)
+                        if ts.endswith("+0000"):
+                            ts = ts[:-5] + "+00:00"
+                        try:
+                            if datetime.fromisoformat(ts).timestamp() >= cutoff:
+                                recent_lines.append(line)
+                        except ValueError:
+                            continue
+                    all_lines = recent_lines
                 log.info(
                     f"Found {len(all_lines)} Lua INFO messages"
                     + (f" on {node_name}" if node_name else "")
@@ -1702,7 +1885,9 @@ def search_lua_messages_in_log_file(
         return []
 
 
-def check_logs_on_node(log_dir, message_pattern, ssh_con=None, node_name=None):
+def check_logs_on_node(
+    log_dir, message_pattern, ssh_con=None, node_name=None, since_epoch=None
+):
     """
     Check logs on a single node (local or remote via SSH).
     Returns count of lua messages found, or None if checking was skipped.
@@ -1731,7 +1916,7 @@ def check_logs_on_node(log_dir, message_pattern, ssh_con=None, node_name=None):
     total_messages = 0
     for log_file in rgw_log_files:
         lines = search_lua_messages_in_log_file(
-            log_file, message_pattern, ssh_con, node_name
+            log_file, message_pattern, ssh_con, node_name, since_epoch
         )
         if lines:
             total_messages += len(lines)
@@ -1764,13 +1949,26 @@ def get_all_rgw_hosts():
 
 
 def check_rgw_debug_logs_and_reset(
-    message_pattern=None, ssh_con=None, haproxy=None, expected_count=None
+    message_pattern=None,
+    ssh_con=None,
+    haproxy=None,
+    expected_count=None,
+    check_all_rgw_nodes=False,
+    optional=False,
+    since_epoch=None,
+    exact_count=False,
 ):
     """
     Check RGW debug logs for lua script messages and reset debug_rgw to default level.
     message_pattern: regex pattern to search (None = any 'Lua INFO:' messages).
     ssh_con: SSH connection object for remote execution (optional).
     haproxy: If True, check logs on all RGW nodes (since requests can go to any node).
+    check_all_rgw_nodes: If True, aggregate logs from every RGW host (optional; use with
+        haproxy or multi-node endpoints only).
+    optional: If True, log a warning when expected messages are missing but do not raise
+        (use when functional checks already prove behavior, e.g. block Lua on RGW 9.1).
+    since_epoch: Only count log lines at or after this Unix timestamp (ignores stale entries).
+    exact_count: If True, require found count to equal expected_count (not just >=).
     expected_count: Expected number of lua debug messages. If provided, raises TestExecError if count doesn't match.
     Raises TestExecError if log checking or debug_rgw reset fails, or if expected_count is not met.
     """
@@ -1779,157 +1977,117 @@ def check_rgw_debug_logs_and_reset(
     try:
         fsid = utils.get_cluster_fsid()
         log_dir = f"/var/log/ceph/{fsid}"
-        total_lua_messages = 0
-        if haproxy:
-            log.info("HAProxy is enabled - checking logs on all RGW nodes")
-            try:
-                rgw_hosts = get_all_rgw_hosts()
-                if not rgw_hosts:
-                    log.warning("No RGW hosts found. Skipping log checking.")
-                else:
-                    log.info(f"Found {len(rgw_hosts)} RGW host(s): {rgw_hosts}")
-                    nodes_checked = 0
-                    for host in rgw_hosts:
-                        try:
-                            log.info(f"Checking logs on RGW node: {host}")
-                            node_ssh_con = utils.connect_remote(host)
-                            node_messages = check_logs_on_node(
-                                log_dir, message_pattern, node_ssh_con, host
-                            )
-                            if node_messages is not None:
-                                nodes_checked += 1
-                                total_lua_messages += node_messages
-                            node_ssh_con.close()
-                        except Exception as e:
-                            log.warning(f"Failed to check logs on RGW node {host}: {e}")
+        found_count = 0
+        nodes_searched = False
+        search_all = haproxy or check_all_rgw_nodes
 
-                    if nodes_checked == 0:
-                        log.warning(
-                            "Could not check logs on any RGW nodes (all skipped or failed)"
-                        )
-                        if expected_count is not None:
-                            raise TestExecError(
-                                f"Could not check logs on any RGW nodes, expected {expected_count} messages"
-                            )
-                    elif total_lua_messages == 0:
-                        if message_pattern:
-                            log.warning(
-                                f"No lua debug messages found matching pattern '{message_pattern}' in RGW logs across all nodes"
-                            )
-                        else:
-                            log.warning(
-                                "No lua debug messages found in RGW logs across all nodes"
-                            )
-                        if expected_count is not None:
-                            raise TestExecError(
-                                f"No lua debug messages found, expected {expected_count} messages"
-                            )
-                    else:
-                        log.info(
-                            f"Total lua debug messages found across all RGW nodes: {total_lua_messages}"
-                        )
-                        if expected_count is not None:
-                            if total_lua_messages < expected_count:
-                                raise TestExecError(
-                                    f"Found {total_lua_messages} lua debug messages, but expected at least {expected_count} messages"
-                                )
-                            log.info(
-                                f"Validation passed: Found {total_lua_messages} messages (expected: {expected_count})"
-                            )
-            except TestExecError as e:
-                raise
-            except Exception as e:
-                log.warning(
-                    f"Failed to check RGW debug logs on all nodes: {e}. Continuing with debug_rgw reset."
+        if not search_all:
+            local_count = check_logs_on_node(
+                log_dir,
+                message_pattern,
+                ssh_con=ssh_con,
+                since_epoch=since_epoch,
+            )
+            if local_count is not None and local_count > 0:
+                found_count = local_count
+                nodes_searched = True
+                log.info(f"Total lua debug messages found: {found_count}")
+            elif local_count is not None and expected_count is None:
+                nodes_searched = True
+            elif local_count is not None:
+                log.info(
+                    "No matching lua debug messages on local node. Checking all RGW nodes..."
                 )
-        else:
-            node_messages = check_logs_on_node(log_dir, message_pattern, ssh_con)
-            if node_messages is None:
-                if expected_count is not None:
-                    log.info(
-                        "Log directory not available on local node. Trying to check logs on RGW nodes..."
-                    )
-                    try:
-                        rgw_hosts = get_all_rgw_hosts()
-                        if rgw_hosts:
-                            log.info(f"Found {len(rgw_hosts)} RGW host(s): {rgw_hosts}")
-                            nodes_checked = 0
-                            for host in rgw_hosts:
-                                try:
-                                    log.info(f"Checking logs on RGW node: {host}")
-                                    node_ssh_con = utils.connect_remote(host)
-                                    host_messages = check_logs_on_node(
-                                        log_dir, message_pattern, node_ssh_con, host
-                                    )
-                                    if host_messages is not None:
-                                        nodes_checked += 1
-                                        total_lua_messages += host_messages
-                                    node_ssh_con.close()
-                                except Exception as e:
-                                    log.warning(
-                                        f"Failed to check logs on RGW node {host}: {e}"
-                                    )
+            else:
+                log.info(
+                    "Log directory not available on local node. Trying to check logs on RGW nodes..."
+                )
 
-                            if nodes_checked == 0:
-                                raise TestExecError(
-                                    f"Could not check logs on any RGW nodes, expected {expected_count} messages"
-                                )
-                            elif total_lua_messages == 0:
-                                raise TestExecError(
-                                    f"No lua debug messages found on RGW nodes, expected {expected_count} messages"
-                                )
-                            elif total_lua_messages < expected_count:
-                                raise TestExecError(
-                                    f"Found {total_lua_messages} lua debug messages on RGW nodes, but expected at least {expected_count} messages"
-                                )
-                            else:
-                                log.info(
-                                    f"Total lua debug messages found on RGW nodes: {total_lua_messages}"
-                                )
-                                log.info(
-                                    f"Validation passed: Found {total_lua_messages} messages (expected: {expected_count})"
-                                )
-                        else:
-                            raise TestExecError(
-                                f"No RGW hosts found, expected {expected_count} messages"
-                            )
-                    except TestExecError:
-                        raise
+        if search_all or not nodes_searched:
+            if search_all:
+                reason = (
+                    "HAProxy is enabled"
+                    if haproxy
+                    else "check_all_rgw_nodes is enabled"
+                )
+                log.info(f"{reason} - checking logs on all RGW nodes")
+            rgw_hosts = get_all_rgw_hosts()
+            if not rgw_hosts:
+                if expected_count is not None:
+                    raise TestExecError(
+                        f"No RGW hosts found, expected {expected_count} messages"
+                    )
+            else:
+                log.info(f"Found {len(rgw_hosts)} RGW host(s): {rgw_hosts}")
+                nodes_checked = 0
+                found_count = 0
+                for host in rgw_hosts:
+                    try:
+                        log.info(f"Checking logs on RGW node: {host}")
+                        node_ssh_con = utils.connect_remote(host)
+                        host_messages = check_logs_on_node(
+                            log_dir,
+                            message_pattern,
+                            node_ssh_con,
+                            host,
+                            since_epoch,
+                        )
+                        if host_messages is not None:
+                            nodes_checked += 1
+                            found_count += host_messages
+                        node_ssh_con.close()
                     except Exception as e:
+                        log.warning(f"Failed to check logs on RGW node {host}: {e}")
+                if nodes_checked == 0:
+                    if expected_count is not None:
                         raise TestExecError(
-                            f"Failed to check logs on RGW nodes: {e}, expected {expected_count} messages"
+                            f"Could not check logs on any RGW nodes, expected {expected_count} messages"
                         )
                 else:
-                    log.info(
-                        "Log checking was skipped (log directory not available on this node)"
-                    )
-            elif node_messages == 0:
+                    nodes_searched = True
+                    if search_all or expected_count is not None:
+                        log.info(
+                            f"Total lua debug messages found across all RGW nodes: {found_count}"
+                        )
+
+        if expected_count is not None:
+            if not nodes_searched:
+                raise TestExecError(
+                    f"Could not check RGW logs, expected {expected_count} messages"
+                )
+            if found_count == 0:
                 if message_pattern:
                     log.warning(
                         f"No lua debug messages found matching pattern '{message_pattern}' in RGW logs"
                     )
                 else:
                     log.warning("No lua debug messages found in RGW logs")
-                if expected_count is not None:
-                    raise TestExecError(
-                        f"No lua debug messages found, expected {expected_count} messages"
-                    )
-            else:
-                log.info(f"Total lua debug messages found: {node_messages}")
-                if expected_count is not None:
-                    if node_messages < expected_count:
-                        raise TestExecError(
-                            f"Found {node_messages} lua debug messages, but expected at least {expected_count} messages"
-                        )
-                    log.info(
-                        f"Validation passed: Found {node_messages} messages (expected: {expected_count})"
-                    )
+                raise TestExecError(
+                    f"No lua debug messages found, expected {expected_count} messages"
+                )
+            if exact_count and found_count != expected_count:
+                raise TestExecError(
+                    f"Found {found_count} lua debug messages, but expected exactly {expected_count}"
+                )
+            if not exact_count and found_count < expected_count:
+                raise TestExecError(
+                    f"Found {found_count} lua debug messages, but expected at least {expected_count}"
+                )
+            log.info(
+                f"Validation passed: Found {found_count} messages (expected: {expected_count})"
+            )
 
     except TestExecError as e:
         validation_error = e
-        log.warning(
-            f"Validation failed: {e}. Will reset debug_rgw and then fail the test."
-        )
+        if optional:
+            log.warning(
+                f"Optional lua debug log check: {e}. Continuing (functional checks are authoritative)."
+            )
+            validation_error = None
+        else:
+            log.warning(
+                f"Validation failed: {e}. Will reset debug_rgw and then fail the test."
+            )
     except Exception as e:
         log.warning(
             f"Failed to check RGW debug logs: {e}. Continuing with debug_rgw reset."
@@ -1942,7 +2100,7 @@ def check_rgw_debug_logs_and_reset(
         out_ps = utils.exec_shell_cmd(cmd_ps)
         rgw_daemons = json.loads(out_ps)
         for daemon in rgw_daemons:
-            daemon_name = daemon.get("service_name")
+            daemon_name = daemon.get("daemon_name") or daemon.get("service_name")
             if daemon_name:
                 debug_cmd = f"ceph config rm client.{daemon_name} debug_rgw"
                 log.info(f"Resetting debug_rgw for {daemon_name}: {debug_cmd}")
@@ -2221,4 +2379,30 @@ def conditional_put_multipart_upload(
     except Exception as e:
         if return_err:
             return str(e)
+        raise AWSCommandExecError(message=str(e))
+
+
+def get_bucket_location(aws_auth, bucket_name, end_point):
+    """
+    Get bucket location
+    ex: /usr/local/bin/aws s3api get-bucket-location --bucket verbkt1 --endpoint-url http://x.x.x.x:xx
+    Args:
+        aws_auth: AWS auth object
+        bucket_name(str): Name of the bucket
+        end_point(str): endpoint
+    Returns:
+        Location constraint of the bucket
+    """
+    command = aws_auth.command(
+        operation="get-bucket-location",
+        params=[f"--bucket {bucket_name} --endpoint-url {end_point}"],
+    )
+    try:
+        location_response = utils.exec_shell_cmd(command)
+        log.info(f"bucket location response is {location_response}")
+        if not location_response:
+            raise Exception(f"Get bucket location failed for {bucket_name}")
+        location_data = json.loads(location_response)
+        return location_data.get("LocationConstraint", "")
+    except Exception as e:
         raise AWSCommandExecError(message=str(e))

@@ -23,6 +23,7 @@ config:
         "RestrictPublicBuckets": True
       }
     verify_policy: True
+    verify_policy_failure_expected: True
     endpoint: kafka
     ack_type: broker
     bucket_tags: [

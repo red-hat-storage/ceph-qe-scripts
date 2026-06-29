@@ -1,0 +1,15 @@
+# script: test_admin_api_user_operations.py
+# Polarian id: CEPH-83623503
+config:
+  user_count: 1
+  sync_wait_time: 10
+
+  test_ops:
+    modify_user: true
+    delete_user: true
+    create_subuser: true
+    modify_subuser: true
+    delete_subuser: true
+    add_capabilities: true
+    remove_capabilities: true
+    user_remove: true
