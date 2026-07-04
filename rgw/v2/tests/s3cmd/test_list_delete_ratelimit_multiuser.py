@@ -44,40 +44,6 @@ from v2.utils.test_desc import AddTestInfo
 log = logging.getLogger()
 TEST_DATA_PATH = None
 
-S3CMD_PATH = "/home/cephuser/venv/bin/s3cmd"
-
-
-def create_objects_after_ratelimit(bucket_name, object_count):
-    """
-    Create objects in the bucket after rate limit is applied, before asserting
-    for 503. Ensures the bucket has content so LIST/DELETE rate limit tests
-    run against real objects.
-    """
-    s3cmd_reusable.create_local_file("1k", "ratelimit_test_file")
-    for i in range(1, object_count + 1):
-        cmd = (
-            f"{S3CMD_PATH} put ratelimit_test_file " f"s3://{bucket_name}/delete_obj{i}"
-        )
-        utils.exec_shell_cmd(cmd)
-    log.info(f"Created {object_count} objects in bucket {bucket_name} after ratelimit")
-
-
-def attempt_list_ops_and_assert_503(bucket_name, max_list_ops):
-    """
-    max_list_ops is the maximum number of LIST operations allowed on the bucket
-    per interval. Attempt to list objects using s3cmd ls (max_list_ops + 1)
-    times; the first max_list_ops calls are within limit, the (max_list_ops+1)th
-    exceeds the limit and must return 503.
-    """
-    bucket_for_s3cmd = bucket_name.split("/")[1] if "/" in bucket_name else bucket_name
-    range_val = f"1..{max_list_ops + 1}"
-    cmd = (
-        f"for i in {{{range_val}}}; do {S3CMD_PATH} ls "
-        f"s3://{bucket_for_s3cmd}/; done;"
-    )
-    stdout, stderr = s3cmd_reusable.run_subprocess(cmd)
-    assert "503" in str(stderr), "Rate limit slowdown not observed, failing!"
-
 
 def test_exec(config, ssh_con):
     """
@@ -148,7 +114,7 @@ def test_exec(config, ssh_con):
 
         # Create objects after applying ratelimit, before asserting 503
         obj_count = max_list_ops + max_delete_ops + 2
-        create_objects_after_ratelimit(bucket_name, obj_count)
+        s3cmd_reusable.create_objects_after_ratelimit(bucket_name, obj_count)
 
         # Test LIST operations rate limit
         log.info(
@@ -157,7 +123,7 @@ def test_exec(config, ssh_con):
             max_list_ops,
             user_name,
         )
-        attempt_list_ops_and_assert_503(bucket_name, max_list_ops)
+        s3cmd_reusable.rate_limit_list(bucket_name, max_list_ops)
         log.info(f"User {user_name}: LIST rate limit 503 verified")
 
         log.info("Sleeping for 61 seconds to reset limits")

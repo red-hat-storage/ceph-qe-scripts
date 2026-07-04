@@ -446,6 +446,28 @@ def debt_ratelimit(bucket, debt_limit, ssl=None):
     assert "503" not in str(stderr), "Rate limit slowdown observed, failing!"
 
 
+def create_objects_after_ratelimit(bucket, object_count, ssl=None):
+    """
+    Create objects in the bucket after rate limit is applied, before asserting
+    for 503. Ensures the bucket has content so LIST/DELETE rate limit tests
+    run against real objects.
+    """
+    if "/" in bucket:
+        bucket = bucket.split("/")[1]
+    if ssl:
+        ssl_param = "-s"
+    else:
+        ssl_param = ""
+    create_local_file("1k", "ratelimit_test_file")
+    for i in range(1, object_count + 1):
+        cmd = (
+            f"/home/cephuser/venv/bin/s3cmd put ratelimit_test_file "
+            f"s3://{bucket}/delete_obj{i} {ssl_param}"
+        )
+        run_subprocess(cmd)
+    log.info(f"Created {object_count} objects in bucket {bucket} after ratelimit")
+
+
 def rate_limit_list(bucket, max_list_ops, ssl=None):
     """
     Test LIST operations rate limit enforcement
