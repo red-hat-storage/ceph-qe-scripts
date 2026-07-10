@@ -9,7 +9,7 @@ from v2.tests.aws import reusable as aws_reusable
 log = logging.getLogger()
 
 
-def convert_virtual_host_endpoint_url(endpoint_url, bucket_name, domain_name):
+def convert_to_virtual_host_endpoint_url(endpoint_url, bucket_name, domain_name):
     url_parts = endpoint_url.split(":")
     protocol = url_parts[0]
     port = url_parts[2]
@@ -87,7 +87,7 @@ class CURL:
             if virtual_hosted_style_request:
                 url_suffix_contents = url_suffix.split("/", 1)
                 bucket_name = url_suffix_contents.pop(0)
-                url = convert_virtual_host_endpoint_url(self.endpoint_url, bucket_name, self.domain_name)
+                url = convert_to_virtual_host_endpoint_url(self.endpoint_url, bucket_name, self.domain_name)
                 if url_suffix_contents:
                     url = f"{url}/{url_suffix_contents.pop(0)}"
             else:

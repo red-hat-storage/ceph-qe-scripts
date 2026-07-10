@@ -2047,3 +2047,49 @@ def remove_object_retention(s3):
         #     },
         #     BypassGovernanceRetention=True
         # )
+
+
+METHOD_DISPATCH = {
+    name: globals()[name]
+    for name in all_actions
+    if name in globals() and callable(globals()[name])
+}
+
+
+def exercise_s3api_methods(s3_client, method_names):
+    """Run a subset of S3 API helpers and return (passed, failed) action names."""
+    global PASSED_ACTIONS, FAILED_ACTIONS
+    PASSED_ACTIONS = []
+    FAILED_ACTIONS = []
+    for method_name in method_names:
+        method_fn = METHOD_DISPATCH.get(method_name)
+        if method_fn is None:
+            log.warning("no S3 API helper for method %s", method_name)
+            continue
+        log.info("------------------------------------- Test %s", method_name)
+        method_fn(s3_client)
+    return sorted(PASSED_ACTIONS), sorted(FAILED_ACTIONS)
+
+
+def init_sts_permutation_globals(bucket_name, object_key, bucket_owner_client):
+    """Initialize module globals used by S3 API helper functions."""
+    global BUCKET, OBJECT_KEY, s3_client_bucket_owner
+    BUCKET = bucket_name
+    OBJECT_KEY = object_key
+    s3_client_bucket_owner = bucket_owner_client
+
+
+def ensure_bucket_and_object(bucket_owner_client, bucket_name, object_key, tenant_name=None):
+    """Ensure test bucket exists and contains the target object."""
+    try:
+        bucket_owner_client.head_bucket(Bucket=bucket_name)
+    except ClientError:
+        log.info("creating bucket %s for permutation test", bucket_name)
+        bucket_owner_client.create_bucket(Bucket=bucket_name)
+    try:
+        bucket_owner_client.head_object(Bucket=bucket_name, Key=object_key)
+    except ClientError:
+        log.info("uploading object %s into bucket %s", object_key, bucket_name)
+        bucket_owner_client.put_object(
+            Bucket=bucket_name, Key=object_key, Body="permutation-test-data"
+        )

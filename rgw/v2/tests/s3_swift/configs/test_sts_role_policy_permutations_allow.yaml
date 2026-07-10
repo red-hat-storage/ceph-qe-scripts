@@ -1,0 +1,21 @@
+# Allow effect: all testable S3 actions × resource ARNs × conditions (role_only)
+# script: test_sts_role_policy_field_permutations.py
+config:
+  user_count: 2
+  user_type: tenanted
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    tenant_name: MountEverest
+    same_bucket_owner_and_principal: false
+    permutation_effects: [Allow]
+    permutation_conditions: [none, aws_secure_transport, s3_prefix, aws_current_time]
+    permutation_condition_variants: [match]
+    permutation_policy_scopes: [role_only]
+    permutation_s3_actions: all
+    permutation_resource_types: auto
+    permutation_max_cases: 0
+    permutation_stop_on_failure: false
