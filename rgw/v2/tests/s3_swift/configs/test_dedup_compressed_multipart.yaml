@@ -1,0 +1,11 @@
+# S19: Compressed multipart object dedup
+# PR #68965 - Priority P1
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 5
+  objects_size_range:
+    min: 51200
+    max: 51200
+  test_ops:
+    dedup_type: "compressed_multipart"

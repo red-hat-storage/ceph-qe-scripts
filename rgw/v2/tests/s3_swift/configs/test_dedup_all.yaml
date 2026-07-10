@@ -1,0 +1,12 @@
+# Run all 30 dedup tests as a single cephci entry
+# Use with: script-name: test_dedup.py, config-file-name: test_dedup_all.yaml
+config:
+  haproxy: true
+  user_count: 2
+  bucket_count: 1
+  objects_count: 50
+  objects_size_range:
+    min: 5120
+    max: 10240
+  test_ops:
+    dedup_type: "all"

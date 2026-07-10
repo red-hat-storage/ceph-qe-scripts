@@ -1,0 +1,11 @@
+# B1: Overwrite deduped object - verify shared tail integrity
+# Bug target: GC deletes shared tails via complete_atomic_modification()
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  objects_size_range:
+    min: 5120
+    max: 5120
+  test_ops:
+    dedup_type: "overwrite_deduped"
