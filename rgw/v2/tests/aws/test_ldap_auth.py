@@ -78,7 +78,10 @@ def test_exec(config, ssh_con):
         f"ceph config set client.{rgw_service_name} rgw_ldap_dnattr uid"
     )
     utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_ldap_searchdn ou=ceph,dc=ceph-amk-test-r5ozm1-node8"
+        f"ceph config set client.{rgw_service_name} rgw_ldap_uri ldap://10.245.64.172:389"
+    )
+    utils.exec_shell_cmd(
+        f"ceph config set client.{rgw_service_name} rgw_ldap_searchdn ou=ceph,dc=localhost"
     )
     utils.exec_shell_cmd(
         f"ceph config set client.{rgw_service_name} rgw_ldap_secret /etc/bindpass"
