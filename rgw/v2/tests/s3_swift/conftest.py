@@ -9,6 +9,7 @@ Usage:
   pytest test_dedup_pytest.py -c <config.yaml> --rgw-node <hostname>
 """
 
+import json
 import logging
 import os
 import random
@@ -467,6 +468,40 @@ def pytest_runtest_makereport(item, call):
         else:
             _test_context.pop(node_id, None)
         _test_passed.pop(node_id, None)
+
+
+DEDUP_REPORT_PATH = "/tmp/dedup_test_report.json"
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Write per-test results to JSON for cephci to pick up."""
+    if not _test_results:
+        return
+
+    report = {
+        "results": [],
+        "savings": {},
+        "exit_status": exitstatus,
+    }
+
+    for r in _test_results:
+        entry = dict(r)
+        node_id = f"test_dedup_pytest.py::{r['name']}"
+        ctx = _test_context.get(node_id, {})
+        recorder = ctx.get("recorder")
+        if recorder:
+            entry["steps"] = list(recorder.steps)
+        report["results"].append(entry)
+
+    for test_id, s in dedup_utils._savings_registry.items():
+        report["savings"][test_id] = s
+
+    try:
+        with open(DEDUP_REPORT_PATH, "w") as f:
+            json.dump(report, f, indent=2, default=str)
+        log.info("Wrote dedup test report to %s", DEDUP_REPORT_PATH)
+    except Exception as e:
+        log.warning("Failed to write dedup test report JSON: %s", e)
 
 
 def pytest_terminal_summary(terminalreporter, exitstatus, config):
