@@ -7,6 +7,7 @@ Usage: test_user_bucket_rename.py -c <input_yaml>
         test_user_bucket_rename.yaml
         test_user_rename.yaml
         test_object_unlink.yaml
+        test_zg_max_index_shards.yaml
 
 Operation:
     Create tenanted and non tenanted user
@@ -98,11 +99,11 @@ def test_exec(config, ssh_con):
 
     for ten_user in ten_users:
         auth = Auth(ten_user, ssh_con, ssl=config.ssl)
-        rgw_conn = auth.do_auth()
+        rgw_conn1 = auth.do_auth()
         bucket_name_to_create2 = utils.gen_bucket_name_from_userid(ten_user["user_id"])
         log.info("creating bucket with name: %s" % bucket_name_to_create2)
         bucket = reusable.create_bucket(
-            bucket_name_to_create2, rgw_conn, ten_user, ip_and_port
+            bucket_name_to_create2, rgw_conn1, ten_user, ip_and_port
         )
         ten_buckets[ten_user["user_id"]] = bucket_name_to_create2
         if config.test_ops["rename_buckets"] is True:
@@ -171,8 +172,11 @@ def test_exec(config, ssh_con):
         log.info(f"return value is {ret}")
         if not ret:
             raise TestExecError("Failure to change max bucket index shards")
-        bucket_name_to_create3 = utils.gen_bucket_name_from_userid(
+        bucket_name_to_create3 = "new" + utils.gen_bucket_name_from_userid(
             non_ten_users[0]["user_id"]
+        )
+        bucket1 = reusable.create_bucket(
+            bucket_name_to_create3, rgw_conn, non_ten_users[0], ip_and_port
         )
         log.info("Verify number of bucket shards is 0")
         look_for = "num_shards"
