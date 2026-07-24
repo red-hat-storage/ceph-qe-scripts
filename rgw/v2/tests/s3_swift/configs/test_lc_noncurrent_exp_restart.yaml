@@ -1,0 +1,29 @@
+# script: test_lc_noncurrent_exp_restart.py
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 50
+  rgw_lifecycle_work_time: "00:00-23:59"
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    create_object: true
+    enable_versioning: true
+    version_count: 3
+    restart_lc_debug_interval: 10
+    lc_wait_timeout_sec: 900
+    lc_min_wait_sec: 60
+    post_lc_monitor_sec: 30
+    monitor_interval_sec: 10
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Status: Enabled
+      Filter:
+        Prefix: ""
+      Expiration:
+        Days: 1
+      NoncurrentVersionExpiration:
+        NoncurrentDays: 1
+        NewerNoncurrentVersions: 1
