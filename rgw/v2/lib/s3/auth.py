@@ -208,3 +208,24 @@ class Auth(object):
         )
 
         return sns_client
+
+    def do_auth_s3control_client(self, **config):
+        """
+        Authenticate using the s3control client (account-level APIs).
+        """
+        log.info("performing authentication using s3control client")
+        # additional_config = Config(s3={"addressing_style": "path"})
+        additional_config = Config(account_id_endpoint_mode='disabled',s3={"addressing_style": "virtual"})
+        region_name = config.get("region_name", "default")
+        log.info(f"Using region_name: {region_name}")
+
+        s3control_client = boto3.client(
+            "s3control",
+            aws_access_key_id=self.access_key,
+            aws_secret_access_key=self.secret_key,
+            endpoint_url=self.endpoint_url,
+            region_name=region_name,
+            config=additional_config,
+            verify=False,
+        )
+        return s3control_client
