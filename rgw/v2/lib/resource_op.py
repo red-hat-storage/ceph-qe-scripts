@@ -454,6 +454,8 @@ class Config(object):
             "ssl",
         )
         self.haproxy = self.doc["config"].get("haproxy", False)
+        self.endpoint_ip = self.doc["config"].get("endpoint_ip")
+        self.endpoint_port = self.doc["config"].get("endpoint_port")
         self.test_sync_consistency_bucket_stats = self.doc["config"].get(
             "test_sync_consistency_bucket_stats", False
         )

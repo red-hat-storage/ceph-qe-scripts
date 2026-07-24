@@ -13,7 +13,6 @@ the workflow is to test all permutations of:
 4. with operations - copy, download, get-object-attributes, delete
 """
 
-
 import argparse
 import json
 import logging
@@ -51,7 +50,12 @@ def test_exec(config, ssh_con, config_yaml_path):
     go_auth.install_go()
     if config.test_ops.get("use_ssl"):
         config.ssl = True
-    endpoint = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
+    if config.endpoint_ip:
+        scheme = "https" if config.ssl else "http"
+        port = config.endpoint_port or 443
+        endpoint = f"{scheme}://{config.endpoint_ip}:{port}"
+    else:
+        endpoint = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
     all_users_info = resource_op.create_users(no_of_users_to_create=config.user_count)
 
     # create local objects
