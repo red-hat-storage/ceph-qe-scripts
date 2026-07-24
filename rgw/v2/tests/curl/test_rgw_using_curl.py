@@ -73,7 +73,7 @@ def test_exec(config, ssh_con):
         user1_id = user1["user_id"]
         user2 = all_users_info[1]
         user2_id = user2["user_id"]
-        curl_auth = CURL(user1, ssh_con, ssl=config.ssl)
+        curl_auth = CURL(user1, ssh_con, ssl=config.ssl, ssl_trusted=config.test_ops.get("ssl_trusted", False))
 
         utils.exec_shell_cmd(
             f"radosgw-admin caps add --uid={user1_id} --caps='users=write'"
@@ -108,7 +108,7 @@ def test_exec(config, ssh_con):
         user_name = each_user["user_id"]
         log.info(user_name)
 
-        curl_auth = CURL(each_user, ssh_con, ssl=config.ssl)
+        curl_auth = CURL(each_user, ssh_con, ssl=config.ssl, ssl_trusted=config.test_ops.get("ssl_trusted", False), virtual_host_bkt_access=config.test_ops.get("virtual_host_bkt_access", False), domain_name=config.test_ops.get("domain_name", False))
 
         for bc in range(config.bucket_count):
             bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)

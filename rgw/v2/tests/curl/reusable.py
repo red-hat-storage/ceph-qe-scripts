@@ -198,7 +198,7 @@ def create_bucket(curl_auth, bucket_name, endpoint, retries=3, wait_time=5):
         "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
     }
     command = curl_auth.command(
-        http_method="PUT", headers=headers, url_suffix=bucket_name
+        http_method="PUT", headers=headers, url_suffix=bucket_name, virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     bucket_creation_status = utils.exec_shell_cmd(command)
     if bucket_creation_status is False:
@@ -267,6 +267,7 @@ def upload_object(
             input_file=s3_object_path,
             # url_suffix=f"{bucket_name}/{s3_object_name}",
             presigned_url=presigned_url,
+            virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
         )
         upload_object_status = utils.exec_shell_cmd(command)
         if upload_object_status is False:
@@ -318,6 +319,7 @@ def put_cors_object(
         headers=headers,
         input_file=s3_object_path,
         url_suffix=f"{bucket_name}/{s3_object_name}",
+        virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     upload_object_status, err = utils.exec_shell_cmd(command, debug_info=True)
     log.info(upload_object_status)
@@ -359,6 +361,7 @@ def download_object(
         headers=headers,
         output_file=s3_object_download_path,
         url_suffix=f"{bucket_name}/{s3_object_name}",
+        virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     upload_object_status = utils.exec_shell_cmd(command)
     if upload_object_status is False:
@@ -396,6 +399,7 @@ def delete_object(curl_auth, bucket_name, s3_object_name, cors_origin=None):
         http_method="DELETE",
         headers=headers,
         url_suffix=f"{bucket_name}/{s3_object_name}",
+        virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     delete_object_status = utils.exec_shell_cmd(command)
     if delete_object_status is False:
@@ -417,7 +421,8 @@ def delete_bucket(curl_auth, bucket_name):
         "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
     }
     command = curl_auth.command(
-        http_method="DELETE", headers=headers, url_suffix=f"{bucket_name}"
+        http_method="DELETE", headers=headers, url_suffix=f"{bucket_name}",
+        virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     delete_bucket_status = utils.exec_shell_cmd(command)
     if delete_bucket_status is False:
@@ -608,7 +613,8 @@ def head_bucket(curl_auth, bucket_name):
         "x-amz-content-sha256": "UNSIGNED-PAYLOAD",
     }
     command = curl_auth.command(
-        headers=headers, url_suffix=f"{bucket_name}", head_request=True
+        headers=headers, url_suffix=f"{bucket_name}", head_request=True,
+        virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     cmd_output = utils.exec_shell_cmd(command)
     log.info(f"head bucket result: {cmd_output}")
@@ -662,6 +668,7 @@ def create_multipart_upload(curl_auth, bucket_name, s3_object_name):
         http_method="POST",
         headers=headers,
         url_suffix=f"{bucket_name}/{s3_object_name}?uploads=true",
+        virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     create_mpu_output = utils.exec_shell_cmd(command)
     if create_mpu_output is False:
@@ -704,6 +711,7 @@ def upload_part(
         headers=headers,
         input_file=body,
         url_suffix=f"{bucket_name}/{s3_object_name}?partNumber={part_number}&uploadId={upload_id}",
+        virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     upload_part_output, verbose_output = utils.exec_shell_cmd(command, debug_info=True)
     if upload_part_output is False:
@@ -748,6 +756,7 @@ def complete_multipart_upload(
         headers=headers,
         raw_data_list=[complete_mpu_string],
         url_suffix=f"{bucket_name}/{s3_object_name}?uploadId={upload_id}",
+        virtual_hosted_style_request=curl_auth.virtual_host_bkt_access
     )
     complete_mpu_output = utils.exec_shell_cmd(command)
     if complete_mpu_output is False:

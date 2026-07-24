@@ -1,0 +1,21 @@
+# Deny effect: all testable S3 actions with role_only and role+session scopes
+# script: test_sts_role_policy_field_permutations.py
+config:
+  user_count: 2
+  user_type: tenanted
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    tenant_name: MountEverest
+    same_bucket_owner_and_principal: true
+    permutation_effects: [Deny]
+    permutation_conditions: [none]
+    permutation_condition_variants: [match]
+    permutation_policy_scopes: [role_only, role_and_session]
+    permutation_s3_actions: all
+    permutation_resource_types: auto
+    permutation_max_cases: 0
+    permutation_stop_on_failure: false
