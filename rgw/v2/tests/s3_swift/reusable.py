@@ -3734,10 +3734,10 @@ def get_rgw_service_port():
     return rgw_serv_port
 
 
-def get_auth(user_info, ssh_con, ssl, haproxy):
+def get_auth(user_info, ssh_con, ssl, haproxy, **kwargs):
     rgw_service_port = get_rgw_service_port()
     haproxy = False if rgw_service_port == 443 else haproxy
-    return Auth(user_info, ssh_con, ssl=ssl, haproxy=haproxy)
+    return Auth(user_info, ssh_con, ssl=ssl, haproxy=haproxy, **kwargs)
 
 
 def verify_object_accessibility(s3_client, bucket_name, object_key):

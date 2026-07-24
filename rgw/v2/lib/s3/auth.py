@@ -27,7 +27,14 @@ class Auth(object):
         """
         self.access_key = user_info["access_key"]
         self.secret_key = user_info["secret_key"]
-        if ssh_con is not None:
+        endpoint_ip = extra_kwargs.get("endpoint_ip")
+        endpoint_port = extra_kwargs.get("endpoint_port")
+        if endpoint_ip:
+            self.ip = endpoint_ip
+            self.port = endpoint_port or 443
+            self.hostname = endpoint_ip
+            log.info(f"Using explicit endpoint: {self.ip}:{self.port}")
+        elif ssh_con is not None:
             stdin, stdout, stderr = ssh_con.exec_command("hostname")
             self.hostname = stdout.readline().strip()
             self.port = utils.get_radosgw_port_no(ssh_con)
@@ -41,7 +48,7 @@ class Auth(object):
             self.ip = socket.gethostbyname(self.hostname)
         self.ssl = extra_kwargs.get("ssl", False)
         self.haproxy = extra_kwargs.get("haproxy", False)
-        if self.haproxy:
+        if self.haproxy and not endpoint_ip:
             self.port = 5000
         self.endpoint_url = (
             "https://{}:{}".format(self.ip, self.port)

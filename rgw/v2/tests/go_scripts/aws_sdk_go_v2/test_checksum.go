@@ -1,30 +1,28 @@
 package main
 
-import (
-    "flag"
-	"bytes"
-	"context"
-	"fmt"
-	"io"
-	"os"
-	"log"
-	"errors"
-	"encoding/hex"
-	"crypto/md5"
-	"crypto/sha1"
-	"crypto/sha256"
-	"hash/crc32"
-	"github.com/minio/crc64nvme"
-    "encoding/base64"
-    "encoding/binary"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-)
-
+import "bytes"
+import "context"
+import "crypto/md5"
+import "crypto/sha1"
+import "crypto/sha256"
+import "crypto/tls"
+import "encoding/base64"
+import "encoding/binary"
+import "encoding/hex"
+import "errors"
+import "flag"
+import "fmt"
+import "github.com/aws/aws-sdk-go-v2/aws"
+import "github.com/aws/aws-sdk-go-v2/config"
+import "github.com/aws/aws-sdk-go-v2/credentials"
+import "github.com/aws/aws-sdk-go-v2/service/s3"
+import "github.com/aws/aws-sdk-go-v2/service/s3/types"
+import "github.com/minio/crc64nvme"
+import "hash/crc32"
+import "io"
+import "log"
+import "net/http"
+import "os"
 
 func main() {
 
@@ -136,8 +134,12 @@ func main() {
 
 func setupS3Client(ctx context.Context, accessKey string, secretKey string, endpointUrl string) *s3.Client {
     fmt.Println("Setting up s3 client")
-// 	awsConfig, err := config.LoadDefaultConfig(ctx, config.WithClientLogMode(aws.LogRequestWithBody|aws.LogResponseWithBody), config.WithRegion("us-east-1"), config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")) )
-	awsConfig, err := config.LoadDefaultConfig(ctx, config.WithClientLogMode(aws.LogRequest|aws.LogResponse), config.WithRegion("us-east-1"), config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")) )
+	httpClient := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	awsConfig, err := config.LoadDefaultConfig(ctx, config.WithClientLogMode(aws.LogRequest|aws.LogResponse), config.WithRegion("us-east-1"), config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKey, secretKey, "")), config.WithHTTPClient(httpClient) )
 	if err != nil {
 		fmt.Println("failed to load AWS config: %v\n", err)
 		os.Exit(1)
