@@ -1,0 +1,8 @@
+# script: test_quota_edge_cases.py
+# Test quota recalculation timing after object deletion (eventual consistency)
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    quota_scope: bucket
+    test_quota_timing: true
