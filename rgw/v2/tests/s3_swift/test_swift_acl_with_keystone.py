@@ -33,7 +33,7 @@ def create_swift_bucket_with_acl_keystone(bucket_name, rgw_ip, port, user="admin
     """
     Verify the unified namespace behaviour from swift
     """
-    keystone_node = "10.0.209.121"
+    keystone_node = "localhost"
     ssh = utils.connect_remote(keystone_node)
 
     swift_url = f"http://{rgw_ip}:{port}/swift/v1"
@@ -92,7 +92,7 @@ def put_keystone_conf(rgw_service_name, user, passw, project, tenant="true"):
     # Dictionary of the configuration options to be set
     config_options = {
         "rgw_keystone_api_version": "3",
-        "rgw_keystone_url": "http://10.0.209.121:5000",
+        # "rgw_keystone_url": "http://10.0.209.121:5000",
         "rgw_keystone_admin_user": user,
         "rgw_keystone_admin_password": passw,
         "rgw_keystone_admin_domain": "Default",
@@ -117,7 +117,7 @@ def cleanup_keystone(user="admin"):
     """
     Delete the swift endpoints added earlier from the keystone server
     """
-    keystone_node = "10.0.209.121"
+    keystone_node = "localhost"
     ssh = utils.connect_remote(keystone_node)
     log.info("Deleting the swift endpoints")
     cmd = f"source /home/cephuser/key_{user}.rc; openstack endpoint list"
