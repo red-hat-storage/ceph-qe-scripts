@@ -1,0 +1,11 @@
+# B4: Cross-bucket dedup - source bucket deletion
+# Bug target: No cross-bucket reference tracking for shared tail objects
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 1
+  objects_size_range:
+    min: 5120
+    max: 5120
+  test_ops:
+    dedup_type: "cross_bucket_delete"

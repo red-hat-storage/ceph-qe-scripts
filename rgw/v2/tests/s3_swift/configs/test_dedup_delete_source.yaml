@@ -1,0 +1,11 @@
+# B2: Delete dedup source - verify refcount protection
+# Bug target: S3 delete uses GC path without cls_refcount_put()
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  objects_size_range:
+    min: 5120
+    max: 5120
+  test_ops:
+    dedup_type: "delete_source"

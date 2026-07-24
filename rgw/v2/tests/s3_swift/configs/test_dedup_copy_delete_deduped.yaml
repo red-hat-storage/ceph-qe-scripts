@@ -1,0 +1,11 @@
+# B3: S3 copy deduped object then delete original
+# Bug target: set_copy_attrs() copies shared_manifest without refcount increment
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 5
+  objects_size_range:
+    min: 5120
+    max: 5120
+  test_ops:
+    dedup_type: "copy_delete_deduped"

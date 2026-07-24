@@ -1,0 +1,11 @@
+# S21: Compression attr mirroring integrity
+# PR #68965 - Priority P1
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 30
+  objects_size_range:
+    min: 5120
+    max: 5120
+  test_ops:
+    dedup_type: "compressed_attr_mirror"

@@ -1,0 +1,11 @@
+# S5: Data integrity verification after dedup
+# ISCE-4789 - Priority P0
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 100
+  objects_size_range:
+    min: 5120
+    max: 5120
+  test_ops:
+    dedup_type: "integrity"
