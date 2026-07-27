@@ -92,7 +92,7 @@ def test_exec(config, ssh_con):
             )
             s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
-            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+            s3cmd_path = s3cmd_reusable.get_s3cmd_path()
             object_count = config.objects_count // 2
 
             log.info(f"uploading some large objects to bucket {bucket_name}")
@@ -205,7 +205,7 @@ def test_exec(config, ssh_con):
             rgw_conn2,
             life_cycle_rule,
         )
-        cmd = f"/home/cephuser/venv/bin/s3cmd dellifecycle s3://{bucket_name}"
+        cmd = f"{s3cmd_reusable.get_s3cmd_path()} dellifecycle s3://{bucket_name}"
         rc = utils.exec_shell_cmd(cmd)
         log.info(rc)
         exit_status = os.system("echo $?")
@@ -260,7 +260,7 @@ def test_exec(config, ssh_con):
         s3_auth.do_auth(user_info[0], ip_and_port)
         auth = reusable.get_auth(user_info[0], ssh_con, config.ssl, config.haproxy)
         rgw_conn = auth.do_auth()
-        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+        s3cmd_path = s3cmd_reusable.get_s3cmd_path()
         buckets = []
 
         for bc in range(config.bucket_count):
@@ -363,7 +363,7 @@ def test_exec(config, ssh_con):
             )
             s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
-            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+            s3cmd_path = s3cmd_reusable.get_s3cmd_path()
 
             # removing local files if present already
             utils.exec_shell_cmd(
@@ -429,7 +429,7 @@ def test_exec(config, ssh_con):
             )
             s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
             log.info(f"Bucket {bucket_name} created")
-            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+            s3cmd_path = s3cmd_reusable.get_s3cmd_path()
             cmd = f"{s3cmd_path} setacl --acl-public s3://{bucket_name}"
             err = utils.exec_shell_cmd(cmd, return_err=True)
             if "ERROR:" in err:
@@ -484,7 +484,7 @@ def test_exec(config, ssh_con):
         s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
         log.info(f"Bucket {bucket_name} created")
         log.info(f"list bucket under user {user_info[0]['user_id']}")
-        resp = utils.exec_shell_cmd("/home/cephuser/venv/bin/s3cmd ls")
+        resp = utils.exec_shell_cmd(f"{s3cmd_reusable.get_s3cmd_path()} ls")
         log.info(f"bucket list s3mcd ls data {resp}")
         log.info(f"Create bucket {bucket_name} which is alreday exist")
         s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
@@ -501,7 +501,7 @@ def test_exec(config, ssh_con):
         log.info(f"Create existing bucket {bucket_name} post enabling config")
         try:
             resp = utils.exec_shell_cmd(
-                f"/home/cephuser/venv/bin/s3cmd mb s3://{bucket_name}", return_err=True
+                f"{s3cmd_reusable.get_s3cmd_path()} mb s3://{bucket_name}", return_err=True
             )
         except Exception as e:
             log.info(f"cmd execution failed as expected {resp}")
@@ -528,7 +528,7 @@ def test_exec(config, ssh_con):
 
     elif config.test_ops.get("test_olh_get", False):
         log.info("Verifying decode olh info while performing radosgw-admin olh get")
-        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+        s3cmd_path = s3cmd_reusable.get_s3cmd_path()
         user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
         s3_auth.do_auth(user_info[0], ip_and_port)
         auth = reusable.get_auth(user_info[0], ssh_con, config.ssl, config.haproxy)
@@ -578,7 +578,7 @@ def test_exec(config, ssh_con):
         user_info = resource_op.create_users(no_of_users_to_create=config.user_count)
         s3_auth.do_auth(user_info[0], ip_and_port)
         object_names = []
-        s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+        s3cmd_path = s3cmd_reusable.get_s3cmd_path()
         log.info("perform put objects from primary")
         bucket_name = utils.gen_bucket_name_from_userid(
             user_info[0]["user_id"], rand_no=1
@@ -681,7 +681,7 @@ def test_exec(config, ssh_con):
         object_count = config.objects_count
 
         if config.full_sync_test:
-            s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+            s3cmd_path = s3cmd_reusable.get_s3cmd_path()
             utils.exec_shell_cmd(f"fallocate -l 4K obj4K")
             for obj in range(object_count):
                 cmd = f"{s3cmd_path} put obj4K s3://{bucket_name}/object-{obj}"

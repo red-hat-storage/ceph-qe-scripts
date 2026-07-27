@@ -20,15 +20,11 @@ from v2.lib.exceptions import S3CMDConfigFileNotFound
 from v2.utils import utils
 
 root_path = str(Path.home())
-home_path = os.path.expanduser("~cephuser")
 
-is_multisite = utils.is_cluster_multisite()
-if is_multisite:
-    sample_file_location = (
-        home_path + "/rgw-ms-tests/ceph-qe-scripts/rgw/v2/tests/s3cmd/"
-    )
-else:
-    sample_file_location = home_path + "/rgw-tests/ceph-qe-scripts/rgw/v2/tests/s3cmd/"
+# Derive sample file location from actual repo path instead of hardcoding
+sample_file_location = os.path.abspath(
+    os.path.join(__file__, "../../../tests/s3cmd/")
+) + "/"
 
 
 def create_s3cfg_file():
@@ -101,6 +97,8 @@ def do_auth(user_info, ip_and_port, ssh_remote_host=None):
     update_s3cfg_file(user_info, ip_and_port)
     copy_to_home_directory()
     log.info("S3CMD Version:")
-    utils.exec_shell_cmd(f"{home_path}/venv/bin/s3cmd --version")
+    from v2.lib.s3cmd.resource_op import get_s3cmd_path
+
+    utils.exec_shell_cmd(f"{get_s3cmd_path()} --version")
     if ssh_remote_host:  # push config to remote if host given
         push_s3cfg_to_remote(ssh_remote_host)
