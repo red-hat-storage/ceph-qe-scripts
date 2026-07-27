@@ -66,7 +66,9 @@ def test_exec(config, ssh_con):
             cmd = (
                 "for i in {"
                 + range_val
-                + "}; do " + s3cmd_reusable.get_s3cmd_path() + " put obj25m "
+                + "}; do "
+                + s3cmd_reusable.get_s3cmd_path()
+                + " put obj25m "
                 + object_name
                 + ";done;"
             )

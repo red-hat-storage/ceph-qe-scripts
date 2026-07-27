@@ -22,9 +22,9 @@ from v2.utils import utils
 root_path = str(Path.home())
 
 # Derive sample file location from actual repo path instead of hardcoding
-sample_file_location = os.path.abspath(
-    os.path.join(__file__, "../../../tests/s3cmd/")
-) + "/"
+sample_file_location = (
+    os.path.abspath(os.path.join(__file__, "../../../tests/s3cmd/")) + "/"
+)
 
 
 def create_s3cfg_file():

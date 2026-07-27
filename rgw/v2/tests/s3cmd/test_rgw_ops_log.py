@@ -142,7 +142,9 @@ def test_exec(config, ssh_con):
 
             # s3:operation - list objects in bucket
             log.info("list all objects in bucket operation")
-            utils.exec_shell_cmd(f"{s3cmd_reusable.get_s3cmd_path()} ls s3://{bucket_name}")
+            utils.exec_shell_cmd(
+                f"{s3cmd_reusable.get_s3cmd_path()} ls s3://{bucket_name}"
+            )
 
             pr = subprocess.Popen(
                 f"timeout 1 nc -U --recv-only /var/run/ceph/{ceph_detail['fsid']}/opslog",

@@ -501,7 +501,8 @@ def test_exec(config, ssh_con):
         log.info(f"Create existing bucket {bucket_name} post enabling config")
         try:
             resp = utils.exec_shell_cmd(
-                f"{s3cmd_reusable.get_s3cmd_path()} mb s3://{bucket_name}", return_err=True
+                f"{s3cmd_reusable.get_s3cmd_path()} mb s3://{bucket_name}",
+                return_err=True,
             )
         except Exception as e:
             log.info(f"cmd execution failed as expected {resp}")
