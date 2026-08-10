@@ -1103,3 +1103,41 @@ def get_rgw_endpoint_url(ssh_con=None):
     endpoint_url = f"{endpoint_proto}://{endpoint_hostname_or_ip}:{endpoint_port}"
     log.info(f"RGW endpoint url from ceph orch ls: {endpoint_url}")
     return endpoint_url
+
+
+def install_configure_dnsmasq(domain, ip_address):
+    """
+    This method returns endpoint url of rgw daemon in the form of https://hostname:port
+    """
+
+    out = exec_shell_cmd("sudo yum install -y dnsmasq")
+    if out is False:
+        raise Exception("dnsmasq installation failed")
+
+    import subprocess
+    import os
+
+    # Configuration variables
+    conf_file = "/etc/dnsmasq.conf"
+
+    # The dnsmasq syntax for a domain and all its subdomains
+    wildcard_line = f"address=/{domain}/{ip_address}\n"
+    wildcard_line_localhost = "address=/localhost/127.0.0.1\n"
+
+    conf_file_content = exec_shell_cmd(f"cat {conf_file}")
+    # Append the wildcard resolution line if not already exist
+    with open(conf_file, "a") as file:
+        if wildcard_line in conf_file_content:
+            log.info(f"'{wildcard_line}' already exist")
+        else:
+            file.write(wildcard_line)
+        if wildcard_line_localhost in conf_file_content:
+            log.info(f"'{wildcard_line_localhost}' already exist")
+        else:
+            file.write(wildcard_line_localhost)
+    print(f"Successfully added wildcard for {domain} to {conf_file}.")
+
+    # Restart the dnsmasq service to apply changes
+    out = exec_shell_cmd("sudo systemctl restart dnsmasq")
+    if out is False:
+        raise Exception("dnsmasq restart failed")
