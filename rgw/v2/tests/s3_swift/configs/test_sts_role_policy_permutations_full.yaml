@@ -1,0 +1,16 @@
+# Full cartesian product: every Effect x S3 action x Resource x Condition x scope
+# ~3384 cases (39 actions x resource ARNs x 2 effects x 9 condition combos x 2 scopes)
+# WARNING: very long runtime — use on dedicated test runs only.
+# script: test_sts_role_policy_field_permutations.py
+config:
+  user_count: 2
+  user_type: tenanted
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    tenant_name: MountEverest
+    same_bucket_owner_and_principal: false
+    permutation_full_cartesian: true

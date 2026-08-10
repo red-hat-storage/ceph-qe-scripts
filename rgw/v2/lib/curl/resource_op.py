@@ -9,8 +9,14 @@ from v2.tests.aws import reusable as aws_reusable
 log = logging.getLogger()
 
 
+def convert_to_virtual_host_endpoint_url(endpoint_url, bucket_name, domain_name):
+    url_parts = endpoint_url.split(":")
+    protocol = url_parts[0]
+    port = url_parts[2]
+    virtual_host_endpoint_url = f"{protocol}://{bucket_name}.{domain_name}:{port}"
+
 class CURL:
-    def __init__(self, user_info, ssh_con, curl_silent=True, ssl=None):
+    def __init__(self, user_info, ssh_con, curl_silent=True, ssl=None, ssl_trusted=False, virtual_host_bkt_access=False, domain_name=None):
         """
         Constructor for curl class
         user_info(dict) : user details
@@ -24,8 +30,11 @@ class CURL:
         else:
             self.prefix = f"curl --show-error --fail-with-body -v --aws-sigv4 aws:amz:us-east-1:s3 -u '{self.username}:{self.password}'"
         if ssl:
-            self.prefix = self.prefix + " --insecure"
+            if ssl_trusted is False:
+                self.prefix = self.prefix + " --insecure"
         self.prefix_for_presigned_url = f"curl --show-error --fail-with-body -v -s"
+        self.virtual_host_bkt_access = virtual_host_bkt_access
+        self.domain_name = domain_name
 
     def command(
         self,
@@ -37,6 +46,7 @@ class CURL:
         raw_data_list=None,
         head_request=None,
         presigned_url=None,
+        virtual_hosted_style_request=False
     ):
         """
         Args:
@@ -74,9 +84,16 @@ class CURL:
         if presigned_url:
             url = presigned_url
         else:
-            url = self.endpoint_url
-            if url_suffix:
-                url = f"{url}/{url_suffix}"
+            if virtual_hosted_style_request:
+                url_suffix_contents = url_suffix.split("/", 1)
+                bucket_name = url_suffix_contents.pop(0)
+                url = convert_to_virtual_host_endpoint_url(self.endpoint_url, bucket_name, self.domain_name)
+                if url_suffix_contents:
+                    url = f"{url}/{url_suffix_contents.pop(0)}"
+            else:
+                url = self.endpoint_url
+                if url_suffix:
+                    url = f"{url}/{url_suffix}"
         cmd = f"{cmd} '{url}'"
         log.info(f"CURL command created: {cmd}")
         return cmd
