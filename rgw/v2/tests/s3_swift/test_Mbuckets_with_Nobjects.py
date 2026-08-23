@@ -25,6 +25,7 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
     test_Mbuckets_with_Nobjects_get_object_attributes_multipart.yaml
     test_Mbuckets_with_Nobjects_multipart_upload_complete_abort_race.yaml
     test_Mbuckets_with_Nobjects_unicode_bi_list.yaml
+    test_bucket_rm_non_master.yaml
 
 Operation:
         Creates M bucket and N objects
@@ -40,6 +41,7 @@ Operation:
         Verify bi put on incomplete multipart upload
     Verify bucket instance shards are deleted from index pool post bucket delete
     Verify bucket index listing with unicode characters does not cause backwards iteration
+    Force delete a non-empty bucket from secondary zone with --purge-objects
 """
 
 # test basic creation of buckets with objects
@@ -857,6 +859,18 @@ def test_exec(config, ssh_con):
                     if config.test_ops["compression"]["enable"] is True:
                         cmd = "radosgw-admin bucket stats --bucket=%s" % bucket.name
                         out = utils.exec_shell_cmd(cmd)
+                    if config.test_ops.get("force_delete_from_secondary"):
+                        log.info(
+                            "Force delete bucket from secondary zone with --purge-objects"
+                        )
+                        if not utils.is_cluster_multisite():
+                            raise TestExecError(
+                                "force_delete_from_secondary requires a multisite environment"
+                            )
+                        reusable.check_sync_status()
+                        reusable.force_delete_bucket_from_secondary(
+                            bucket.name, expected_objects=config.objects_count
+                        )
                     if config.test_ops["delete_bucket_object"] is True:
                         reusable.delete_objects(bucket)
                         if config.bucket_sync_run_with_disable_sync_thread is False:
