@@ -12,6 +12,7 @@ Usage: test_bucket_listing.py -c <input_yaml>
         test_bucket_listing_pseudo_ordered.yaml
     test_bucket_listing_pseudo_ordered_dir_only.yaml
     test_bucket_listing_fake_mp.yaml
+    test_bucket_listing_flat_unordered_versionsing.yaml
 Operation:
     Create user
         create objects as per the object structure mentioned in the yaml
@@ -238,6 +239,12 @@ def test_exec(config, ssh_con):
                             )
                             utils.create_psuedo_dir(s3_pseudo_dir_name, bucket)
 
+                delete_object_count = config.test_ops.get("delete_object_count")
+                if delete_object_count:
+                    log.info("deleting objects to generate delete markers")
+                    for name, path in objects_created_list[:delete_object_count]:
+                        bucket.Object(name).delete()
+
                 # radoslist listing of the bucket
                 if config.test_ops.get("create_object", None) is not None:
                     if config.test_ops["radoslist"] is True:
@@ -315,6 +322,42 @@ def test_exec(config, ssh_con):
                             raise TestExecError(
                                 "object listing via radosgw-admin command failed"
                             )
+                        if delete_object_count:
+                            listing = utils.exec_shell_cmd(
+                                "radosgw-admin bucket list --max-entries=100000 --bucket=%s --allow-unordered"
+                                % bucket_name_to_create
+                            )
+                            if listing is False:
+                                raise TestExecError(
+                                    "object listing via radosgw-admin command failed"
+                                )
+                            listing_count = len(json.loads(listing))
+                            expected_count = config.objects_count + delete_object_count
+                            log.info("listing count: %s" % listing_count)
+                            if listing_count != expected_count:
+                                raise TestExecError(
+                                    "listing count %s does not match expected %s"
+                                    % (listing_count, expected_count)
+                                )
+                            log.info("ordered listing via radosgw-admin command")
+                            ordered = utils.exec_shell_cmd(
+                                "radosgw-admin bucket list --max-entries=100000 --bucket=%s"
+                                % bucket_name_to_create
+                            )
+                            if ordered is False:
+                                raise TestExecError(
+                                    "object listing via radosgw-admin command failed"
+                                )
+                            ordered_count = 0
+                            for entry in json.loads(ordered):
+                                if entry.get("tag") != "delete-marker":
+                                    ordered_count = ordered_count + 1
+                            log.info("ordered listing count: %s" % ordered_count)
+                            if ordered_count != config.objects_count:
+                                raise TestExecError(
+                                    "listing count %s does not match expected %s"
+                                    % (ordered_count, config.objects_count)
+                                )
 
                     # listing via boto and noting the time taken
                     log.info("measure the execution time taken to list via boto")
@@ -353,7 +396,10 @@ def test_exec(config, ssh_con):
 
         if config.test_ops.get("delete_bucket_object", False):
             for bkt in bucket_created:
-                if config.test_ops.get("enable_version", False):
+                if config.test_ops.get("delete_object_count"):
+                    log.info("deleting objects with versions from bucket %s" % bkt.name)
+                    bkt.object_versions.all().delete()
+                elif config.test_ops.get("enable_version", False):
                     for name, path in objects_created_list:
                         reusable.delete_version_object(
                             bkt, name, path, rgw_conn, each_user
