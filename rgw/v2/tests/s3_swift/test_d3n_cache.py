@@ -39,15 +39,15 @@ def test_exec(config, ssh_con):
             log.info(f"hosts are : {host_ls}")
             host_ip = host_ls.split()[1]
             log.info(f"ip is {host_ip}")
-            ssh_con = utils.connect_remote(host_ip)
+            ssh_con1 = utils.connect_remote(host_ip)
             log.info("Entering RGW node")
-            _, stdout, stderr = ssh_con.exec_command(data_path_cmd)
+            _, stdout, stderr = ssh_con1.exec_command(data_path_cmd)
             stderr = stderr.readline().strip()
             if stderr:
                 log.info(f"creating datacache path")
                 create_cmd = f"sudo mkdir {config.datacache_path}"
                 log.info(f"executing command:{create_cmd}")
-                _, stdout, stderr = ssh_con.exec_command(create_cmd)
+                _, stdout, stderr = ssh_con1.exec_command(create_cmd)
                 stderr = stderr.readline().strip()
                 if stderr:
                     raise AssertionError("datacache path creation failed!")
