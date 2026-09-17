@@ -1,0 +1,23 @@
+# Script: test_aws_bucket_logging.py
+# polarion: CEPH-83632948
+config:
+  user_count: 1
+  objects_count: 3
+  user_remove: true
+  test_ops:
+    target_prefix: "src-logs/"
+    region: us-east-1
+    delete_log_bucket: true
+    verify_logging_info_cleared: true
+    policy_document:
+      Version: "2012-10-17"
+      Statement:
+        - Sid: AllowLogging
+          Effect: Allow
+          Principal:
+            Service: logging.s3.amazonaws.com
+          Action: s3:PutObject
+          Resource: "arn:aws:s3:::<dest_bucket_name>/*"
+          Condition:
+            StringEquals:
+              aws:SourceAccount: "<source_user_name>"

@@ -47,7 +47,10 @@ def create_bucket(
     """
 
     for attempt in range(1, retries + 1):
-        output = utils.exec_shell_cmd(f"curl -k --connect-timeout 10 {end_point}")
+        curl_insecure = " -k" if end_point.startswith("https://") else ""
+        output = utils.exec_shell_cmd(
+            f"curl{curl_insecure} --connect-timeout 10 {end_point}"
+        )
         if output:
             log.info(f"Endpoint {end_point} is reachable on attempt {attempt}.")
             break
@@ -57,8 +60,9 @@ def create_bucket(
             )
             time.sleep(wait_time)
     else:
-        log.error(f"Endpoint {end_point} is not reachable after {retries} attempts.")
-        return
+        msg = f"Endpoint {end_point} is not reachable after {retries} attempts."
+        log.error(msg)
+        raise AWSCommandExecError(message=msg)
 
     if region:
         command = aws_auth.command(
@@ -747,23 +751,46 @@ def put_get_bucket_versioning(aws_auth, bucket_name, end_point, status="Enabled"
 
 def get_endpoint(ssh_con=None, ssl=None, haproxy=None):
     """
-    Returns RGW ip and port in <ip>:<port> format
-    Returns: RGW ip and port
+    Returns RGW endpoint URL (http or https) from cluster frontends.
+    Port 80 uses http; ports 443/444 use https. When ssl is unset for other
+    ports, auto-detects from rgw_frontends (ssl_port / ssl in config).
     """
-
     if ssh_con:
         _, stdout, _ = ssh_con.exec_command("hostname -I")
         ip = stdout.readline().strip().split()[0]  # first IP
-        port = utils.get_radosgw_port_no(ssh_con)
     else:
         hostname = socket.gethostname()
         ip = socket.gethostbyname(hostname)
-        port = utils.get_radosgw_port_no()
+
+    frontend_values = utils.get_rgw_frontends() or ""
+    http_port = None
+    https_port = None
+    for part in frontend_values.split():
+        if part.startswith("port="):
+            http_port = part.split("=", 1)[1]
+        elif part.startswith("ssl_port="):
+            https_port = part.split("=", 1)[1]
+
     if haproxy:
-        port = 5000
-    ip_and_port = f"http://{ip}:{port}"
-    if ssl:
-        ip_and_port = f"https://{ip}:{port}"
+        port = "5000"
+    else:
+        port = str(https_port or http_port or utils.get_radosgw_port_no(ssh_con))
+
+    if not haproxy:
+        if port == "80":
+            ssl = False
+        elif port in ("443", "444"):
+            ssl = True
+        elif ssl is None:
+            if https_port or "ssl" in frontend_values:
+                ssl = True
+            else:
+                detected = utils.is_rgw_secure()
+                ssl = detected if detected is not None else False
+
+    scheme = "https" if ssl else "http"
+    ip_and_port = f"{scheme}://{ip}:{port}"
+    log.info(f"RGW endpoint: {ip_and_port} (ssl={ssl}, port={port})")
     return ip_and_port
 
 
@@ -1063,6 +1090,172 @@ def put_bucket_cors_config(aws_auth, bucket_name, cors_configuration, endpoint):
     finally:
         if cors_path and os.path.exists(cors_path):
             os.remove(cors_path)
+
+
+def aws_s3_cli_prefix(ssl=False, region=None):
+    """Build prefix for aws s3 subcommands (not s3api)."""
+    prefix = "/usr/local/bin/aws"
+    if ssl:
+        prefix += " --no-verify-ssl"
+    prefix += " s3"
+    if region:
+        prefix += f" --region {region}"
+    return prefix
+
+
+def put_bucket_policy(aws_auth, bucket_name, endpoint, policy_document):
+    """Put bucket policy from a dict via a temporary json file."""
+    policy_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as policy_file:
+            json.dump(policy_document, policy_file)
+            policy_path = policy_file.name
+        command = aws_auth.command(
+            operation="put-bucket-policy",
+            params=[
+                f"--bucket {bucket_name} --policy file://{policy_path} --endpoint-url {endpoint}",
+            ],
+        )
+        out = utils.exec_shell_cmd(command)
+        if out is False:
+            raise TestExecError(f"put-bucket-policy failed for {bucket_name}")
+        log.info(f"put-bucket-policy on {bucket_name}: {out}")
+        return out
+    except TestExecError:
+        raise
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+    finally:
+        if policy_path and os.path.exists(policy_path):
+            os.remove(policy_path)
+
+
+def put_bucket_logging(
+    aws_auth,
+    bucket_name,
+    endpoint,
+    target_bucket,
+    target_prefix="",
+    logging_status=None,
+):
+    """Configure S3 bucket access logging on source bucket."""
+    if logging_status is None:
+        logging_status = {
+            "LoggingEnabled": {
+                "TargetBucket": target_bucket,
+                "TargetPrefix": target_prefix,
+            }
+        }
+    status_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False
+        ) as status_file:
+            json.dump(logging_status, status_file)
+            status_path = status_file.name
+        command = aws_auth.command(
+            operation="put-bucket-logging",
+            params=[
+                f"--bucket {bucket_name} --bucket-logging-status file://{status_path} --endpoint-url {endpoint}",
+            ],
+        )
+        out = utils.exec_shell_cmd(command)
+        if out is False:
+            raise TestExecError(f"put-bucket-logging failed for {bucket_name}")
+        log.info(f"put-bucket-logging on {bucket_name}: {out}")
+        return out
+    except TestExecError:
+        raise
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+    finally:
+        if status_path and os.path.exists(status_path):
+            os.remove(status_path)
+
+
+def get_bucket_logging(aws_auth, bucket_name, endpoint):
+    """Return parsed get-bucket-logging response."""
+    command = aws_auth.command(
+        operation="get-bucket-logging",
+        params=[f"--bucket {bucket_name} --endpoint-url {endpoint}"],
+    )
+    try:
+        out = utils.exec_shell_cmd(command)
+        if out is False:
+            raise TestExecError(
+                f"get-bucket-logging failed for {bucket_name} on {endpoint}"
+            )
+        log.info(f"get-bucket-logging on {bucket_name}: {out}")
+        return json.loads(out)
+    except TestExecError:
+        raise
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def head_bucket(aws_auth, bucket_name, endpoint, expect_not_found=False):
+    """head-bucket; when expect_not_found, verify 404."""
+    command = aws_auth.command(
+        operation="head-bucket",
+        params=[f"--bucket {bucket_name} --endpoint-url {endpoint}"],
+    )
+    try:
+        if expect_not_found:
+            err = utils.exec_shell_cmd(command, return_err=True)
+            if not err or "404" not in err:
+                raise TestExecError(
+                    f"Expected head-bucket 404 for {bucket_name}, got: {err}"
+                )
+            return False
+        out = utils.exec_shell_cmd(command)
+        if out is False:
+            raise TestExecError(f"head-bucket failed for {bucket_name}")
+        return True
+    except TestExecError:
+        raise
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def s3_upload_from_stdin(
+    bucket_name, object_key, endpoint, data, ssl=False, region=None
+):
+    """Upload object data via aws s3 cp from stdin."""
+    aws_s3 = aws_s3_cli_prefix(ssl, region)
+    cmd = (
+        f"echo {shlex.quote(data)} | {aws_s3} cp - "
+        f"s3://{bucket_name}/{object_key} --endpoint-url {endpoint}"
+    )
+    try:
+        out = utils.exec_shell_cmd(cmd)
+        if out is False:
+            raise TestExecError(
+                f"s3 cp upload failed for s3://{bucket_name}/{object_key}"
+            )
+        log.info(f"upload {object_key}: {out}")
+        return out
+    except TestExecError:
+        raise
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
+def empty_and_remove_bucket(bucket_name, endpoint, ssl=False, region=None):
+    """Remove all objects and delete bucket via aws s3 rm --recursive and rb."""
+    aws_s3 = aws_s3_cli_prefix(ssl, region)
+    rm_cmd = f"{aws_s3} rm s3://{bucket_name} --recursive --endpoint-url {endpoint}"
+    rb_cmd = f"{aws_s3} rb s3://{bucket_name} --endpoint-url {endpoint}"
+    try:
+        if utils.exec_shell_cmd(rm_cmd) is False:
+            raise TestExecError(f"s3 rm --recursive failed for {bucket_name}")
+        if utils.exec_shell_cmd(rb_cmd) is False:
+            raise TestExecError(f"s3 rb failed for {bucket_name}")
+    except TestExecError:
+        raise
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
 
 
 def calculate_checksum(algo, file):
