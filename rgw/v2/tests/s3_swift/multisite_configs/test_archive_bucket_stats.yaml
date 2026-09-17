@@ -1,0 +1,14 @@
+# script: test_archive_bucket_stats.py
+# Create a bucket and upload objects from the primary site
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 10
+  local_file_delete: true
+  user_remove: false
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    create_bucket: true
+    create_object: true
