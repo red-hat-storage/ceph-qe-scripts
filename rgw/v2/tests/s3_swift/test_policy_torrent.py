@@ -8,6 +8,8 @@ Polarion : CEPH-11209
 Operation:
 - create bucket user1
 - Using policy s3:GetObjectTorrent, users under same and different tenants,should be able to torrent for the file
+- Create a versioned bucket under tenant1 user1, upload an object, grant s3:GetObject,
+  and verify HeadObject on that object succeeds
 
 """
 
@@ -26,11 +28,12 @@ import v2.lib.resource_op as s3lib
 import v2.lib.s3.bucket_policy as s3_bucket_policy
 import v2.tests.s3_swift.reusables.bucket_policy_ops as bucket_policy_ops
 import v2.utils.utils as utils
+from botocore.exceptions import ClientError
 from botocore.handlers import validate_bucket_name
 from v2.lib.exceptions import RGWBaseException, TestExecError
 from v2.lib.resource_op import Config
 from v2.lib.s3.auth import Auth
-from v2.lib.s3.write_io_info import BasicIOInfoStructure, IOInfoInitialize
+from v2.lib.s3.write_io_info import BasicIOInfoStructure, BucketIoInfo, IOInfoInitialize
 from v2.tests.s3_swift import reusable
 from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
@@ -55,6 +58,7 @@ def test_exec(config, ssh_con):
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
+    write_bucket_io_info = BucketIoInfo()
     rgw_service = RGWService()
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
 
@@ -234,6 +238,104 @@ def test_exec(config, ssh_con):
                 log.info(f"Torrent is {out}")
             except Exception as e:
                 log.info(f"Fails as expected with {e}")
+
+    log.info(
+        "Create a versioned bucket under tenant1 user1 and verify HeadObject "
+        "succeeds with s3:GetObject"
+    )
+    versioned_bucket_name = utils.gen_bucket_name_from_userid(
+        tenant1_user1_info["user_id"], rand_no=2
+    )
+    t1_u1_versioned_bucket = reusable.create_bucket(
+        versioned_bucket_name,
+        rgw_tenant1_user1,
+        tenant1_user1_info,
+        ip_and_port,
+    )
+    reusable.enable_versioning(
+        t1_u1_versioned_bucket,
+        rgw_tenant1_user1,
+        tenant1_user1_info,
+        write_bucket_io_info,
+    )
+    if config.mapped_sizes:
+        config.obj_size = list(config.mapped_sizes.values())[0]
+    elif not getattr(config, "obj_size", None):
+        config.obj_size = 5
+    versioned_object_name = utils.gen_s3_object_name(t1_u1_versioned_bucket.name, 0)
+    log.info(f"uploading object {versioned_object_name} to versioned bucket")
+    reusable.upload_object(
+        versioned_object_name,
+        t1_u1_versioned_bucket,
+        TEST_DATA_PATH,
+        config,
+        tenant1_user1_info,
+    )
+
+    get_object_policy = json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Sid": "AllowGetObject",
+                    "Effect": "Allow",
+                    "Principal": {
+                        "AWS": [
+                            f"arn:aws:iam::{tenant1}:user/{tenant1_user1_info['user_id']}",
+                            f"arn:aws:iam::{tenant1}:user/{tenant1_user2_info['user_id']}",
+                        ]
+                    },
+                    "Action": ["s3:GetObject"],
+                    "Resource": "arn:aws:s3:::*",
+                }
+            ],
+        }
+    )
+    versioned_bucket_policy_obj = s3lib.resource_op(
+        {
+            "obj": rgw_tenant1_user1,
+            "resource": "BucketPolicy",
+            "args": [t1_u1_versioned_bucket.name],
+        }
+    )
+    put_get_object_policy = s3lib.resource_op(
+        {
+            "obj": versioned_bucket_policy_obj,
+            "resource": "put",
+            "kwargs": dict(Policy=get_object_policy),
+        }
+    )
+    log.info(f"put GetObject policy response: {put_get_object_policy}")
+    if put_get_object_policy is False or put_get_object_policy is None:
+        raise TestExecError(
+            "bucket policy creation failed for versioned bucket GetObject"
+        )
+    HttpResponseParser(put_get_object_policy)
+    log.info(rgw_tenant1_user1_c.get_bucket_policy(Bucket=t1_u1_versioned_bucket.name))
+
+    try:
+        owner_head = rgw_tenant1_user1_c.head_object(
+            Bucket=t1_u1_versioned_bucket.name, Key=versioned_object_name
+        )
+        log.info(f"HeadObject by tenant1 user1 (owner) succeeded: {owner_head}")
+    except ClientError as e:
+        raise TestExecError(
+            f"HeadObject on versioned object failed for tenant1 user1 with "
+            f"s3:GetObject: {e}"
+        )
+
+    try:
+        user2_head = rgw_tenant1_user2_c.head_object(
+            Bucket=t1_u1_versioned_bucket.name, Key=versioned_object_name
+        )
+        log.info(
+            f"HeadObject by tenant1 user2 with s3:GetObject succeeded: {user2_head}"
+        )
+    except ClientError as e:
+        raise TestExecError(
+            f"HeadObject on versioned object failed for tenant1 user2 with "
+            f"s3:GetObject permission: {e}"
+        )
 
     # check sync status if a multisite cluster
     reusable.check_sync_status()
