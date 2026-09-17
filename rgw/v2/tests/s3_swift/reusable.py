@@ -4,6 +4,7 @@ import json
 import os
 import random
 import shutil
+import socket
 import subprocess
 import sys
 import urllib.request
@@ -4107,6 +4108,35 @@ def get_cluster_id_from_ceph(ssh_con=None):
         raise TestExecError(f"Error executing ceph -s command: {str(e)}")
 
 
+def _rgw_daemon_suffix_for_port(ssh_con=None):
+    """Return RGW daemon id suffix (e.g. trufon) matching the configured gateway port."""
+    try:
+        port = str(utils.get_radosgw_port_no(ssh_con))
+        if ssh_con is not None:
+            _, stdout, _ = ssh_con.exec_command("hostname")
+            hostname = stdout.read().decode().strip()
+        else:
+            hostname = socket.gethostname()
+
+        ps_out = utils.exec_shell_cmd("ceph orch ps --daemon-type rgw -f json")
+        if not ps_out:
+            return None
+        daemons = json.loads(ps_out)
+        for daemon in daemons:
+            daemon_host = daemon.get("hostname") or daemon.get("name", "")
+            if hostname not in str(daemon_host):
+                continue
+            daemon_ports = daemon.get("ports") or []
+            if daemon_ports and str(daemon_ports[0]) == port:
+                daemon_name = daemon.get("daemon_name", "")
+                if daemon_name:
+                    return daemon_name.split(".")[-1]
+        return None
+    except Exception as e:
+        log.warning(f"Unable to resolve RGW daemon for port: {e}")
+        return None
+
+
 def find_admin_socket(ssh_con=None):
     """
     Find the RGW admin socket file in /var/run/ceph/
@@ -4120,8 +4150,14 @@ def find_admin_socket(ssh_con=None):
     # Always resolve FSID from the client node (has ceph.conf / keys)
     cluster_id = get_cluster_id_from_ceph(ssh_con=None)
     socket_path = f"/var/run/ceph/{cluster_id}"
+    daemon_suffix = _rgw_daemon_suffix_for_port(ssh_con)
+    if daemon_suffix:
+        match = f"ceph-client.rgw.*{daemon_suffix}*.asok"
+        log.info(f"Selecting admin socket for RGW daemon suffix '{daemon_suffix}'")
+    else:
+        match = "ceph-client.rgw.*.asok"
     # Prefer newest asok; stale sockets from prior restarts may remain
-    cmd = f"sudo bash -lc 'ls -t {socket_path}/ceph-client.rgw.*.asok 2>/dev/null | head -1'"
+    cmd = f"sudo bash -lc 'ls -t {socket_path}/{match} 2>/dev/null | head -1'"
     log.info(f"command is {cmd}")
 
     if ssh_con:

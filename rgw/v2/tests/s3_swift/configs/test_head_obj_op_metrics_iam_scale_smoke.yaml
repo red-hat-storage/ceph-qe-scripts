@@ -1,0 +1,21 @@
+# script: test_head_obj_op_metrics_iam_scale.py
+# polarion id:
+# ISCE-3042: HEAD Object op metrics IAM scale smoke (5 users)
+config:
+  haproxy: false
+  bucket_count: 1
+  objects_count: 10
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    test_head_obj_metrics_iam_scale: true
+    num_iam_users: 5
+    account_name: head-metrics-scale-smoke
+    account_email: head-metrics-scale-smoke@example.com
+    enable_user_counters_cache: true
+    enable_bucket_counters_cache: true
+    verify_prometheus: false
+    delete_bucket_object: true
+    max_users: 1000
+    max_buckets: 1000
