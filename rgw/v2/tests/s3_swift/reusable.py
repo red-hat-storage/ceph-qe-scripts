@@ -303,6 +303,105 @@ def get_remote_conn_in_multisite():
     return remote_site_ssh_con
 
 
+def exec_on_secondary(cmd):
+    """
+    Run a shell command on the secondary (non-master) zone.
+
+    Returns (returncode, stdout, stderr).
+    """
+    is_primary = utils.is_cluster_primary()
+    if is_primary:
+        secondary_ip = utils.get_rgw_ip(master_zone=False)
+        if not secondary_ip:
+            raise TestExecError("Could not resolve secondary zone RGW IP")
+        log.info(f"Executing on secondary zone ({secondary_ip}): {cmd}")
+        ssh_con = utils.connect_remote(secondary_ip)
+        _, stdout, stderr = ssh_con.exec_command(cmd)
+        out = stdout.read().decode()
+        err = stderr.read().decode()
+        rc = stdout.channel.recv_exit_status()
+        ssh_con.close()
+        return rc, out, err
+
+    log.info(f"Local site is secondary, executing locally: {cmd}")
+    pr = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        shell=True,
+        universal_newlines=True,
+    )
+    out, err = pr.communicate()
+    return pr.returncode, out, err
+
+
+def wait_for_bucket_on_secondary(bucket_name, expected_objects, retries=20, delay=30):
+    """Wait until the bucket exists on secondary with the expected object count."""
+    last_err = ""
+    for attempt in range(1, retries + 1):
+        rc, out, err = exec_on_secondary(
+            f"radosgw-admin bucket stats --bucket {bucket_name}"
+        )
+        last_err = err or out
+        if rc == 0 and out.strip():
+            stats = json.loads(out)
+            num_objects = (
+                stats.get("usage", {}).get("rgw.main", {}).get("num_objects", 0)
+            )
+            log.info(
+                f"Secondary bucket stats for {bucket_name} "
+                f"(attempt {attempt}/{retries}): num_objects={num_objects}"
+            )
+            if num_objects >= expected_objects:
+                return stats
+        else:
+            log.info(
+                f"Bucket {bucket_name} not yet available on secondary "
+                f"(attempt {attempt}/{retries}): rc={rc}, err={err}"
+            )
+        time.sleep(delay)
+    raise TestExecError(
+        f"Bucket {bucket_name} did not sync to secondary with "
+        f"{expected_objects} objects. Last error: {last_err}"
+    )
+
+
+def force_delete_bucket_from_secondary(bucket_name, expected_objects=0):
+    """
+    Force delete a bucket from the secondary zone with --purge-objects.
+    Expectation: the command succeeds and the bucket is gone from secondary.
+    """
+    wait_for_bucket_on_secondary(bucket_name, expected_objects)
+    force_rm_cmd = f"radosgw-admin bucket rm --bucket={bucket_name} --purge-objects"
+    log.info(
+        f"Attempting force delete of bucket {bucket_name} from secondary: {force_rm_cmd}"
+    )
+    rc, out, err = exec_on_secondary(force_rm_cmd)
+    log.info(f"Force delete from secondary: rc={rc} stdout={out} stderr={err}")
+    if rc != 0:
+        raise TestExecError(
+            f"Force delete of bucket {bucket_name} from secondary with "
+            f"--purge-objects failed. stdout={out} stderr={err}"
+        )
+    log.info(
+        f"Force delete of bucket {bucket_name} from secondary "
+        "with --purge-objects succeeded"
+    )
+    stats_rc, stats_out, stats_err = exec_on_secondary(
+        f"radosgw-admin bucket stats --bucket {bucket_name}"
+    )
+    log.info(
+        f"Secondary bucket stats after force delete: rc={stats_rc} "
+        f"stdout={stats_out} stderr={stats_err}"
+    )
+    if stats_rc == 0:
+        raise TestExecError(
+            f"Bucket {bucket_name} still exists on secondary after "
+            "force delete with --purge-objects succeeded"
+        )
+    log.info(f"Bucket {bucket_name} removed from secondary as expected")
+
+
 def create_bucket_readonly(bucket_name, rgw, user_info):
     log.info("creating bucket with name: %s" % bucket_name)
     bucket = s3lib.resource_op(
