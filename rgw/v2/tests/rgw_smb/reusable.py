@@ -123,9 +123,9 @@ def list_smb_clusters(fmt="json"):
     return out
 
 
-def verify_cluster_in_list(cluster_list, cluster_id, expect_present=True):
+def cluster_in_list(cluster_list, cluster_id):
     """
-    Verify whether cluster_id is present in cluster list output.
+    Return True if cluster_id is present in cluster list output.
     """
     cluster_ids = []
     if isinstance(cluster_list, list):
@@ -150,6 +150,14 @@ def verify_cluster_in_list(cluster_list, cluster_id, expect_present=True):
         f"Cluster ids found: {cluster_ids}; looking for {cluster_id}; "
         f"present={present}"
     )
+    return present
+
+
+def verify_cluster_in_list(cluster_list, cluster_id, expect_present=True):
+    """
+    Verify whether cluster_id is present in cluster list output.
+    """
+    present = cluster_in_list(cluster_list, cluster_id)
     if expect_present and not present:
         raise TestExecError(
             f"Expected cluster {cluster_id} in list, but it was not found"
@@ -520,3 +528,306 @@ def verify_share_in_list(share_list, share_id, expect_present=True):
     if not expect_present and present:
         raise TestExecError(f"Share {share_id} still present in list after deletion")
     return present
+
+
+SMBCLIENT_FAILURE_MARKERS = (
+    "NT_STATUS_ACCESS_DENIED",
+    "NT_STATUS_LOGON_FAILURE",
+    "NT_STATUS_BAD_NETWORK_NAME",
+    "NT_STATUS_OBJECT_NAME_NOT_FOUND",
+    "NT_STATUS_UNSUCCESSFUL",
+    "NT_STATUS_CONNECTION_REFUSED",
+    "NT_STATUS_HOST_UNREACHABLE",
+    "NT_STATUS_IO_TIMEOUT",
+    "NT_STATUS_NETWORK_UNREACHABLE",
+)
+
+
+def parse_smb_user_pass(define_user_pass):
+    """
+    Parse SMB user%password string used by --define-user-pass.
+    """
+    if not define_user_pass or "%" not in str(define_user_pass):
+        raise TestExecError(
+            "define_user_pass must be in '<smbuser>%<smbpasswd>' format"
+        )
+    username, password = str(define_user_pass).split("%", 1)
+    if not username or not password:
+        raise TestExecError("define_user_pass must include both smb user and password")
+    return username, password
+
+
+def install_samba_client():
+    """
+    Install samba-client on the client node if smbclient is not present.
+    """
+    log.info("Installing samba-client on the client node if needed")
+    out = utils.exec_shell_cmd(
+        "rpm -q samba-client || sudo yum install -y samba-client"
+    )
+    if out is False:
+        raise TestExecError("Failed to install samba-client")
+
+    smbclient_path = utils.exec_shell_cmd("command -v smbclient")
+    if not smbclient_path or not str(smbclient_path).strip():
+        raise TestExecError("smbclient not found after installing samba-client")
+    log.info(f"samba-client ready; smbclient path={smbclient_path.strip()}")
+    return smbclient_path.strip()
+
+
+def list_orch_hosts(fmt="json"):
+    """
+    List ceph orch hosts.
+    """
+    log.info("Listing ceph orch hosts")
+    cmd = f"ceph orch host ls --format {fmt}"
+    out = utils.exec_shell_cmd(cmd)
+    if out is False:
+        raise TestExecError("Failed to list ceph orch hosts")
+    log.info(f"ceph orch host ls output: {out}")
+    if fmt == "json":
+        if not out or not str(out).strip():
+            return []
+        try:
+            parsed = json.loads(out)
+            return parsed if parsed else []
+        except (TypeError, json.JSONDecodeError):
+            return out
+    return out
+
+
+def get_host_addr_map():
+    """
+    Return hostname -> IP mapping from ceph orch host ls.
+    """
+    hosts = list_orch_hosts()
+    host_addrs = {}
+    if not isinstance(hosts, list):
+        log.warning(f"Unexpected orch host ls format: {type(hosts)}")
+        return host_addrs
+    for host in hosts:
+        if not isinstance(host, dict):
+            continue
+        hostname = host.get("hostname")
+        addr = host.get("addr")
+        if hostname and addr:
+            host_addrs[hostname] = str(addr).split("%")[0]
+    log.info(f"Orch host address map: {host_addrs}")
+    return host_addrs
+
+
+def get_smb_endpoints(cluster_id):
+    """
+    Resolve SMB endpoints (IP and port) for a cluster from ceph orch.
+
+    Returns:
+        list of dicts: [{"hostname": ..., "ip": ..., "port": ...}, ...]
+    """
+    daemons = list_smb_orch_daemons()
+    host_addrs = get_host_addr_map()
+    endpoints = []
+
+    daemon_entries = daemons if isinstance(daemons, list) else []
+    for dmn in daemon_entries:
+        if not _smb_service_matches_cluster(dmn, cluster_id):
+            continue
+        if not isinstance(dmn, dict):
+            continue
+        hostname = dmn.get("hostname")
+        ip = dmn.get("ip") or host_addrs.get(hostname) or hostname
+        ports = dmn.get("ports") or []
+        port = ports[0] if ports else 445
+        status_desc = dmn.get("status_desc") or ""
+        log.info(
+            f"SMB daemon for cluster {cluster_id}: hostname={hostname}, "
+            f"ip={ip}, port={port}, status={status_desc}"
+        )
+        if ip:
+            endpoints.append(
+                {
+                    "hostname": hostname,
+                    "ip": ip,
+                    "port": port,
+                    "status": status_desc,
+                }
+            )
+
+    if not endpoints:
+        raise TestExecError(
+            f"No SMB endpoint found for cluster {cluster_id} from ceph orch ps"
+        )
+    log.info(f"Resolved SMB endpoints for cluster {cluster_id}: {endpoints}")
+    return endpoints
+
+
+def get_smb_endpoint(cluster_id, smb_endpoint=None):
+    """
+    Return SMB host/IP.
+
+    Uses explicit smb_endpoint when provided; otherwise discovers from orch.
+    """
+    if smb_endpoint:
+        log.info(f"Using configured SMB endpoint {smb_endpoint}")
+        return smb_endpoint
+
+    endpoints = get_smb_endpoints(cluster_id)
+    selected = endpoints[0]
+    log.info(f"Using discovered SMB endpoint {selected['ip']}")
+    return selected["ip"]
+
+
+def build_smbclient_cmd(endpoint, share_name, username, password, commands="ls"):
+    """
+    Build smbclient command to access an SMB share non-interactively.
+    """
+    return (
+        f"smbclient //{endpoint}/{share_name} "
+        f"-U '{username}%{password}' -c '{commands}'"
+    )
+
+
+def smbclient_access_share(
+    endpoint,
+    share_name,
+    username,
+    password,
+    commands="ls",
+    retry_count=12,
+    retry_interval=10,
+):
+    """
+    Access an SMB share from the client node using samba-client.
+
+    Command:
+        smbclient //<smb-endpoint>/<sharename> -U <smbuser>%<smbpasswd>
+    """
+    cmd = build_smbclient_cmd(endpoint, share_name, username, password, commands)
+    last_out = None
+    for attempt in range(1, retry_count + 1):
+        log.info(
+            f"Accessing SMB share //{endpoint}/{share_name} "
+            f"(attempt {attempt}/{retry_count})"
+        )
+        out = utils.exec_shell_cmd(cmd)
+        last_out = out
+        out_text = "" if out is False else str(out)
+        failed_marker = next(
+            (marker for marker in SMBCLIENT_FAILURE_MARKERS if marker in out_text),
+            None,
+        )
+        if out is not False and not failed_marker:
+            log.info(f"smbclient access succeeded for //{endpoint}/{share_name}: {out}")
+            return out
+        log.warning(
+            f"smbclient attempt {attempt} failed for //{endpoint}/{share_name}; "
+            f"marker={failed_marker}, output={out}"
+        )
+        if attempt < retry_count:
+            time.sleep(retry_interval)
+
+    raise TestExecError(
+        f"Failed to access SMB share //{endpoint}/{share_name} using smbclient. "
+        f"Last output: {last_out}"
+    )
+
+
+def mount_smb_share_with_smbclient(
+    cluster_id,
+    share_name,
+    define_user_pass,
+    smb_endpoint=None,
+    smbclient_io=False,
+    test_file_path=None,
+    expected_names=None,
+    delete_one_file=False,
+):
+    """
+    Install samba-client and mount/access the RGW-backed SMB share.
+
+    Args:
+        cluster_id(str): SMB cluster id
+        share_name(str): Samba share name (not share_id)
+        define_user_pass(str): SMB credentials in user%password format
+        smb_endpoint(str): Optional explicit SMB host/IP
+        smbclient_io(bool): If True, put a test file and list it
+        test_file_path(str): Local file used for optional put
+        expected_names(list): Optional object/file names that must appear in ls
+        delete_one_file(bool): If True, delete one listed file and re-validate
+    """
+    install_samba_client()
+    username, password = parse_smb_user_pass(define_user_pass)
+    endpoint = get_smb_endpoint(cluster_id, smb_endpoint=smb_endpoint)
+    log.info(
+        f"Mounting SMB share via samba-client: "
+        f"//{endpoint}/{share_name} as user {username}"
+    )
+    ls_out = smbclient_access_share(
+        endpoint, share_name, username, password, commands="ls"
+    )
+    if expected_names:
+        missing = [name for name in expected_names if name not in str(ls_out)]
+        if missing:
+            raise TestExecError(
+                f"smbclient ls did not list expected objects {missing}. "
+                f"Output: {ls_out}"
+            )
+        log.info(f"smbclient ls listed expected objects: {expected_names}")
+
+        if delete_one_file:
+            file_to_delete = expected_names[0]
+            log.info(
+                f"Deleting file {file_to_delete} from SMB share {share_name} "
+                f"using smbclient"
+            )
+            smbclient_access_share(
+                endpoint,
+                share_name,
+                username,
+                password,
+                commands=f'del "{file_to_delete}"',
+            )
+            ls_after_delete = smbclient_access_share(
+                endpoint, share_name, username, password, commands="ls"
+            )
+            if file_to_delete in str(ls_after_delete):
+                raise TestExecError(
+                    f"File {file_to_delete} still listed on SMB share after "
+                    f"smbclient del. Output: {ls_after_delete}"
+                )
+            remaining = expected_names[1:]
+            missing_remaining = [
+                name for name in remaining if name not in str(ls_after_delete)
+            ]
+            if missing_remaining:
+                raise TestExecError(
+                    f"Unexpected missing files after deleting {file_to_delete}: "
+                    f"{missing_remaining}. Output: {ls_after_delete}"
+                )
+            log.info(
+                f"Verified {file_to_delete} is removed from SMB share {share_name}"
+            )
+
+    if smbclient_io:
+        if not test_file_path:
+            test_file_path = "/tmp/rgw_smb_mount_test.txt"
+        remote_name = os.path.basename(test_file_path)
+        if not os.path.exists(test_file_path):
+            with open(test_file_path, "w") as fout:
+                fout.write("rgw-smb-mount-test\n")
+        log.info(f"Putting test file {test_file_path} onto SMB share {share_name}")
+        io_out = smbclient_access_share(
+            endpoint,
+            share_name,
+            username,
+            password,
+            commands=f"put {test_file_path} {remote_name}; ls",
+        )
+        if remote_name not in str(io_out):
+            raise TestExecError(
+                f"File {remote_name} not found in smbclient ls after put. "
+                f"Output: {io_out}"
+            )
+        log.info(f"Verified {remote_name} is listed on SMB share {share_name}")
+        return io_out
+
+    return ls_out
