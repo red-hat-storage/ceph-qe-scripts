@@ -56,7 +56,7 @@ from v2.utils.test_desc import AddTestInfo
 log = logging.getLogger()
 TEST_DATA_PATH = None
 
-S3CMD_PATH = "/home/cephuser/venv/bin/s3cmd"
+S3CMD_PATH = s3cmd_reusable.get_s3cmd_path()
 
 
 def create_objects_after_ratelimit(bucket_name, object_count):

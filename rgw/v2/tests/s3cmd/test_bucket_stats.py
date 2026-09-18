@@ -66,7 +66,9 @@ def test_exec(config, ssh_con):
             cmd = (
                 "for i in {"
                 + range_val
-                + "}; do /home/cephuser/venv/bin/s3cmd put obj25m "
+                + "}; do "
+                + s3cmd_reusable.get_s3cmd_path()
+                + " put obj25m "
                 + object_name
                 + ";done;"
             )
@@ -88,7 +90,7 @@ def test_exec(config, ssh_con):
             log.info(f"num objects :{num_objects}")
 
             object_count = utils.exec_shell_cmd(
-                f"/home/cephuser/venv/bin/s3cmd ls s3://{bucket_name} --recursive | wc -l"
+                f"{s3cmd_reusable.get_s3cmd_path()} ls s3://{bucket_name} --recursive | wc -l"
             )
             log.info(f"object_count :{object_count}")
 
