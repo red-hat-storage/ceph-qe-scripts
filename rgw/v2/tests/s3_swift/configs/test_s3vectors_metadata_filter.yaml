@@ -1,0 +1,10 @@
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 0
+  objects_size_range:
+    min: 0
+    max: 0
+  test_ops:
+    s3vectors:
+      dimension: 4
