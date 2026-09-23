@@ -105,6 +105,48 @@ def install_curl(version="7.88.1"):
     return True
 
 
+def curl_put_http_status(
+    url,
+    payload_file,
+    content_type=None,
+    ssl=False,
+    access_key=None,
+    secret_key=None,
+    region="us-east-1",
+):
+    """
+    PUT via curl and return HTTP status code.
+    Args:
+        url(str): request URL
+        payload_file(str): local file for --upload-file
+        content_type(str|None): optional Content-Type header
+        ssl(bool): use --insecure for https
+        access_key/secret_key: enable curl --aws-sigv4 when set
+        region(str): SigV4 region
+    Returns:
+        int: HTTP status code
+    """
+    tls = " --insecure" if ssl or str(url).startswith("https://") else ""
+    ct_hdr = f' -H "Content-Type: {content_type}"' if content_type else ""
+    sigv4 = ""
+    if access_key and secret_key:
+        sigv4 = f" --aws-sigv4 aws:amz:{region}:s3 --user '{access_key}:{secret_key}'"
+    cmd = (
+        f"curl -sS -o /tmp/rgw_sigv4_ct_body.txt -w '%{{http_code}}'"
+        f"{tls}{sigv4}{ct_hdr} -X PUT --upload-file {payload_file} '{url}'"
+    )
+    out = utils.exec_shell_cmd(cmd)
+    if out is False or out is None:
+        raise TestExecError(f"curl PUT failed for {url}")
+    status_str = str(out).strip().splitlines()[-1].strip()
+    try:
+        return int(status_str)
+    except ValueError as e:
+        raise TestExecError(
+            f"Could not parse HTTP status from curl output: {out!r}"
+        ) from e
+
+
 def create_user(curl_auth, user_name=None):
     """
     create rgw user using curl
