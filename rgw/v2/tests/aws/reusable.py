@@ -553,6 +553,36 @@ def put_object(aws_auth, bucket_name, object_name, end_point, body=None):
         raise AWSCommandExecError(message=str(e))
 
 
+def put_object_must_be_blocked(
+    aws_auth,
+    bucket_name,
+    object_name,
+    end_point,
+    body=None,
+    error_substrings=("403", "AccessDenied", "Forbidden", "Abort"),
+    fail_msg=None,
+):
+    """
+    put_object that must be rejected (e.g. by a prerequest Lua abort).
+    Raises TestExecError if the put succeeds or fails with an unexpected error.
+    """
+    try:
+        put_object(aws_auth, bucket_name, object_name, end_point, body=body)
+    except AWSCommandExecError as e:
+        err = str(e)
+        if any(x in err for x in error_substrings):
+            log.info(f"put_object blocked as expected: {err}")
+            return
+        raise TestExecError(f"Unexpected put-object error: {err}")
+    raise TestExecError(
+        fail_msg
+        or (
+            f"put_object {object_name} succeeded but should have been blocked "
+            "by the Lua prerequest script"
+        )
+    )
+
+
 def put_object_checksum(
     aws_auth,
     bucket_name,
@@ -2162,6 +2192,127 @@ def get_all_rgw_hosts():
     return rgw_hosts
 
 
+def enable_rgw_debug_logging(level=20, settle_seconds=3):
+    """
+    Enable log_to_file and set debug_rgw on all RGW services and daemons.
+    """
+    log.info(f"Enabling log_to_file and debug_rgw={level}")
+    utils.exec_shell_cmd("ceph config set global log_to_file true")
+    out_ps = utils.exec_shell_cmd("ceph orch ps --daemon_type rgw -f json")
+    rgw_daemons = json.loads(out_ps)
+    services = set()
+    for daemon in rgw_daemons:
+        service_name = daemon.get("service_name")
+        if service_name:
+            services.add(service_name)
+        daemon_name = daemon.get("daemon_name")
+        if daemon_name:
+            utils.exec_shell_cmd(
+                f"ceph config set client.{daemon_name} debug_rgw {level}"
+            )
+    for service_name in services:
+        utils.exec_shell_cmd(f"ceph config set client.{service_name} debug_rgw {level}")
+    log.info("log_to_file and debug_rgw set for all RGW services and daemons")
+    if settle_seconds:
+        time.sleep(settle_seconds)
+
+
+def reset_rgw_debug_logging():
+    """
+    Remove debug_rgw override for all RGW services and daemons.
+    """
+    log.info("Resetting debug_rgw to default level")
+    out_ps = utils.exec_shell_cmd("ceph orch ps --daemon_type rgw -f json")
+    rgw_daemons = json.loads(out_ps)
+    services = set()
+    for daemon in rgw_daemons:
+        service_name = daemon.get("service_name")
+        if service_name:
+            services.add(service_name)
+        daemon_name = daemon.get("daemon_name")
+        if daemon_name:
+            utils.exec_shell_cmd(f"ceph config rm client.{daemon_name} debug_rgw")
+    for service_name in services:
+        utils.exec_shell_cmd(f"ceph config rm client.{service_name} debug_rgw")
+    log.info("debug_rgw reset for all RGW daemons")
+
+
+def grep_rgw_logs(pattern, ssh_con=None, haproxy=False, since_epoch=None):
+    """
+    Grep RGW client logs for an ERE pattern (grep -iE).
+
+    Returns list of matching lines. Remote host lines are prefixed with [host].
+    If haproxy is False, try local/ssh_con first and fall back to all RGW hosts
+    when no matches are found.
+    """
+    from datetime import datetime
+
+    fsid = utils.get_cluster_fsid()
+    log_dir = f"/var/log/ceph/{fsid}"
+    lines = []
+
+    def _grep_on_node(node_ssh, host=None):
+        found = []
+        if not check_log_directory_exists(log_dir, node_ssh):
+            return found
+        for log_file in get_rgw_log_files(log_dir, node_ssh, host):
+            cmd = f"sudo grep -iE '{pattern}' {log_file} 2>/dev/null || true"
+            try:
+                if node_ssh:
+                    _stdin, stdout, _stderr = node_ssh.exec_command(cmd)
+                    out = stdout.read().decode()
+                else:
+                    out = utils.exec_shell_cmd(cmd)
+                    if out is False or out is None:
+                        out = ""
+            except Exception as e:
+                log.warning(f"Failed to grep {log_file} on {host}: {e}")
+                continue
+            if out and out.strip():
+                for raw in out.strip().split("\n"):
+                    if raw.strip():
+                        prefix = f"[{host}] " if host else ""
+                        found.append(f"{prefix}{raw.strip()}")
+        return found
+
+    search_all = haproxy
+    if not search_all:
+        lines = _grep_on_node(ssh_con)
+        if not lines:
+            log.info("No matching RGW log lines on local/ssh node; checking all hosts")
+            search_all = True
+
+    if search_all:
+        lines = []
+        for host in get_all_rgw_hosts():
+            try:
+                node_ssh = utils.connect_remote(host)
+                lines.extend(_grep_on_node(node_ssh, host))
+            except Exception as e:
+                log.warning(f"Failed to grep RGW logs on {host}: {e}")
+
+    if since_epoch is not None:
+        cutoff = since_epoch - 1
+        recent = []
+        for line in lines:
+            raw = re.sub(r"^\[.*?\]\s+", "", line)
+            ts_match = re.match(r"^(\S+)\s", raw)
+            keep = True
+            if ts_match:
+                ts = ts_match.group(1)
+                if ts.endswith("+0000"):
+                    ts = ts[:-5] + "+00:00"
+                try:
+                    keep = datetime.fromisoformat(ts).timestamp() >= cutoff
+                except ValueError:
+                    keep = True
+            if keep:
+                recent.append(line)
+        lines = recent
+
+    return lines
+
+
 def check_rgw_debug_logs_and_reset(
     message_pattern=None,
     ssh_con=None,
@@ -2308,19 +2459,8 @@ def check_rgw_debug_logs_and_reset(
         )
         validation_error = None
 
-    log.info("Resetting debug_rgw to default level")
     try:
-        cmd_ps = "ceph orch ps --daemon_type rgw -f json"
-        out_ps = utils.exec_shell_cmd(cmd_ps)
-        rgw_daemons = json.loads(out_ps)
-        for daemon in rgw_daemons:
-            daemon_name = daemon.get("daemon_name") or daemon.get("service_name")
-            if daemon_name:
-                debug_cmd = f"ceph config rm client.{daemon_name} debug_rgw"
-                log.info(f"Resetting debug_rgw for {daemon_name}: {debug_cmd}")
-                utils.exec_shell_cmd(debug_cmd)
-
-        log.info("debug_rgw reset to default for all RGW daemons")
+        reset_rgw_debug_logging()
     except Exception as e:
         raise TestExecError(f"Failed to reset debug_rgw: {e}")
 
