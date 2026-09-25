@@ -1,0 +1,17 @@
+# Script: ceph-qe-scripts/rgw/v2/tests/aws/test_aws_sigv4.py
+# SigV4 PUT: Content-Type on the wire but not in SignedHeaders must return 200
+# (header-auth curl + browser-like presigned PUT). Multipart contrast stays 200.
+# Tracker: https://tracker.ceph.com/issues/79708
+# polarion-id: CEPH-83633019
+config:
+  user_count: 1
+  bucket_count: 1
+  local_file_delete: true
+  user_remove: true
+  test_ops:
+    region: us-east-1
+    unsigned_content_type_put: true
+    unsigned_content_type: image/png
+    multipart_contrast: true
+    curl_sigv4_path: true
+    verify_tls: false

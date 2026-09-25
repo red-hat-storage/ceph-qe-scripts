@@ -4,6 +4,8 @@ Reusable methods for aws
 
 import copy
 import glob
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -15,7 +17,9 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 from configparser import RawConfigParser
+from datetime import datetime, timezone
 from pathlib import Path
 
 log = logging.getLogger()
@@ -2620,3 +2624,78 @@ def get_bucket_location(aws_auth, bucket_name, end_point):
         return location_data.get("LocationConstraint", "")
     except Exception as e:
         raise AWSCommandExecError(message=str(e))
+
+
+EMPTY_PAYLOAD_SHA256 = hashlib.sha256(b"").hexdigest()
+
+
+def make_sigv4_get(
+    url,
+    access_key,
+    secret_key,
+    region,
+    include_sha256_in_signed_headers=True,
+    extra_unsigned_header=None,
+):
+    """
+    Build SigV4 GET wire headers.
+    When include_sha256_in_signed_headers is False, x-amz-content-sha256 is
+    still sent on the wire but omitted from SignedHeaders (S3-allowed shape).
+    Returns:
+        tuple: (wire_headers, signed_headers, canonical_request)
+    """
+    parsed = urllib.parse.urlsplit(url)
+    host = parsed.netloc
+    path = parsed.path or "/"
+    now = datetime.now(timezone.utc)
+    amz_date = now.strftime("%Y%m%dT%H%M%SZ")
+    date_stamp = now.strftime("%Y%m%d")
+    payload_hash = EMPTY_PAYLOAD_SHA256
+
+    if include_sha256_in_signed_headers:
+        canonical_headers = (
+            f"host:{host}\n"
+            f"x-amz-content-sha256:{payload_hash}\n"
+            f"x-amz-date:{amz_date}\n"
+        )
+        signed_headers = "host;x-amz-content-sha256;x-amz-date"
+    else:
+        canonical_headers = f"host:{host}\nx-amz-date:{amz_date}\n"
+        signed_headers = "host;x-amz-date"
+
+    canonical_request = "\n".join(
+        ["GET", path, "", canonical_headers, signed_headers, payload_hash]
+    )
+    credential_scope = f"{date_stamp}/{region}/s3/aws4_request"
+    string_to_sign = "\n".join(
+        [
+            "AWS4-HMAC-SHA256",
+            amz_date,
+            credential_scope,
+            hashlib.sha256(canonical_request.encode("utf-8")).hexdigest(),
+        ]
+    )
+    k_date = hmac.new(
+        ("AWS4" + secret_key).encode("utf-8"),
+        date_stamp.encode("utf-8"),
+        hashlib.sha256,
+    ).digest()
+    k_region = hmac.new(k_date, region.encode("utf-8"), hashlib.sha256).digest()
+    k_service = hmac.new(k_region, b"s3", hashlib.sha256).digest()
+    k_signing = hmac.new(k_service, b"aws4_request", hashlib.sha256).digest()
+    signature = hmac.new(
+        k_signing, string_to_sign.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
+    authorization = (
+        f"AWS4-HMAC-SHA256 Credential={access_key}/{credential_scope}, "
+        f"SignedHeaders={signed_headers}, Signature={signature}"
+    )
+    wire_headers = {
+        "authorization": authorization,
+        "host": host,
+        "x-amz-content-sha256": payload_hash,
+        "x-amz-date": amz_date,
+    }
+    if extra_unsigned_header:
+        wire_headers.update(extra_unsigned_header)
+    return wire_headers, signed_headers, canonical_request

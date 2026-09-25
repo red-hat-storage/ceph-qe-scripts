@@ -3,9 +3,15 @@ Usage: test_aws_sigv4.py -c <input_yaml>
 
 <input_yaml>
     configs/test_sigv4_unsigned_content_type.yaml
+    configs/test_sigv4_content_type_unsigned_put.yaml
+    configs/test_sigv4_unsigned_content_sha256.yaml
 
 Operation:
     SigV4 scenarios selected via test_ops flags.
+    - unsigned_content_type_put: unsigned Content-Type on PUT
+      (header-auth curl + presigned + multipart contrast).
+    - unsigned_content_sha256_get: GET with x-amz-content-sha256 on the wire
+      but not in SignedHeaders (must return 200; other unsigned x-amz-* stay 403).
 """
 
 import argparse
@@ -19,6 +25,7 @@ sys.path.append(os.path.abspath(os.path.join(__file__, "../../../..")))
 
 import requests
 import urllib3
+from botocore.exceptions import ClientError
 from v2.lib import resource_op
 from v2.lib.aws import auth as aws_auth
 from v2.lib.aws.resource_op import AWS
@@ -58,7 +65,10 @@ def test_exec(config, ssh_con):
             region_name=region,
         )
         cli_aws = AWS(ssl=config.ssl)
-        endpoint = aws_reusable.get_endpoint(ssh_con, ssl=config.ssl)
+        # Use Auth endpoint so curl / AWS CLI / boto hit the same host:port
+        # (get_auth may clear haproxy when RGW is on 443).
+        endpoint = auth.endpoint_url
+        log.info(f"RGW endpoint: {endpoint}")
         aws_auth.do_auth_aws(user)
 
         for bc in range(config.bucket_count):
@@ -69,16 +79,70 @@ def test_exec(config, ssh_con):
 
             if config.test_ops.get("unsigned_content_type_put", False):
                 unsigned_ct = config.test_ops.get("unsigned_content_type", "image/png")
-                run_curl = config.test_ops.get("curl_sigv4_path", False)
-                run_mpu = config.test_ops.get("multipart_contrast", False)
-                key = "avatar.png"
+                run_curl = config.test_ops.get("curl_sigv4_path", True)
+                run_mpu = config.test_ops.get("multipart_contrast", True)
                 payload = b'{"hello":"world"}'
-                objects.append(key)
+                payload_path = os.path.join(
+                    TEST_DATA_PATH, f"payload_{bucket_name}.json"
+                )
+                with open(payload_path, "wb") as fh:
+                    fh.write(payload)
 
                 if not verify_tls:
                     urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-                log.info("presigned put_object without ContentType")
+                # Step 2–3: header-authenticated curl SigV4 PUT
+                # (aws-sdk-php shape: Content-Type on wire, not in SignedHeaders)
+                if run_curl:
+                    curl_reusable.install_curl(version="7.88.1")
+                    baseline_key = "baseline-no-ct.json"
+                    trigger_key = "trigger-unsigned-ct.json"
+                    baseline_url = f"{endpoint}/{bucket_name}/{baseline_key}"
+                    trigger_url = f"{endpoint}/{bucket_name}/{trigger_key}"
+
+                    log.info(
+                        "header-auth PUT without Content-Type (baseline; check must not fire)"
+                    )
+                    status = curl_reusable.curl_put_http_status(
+                        baseline_url,
+                        payload_path,
+                        content_type=None,
+                        ssl=config.ssl,
+                        access_key=user["access_key"],
+                        secret_key=user["secret_key"],
+                        region=region,
+                    )
+                    log.info(f"curl SigV4 PUT without Content-Type: HTTP {status}")
+                    if status != 200:
+                        raise TestExecError(
+                            f"curl SigV4 PUT without Content-Type: expected 200, got {status}"
+                        )
+                    objects.append(baseline_key)
+
+                    log.info(
+                        f"header-auth PUT with unsigned Content-Type ({unsigned_ct}; bug trigger on v20.2.4/v19.2.6)"
+                    )
+                    status = curl_reusable.curl_put_http_status(
+                        trigger_url,
+                        payload_path,
+                        content_type=unsigned_ct,
+                        ssl=config.ssl,
+                        access_key=user["access_key"],
+                        secret_key=user["secret_key"],
+                        region=region,
+                    )
+                    log.info(
+                        f"curl SigV4 PUT with unsigned Content-Type: HTTP {status}"
+                    )
+                    if status != 200:
+                        raise TestExecError(
+                            f"curl SigV4 PUT with unsigned Content-Type: expected 200, got {status}"
+                        )
+                    objects.append(trigger_key)
+
+                # Step 4: presigned PUT (SignedHeaders=host); browser adds Content-Type
+                key = "avatar.png"
+                log.info("presigned put_object without ContentType in Params")
                 url = rgw_s3_client.generate_presigned_url(
                     ClientMethod="put_object",
                     Params={"Bucket": bucket_name, "Key": key},
@@ -97,8 +161,7 @@ def test_exec(config, ssh_con):
                 log.info(f"presigned PUT without Content-Type: HTTP {resp.status_code}")
                 if resp.status_code != 200:
                     raise TestExecError(
-                        f"presigned PUT without Content-Type: "
-                        f"expected 200, got {resp.status_code}"
+                        f"presigned PUT without Content-Type: expected 200, got {resp.status_code}"
                     )
 
                 resp = requests.put(
@@ -108,18 +171,20 @@ def test_exec(config, ssh_con):
                     verify=verify_tls,
                 )
                 log.info(
-                    f"presigned PUT with unsigned Content-Type: "
-                    f"HTTP {resp.status_code}"
+                    f"presigned PUT with unsigned Content-Type: HTTP {resp.status_code}"
                 )
                 if resp.status_code != 200:
                     raise TestExecError(
-                        f"presigned PUT with unsigned Content-Type: "
-                        f"expected 200, got {resp.status_code}"
+                        f"presigned PUT with unsigned Content-Type: expected 200, got {resp.status_code}"
                     )
+                objects.append(key)
 
+                # Step 6: multipart contrast (content-type typically signed → always OK)
                 if run_mpu:
-                    mpu_key = "mpu-test"
-                    log.info("multipart upload contrast")
+                    mpu_key = "mpu-test.bin"
+                    log.info(
+                        "multipart upload contrast (content-type signed; must pass on any build)"
+                    )
                     mpu = rgw_s3_client.create_multipart_upload(
                         Bucket=bucket_name,
                         Key=mpu_key,
@@ -142,45 +207,109 @@ def test_exec(config, ssh_con):
                     )
                     objects.append(mpu_key)
 
-                if run_curl:
-                    curl_reusable.install_curl(version="7.88.1")
-                    curl_key = "sigv4-avatar.png"
-                    payload_path = os.path.join(
-                        TEST_DATA_PATH, f"payload_{bucket_name}.json"
+                if config.local_file_delete and os.path.exists(payload_path):
+                    utils.exec_shell_cmd(f"rm -f {payload_path}")
+
+            if config.test_ops.get("unsigned_content_sha256_get", False):
+                if not verify_tls:
+                    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+                key = config.test_ops.get("object_key", "f100")
+                payload = b"sigv4-content-sha256-test\n"
+                local_path = os.path.join(TEST_DATA_PATH, f"{bucket_name}_{key}.bin")
+                with open(local_path, "wb") as fh:
+                    fh.write(payload)
+                aws_reusable.put_object(
+                    cli_aws, bucket_name, key, endpoint, body=local_path
+                )
+                objects.append(key)
+                if config.local_file_delete:
+                    utils.exec_shell_cmd(f"rm -f {local_path}")
+
+                object_url = f"{endpoint}/{bucket_name}/{key}"
+                log.info("GET with x-amz-content-sha256 on wire, not in SignedHeaders")
+                wire, signed, canon = aws_reusable.make_sigv4_get(
+                    object_url,
+                    user["access_key"],
+                    user["secret_key"],
+                    region,
+                    include_sha256_in_signed_headers=False,
+                )
+                log.info(f"SignedHeaders={signed}")
+                log.info(f"canonical_request: {canon.replace(chr(10), ' | ')}")
+                if "x-amz-content-sha256" in signed:
+                    raise TestExecError(
+                        f"x-amz-content-sha256 must not be in SignedHeaders: {signed}"
                     )
-                    with open(payload_path, "wb") as fh:
-                        fh.write(payload)
-                    object_url = f"{endpoint}/{bucket_name}/{curl_key}"
-                    status = curl_reusable.curl_put_http_status(
-                        object_url,
-                        payload_path,
-                        content_type=None,
-                        ssl=config.ssl,
-                        access_key=user["access_key"],
-                        secret_key=user["secret_key"],
-                        region=region,
+                if (
+                    wire.get("x-amz-content-sha256")
+                    != aws_reusable.EMPTY_PAYLOAD_SHA256
+                ):
+                    raise TestExecError(
+                        "x-amz-content-sha256 missing or wrong on the wire"
                     )
-                    if status != 200:
-                        raise TestExecError(
-                            f"curl sigv4 PUT without Content-Type: "
-                            f"expected 200, got {status}"
-                        )
-                    status = curl_reusable.curl_put_http_status(
-                        object_url,
-                        payload_path,
-                        content_type=unsigned_ct,
-                        ssl=config.ssl,
-                        access_key=user["access_key"],
-                        secret_key=user["secret_key"],
-                        region=region,
+                resp = requests.get(object_url, headers=wire, verify=verify_tls)
+                log.info(
+                    f"GET without x-amz-content-sha256 in SignedHeaders: HTTP {resp.status_code}"
+                )
+                if resp.status_code != 200:
+                    raise TestExecError(
+                        f"GET without x-amz-content-sha256 in SignedHeaders: expected 200, got {resp.status_code}"
                     )
-                    if status != 200:
-                        raise TestExecError(
-                            f"curl sigv4 PUT with unsigned Content-Type: expected 200, got {status}"
-                        )
-                    objects.append(curl_key)
-                    if config.local_file_delete:
-                        utils.exec_shell_cmd(f"rm -f {payload_path}")
+
+                log.info("GET with x-amz-content-sha256 in SignedHeaders")
+                wire_signed, signed_on, _ = aws_reusable.make_sigv4_get(
+                    object_url,
+                    user["access_key"],
+                    user["secret_key"],
+                    region,
+                    include_sha256_in_signed_headers=True,
+                )
+                log.info(f"SignedHeaders={signed_on}")
+                resp = requests.get(object_url, headers=wire_signed, verify=verify_tls)
+                log.info(
+                    f"GET with x-amz-content-sha256 in SignedHeaders: HTTP {resp.status_code}"
+                )
+                if resp.status_code != 200:
+                    raise TestExecError(
+                        f"GET with x-amz-content-sha256 in SignedHeaders: expected 200, got {resp.status_code}"
+                    )
+
+                log.info("boto3 get_object fully signed")
+                try:
+                    boto_resp = rgw_s3_client.get_object(Bucket=bucket_name, Key=key)
+                    boto_code = boto_resp["ResponseMetadata"]["HTTPStatusCode"]
+                except ClientError as e:
+                    boto_code = e.response["ResponseMetadata"]["HTTPStatusCode"]
+                    raise TestExecError(
+                        f"boto3 get_object: expected 200, got {boto_code}"
+                    )
+                log.info(f"boto3 get_object: HTTP {boto_code}")
+                if boto_code != 200:
+                    raise TestExecError(
+                        f"boto3 get_object: expected 200, got {boto_code}"
+                    )
+
+                log.info(
+                    "GET with other unsigned x-amz-* header (must still be rejected with 403)"
+                )
+                wire_bad, signed_bad, _ = aws_reusable.make_sigv4_get(
+                    object_url,
+                    user["access_key"],
+                    user["secret_key"],
+                    region,
+                    include_sha256_in_signed_headers=False,
+                    extra_unsigned_header={"x-amz-custom-header": "unsigned-value"},
+                )
+                log.info(f"SignedHeaders={signed_bad}")
+                resp = requests.get(object_url, headers=wire_bad, verify=verify_tls)
+                log.info(
+                    f"GET with unsigned x-amz-custom-header: HTTP {resp.status_code}"
+                )
+                if resp.status_code != 403:
+                    raise TestExecError(
+                        f"GET with unsigned x-amz-custom-header: expected 403, got {resp.status_code}"
+                    )
 
             for key in objects:
                 try:

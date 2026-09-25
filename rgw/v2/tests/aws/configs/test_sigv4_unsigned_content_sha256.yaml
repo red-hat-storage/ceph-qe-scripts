@@ -1,0 +1,13 @@
+# Script: ceph-qe-scripts/rgw/v2/tests/aws/test_aws_sigv4.py
+# Tracker: https://tracker.ceph.com/issues/79803
+# polarion-id: CEPH-83633018
+config:
+  user_count: 1
+  bucket_count: 1
+  local_file_delete: true
+  user_remove: true
+  test_ops:
+    region: us-east-1
+    unsigned_content_sha256_get: true
+    object_key: f100
+    verify_tls: false
