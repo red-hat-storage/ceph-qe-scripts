@@ -26,12 +26,33 @@ from v2.lib.exceptions import (
     TestExecError,
 )
 from v2.lib.manage_data import io_generator
-from v2.lib.s3cmd.resource_op import S3CMD
+from v2.lib.s3cmd.resource_op import S3CMD, get_s3cmd_path
 from v2.utils import utils
 from v2.utils.utils import RGWService, exec_shell_cmd
 
 home_path = os.path.expanduser("~cephuser")
-s3cmd_path = home_path + "/venv/bin/s3cmd"
+
+
+class _S3cmdPathProxy:
+    """Lazy path so import works before venv activation; resolves per use."""
+
+    def __str__(self):
+        return get_s3cmd_path()
+
+    def __fspath__(self):
+        return get_s3cmd_path()
+
+    def __add__(self, other):
+        return get_s3cmd_path() + other
+
+    def __radd__(self, other):
+        return other + get_s3cmd_path()
+
+    def __format__(self, spec):
+        return format(get_s3cmd_path(), spec)
+
+
+s3cmd_path = _S3cmdPathProxy()
 
 
 def create_bucket(bucket_name, endpoint, ssl=None, retries=3, wait_time=5):
@@ -398,7 +419,7 @@ def rate_limit_read(bucket, max_read_ops, ssl=None, file=None):
     else:
         ssl_param = ""
     cmd = (
-        f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd ls "
+        f"for i in {{{range_val}}}; do {get_s3cmd_path()} ls "
         f"s3://{bucket}/{file} {ssl_param};done;"
     )
     stdout, stderr = run_subprocess(cmd)
@@ -422,7 +443,7 @@ def rate_limit_write(bucket, max_write_ops, ssl=None):
     else:
         ssl_param = ""
     cmd = (
-        f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd "
+        f"for i in {{{range_val}}}; do {get_s3cmd_path()} "
         f"put file1 s3://{bucket}/file$i {ssl_param};done;"
     )
     stdout, stderr = run_subprocess(cmd)
@@ -441,7 +462,7 @@ def debt_ratelimit(bucket, debt_limit, ssl=None):
         ssl_param = "-s"
     else:
         ssl_param = ""
-    cmd = f"/home/cephuser/venv/bin/s3cmd put file2 s3://{bucket}/file1 {ssl_param}"
+    cmd = f"{get_s3cmd_path()} put file2 s3://{bucket}/file1 {ssl_param}"
     stdout, stderr = run_subprocess(cmd)
     assert "503" not in str(stderr), "Rate limit slowdown observed, failing!"
 
@@ -461,7 +482,7 @@ def create_objects_after_ratelimit(bucket, object_count, ssl=None):
     create_local_file("1k", "ratelimit_test_file")
     for i in range(1, object_count + 1):
         cmd = (
-            f"/home/cephuser/venv/bin/s3cmd put ratelimit_test_file "
+            f"{get_s3cmd_path()} put ratelimit_test_file "
             f"s3://{bucket}/delete_obj{i} {ssl_param}"
         )
         run_subprocess(cmd)
@@ -485,7 +506,7 @@ def rate_limit_list(bucket, max_list_ops, ssl=None):
     else:
         ssl_param = ""
     cmd = (
-        f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd ls "
+        f"for i in {{{range_val}}}; do {get_s3cmd_path()} ls "
         f"s3://{bucket}/ {ssl_param};done;"
     )
     stdout, stderr = run_subprocess(cmd)
@@ -512,7 +533,7 @@ def rate_limit_delete(bucket, max_delete_ops, ssl=None):
             ssl_param = "-s"
         else:
             ssl_param = ""
-        cmd = f"/home/cephuser/venv/bin/s3cmd put delete_test_file s3://{bucket}/delete_obj{i} {ssl_param}"
+        cmd = f"{get_s3cmd_path()} put delete_test_file s3://{bucket}/delete_obj{i} {ssl_param}"
         run_subprocess(cmd)
 
     # Now delete objects in a loop to trigger rate limit
@@ -522,7 +543,7 @@ def rate_limit_delete(bucket, max_delete_ops, ssl=None):
     else:
         ssl_param = ""
     cmd = (
-        f"for i in {{{range_val}}}; do /home/cephuser/venv/bin/s3cmd rm "
+        f"for i in {{{range_val}}}; do {get_s3cmd_path()} rm "
         f"s3://{bucket}/delete_obj$i {ssl_param};done;"
     )
     stdout, stderr = run_subprocess(cmd)
@@ -720,7 +741,7 @@ def lc_validation_at_archive_zone(bucket_name, config):
 
 
 def upload_objects_via_s3cmd(bucket_name, config):
-    s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+    s3cmd_path = get_s3cmd_path()
     if config.objects_count >= 20:
         obj_count_4Kb = config.objects_count - 2
         obj_count_64Kb = config.objects_count - obj_count_4Kb
