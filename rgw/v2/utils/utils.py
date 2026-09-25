@@ -23,6 +23,48 @@ BUCKET_NAME_PREFIX = "bucky" + "-" + str(random.randrange(1, 5000))
 S3_OBJECT_NAME_PREFIX = "key"
 log = logging.getLogger()
 
+_FIPS_ENABLED_PATH = "/proc/sys/crypto/fips_enabled"
+_orig_hashlib_md5 = hashlib.md5
+
+
+def is_fips_enabled():
+    """Return True when the kernel is running in FIPS mode."""
+    try:
+        with open(_FIPS_ENABLED_PATH, "r") as fh:
+            return fh.read().strip() == "1"
+    except OSError:
+        return False
+
+
+_FIPS_ENABLED = is_fips_enabled()
+
+
+def md5(*args, **kwargs):
+    """MD5 for non-cryptographic checksums. FIPS requires usedforsecurity=False."""
+    kwargs["usedforsecurity"] = False
+    return _orig_hashlib_md5(*args, **kwargs)
+
+
+class FipsAutoAddPolicy(paramiko.MissingHostKeyPolicy):
+    """Auto-add unknown host keys without MD5 fingerprinting."""
+
+    def missing_host_key(self, client, hostname, key):
+        client.get_host_keys().add(hostname, key.get_name(), key)
+        if getattr(client, "_host_keys_filename", None):
+            client.save_host_keys(client._host_keys_filename)
+        log.info(
+            "Adding %s host key for %s (FIPS: skip MD5 fingerprint)",
+            key.get_name(),
+            hostname,
+        )
+
+
+# Only redirect MD5 on FIPS hosts. Non-FIPS keeps stock hashlib.md5 / paramiko.
+if _FIPS_ENABLED:
+    hashlib.md5 = md5
+    if hasattr(paramiko, "pkey") and hasattr(paramiko.pkey, "md5"):
+        paramiko.pkey.md5 = md5
+
 
 def exec_long_running_shell_cmd(cmd):
     try:
@@ -92,7 +134,10 @@ def exec_shell_cmd(cmd, debug_info=False, return_err=False):
 
 def connect_remote(rgw_host, user_nm="cephuser", passw="cephuser"):
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    if _FIPS_ENABLED:
+        ssh.set_missing_host_key_policy(FipsAutoAddPolicy())
+    else:
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(rgw_host, port=22, username=user_nm, password=passw, timeout=3)
     if ssh is None:
         raise Exception("Connection with remote machine failed")
