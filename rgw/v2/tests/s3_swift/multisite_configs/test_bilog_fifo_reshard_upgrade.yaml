@@ -1,0 +1,15 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 6.2 InIndex bucket reshard with fifo config -> gen1 FIFO
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  shards: 16
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: reshard_upgrade
+    bilog_type: inindex
+    reshard_shards: 16
