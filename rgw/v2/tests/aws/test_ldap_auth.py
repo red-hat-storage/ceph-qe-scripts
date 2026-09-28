@@ -70,27 +70,6 @@ def test_exec(config, ssh_con):
 
     log.info("Sleep for 30 seconds for RGW to reapply")
     time.sleep(30)
-    # add conf options to ceph
-    utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_ldap_binddn cn=RGW"
-    )
-    utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_ldap_dnattr uid"
-    )
-    utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_ldap_uri ldap://10.245.64.172:389"
-    )
-    utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_ldap_searchdn ou=ceph,dc=localhost"
-    )
-    utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_ldap_secret /etc/bindpass"
-    )
-    utils.exec_shell_cmd(
-        f"ceph config set client.{rgw_service_name} rgw_s3_auth_use_ldap true"
-    )
-
-    utils.exec_shell_cmd(f"ceph orch restart {rgw_service_name}")
 
     # base64 encode json to get ldap token
     user_data = {
