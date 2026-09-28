@@ -1,0 +1,67 @@
+# =============================================================
+# NFS-RDMA Test Suite — Performance Test Configuration
+# Edit these values to change performance test behaviour.
+# =============================================================
+
+performance:
+  # -------------------------------------------------------
+  # T-06 / T-12: Write throughput tests
+  # -------------------------------------------------------
+  write_tests:
+    - name: "1GB write"
+      size_mb: 1024
+      enabled: true
+    - name: "10GB write"
+      size_mb: 10240
+      enabled: true
+
+  # -------------------------------------------------------
+  # T-07 / T-13: Read throughput + integrity tests
+  # -------------------------------------------------------
+  read_tests:
+    - name: "1GB read + md5"
+      size_mb: 1024
+      verify_md5: true
+      enabled: true
+    - name: "10GB read"
+      size_mb: 10240
+      verify_md5: false
+      enabled: true
+
+  # -------------------------------------------------------
+  # T-11: Mixed file size test
+  # -------------------------------------------------------
+  mixed_sizes:
+    enabled: true
+    # Each entry: size in KB, number of files to write
+    sizes_kb: [4, 64, 512, 1024, 4096, 10240, 51200, 102400]
+
+  # -------------------------------------------------------
+  # T-14: CPU utilisation capture during write
+  # -------------------------------------------------------
+  cpu_util:
+    enabled: true
+    # Size of write used during CPU capture
+    write_size_mb: 1024
+    # Sampling interval in seconds
+    mpstat_interval: 1
+
+  # -------------------------------------------------------
+  # T-15 / T-16: Concurrent client tests
+  # -------------------------------------------------------
+  concurrent:
+    # T-15: all RDMA
+    rdma_clients: 20
+    rdma_enabled: true
+
+    # T-16: mixed RDMA + TCP
+    mixed_rdma_clients: 20
+    mixed_tcp_clients: 20
+    mixed_enabled: true
+
+    # Per-client workload for concurrent tests
+    per_client_file_size_mb: 512
+    per_client_files: 5
+
+  # Remote base path for performance test data
+  remote_base: /mnt/nfs-rdma/rdma-nfs-autotest/perf

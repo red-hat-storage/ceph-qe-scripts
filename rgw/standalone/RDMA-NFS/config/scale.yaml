@@ -1,0 +1,40 @@
+# =============================================================
+# NFS-RDMA Test Suite — Scale Test Configuration
+# Edit these values to change scale test behaviour.
+# =============================================================
+
+scale:
+  # -------------------------------------------------------
+  # T-17 / T-18 / T-19: Flat file scale tests
+  # -------------------------------------------------------
+  file_counts:
+    # Each entry becomes one scale test run.
+    # name: human label, count: total files to create, enabled: true/false
+    - name: "100K files"
+      count: 100000
+      enabled: true
+    - name: "2M files"
+      count: 2000000
+      enabled: true
+    - name: "10M files"
+      count: 10000000
+      enabled: false    # set true when cluster is fully healthy
+
+  # File size for all scale tests (bytes)
+  file_size_bytes: 4096
+
+  # -------------------------------------------------------
+  # T-09 / T-18 variant: Directory depth + equal distribution
+  # -------------------------------------------------------
+  dir_depth:
+    # Total files split equally across 'depth' subdirectories
+    depth: 20
+    total_files: 2000000   # 100K per level at depth=20
+    file_size_bytes: 4096
+    enabled: true
+
+  # Number of parallel workers per depth level
+  parallel_workers: 20
+
+  # Remote base path for scale test data
+  remote_base: /mnt/nfs-rdma/rdma-nfs-autotest/scale

@@ -1,0 +1,56 @@
+# =============================================================
+# NFS-RDMA Test Suite — Cluster Configuration
+# Required for all test runs.
+# =============================================================
+
+cluster:
+  # NFS-Ganesha server (also runs MON, RGW)
+  nfs_server: grim017
+
+  # Virtual IP used by NFS-Ganesha
+  nfs_vip: 10.64.66.27
+
+  # RDMA-capable NFS client nodes
+  rdma_clients:
+    - grim019
+    - grim020
+
+  # All nodes (used for setup checks)
+  all_nodes:
+    - grim017
+    - grim018
+    - grim019
+    - grim020
+
+ssh:
+  user: root
+  password: passwd
+  connect_timeout: 15
+
+nfs:
+  export: /nfs-rdma
+  mount_point: /mnt/nfs-rdma
+  rdma_port: 20049
+  tcp_port: 2049
+  nfs_version: "4.1"
+  # Mount options used for all RDMA mounts
+  rdma_mount_opts: "vers=4.1,proto=rdma,port=20049,sync,nofsc"
+  # Mount options used for TCP mounts (dual-mount test)
+  tcp_mount_opts: "vers=4.1,proto=tcp,port=2049,nofsc"
+
+rdma:
+  # InfiniBand/RoCE device name on all nodes
+  device: mlx5_bond_0
+  port: 1
+  # Sysfs path to RX data counter (used to confirm RDMA traffic)
+  rx_counter: /sys/class/infiniband/mlx5_bond_0/ports/1/counters/port_rcv_data
+
+test:
+  # Remote working directory for all test data
+  remote_workdir: /mnt/nfs-rdma/rdma-nfs-autotest
+  # Local directory to store result JSON and summary
+  local_results_dir: ./results
+  # Timeouts (seconds)
+  mount_timeout: 30
+  io_timeout: 300
+  scale_timeout: 7200
