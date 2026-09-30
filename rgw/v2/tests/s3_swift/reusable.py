@@ -3529,9 +3529,10 @@ def get_object_attributes(
                 checksum_key = f"Checksum{key.split('-')[-1].upper()}"
                 checksum_expected[checksum_key] = val
                 if (
-                    checksum_key == "ChecksumSHA256" or checksum_key == "ChecksumSHA1"
+                    checksum_key
+                    in ("ChecksumSHA256", "ChecksumSHA1", "ChecksumSHA512")
                 ) and object_parts_info:
-                    # checksum_type is COMPOSITE only for multipart objects uploaded with SHA1 or SHA256 algo by default
+                    # COMPOSITE for multipart objects uploaded with SHA family by default
                     checksum_expected["ChecksumType"] = "COMPOSITE"
                 else:
                     checksum_expected["ChecksumType"] = "FULL_OBJECT"
