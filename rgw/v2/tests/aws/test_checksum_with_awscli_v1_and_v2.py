@@ -7,12 +7,13 @@ Polarion ID : CEPH-83591679
     rgw/v2/tests/aws/configs/test_checksum_awscli_v1_v2_non_multipart.yaml
     rgw/v2/tests/aws/configs/test_checksum_awscli_v1_v2_multipart.yaml
 
-Operation:
+    Operation:
 testing checksum feature with
 with awscli - v1 and v2
 with default checksum enabled and disabled
 with small, non-multipart and multipart objects
-with all supported checksums - "sha1", "sha256", "crc32", "crc32c", "crc64nvme"
+with supported checksums - "sha1", "sha256", "crc32", "crc32c", "crc64nvme"
+(sha512 added automatically on Ceph 10.0+)
 
 operations are put, copy, get, get-object-attributes, delete
 """
@@ -109,7 +110,16 @@ def test_exec(config, ssh_con):
                         )
 
                     for oc, size in list(config.mapped_sizes.items()):
-                        algo_list = ["sha1", "sha256", "crc32", "crc32c", "crc64nvme"]
+                        algo_list = aws_reusable.resolve_checksum_algorithms(
+                            config.test_ops.get("checksum_algorithms"),
+                            default=[
+                                "sha1",
+                                "sha256",
+                                "crc32",
+                                "crc32c",
+                                "crc64nvme",
+                            ],
+                        )
                         for algo in algo_list:
                             s3_object_name_prefix = f"{bucket_name}_{aws_version}_{'default_cksm' if default_checksum_flag else 'default_cksm_disabled'}_{algo}"
                             config.obj_size = size

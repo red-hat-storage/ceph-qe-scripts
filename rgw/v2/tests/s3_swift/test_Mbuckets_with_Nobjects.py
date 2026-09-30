@@ -22,6 +22,7 @@ Usage: test_Mbuckets_with_Nobjects.py -c <input_yaml>
     test_bi_put_with_incomplete_multipart_upload.yaml
     test_Mbuckets_with_Nobjects_get_object_attributes.yaml
     test_Mbuckets_with_Nobjects_get_object_attributes_checksum_sha256.yaml
+    test_Mbuckets_with_Nobjects_get_object_attributes_checksum_sha512.yaml
     test_Mbuckets_with_Nobjects_get_object_attributes_multipart.yaml
     test_Mbuckets_with_Nobjects_multipart_upload_complete_abort_race.yaml
     test_Mbuckets_with_Nobjects_unicode_bi_list.yaml
@@ -77,6 +78,17 @@ encryption_key = hashlib.md5(password).hexdigest()
 
 
 def test_exec(config, ssh_con):
+    checksum_algo = str(config.test_ops.get("checksum_algorithm", "")).upper()
+    if (
+        config.test_ops.get("test_checksum")
+        and checksum_algo == "SHA512"
+        and not utils.is_known_issue_version("21.0.0", op=">=")
+    ):
+        log.info(
+            "Skipping: SHA512 checksum requires Ceph 10.0+ (upstream >= 21.0.0)"
+        )
+        return
+
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     write_bucket_io_info = BucketIoInfo()
