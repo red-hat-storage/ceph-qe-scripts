@@ -1,0 +1,17 @@
+# Tracker: https://tracker.ceph.com/issues/80532
+# Fix: https://github.com/ceph/ceph/pull/71873
+# Script: test_lua_postauth_cache.py
+# polarion_id: CEPH-83633020
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  local_file_delete: true
+  objects_size_range:
+    min: 5K
+    max: 5K
+  user_remove: true
+  test_ops:
+    prerequest_stale_bytecode_cache: true
+    lua_background_wait: 6
+    delete_bucket: true

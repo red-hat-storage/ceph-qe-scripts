@@ -264,22 +264,7 @@ RGWDebugLog(Request.RGWOp ..
 
     log.info("Enabling RGW file logging and debug_rgw=20 for Lua RGWDebugLog")
     try:
-        utils.exec_shell_cmd("ceph config set global log_to_file true")
-        out_ps = utils.exec_shell_cmd("ceph orch ps --daemon_type rgw -f json")
-        rgw_daemons = json.loads(out_ps)
-        services = set()
-        for daemon in rgw_daemons:
-            service_name = daemon.get("service_name")
-            if service_name:
-                services.add(service_name)
-            daemon_name = daemon.get("daemon_name")
-            if daemon_name:
-                utils.exec_shell_cmd(
-                    f"ceph config set client.{daemon_name} debug_rgw 20"
-                )
-        for service_name in services:
-            utils.exec_shell_cmd(f"ceph config set client.{service_name} debug_rgw 20")
-        log.info("log_to_file and debug_rgw set for all RGW services and daemons")
+        aws_reusable.enable_rgw_debug_logging(level=20)
     except Exception as e:
         raise TestExecError(f"Failed to enable RGW Lua debug logging: {e}")
 
