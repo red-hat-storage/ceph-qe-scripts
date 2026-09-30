@@ -1,0 +1,16 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 1.1 FIFO default, 1.3 fifo shard bounds vs index shards
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: creation
+    bilog_type: fifo
+    index_shard_counts:
+      - 64
+      - 512
