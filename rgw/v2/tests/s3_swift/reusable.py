@@ -4177,6 +4177,69 @@ def find_admin_socket(ssh_con=None):
     return socket_path, socket_pattern
 
 
+def admin_daemon_config(
+    action,
+    key,
+    value=None,
+    ssh_con=None,
+    socket_path=None,
+    socket_file=None,
+):
+    """
+    Get or set an RGW config option via ceph --admin-daemon.
+
+    Discovers the admin socket with find_admin_socket() when socket_path /
+    socket_file are not provided. Uses ssh_con when the asok is remote.
+
+    Args:
+        action(str): "get" or "set"
+        key(str): config option name (e.g. rgw_bucket_quota_ttl)
+        value: value for "set"; ignored for "get"
+        ssh_con: optional SSH connection to remote RGW host
+        socket_path(str): asok directory; auto-discovered if None
+        socket_file(str): asok filename; auto-discovered if None
+
+    Returns:
+        str: command stdout on success
+        False: on failure
+    """
+    if action == "set":
+        if value is None:
+            raise TestExecError("admin_daemon_config set requires value")
+        daemon_cmd = f"config set {key} {value}"
+    elif action == "get":
+        daemon_cmd = f"config get {key}"
+    else:
+        raise TestExecError(f"unsupported admin_daemon_config action: {action}")
+
+    if socket_path is None or socket_file is None:
+        if socket_path is not None or socket_file is not None:
+            raise TestExecError(
+                "admin_daemon_config requires both socket_path and socket_file, "
+                "or neither"
+            )
+        socket_path, socket_file = find_admin_socket(ssh_con)
+
+    chmod_cmd = "sudo chmod -R 777 /var/run/ceph/"
+    cmd = f"cd {socket_path} ; ceph --admin-daemon {socket_file} {daemon_cmd}"
+    log.info(f"admin_daemon_config {action}: {cmd}")
+
+    if ssh_con is not None:
+        ssh_con.exec_command(chmod_cmd)
+        stdin, stdout, stderr = ssh_con.exec_command(cmd)
+        output = stdout.read().decode().strip()
+        error = stderr.read().decode().strip()
+        if error and not output:
+            log.error(f"admin_daemon_config {action} failed: {error}")
+            return False
+        if error:
+            log.warning(f"admin_daemon_config {action} stderr: {error}")
+        return output
+
+    utils.exec_shell_cmd(chmod_cmd)
+    return utils.exec_shell_cmd(cmd)
+
+
 def _run_admin_daemon_cmd(cmd_name, ssh_con=None, return_json=True):
     """
     Run an admin-daemon command against the RGW asok.
