@@ -1,0 +1,43 @@
+# Full RGW Standalone (Zipper) pytest suite config.
+# endpoint/container fields are injected by cephci when use-standalone: true.
+config:
+  ssl: false
+  haproxy: false
+  endpoint_ip: 127.0.0.1
+  endpoint_port: 7401
+  container_name: rgw-standalone1
+  admin_bin: rgw-standalone-admin
+  user_labels:
+    - normal
+    - tenant
+    - subuser
+    - account_root
+    - account_user
+  object_sizes:
+    small: 64
+    medium: 262144
+    large: 8388608
+  multipart_parts: 3
+  multipart_part_size: 5242880
+  # >1000 parts regression (IBMCEPH-17573); heavy — gated by @pytest.mark.slow
+  # Creates a large on-disk file (dd), splits into 5MiB parts, uploads from files
+  # (not in-memory urandom) — same approach as awscli s3 cp QE.
+  multipart_gt_1000_parts: 1001
+  # Optional: set to e.g. 10240 for a ~10GiB source (must still yield >1000 parts)
+  # multipart_gt_1000_file_size_mib: 10240
+
+  scale_bucket_counts:
+    - 1
+    - 10
+    - 100
+    - 1000
+    - 10000
+  scale_object_counts:
+    - 1000
+    - 100000
+  # Scale object puts use elbencho (auto-installed if missing). Set false to
+  # fall back to threaded boto3 (needs max_pool_connections >= threads).
+  prefer_elbencho: true
+  scale_object_size: 64
+  scale_elbencho_threads: 32
+  skip_user_setup: false

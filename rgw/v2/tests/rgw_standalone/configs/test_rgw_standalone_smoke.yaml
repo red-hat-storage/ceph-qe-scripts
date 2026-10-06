@@ -1,0 +1,27 @@
+# Smoke / CI-friendly zipper config (skips heavy scale via marker outside)
+config:
+  ssl: false
+  haproxy: false
+  endpoint_ip: 127.0.0.1
+  endpoint_port: 7401
+  container_name: rgw-standalone1
+  admin_bin: rgw-standalone-admin
+  user_labels:
+    - normal
+    - tenant
+    - account_root
+  object_sizes:
+    small: 64
+    medium: 262144
+    large: 1048576
+  multipart_parts: 3
+  multipart_part_size: 5242880
+  multipart_gt_1000_parts: 1001
+  scale_bucket_counts:
+    - 1
+    - 10
+  scale_object_counts:
+    - 100
+  prefer_elbencho: true
+  scale_object_size: 64
+  scale_elbencho_threads: 16
