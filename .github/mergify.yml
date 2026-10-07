@@ -1,11 +1,10 @@
----
 pull_request_rules:
   - name: automatic merge
     conditions:
       - label!=DNM
       - label!=work-in-progress
       - base=master
-      - branch-protection-review-decision=approved
+      - github-review-decision=approved
       - check-success=tox
     actions:
       merge:
