@@ -650,7 +650,7 @@ def test_exec(config, ssh_con):
                 bucket, s3_rgw_conn, user_info, write_bucket_io_info
             )
             utils.exec_shell_cmd(f"fallocate -l 4k obj4k")
-            s3cmd = "/home/cephuser/venv/bin/s3cmd"
+            s3cmd = s3cmd_reusable.get_s3cmd_path()
             range_val = f"1..{config.objects_count}"
             cmd = (
                 "for i in {"

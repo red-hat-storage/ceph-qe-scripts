@@ -68,7 +68,7 @@ def test_exec(config, ssh_con):
         bucket_name = utils.gen_bucket_name_from_userid(user_name, rand_no=bc)
         s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
         log.info(f"Bucket {bucket_name} created")
-        cmd = f"/home/cephuser/venv/bin/s3cmd put {object_name} s3://{bucket_name}"
+        cmd = f"{s3cmd_reusable.get_s3cmd_path()} put {object_name} s3://{bucket_name}"
         utils.exec_shell_cmd(cmd)
 
         operation = config.test_ops["operation"]
