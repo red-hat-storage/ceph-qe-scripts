@@ -7,7 +7,8 @@ polarion: CEPH-83591699
 Operation:
 the workflow is to test all permutations of:
 
-1. with supported 5 checksum algorithms: sha1, sha256, crc32, crc32c, crc64nvme
+1. with supported checksum algorithms: sha1, sha256, crc32, crc32c, crc64nvme
+   (sha512 added automatically on Ceph 10.0+)
 2. with small and medium sized objects
 3. with upload types - normal, chunked and multipart
 4. with operations - copy, download, get-object-attributes, delete
@@ -74,9 +75,20 @@ def test_exec(config, ssh_con, config_yaml_path):
         "cd /home/cephuser/rgw-tests/ceph-qe-scripts/rgw/v2/tests/go_scripts/aws_sdk_go_v2/ ; go mod tidy"
     )
 
+    algo_list = aws_reusable.resolve_checksum_algorithms(
+        config.test_ops.get("checksum_algorithms"),
+        default=["sha1", "sha256", "crc32", "crc32c", "crc64nvme"],
+    )
+    algo_csv = ",".join(algo_list)
+    algo_flag = f" -algorithms {algo_csv}"
+    log.info("checksum algorithms for this run: %s", algo_csv)
+
     for each_user in all_users_info:
         out = utils.exec_long_running_shell_cmd(
-            f"cd /home/cephuser/rgw-tests/ceph-qe-scripts/rgw/v2/tests/go_scripts/aws_sdk_go_v2/ ; sudo go run test_checksum.go -username {each_user['user_id']} -access {each_user['access_key']} -secret {each_user['secret_key']} -endpoint '{endpoint}'"
+            f"cd /home/cephuser/rgw-tests/ceph-qe-scripts/rgw/v2/tests/go_scripts/aws_sdk_go_v2/ ; "
+            f"sudo go run test_checksum.go -username {each_user['user_id']} "
+            f"-access {each_user['access_key']} -secret {each_user['secret_key']} "
+            f"-endpoint '{endpoint}'{algo_flag}"
         )
         if out is False:
             raise Exception("go script failed")

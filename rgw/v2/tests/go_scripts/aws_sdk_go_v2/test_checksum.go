@@ -5,6 +5,7 @@ import "context"
 import "crypto/md5"
 import "crypto/sha1"
 import "crypto/sha256"
+import "crypto/sha512"
 import "crypto/tls"
 import "encoding/base64"
 import "encoding/binary"
@@ -23,6 +24,7 @@ import "io"
 import "log"
 import "net/http"
 import "os"
+import "strings"
 
 func main() {
 
@@ -30,11 +32,14 @@ func main() {
 	access_key := flag.String("access", "", "access key of the user")
     secret := flag.String("secret", "", "access key of the user")
     endpoint := flag.String("endpoint", "", "endpoint url to connect to ceph rgw")
+    // Default excludes sha512; Python wrapper adds it via -algorithms on Ceph 10.0+
+    algorithms := flag.String("algorithms", "sha1,sha256,crc32,crc32c,crc64nvme", "comma-separated checksum algorithms")
     flag.Parse()
     fmt.Printf("user_name %s\n", *user_name)
     fmt.Printf("access_key %s\n", *access_key)
     fmt.Printf("secret %s\n", *secret)
     fmt.Printf("endpoint %s\n", *endpoint)
+    fmt.Printf("algorithms %s\n", *algorithms)
 
     // Setup s3 client
 	ctx := context.Background()
@@ -49,7 +54,10 @@ func main() {
 	local_object_path_small := "/home/cephuser/obj9KB"
 	md5sumExpectedSmall := calculateMD5(local_object_path_small)
 
-    cksm_algo_list := []string { "sha1", "sha256", "crc32", "crc32c", "crc64nvme" }
+    cksm_algo_list := strings.Split(*algorithms, ",")
+    for i := range cksm_algo_list {
+        cksm_algo_list[i] = strings.TrimSpace(cksm_algo_list[i])
+    }
 
     // Tests
     for _, algo := range cksm_algo_list {
@@ -59,6 +67,9 @@ func main() {
 	    }
 	    if algo == "sha256" {
             cksm_algo_s3_type = types.ChecksumAlgorithmSha256
+	    }
+	    if algo == "sha512" {
+            cksm_algo_s3_type = types.ChecksumAlgorithmSha512
 	    }
 	    if algo == "crc32" {
             cksm_algo_s3_type = types.ChecksumAlgorithmCrc32
@@ -228,6 +239,9 @@ func uploadObject(ctx context.Context, s3Client *s3.Client, bucketName string, o
 	}
 	if cksm_algo == types.ChecksumAlgorithmSha256 {
         fmt.Printf("ckcum algo is sha256\n")
+	}
+	if cksm_algo == types.ChecksumAlgorithmSha512 {
+        fmt.Printf("ckcum algo is sha512\n")
 	}
 	if cksm_algo == types.ChecksumAlgorithmCrc32 {
         fmt.Printf("ckcum algo is crc32\n")
@@ -429,6 +443,9 @@ func GetObjectAttributes(ctx context.Context, s3Client *s3.Client, bucket string
     if algo == "sha256" {
         checksum_actual = *result.Checksum.ChecksumSHA256
     }
+    if algo == "sha512" {
+        checksum_actual = *result.Checksum.ChecksumSHA512
+    }
     if algo == "crc32" {
         checksum_actual = *result.Checksum.ChecksumCRC32
     }
@@ -442,7 +459,7 @@ func GetObjectAttributes(ctx context.Context, s3Client *s3.Client, bucket string
     fmt.Printf("checksum expected: %s\n", checksum_expected)
     checksum_type_actual := string(result.Checksum.ChecksumType)
     checksum_type_expected := "FULL_OBJECT"
-    if algo == "sha1" || algo == "sha256"{
+    if algo == "sha1" || algo == "sha256" || algo == "sha512"{
         if upload_type == "multipart"{
             checksum_type_expected = "COMPOSITE"
         }
@@ -483,6 +500,10 @@ func calculateChecksum(objectPath string, algo string) string {
     }
     if algo == "sha256" {
         checksum_hex := sha256.Sum256(data)
+        checksum = base64.StdEncoding.EncodeToString(checksum_hex[:])
+    }
+    if algo == "sha512" {
+        checksum_hex := sha512.Sum512(data)
         checksum = base64.StdEncoding.EncodeToString(checksum_hex[:])
     }
     if algo == "crc32" {

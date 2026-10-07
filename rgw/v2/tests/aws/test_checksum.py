@@ -7,7 +7,8 @@ Polarion ID : CEPH-83591699, CEPH-83591679
     configs/test_checksum_api.yaml
 
 Operation:
-Multiple Checksum operations for all the new supported Checksum algorithms
+Multiple Checksum operations for supported Checksum algorithms
+(sha1, sha256, crc32, crc32c; sha512 added automatically on Ceph 10.0+)
 """
 
 
@@ -35,6 +36,72 @@ from v2.utils.test_desc import AddTestInfo
 
 log = logging.getLogger(__name__)
 TEST_DATA_PATH = None
+
+# Base algorithms; sha512 appended on Ceph 10.0+ via resolve_checksum_algorithms()
+CHECKSUM_ALGORITHMS = ["sha1", "sha256", "crc32", "crc32c"]
+
+
+def _verify_checksum_for_algorithm(
+    cli_aws, bucket_name, obj, endpoint, checksum_algorithm, config
+):
+    """PUT small object + multipart upload + GetObjectAttributes for one algorithm."""
+    log.info(
+        "Test put object for small and multipart objects with checksum enabled for %s",
+        checksum_algorithm,
+    )
+    checksum = aws_reusable.calculate_checksum(checksum_algorithm, obj)
+    aws_reusable.put_object_checksum(
+        cli_aws, bucket_name, obj, endpoint, checksum_algorithm, checksum
+    )
+
+    for oc, size in list(config.mapped_sizes.items()):
+        config.obj_size = size
+        key_name = utils.gen_s3_object_name(bucket_name, oc)
+        complete_multipart_upload_resp = aws_reusable.upload_multipart_aws(
+            cli_aws,
+            bucket_name,
+            key_name,
+            TEST_DATA_PATH,
+            endpoint,
+            config,
+            checksum_algo=checksum_algorithm,
+        )
+        log.info(list(complete_multipart_upload_resp.keys()))
+        algo = str(checksum_algorithm).upper()
+        if f"Checksum{algo}" not in list(complete_multipart_upload_resp.keys()):
+            raise AssertionError(
+                "Checksum not generated during complete multipart upload operation"
+            )
+        log.info("Get Object Attributes for checksum on the multipart object")
+        aws_reusable.get_object_attributes(
+            cli_aws,
+            bucket_name,
+            key_name,
+            endpoint,
+        )
+
+
+def _verify_wrong_checksum_for_algorithm(
+    cli_aws, bucket_name, obj, endpoint, checksum_algorithm
+):
+    """PUT with a wrong/mismatched checksum digest; expect failure."""
+    if checksum_algorithm == "crc32":
+        wrong = "randeasdc"
+    else:
+        # Use a different algorithm's digest (or truncated hex) so base64 may parse
+        # but value will not match object content for the requested algorithm.
+        wrong = utils.exec_shell_cmd(f"rhash --sha1 {obj}").split(" ", 1)[0]
+        if checksum_algorithm == "sha1":
+            wrong = utils.exec_shell_cmd(f"rhash --sha256 {obj}").split(" ", 1)[0]
+    aws_reusable.put_object_checksum(
+        cli_aws,
+        bucket_name,
+        obj,
+        endpoint,
+        checksum_algorithm,
+        wrong,
+        failure_expected=True,
+    )
 
 
 def test_exec(config, ssh_con):
@@ -65,6 +132,12 @@ def test_exec(config, ssh_con):
     log.info("sleeping for 10 seconds")
     time.sleep(10)
 
+    algorithms = aws_reusable.resolve_checksum_algorithms(
+        config.test_ops.get("checksum_algorithms"),
+        default=CHECKSUM_ALGORITHMS,
+    )
+    log.info("checksum algorithms for this run: %s", algorithms)
+
     for user in user_info:
         user_name = user["user_id"]
         log.info(user_name)
@@ -80,224 +153,27 @@ def test_exec(config, ssh_con):
             utils.exec_shell_cmd(f"fallocate -l 1K {obj}")
 
             if config.test_ops.get("verify_checksum_api", False):
-                checksum_algorithm = "sha1"
-                log.info(
-                    f"Test put object for small and multipart objects with checksum enabled for {checksum_algorithm}"
-                )
-                checksum = aws_reusable.calculate_checksum(checksum_algorithm, obj)
-                aws_reusable.put_object_checksum(
-                    cli_aws, bucket_name, obj, endpoint, checksum_algorithm, checksum
-                )
-
-                for oc, size in list(config.mapped_sizes.items()):
-                    config.obj_size = size
-                    key_name = utils.gen_s3_object_name(bucket_name, oc)
-                    complete_multipart_upload_resp = aws_reusable.upload_multipart_aws(
+                for checksum_algorithm in algorithms:
+                    _verify_checksum_for_algorithm(
                         cli_aws,
                         bucket_name,
-                        key_name,
-                        TEST_DATA_PATH,
+                        obj,
                         endpoint,
+                        checksum_algorithm,
                         config,
-                        checksum_algo=checksum_algorithm,
                     )
-                    log.info(list(complete_multipart_upload_resp.keys()))
-                    algo = str(checksum_algorithm).upper()
-                    if f"Checksum{algo}" not in list(
-                        complete_multipart_upload_resp.keys()
-                    ):
-                        raise AssertionError(
-                            "Checksum not generated during complete multipart upload operation"
-                        )
-                    log.info(
-                        "Get Object Attributes for checksum on the multipart object"
-                    )
-                    attrib_resp = aws_reusable.get_object_attributes(
-                        cli_aws,
-                        bucket_name,
-                        key_name,
-                        endpoint,
-                    )
-
-                checksum_algorithm = "sha256"
-                log.info(
-                    f"Test put object for small and multipart objects with checksum enabled for {checksum_algorithm}"
-                )
-                checksum = aws_reusable.calculate_checksum(checksum_algorithm, obj)
-                aws_reusable.put_object_checksum(
-                    cli_aws, bucket_name, obj, endpoint, checksum_algorithm, checksum
-                )
-
-                for oc, size in list(config.mapped_sizes.items()):
-                    config.obj_size = size
-                    key_name = utils.gen_s3_object_name(bucket_name, oc)
-                    complete_multipart_upload_resp = aws_reusable.upload_multipart_aws(
-                        cli_aws,
-                        bucket_name,
-                        key_name,
-                        TEST_DATA_PATH,
-                        endpoint,
-                        config,
-                        checksum_algo=checksum_algorithm,
-                    )
-                    algo = str(checksum_algorithm).upper()
-                    if f"Checksum{algo}" not in list(
-                        complete_multipart_upload_resp.keys()
-                    ):
-                        raise AssertionError(
-                            "Checksum not generated during complete multipart upload operation"
-                        )
-                    log.info(
-                        "Get Object Attributes for checksum on the multipart object"
-                    )
-                    attrib_resp = aws_reusable.get_object_attributes(
-                        cli_aws,
-                        bucket_name,
-                        key_name,
-                        endpoint,
-                    )
-
-                checksum_algorithm = "crc32"
-                log.info(
-                    f"Test put object for small and multipart objects with checksum enabled for {checksum_algorithm}"
-                )
-                checksum = aws_reusable.calculate_checksum(checksum_algorithm, obj)
-                aws_reusable.put_object_checksum(
-                    cli_aws, bucket_name, obj, endpoint, checksum_algorithm, checksum
-                )
-
-                for oc, size in list(config.mapped_sizes.items()):
-                    config.obj_size = size
-                    key_name = utils.gen_s3_object_name(bucket_name, oc)
-                    complete_multipart_upload_resp = aws_reusable.upload_multipart_aws(
-                        cli_aws,
-                        bucket_name,
-                        key_name,
-                        TEST_DATA_PATH,
-                        endpoint,
-                        config,
-                        checksum_algo=checksum_algorithm,
-                    )
-                    algo = str(checksum_algorithm).upper()
-                    if f"Checksum{algo}" not in list(
-                        complete_multipart_upload_resp.keys()
-                    ):
-                        raise AssertionError(
-                            "Checksum not generated during complete multipart upload operation"
-                        )
-                    log.info(
-                        "Get Object Attributes for checksum on the multipart object"
-                    )
-                    attrib_resp = aws_reusable.get_object_attributes(
-                        cli_aws,
-                        bucket_name,
-                        key_name,
-                        endpoint,
-                    )
-
-                checksum_algorithm = "crc32c"
-                log.info(
-                    f"Test put object for small and multipart objects with checksum enabled for {checksum_algorithm}"
-                )
-                checksum = aws_reusable.calculate_checksum(checksum_algorithm, obj)
-                aws_reusable.put_object_checksum(
-                    cli_aws, bucket_name, obj, endpoint, checksum_algorithm, checksum
-                )
-
-                for oc, size in list(config.mapped_sizes.items()):
-                    config.obj_size = size
-                    key_name = utils.gen_s3_object_name(bucket_name, oc)
-                    complete_multipart_upload_resp = aws_reusable.upload_multipart_aws(
-                        cli_aws,
-                        bucket_name,
-                        key_name,
-                        TEST_DATA_PATH,
-                        endpoint,
-                        config,
-                        checksum_algo=checksum_algorithm,
-                    )
-                    algo = str(checksum_algorithm).upper()
-                    if f"Checksum{algo}" not in list(
-                        complete_multipart_upload_resp.keys()
-                    ):
-                        raise AssertionError(
-                            "Checksum not generated during complete multipart upload operation"
-                        )
-                    log.info(
-                        "Get Object Attributes for checksum on the multipart object"
-                    )
-                    attrib_resp = aws_reusable.get_object_attributes(
-                        cli_aws,
-                        bucket_name,
-                        key_name,
-                        endpoint,
-                    )
-
             else:
-                log.info("Install Rhash program")
-                utils.exec_shell_cmd(
-                    "rpm -ivh https://rpmfind.net/linux/epel/9/Everything/x86_64/Packages/r/rhash-1.4.2-1.el9.x86_64.rpm"
-                )
-                time.sleep(2)
                 log.info(
                     "Upload object with a wrongly computed checksum for all supported algorithms"
                 )
-                checksum_algorithm = "sha1"
-                checksum_wrong = utils.exec_shell_cmd(f"rhash --sha1 {obj}").split(
-                    " ", 1
-                )[0]
-                aws_reusable.put_object_checksum(
-                    cli_aws,
-                    bucket_name,
-                    obj,
-                    endpoint,
-                    checksum_algorithm,
-                    checksum_wrong,
-                    failure_expected=True,
-                )
-
-                checksum_algorithm = "sha256"
-                checksum_wrong = utils.exec_shell_cmd(f"rhash --sha256 {obj}").split(
-                    " ", 1
-                )[0]
-                aws_reusable.put_object_checksum(
-                    cli_aws,
-                    bucket_name,
-                    obj,
-                    endpoint,
-                    checksum_algorithm,
-                    checksum_wrong,
-                    failure_expected=True,
-                )
-
-                checksum_algorithm = "crc32"
-                checksum_wrong = utils.exec_shell_cmd(f"rhash --crc32 {obj}").split(
-                    " ", 1
-                )[1]
-                aws_reusable.put_object_checksum(
-                    cli_aws,
-                    bucket_name,
-                    obj,
-                    endpoint,
-                    checksum_algorithm,
-                    "randeasdc",
-                    failure_expected=True,
-                )
-
-                utils.exec_shell_cmd("sudo pip install botocore[crt]")
-                checksum_algorithm = "crc32c"
-                checksum_wrong = utils.exec_shell_cmd(f"rhash --crc32c {obj}").split(
-                    " ", 1
-                )[0]
-                aws_reusable.put_object_checksum(
-                    cli_aws,
-                    bucket_name,
-                    obj,
-                    endpoint,
-                    checksum_algorithm,
-                    checksum_wrong,
-                    failure_expected=True,
-                )
+                for checksum_algorithm in algorithms:
+                    _verify_wrong_checksum_for_algorithm(
+                        cli_aws,
+                        bucket_name,
+                        obj,
+                        endpoint,
+                        checksum_algorithm,
+                    )
 
     if config.user_remove is True:
         s3_reusable.remove_user(user)

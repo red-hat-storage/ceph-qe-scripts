@@ -418,10 +418,7 @@ def upload_part(
         Response of uplaod_part i.e Etag
     """
     if checksum_algo:
-        if checksum_algo == "crc32c":
-            algo = "crc32-c"
-        else:
-            algo = checksum_algo
+        algo = _checksum_cli_flag(checksum_algo)
         cmd = f"--body {body} --endpoint-url {end_point} --checksum-algorithm {checksum_algo}"
         if checksum:
             cmd = cmd + f" --checksum-{algo} {checksum}"
@@ -557,6 +554,60 @@ def put_object(aws_auth, bucket_name, object_name, end_point, body=None):
         raise AWSCommandExecError(message=str(e))
 
 
+def _checksum_cli_flag(checksum_algorithm):
+    """Map checksum algorithm name to awscli --checksum-<algo> flag suffix."""
+    if checksum_algorithm == "crc32c":
+        return "crc32-c"
+    if checksum_algorithm == "crc64nvme":
+        return "crc64-nvme"
+    return checksum_algorithm
+
+
+SUPPORTED_CHECKSUM_ALGORITHMS = [
+    "sha1",
+    "sha256",
+    "sha512",
+    "crc32",
+    "crc32c",
+    "crc64nvme",
+]
+
+# IBM Storage Ceph / RHCS 10.0+ maps to upstream Ceph >= 21.0.0
+SHA512_MIN_CEPH_VERSION = "21.0.0"
+
+
+def supports_sha512_checksum():
+    """True when cluster is Ceph 10.0+ (upstream >= 21.0.0) with SHA512 checksums."""
+    return utils.is_known_issue_version(SHA512_MIN_CEPH_VERSION, op=">=")
+
+
+def resolve_checksum_algorithms(algorithms=None, default=None):
+    """
+    Resolve checksum algorithms for the running cluster.
+
+    - No yaml override: use default and append sha512 on Ceph 10.0+.
+    - Yaml override: keep listed algos; drop sha512 if cluster is pre-10.0.
+    """
+    if algorithms is None:
+        algos = list(default or ["sha1", "sha256", "crc32", "crc32c"])
+        if supports_sha512_checksum() and "sha512" not in algos:
+            log.info(
+                "Ceph >= %s (10.0+): adding sha512 to checksum tests",
+                SHA512_MIN_CEPH_VERSION,
+            )
+            algos.append("sha512")
+        return algos
+
+    algos = list(algorithms)
+    if any(a.lower() == "sha512" for a in algos) and not supports_sha512_checksum():
+        log.info(
+            "sha512 requested but Ceph < %s (pre-10.0); skipping sha512",
+            SHA512_MIN_CEPH_VERSION,
+        )
+        algos = [a for a in algos if a.lower() != "sha512"]
+    return algos
+
+
 def put_object_checksum(
     aws_auth,
     bucket_name,
@@ -566,6 +617,7 @@ def put_object_checksum(
     checksum=None,
     s3_object_path=None,
     failure_expected=False,
+    omit_checksum_value=False,
 ):
     """
     Put/uploads object to the bucket with provided checksum value
@@ -574,25 +626,22 @@ def put_object_checksum(
         bucket_name(str): Name of the bucket from which object needs to be listed
         object_name(str): Name of the object/file
         end_point(str): endpoint
-        checksum_algorithm: one of sha1,sha256,crc32,crc-32c
+        checksum_algorithm: one of sha1,sha256,sha512,crc32,crc32c,crc64nvme
         checksum
         s3_object_path
         failure_expected
+        omit_checksum_value: if True, send only --checksum-algorithm without digest
     Return:
 
     """
-    if checksum_algorithm == "crc32c":
-        algo = "crc32-c"
-    elif checksum_algorithm == "crc64nvme":
-        algo = "crc64-nvme"
-    else:
-        algo = checksum_algorithm
+    algo = _checksum_cli_flag(checksum_algorithm)
     body = s3_object_path if s3_object_path else object_name
     cmd = (
         f"--bucket {bucket_name} --key {object_name} --body {body} "
         f"--endpoint-url {end_point} --checksum-algorithm {checksum_algorithm}"
     )
-    cmd = cmd + f" --checksum-{algo} {checksum}"
+    if checksum is not None and not omit_checksum_value:
+        cmd = cmd + f" --checksum-{algo} {checksum}"
     command = aws_auth.command(
         operation="put-object",
         params=[cmd],
@@ -607,6 +656,10 @@ def put_object_checksum(
             raise Exception(f"put object with checksum failed for {bucket_name}")
 
     else:
+        if failure_expected:
+            raise Exception(
+                f"put object with checksum unexpectedly succeeded for {bucket_name}"
+            )
         log.info(f"Upload successful for {algo}")
         return out
 
@@ -973,7 +1026,12 @@ def upload_multipart_aws(
 
 
 def get_object(
-    aws_auth, bucket_name, object_name, end_point, download_path="out_object"
+    aws_auth,
+    bucket_name,
+    object_name,
+    end_point,
+    download_path="out_object",
+    checksum_mode=False,
 ):
     """
     Does a get object from the bucket
@@ -981,14 +1039,19 @@ def get_object(
         bucket_name(str): Name of the bucket from which object needs to be listed
         object_name(str): Name of the object/file
         end_point(str): endpoint
+        checksum_mode(bool): request checksum with --checksum-mode ENABLED
     Return:
         Response of get object operation
     """
+    params = (
+        f"--bucket {bucket_name} --key {object_name} {download_path} "
+        f"--endpoint-url {end_point}"
+    )
+    if checksum_mode:
+        params += " --checksum-mode ENABLED"
     command = aws_auth.command(
         operation="get-object",
-        params=[
-            f"--bucket {bucket_name} --key {object_name} {download_path} --endpoint-url {end_point}",
-        ],
+        params=[params],
     )
     try:
         get_response = utils.exec_shell_cmd(command)
@@ -999,7 +1062,14 @@ def get_object(
         raise AWSCommandExecError(message=str(e))
 
 
-def copy_object(aws_auth, bucket_name, object_name, end_point, dest_obj_name=None):
+def copy_object(
+    aws_auth,
+    bucket_name,
+    object_name,
+    end_point,
+    dest_obj_name=None,
+    checksum_algo=None,
+):
     """
     Does a copy object from the bucket
     Args:
@@ -1007,14 +1077,21 @@ def copy_object(aws_auth, bucket_name, object_name, end_point, dest_obj_name=Non
         object_name(str): Name of the object/file
         end_point(str): endpoint
         dest_obj_name(str): destination object name
+        checksum_algo(str): optional checksum algorithm for copy
     Return:
         Response of get object operation
     """
+    params = (
+        f"--copy-source {bucket_name}/{object_name} --bucket {bucket_name} "
+        f"--key {dest_obj_name if dest_obj_name else object_name} "
+        f"{'--metadata-directive REPLACE' if dest_obj_name is None else ''} "
+        f"--content-type 'text/plain' --endpoint-url {end_point}"
+    )
+    if checksum_algo:
+        params += f" --checksum-algorithm {checksum_algo}"
     command = aws_auth.command(
         operation="copy-object",
-        params=[
-            f"--copy-source {bucket_name}/{object_name} --bucket {bucket_name} --key {dest_obj_name if dest_obj_name else object_name} {'--metadata-directive REPLACE' if dest_obj_name is None else ''} --content-type 'text/plain' --endpoint-url {end_point}",
-        ],
+        params=[params],
     )
     try:
         copy_response = utils.exec_shell_cmd(command)
@@ -1267,7 +1344,7 @@ def calculate_checksum(algo, file):
     Return the base64 encoded checksum for the provided algorithm
     """
 
-    if algo == "sha1" or algo == "sha256":
+    if algo in ("sha1", "sha256", "sha512"):
         checksum = utils.exec_shell_cmd(f"rhash --{algo} --base64 {file}").split(
             " ", 1
         )[0]
@@ -1293,6 +1370,8 @@ def calculate_checksum(algo, file):
             raise Exception("crc64nvme calculation failed")
         checksum = out.strip()
         return checksum
+    else:
+        raise Exception(f"Unsupported checksum algorithm for calculation: {algo}")
 
 
 def get_object_attributes(aws_auth, bucket_name, key, endpoint):
@@ -1316,6 +1395,27 @@ def get_object_attributes(aws_auth, bucket_name, key, endpoint):
         raise AWSCommandExecError(message=str(e))
 
 
+def head_object(
+    aws_auth, bucket_name, object_name, end_point, checksum_mode=False
+):
+    """
+    Head object; optionally request checksum with --checksum-mode ENABLED.
+    """
+    params = (
+        f"--bucket {bucket_name} --key {object_name} --endpoint-url {end_point}"
+    )
+    if checksum_mode:
+        params += " --checksum-mode ENABLED"
+    command = aws_auth.command(operation="head-object", params=[params])
+    try:
+        head_response = utils.exec_shell_cmd(command)
+        if head_response is False:
+            raise Exception(f"head object failed for {bucket_name}/{object_name}")
+        return json.loads(head_response)
+    except Exception as e:
+        raise AWSCommandExecError(message=str(e))
+
+
 def verify_checksum(response, checksum_algo, checksum, upload_type):
     """
     verifying checksum fields (checksum and checksum_type) in the response
@@ -1325,7 +1425,8 @@ def verify_checksum(response, checksum_algo, checksum, upload_type):
     checksum_type = response["ChecksumType"]
 
     checksum_type_expected = "FULL_OBJECT"
-    if checksum_algo == "sha1" or checksum_algo == "sha256":
+    # SHA family uses COMPOSITE checksum type for multipart uploads by default
+    if checksum_algo in ("sha1", "sha256", "sha512"):
         if upload_type == "multipart":
             checksum_type_expected = "COMPOSITE"
     if checksum_type != checksum_type_expected:
