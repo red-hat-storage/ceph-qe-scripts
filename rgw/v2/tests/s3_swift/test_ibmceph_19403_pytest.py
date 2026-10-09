@@ -68,16 +68,21 @@ log = logging.getLogger(__name__)
 # pytest CLI option
 # ---------------------------------------------------------------------------
 
+
 def pytest_addoption(parser):
-    parser.addoption("-C", dest="config", default=None,
-                     help="Path to YAML config file")
-    parser.addoption("--rgw-node", dest="rgw_node", default="",
-                     help="RGW node hostname (informational)")
+    parser.addoption("-C", dest="config", default=None, help="Path to YAML config file")
+    parser.addoption(
+        "--rgw-node",
+        dest="rgw_node",
+        default="",
+        help="RGW node hostname (informational)",
+    )
 
 
 # ---------------------------------------------------------------------------
 # Config loader
 # ---------------------------------------------------------------------------
+
 
 class _Cfg:
     """Thin wrapper around the YAML config dict with env-var fallbacks."""
@@ -100,6 +105,7 @@ class _Cfg:
 # Session-scoped cluster fixture
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="session")
 def cluster_cfg(request):
     path = request.config.getoption("config")
@@ -114,13 +120,14 @@ def rgw_env(cluster_cfg):
     the container name / asok path on every test.
     """
     env = _RgwEnv(cluster_cfg)
-    env.ensure_rgw_a_healthy()   # verify both RGWs reachable before suite starts
+    env.ensure_rgw_a_healthy()  # verify both RGWs reachable before suite starts
     return env
 
 
 # ---------------------------------------------------------------------------
 # Function-scoped fixtures used by individual tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def rgw_a_up(rgw_env):
@@ -146,6 +153,7 @@ def rgw_a_up(rgw_env):
 # _RgwEnv — all helpers in one place
 # ---------------------------------------------------------------------------
 
+
 class _Inconclusive(Exception):
     """Raised when preconditions for a race window are not met."""
 
@@ -158,7 +166,9 @@ class _RgwEnv:
         self.rgw_a_url = cfg.get("rgw_a_url", "http://10.0.65.65:80")
         self.rgw_b_url = cfg.get("rgw_b_url", "http://10.0.67.70:80")
         self.access_key = cfg.get("access_key", "QDGQ2R11JYCJF5X4MJIV")
-        self.secret_key = cfg.get("secret_key", "4BqntvhPxDCXphzVatqOboNooZDuCNTYIW6X6UV1")
+        self.secret_key = cfg.get(
+            "secret_key", "4BqntvhPxDCXphzVatqOboNooZDuCNTYIW6X6UV1"
+        )
         self.data_pool = cfg.get("data_pool", "primary.rgw.buckets.data")
         self.meta_pool = cfg.get("meta_pool", "primary.rgw.buckets.non-ec")
         self.rgw_a_unit = cfg.get(
@@ -176,8 +186,9 @@ class _RgwEnv:
     # ── container / asok ────────────────────────────────────────────────────
 
     def _find_container(self):
-        r = subprocess.run(["podman", "ps", "--format", "{{.Names}}"],
-                           capture_output=True, text=True)
+        r = subprocess.run(
+            ["podman", "ps", "--format", "{{.Names}}"], capture_output=True, text=True
+        )
         hits = [l for l in r.stdout.strip().splitlines() if self.ctr_pattern in l]
         return hits[0] if hits else None
 
@@ -185,21 +196,38 @@ class _RgwEnv:
         # Pattern is generic — matches any RGW asok containing ctr_pattern,
         # excluding the secondary rgwb socket if present.
         inner = subprocess.check_output(
-            ["podman", "exec", cname, "sh", "-c",
-             f"ls -t /var/run/ceph/ceph-client.rgw.*{self.ctr_pattern}*.asok"
-             " 2>/dev/null | grep -v rgwb | head -1"],
+            [
+                "podman",
+                "exec",
+                cname,
+                "sh",
+                "-c",
+                f"ls -t /var/run/ceph/ceph-client.rgw.*{self.ctr_pattern}*.asok"
+                " 2>/dev/null | grep -v rgwb | head -1",
+            ],
             text=True,
         ).strip()
         if not inner:
             raise RuntimeError("No asok found inside container")
-        subprocess.run(["podman", "exec", cname, "ln", "-sf", inner, "/tmp/rgw.asok"],
-                       check=True)
+        subprocess.run(
+            ["podman", "exec", cname, "ln", "-sf", inner, "/tmp/rgw.asok"], check=True
+        )
 
     def asok_set(self, key, value):
         cname = self._find_container() or self._container
         subprocess.run(
-            ["podman", "exec", cname, "ceph", "--admin-daemon", "/tmp/rgw.asok",
-             "config", "set", str(key), str(value)],
+            [
+                "podman",
+                "exec",
+                cname,
+                "ceph",
+                "--admin-daemon",
+                "/tmp/rgw.asok",
+                "config",
+                "set",
+                str(key),
+                str(value),
+            ],
             capture_output=True,
         )
         log.debug("asok %s=%s", key, value)
@@ -207,9 +235,19 @@ class _RgwEnv:
     def asok_get(self, key):
         cname = self._find_container() or self._container
         r = subprocess.run(
-            ["podman", "exec", cname, "ceph", "--admin-daemon", "/tmp/rgw.asok",
-             "config", "get", str(key)],
-            capture_output=True, text=True,
+            [
+                "podman",
+                "exec",
+                cname,
+                "ceph",
+                "--admin-daemon",
+                "/tmp/rgw.asok",
+                "config",
+                "get",
+                str(key),
+            ],
+            capture_output=True,
+            text=True,
         )
         return r.stdout.strip()
 
@@ -217,8 +255,10 @@ class _RgwEnv:
 
     def kill_rgw_a(self):
         log.info("SIGKILL RGW-A via systemctl")
-        subprocess.run(["systemctl", "kill", "--signal=SIGKILL", self.rgw_a_unit],
-                       capture_output=True)
+        subprocess.run(
+            ["systemctl", "kill", "--signal=SIGKILL", self.rgw_a_unit],
+            capture_output=True,
+        )
 
     def wait_rgw_a_healthy(self, timeout=120):
         log.info("Waiting for RGW-A to recover…")
@@ -228,14 +268,17 @@ class _RgwEnv:
             time.sleep(3)
             st = subprocess.run(
                 ["systemctl", "is-active", self.rgw_a_unit],
-                capture_output=True, text=True,
+                capture_output=True,
+                text=True,
             ).stdout.strip()
             if st == "failed":
                 log.warning("RGW-A unit in failed state — reset-failed + start")
-                subprocess.run(["systemctl", "reset-failed", self.rgw_a_unit],
-                               capture_output=True)
-                subprocess.run(["systemctl", "start", self.rgw_a_unit],
-                               capture_output=True)
+                subprocess.run(
+                    ["systemctl", "reset-failed", self.rgw_a_unit], capture_output=True
+                )
+                subprocess.run(
+                    ["systemctl", "start", self.rgw_a_unit], capture_output=True
+                )
                 time.sleep(5)
                 continue
             cname = self._find_container()
@@ -307,7 +350,8 @@ class _RgwEnv:
     def gc_count(self, uid):
         out = subprocess.run(
             ["radosgw-admin", "gc", "list", "--include-all"],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         ).stdout
         return sum(1 for ln in out.splitlines() if uid[:16] in ln)
 
@@ -324,24 +368,35 @@ class _RgwEnv:
         """Return RGW-A RADOS addrs from servicemap matching ctr_pattern."""
         out = subprocess.check_output(["ceph", "status", "-f", "json"], text=True)
         d = json.loads(out)
-        daemons = (d.get("servicemap", {}).get("services", {})
-                    .get("rgw", {}).get("daemons", {}))
-        return [v["addr"] for gid, v in daemons.items()
-                if gid != "summary"
-                and self.ctr_pattern in v.get("metadata", {}).get("id", "")
-                and v.get("addr", "")]
+        daemons = (
+            d.get("servicemap", {})
+            .get("services", {})
+            .get("rgw", {})
+            .get("daemons", {})
+        )
+        return [
+            v["addr"]
+            for gid, v in daemons.items()
+            if gid != "summary"
+            and self.ctr_pattern in v.get("metadata", {}).get("id", "")
+            and v.get("addr", "")
+        ]
 
     def blocklist_add(self, addr, secs):
         log.info("blocklisting %s for %ss", addr, secs)
-        r = subprocess.run(["ceph", "osd", "blocklist", "add", addr, str(secs)],
-                           capture_output=True, text=True)
+        r = subprocess.run(
+            ["ceph", "osd", "blocklist", "add", addr, str(secs)],
+            capture_output=True,
+            text=True,
+        )
         if r.returncode != 0:
             log.warning("blocklist add failed: %s", r.stderr.strip())
         return r.returncode == 0
 
     def blocklist_rm(self, addr):
-        subprocess.run(["ceph", "osd", "blocklist", "rm", addr],
-                       capture_output=True, text=True)
+        subprocess.run(
+            ["ceph", "osd", "blocklist", "rm", addr], capture_output=True, text=True
+        )
         log.info("blocklist removed %s", addr)
 
     def wait_rgw_healthy(self, url, timeout=60):
@@ -357,8 +412,9 @@ class _RgwEnv:
         return False
 
     def break_lock(self, oid):
-        raw = self.rados("-p", self.meta_pool, "lock", "info",
-                         oid, "RGWCompleteMultipart")
+        raw = self.rados(
+            "-p", self.meta_pool, "lock", "info", oid, "RGWCompleteMultipart"
+        )
         try:
             lockers = json.loads(raw).get("lockers", [])
         except Exception as e:
@@ -366,9 +422,17 @@ class _RgwEnv:
         if not lockers:
             raise _Inconclusive("No locker found at trigger point")
         locker = lockers[0]
-        self.rados("-p", self.meta_pool, "lock", "break", oid,
-                   "RGWCompleteMultipart", locker["name"],
-                   "--lock-cookie", locker["cookie"])
+        self.rados(
+            "-p",
+            self.meta_pool,
+            "lock",
+            "break",
+            oid,
+            "RGWCompleteMultipart",
+            locker["name"],
+            "--lock-cookie",
+            locker["cookie"],
+        )
         log.info("lock broken: %s", locker["name"])
 
     # ── S3 client factory ────────────────────────────────────────────────────
@@ -407,17 +471,24 @@ class _RgwEnv:
         parts = []
         for i in range(1, n + 1):
             r = client.upload_part(
-                Bucket=bkt, Key=key, UploadId=uid,
-                PartNumber=i, Body=b"X" * self.part_size,
+                Bucket=bkt,
+                Key=key,
+                UploadId=uid,
+                PartNumber=i,
+                Body=b"X" * self.part_size,
             )
             parts.append({"PartNumber": i, "ETag": r["ETag"]})
         return parts
 
     def do_complete(self, client, bkt, key, uid, parts):
-        return self.http(lambda: client.complete_multipart_upload(
-            Bucket=bkt, Key=key, UploadId=uid,
-            MultipartUpload={"Parts": parts},
-        ))
+        return self.http(
+            lambda: client.complete_multipart_upload(
+                Bucket=bkt,
+                Key=key,
+                UploadId=uid,
+                MultipartUpload={"Parts": parts},
+            )
+        )
 
     def check(self, client, bkt, key):
         """Returns (head_status, get_status, bytes_read)."""
@@ -466,8 +537,10 @@ class _RgwEnv:
                 False = pass (race not triggered)
         Raises _Inconclusive if the required window was not hit.
         """
-        a = self.a(); b = self.b()
-        bkt = f"ibm{jid}-{uuid.uuid4().hex[:8]}"; key = "mpu-obj"
+        a = self.a()
+        b = self.b()
+        bkt = f"ibm{jid}-{uuid.uuid4().hex[:8]}"
+        key = "mpu-obj"
         armed = []
         try:
             self.set_rgw("rgw_mp_lock_max_time", "120")
@@ -476,25 +549,29 @@ class _RgwEnv:
             a.create_bucket(Bucket=bkt)
             if versioning:
                 a.put_bucket_versioning(
-                    Bucket=bkt,
-                    VersioningConfiguration={"Status": "Enabled"})
+                    Bucket=bkt, VersioningConfiguration={"Status": "Enabled"}
+                )
                 a.put_bucket_versioning(
-                    Bucket=bkt,
-                    VersioningConfiguration={"Status": "Suspended"})
+                    Bucket=bkt, VersioningConfiguration={"Status": "Suspended"}
+                )
                 log.info("versioning: Enabled→Suspended")
             uid = a.create_multipart_upload(Bucket=bkt, Key=key)["UploadId"]
             parts = self.parts_upload(a, bkt, key, uid)
             log.info("bkt=%s uid=%s", bkt, uid)
-            self.asok_set("ms_inject_delay_max", 10);  armed.append(("ms_inject_delay_max", 0))
-            self.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-            ra = {}; ev = threading.Event()
+            self.asok_set("ms_inject_delay_max", 10)
+            armed.append(("ms_inject_delay_max", 0))
+            self.asok_set("ms_inject_delay_probability", 1)
+            armed.append(("ms_inject_delay_probability", 0))
+            ra = {}
+            ev = threading.Event()
 
             def do_a():
                 ev.set()
                 ra["s"] = self.do_complete(a, bkt, key, uid, parts)
 
             t = threading.Thread(target=do_a, daemon=True)
-            t.start(); ev.wait()
+            t.start()
+            ev.wait()
             log.info("waiting for GET 200 full data (head durably written)…")
             if not self.wait_get_ok(b, bkt, key, 180):
                 raise _Inconclusive("GET never returned full data within 180 s")
@@ -502,7 +579,8 @@ class _RgwEnv:
             if not oid:
                 raise _Inconclusive("No .meta OID — A already deleted it before kill")
             log.info("struck (get-ok); .meta present")
-            self.kill_rgw_a(); t.join(timeout=10)
+            self.kill_rgw_a()
+            t.join(timeout=10)
             self.wait_rgw_a_healthy()
             h0, g0, _ = self.check(b, bkt, key)
             gc0 = self.gc_count(uid)
@@ -513,8 +591,12 @@ class _RgwEnv:
             time.sleep(125)
             sb = self.do_complete(b, bkt, key, uid, parts)
             gc1 = self.gc_count(uid)
-            log.info("retry on rgw.b → %s  post-retry gc_queue_tails=%s (was %s)",
-                     sb, gc1, gc0)
+            log.info(
+                "retry on rgw.b → %s  post-retry gc_queue_tails=%s (was %s)",
+                sb,
+                gc1,
+                gc0,
+            )
             self.run_gc()
             h, g, dl = self.check(b, bkt, key)
             exp = self.num_parts * self.part_size
@@ -523,16 +605,23 @@ class _RgwEnv:
             return loss
         finally:
             for k, v in reversed(armed):
-                try: self.asok_set(k, v)
-                except Exception: pass
-            self.reset_mp(); self.reset_gc()
-            try: b.delete_object(Bucket=bkt, Key=key); b.delete_bucket(Bucket=bkt)
-            except Exception: pass
+                try:
+                    self.asok_set(k, v)
+                except Exception:
+                    pass
+            self.reset_mp()
+            self.reset_gc()
+            try:
+                b.delete_object(Bucket=bkt, Key=key)
+                b.delete_bucket(Bucket=bkt)
+            except Exception:
+                pass
 
 
 # ===========================================================================
 # MULTIPART COMPLETION RACE TESTS  (marker: ibmceph_mpu)
 # ===========================================================================
+
 
 @pytest.mark.ibmceph_mpu
 @pytest.mark.ibmceph_all
@@ -546,8 +635,10 @@ def test_19405_lock_renewal_failure_concurrent_complete(rgw_env):
     then retries on RGW-B. After GC, expects HEAD 200 GET 404 (data loss).
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19405-{uuid.uuid4().hex[:8]}"; key = "mpu-obj"
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19405-{uuid.uuid4().hex[:8]}"
+    key = "mpu-obj"
     armed = []
     try:
         env.set_rgw("rgw_mp_lock_max_time", "120")
@@ -559,16 +650,20 @@ def test_19405_lock_renewal_failure_concurrent_complete(rgw_env):
         uid = a.create_multipart_upload(Bucket=bkt, Key=key)["UploadId"]
         parts = env.parts_upload(a, bkt, key, uid)
         log.info("bkt=%s uid=%s", bkt, uid)
-        env.asok_set("ms_inject_delay_max", 20);  armed.append(("ms_inject_delay_max", 0))
-        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-        ra = {}; ev = threading.Event()
+        env.asok_set("ms_inject_delay_max", 20)
+        armed.append(("ms_inject_delay_max", 0))
+        env.asok_set("ms_inject_delay_probability", 1)
+        armed.append(("ms_inject_delay_probability", 0))
+        ra = {}
+        ev = threading.Event()
 
         def do_a():
             ev.set()
             ra["s"] = env.do_complete(a, bkt, key, uid, parts)
 
         t = threading.Thread(target=do_a, daemon=True)
-        t.start(); ev.wait()
+        t.start()
+        ev.wait()
 
         if not env.wait_head_ok(b, bkt, key, 180):
             pytest.skip("HEAD not visible within 180 s — race window not hit")
@@ -585,7 +680,9 @@ def test_19405_lock_renewal_failure_concurrent_complete(rgw_env):
         env.asok_set("ms_inject_delay_max", 0)
         sb = env.do_complete(b, bkt, key, uid, parts)
         gc1 = env.gc_count(uid)
-        log.info("retry rgw.b → %s  post-retry gc_queue_tails=%s (was %s)", sb, gc1, gc0)
+        log.info(
+            "retry rgw.b → %s  post-retry gc_queue_tails=%s (was %s)", sb, gc1, gc0
+        )
         t.join(timeout=400)
         log.info("A=%s", ra.get("s", "?"))
         env.run_gc()
@@ -593,16 +690,22 @@ def test_19405_lock_renewal_failure_concurrent_complete(rgw_env):
         exp = env.num_parts * env.part_size
         log.info("oracle: HEAD=%s GET=%s bytes=%s", h, g, dl)
         assert gc1 > gc0, f"Expected gc_queue_tails to increase, got {gc0}→{gc1}"
-        assert h == 200 and (g != 200 or dl != exp), (
-            f"Expected data loss (HEAD 200 / GET 404) but got HEAD={h} GET={g} bytes={dl}"
-        )
+        assert h == 200 and (
+            g != 200 or dl != exp
+        ), f"Expected data loss (HEAD 200 / GET 404) but got HEAD={h} GET={g} bytes={dl}"
     finally:
         for k, v in reversed(armed):
-            try: env.asok_set(k, v)
-            except Exception: pass
-        env.reset_mp(); env.reset_gc()
-        try: b.delete_object(Bucket=bkt, Key=key); b.delete_bucket(Bucket=bkt)
-        except Exception: pass
+            try:
+                env.asok_set(k, v)
+            except Exception:
+                pass
+        env.reset_mp()
+        env.reset_gc()
+        try:
+            b.delete_object(Bucket=bkt, Key=key)
+            b.delete_bucket(Bucket=bkt)
+        except Exception:
+            pass
 
 
 @pytest.mark.ibmceph_mpu
@@ -649,8 +752,10 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
     was not hit (retry returns 500 = lock still held at crash time).
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19407-{uuid.uuid4().hex[:8]}"; key = "mpu-obj"
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19407-{uuid.uuid4().hex[:8]}"
+    key = "mpu-obj"
     armed = []
     try:
         env.set_rgw("rgw_mp_lock_max_time", "120")
@@ -660,16 +765,20 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         uid = a.create_multipart_upload(Bucket=bkt, Key=key)["UploadId"]
         parts = env.parts_upload(a, bkt, key, uid)
         log.info("bkt=%s uid=%s", bkt, uid)
-        env.asok_set("ms_inject_delay_max", 10);  armed.append(("ms_inject_delay_max", 0))
-        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-        ra = {}; ev = threading.Event()
+        env.asok_set("ms_inject_delay_max", 10)
+        armed.append(("ms_inject_delay_max", 0))
+        env.asok_set("ms_inject_delay_probability", 1)
+        armed.append(("ms_inject_delay_probability", 0))
+        ra = {}
+        ev = threading.Event()
 
         def do_a():
             ev.set()
             ra["s"] = env.do_complete(a, bkt, key, uid, parts)
 
         t = threading.Thread(target=do_a, daemon=True)
-        t.start(); ev.wait()
+        t.start()
+        ev.wait()
         log.info("waiting for GET 200 full data (post-lock, pre-meta-delete)…")
         if not env.wait_get_ok(b, bkt, key, 180):
             pytest.skip("GET never returned full data — window not available")
@@ -677,13 +786,15 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         if not oid:
             pytest.skip(".meta already deleted before kill")
         log.info("struck (get-ok); .meta present → SIGKILL")
-        env.kill_rgw_a(); t.join(timeout=10)
+        env.kill_rgw_a()
+        t.join(timeout=10)
         env.wait_rgw_a_healthy()
         h0, g0, _ = env.check(b, bkt, key)
         gc0 = env.gc_count(uid)
         oid2 = env.find_meta(uid)
-        log.info("pre-retry: HEAD=%s GET=%s gc_tails=%s .meta=%s",
-                 h0, g0, gc0, bool(oid2))
+        log.info(
+            "pre-retry: HEAD=%s GET=%s gc_tails=%s .meta=%s", h0, g0, gc0, bool(oid2)
+        )
         if g0 != 200:
             pytest.skip(f"pre-retry GET={g0}")
         if not oid2:
@@ -693,21 +804,29 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         gc1 = env.gc_count(uid)
         log.info("retry=%s post-retry gc_tails=%s (was %s)", sb, gc1, gc0)
         if sb == 500:
-            pytest.skip("retry returned 500 — lock still held at crash time (window missed)")
+            pytest.skip(
+                "retry returned 500 — lock still held at crash time (window missed)"
+            )
         env.run_gc()
         h, g, dl = env.check(b, bkt, key)
         exp = env.num_parts * env.part_size
         log.info("oracle: HEAD=%s GET=%s bytes=%s", h, g, dl)
-        assert h == 200 and (g != 200 or dl != exp), (
-            f"Expected data loss but got HEAD={h} GET={g} bytes={dl}"
-        )
+        assert h == 200 and (
+            g != 200 or dl != exp
+        ), f"Expected data loss but got HEAD={h} GET={g} bytes={dl}"
     finally:
         for k, v in reversed(armed):
-            try: env.asok_set(k, v)
-            except Exception: pass
-        env.reset_mp(); env.reset_gc()
-        try: b.delete_object(Bucket=bkt, Key=key); b.delete_bucket(Bucket=bkt)
-        except Exception: pass
+            try:
+                env.asok_set(k, v)
+            except Exception:
+                pass
+        env.reset_mp()
+        env.reset_gc()
+        try:
+            b.delete_object(Bucket=bkt, Key=key)
+            b.delete_bucket(Bucket=bkt)
+        except Exception:
+            pass
 
 
 @pytest.mark.ibmceph_mpu
@@ -721,8 +840,10 @@ def test_19410_lifecycle_abort_ignores_completion_lock(rgw_env):
     GC, destroying the completed object.
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19410-{uuid.uuid4().hex[:8]}"; key = "mpu-obj"
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19410-{uuid.uuid4().hex[:8]}"
+    key = "mpu-obj"
     armed = []
     try:
         env.set_rgw("rgw_mp_lock_max_time", "120")
@@ -732,16 +853,20 @@ def test_19410_lifecycle_abort_ignores_completion_lock(rgw_env):
         uid = a.create_multipart_upload(Bucket=bkt, Key=key)["UploadId"]
         parts = env.parts_upload(a, bkt, key, uid)
         log.info("bkt=%s uid=%s", bkt, uid)
-        env.asok_set("ms_inject_delay_max", 10);  armed.append(("ms_inject_delay_max", 0))
-        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-        ra = {}; ev = threading.Event()
+        env.asok_set("ms_inject_delay_max", 10)
+        armed.append(("ms_inject_delay_max", 0))
+        env.asok_set("ms_inject_delay_probability", 1)
+        armed.append(("ms_inject_delay_probability", 0))
+        ra = {}
+        ev = threading.Event()
 
         def do_a():
             ev.set()
             ra["s"] = env.do_complete(a, bkt, key, uid, parts)
 
         t = threading.Thread(target=do_a, daemon=True)
-        t.start(); ev.wait()
+        t.start()
+        ev.wait()
         log.info("waiting for GET 200 full data…")
         if not env.wait_get_ok(b, bkt, key, 180):
             pytest.skip("GET never returned full data within 180 s")
@@ -749,44 +874,55 @@ def test_19410_lifecycle_abort_ignores_completion_lock(rgw_env):
         if not oid:
             pytest.skip("No .meta OID")
         log.info("struck; .meta present → SIGKILL")
-        env.kill_rgw_a(); t.join(timeout=10)
+        env.kill_rgw_a()
+        t.join(timeout=10)
         env.wait_rgw_a_healthy()
         h0, g0, _ = env.check(b, bkt, key)
         gc0 = env.gc_count(uid)
         oid2 = env.find_meta(uid)
-        log.info("pre-abort: HEAD=%s GET=%s gc_tails=%s .meta=%s",
-                 h0, g0, gc0, bool(oid2))
+        log.info(
+            "pre-abort: HEAD=%s GET=%s gc_tails=%s .meta=%s", h0, g0, gc0, bool(oid2)
+        )
         if g0 != 200:
             pytest.skip(f"pre-abort GET={g0}")
         if not oid2:
             pytest.skip(".meta already gone")
         log.info("waiting 125 s for lock TTL to lapse…")
         time.sleep(125)
-        sa = env.http(lambda: b.abort_multipart_upload(
-            Bucket=bkt, Key=key, UploadId=uid))
+        sa = env.http(
+            lambda: b.abort_multipart_upload(Bucket=bkt, Key=key, UploadId=uid)
+        )
         gc1 = env.gc_count(uid)
-        log.info("AbortMPU (LC sim) → %s  post-abort gc_tails=%s (was %s)",
-                 sa, gc1, gc0)
+        log.info(
+            "AbortMPU (LC sim) → %s  post-abort gc_tails=%s (was %s)", sa, gc1, gc0
+        )
         env.run_gc()
         h, g, dl = env.check(b, bkt, key)
         exp = env.num_parts * env.part_size
         log.info("oracle: HEAD=%s GET=%s bytes=%s", h, g, dl)
         assert gc1 > gc0, f"Expected gc_queue_tails to increase, got {gc0}→{gc1}"
-        assert h == 200 and (g != 200 or dl != exp), (
-            f"Expected data loss from abort but got HEAD={h} GET={g} bytes={dl}"
-        )
+        assert h == 200 and (
+            g != 200 or dl != exp
+        ), f"Expected data loss from abort but got HEAD={h} GET={g} bytes={dl}"
     finally:
         for k, v in reversed(armed):
-            try: env.asok_set(k, v)
-            except Exception: pass
-        env.reset_mp(); env.reset_gc()
-        try: b.delete_object(Bucket=bkt, Key=key); b.delete_bucket(Bucket=bkt)
-        except Exception: pass
+            try:
+                env.asok_set(k, v)
+            except Exception:
+                pass
+        env.reset_mp()
+        env.reset_gc()
+        try:
+            b.delete_object(Bucket=bkt, Key=key)
+            b.delete_bucket(Bucket=bkt)
+        except Exception:
+            pass
 
 
 # ===========================================================================
 # OVERWRITE / INDEX RACE TESTS  (marker: ibmceph_race)
 # ===========================================================================
+
 
 @pytest.mark.ibmceph_race
 @pytest.mark.ibmceph_all
@@ -799,30 +935,41 @@ def test_19417_delete_racing_overwrite_no_id_tag_guard(rgw_env):
     After GC: HEAD 404 GET 404.
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19417-{uuid.uuid4().hex[:8]}"; key = "idtag-obj"
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19417-{uuid.uuid4().hex[:8]}"
+    key = "idtag-obj"
     armed = []
     try:
         env.set_rgw("rgw_gc_obj_min_wait", "5")
         env.set_rgw("rgw_gc_processor_period", "1")
         a.create_bucket(Bucket=bkt)
         a.put_object(Bucket=bkt, Key=key, Body=b"orig" * 1024)
-        env.asok_set("ms_inject_delay_max", 20);  armed.append(("ms_inject_delay_max", 0))
-        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-        ds = {}; bs = {}; ev = threading.Event()
+        env.asok_set("ms_inject_delay_max", 20)
+        armed.append(("ms_inject_delay_max", 0))
+        env.asok_set("ms_inject_delay_probability", 1)
+        armed.append(("ms_inject_delay_probability", 0))
+        ds = {}
+        bs = {}
+        ev = threading.Event()
 
         def do_del():
             ev.set()
             ds["c"] = env.http(lambda: a.delete_object(Bucket=bkt, Key=key))
 
         def do_put():
-            ev.wait(); time.sleep(0.05)
-            bs["c"] = env.http(lambda: b.put_object(
-                Bucket=bkt, Key=key, Body=b"NEW" * env.part_size))
+            ev.wait()
+            time.sleep(0.05)
+            bs["c"] = env.http(
+                lambda: b.put_object(Bucket=bkt, Key=key, Body=b"NEW" * env.part_size)
+            )
 
         td = threading.Thread(target=do_del, daemon=True)
         tp = threading.Thread(target=do_put, daemon=True)
-        td.start(); tp.start(); td.join(60); tp.join(60)
+        td.start()
+        tp.start()
+        td.join(60)
+        tp.join(60)
         log.info("DELETE(A)=%s PUT(B)=%s", ds.get("c"), bs.get("c"))
         env.asok_set("ms_inject_delay_probability", 0)
         env.asok_set("ms_inject_delay_max", 0)
@@ -831,16 +978,21 @@ def test_19417_delete_racing_overwrite_no_id_tag_guard(rgw_env):
         log.info("After GC: HEAD=%s GET=%s bytes=%s", h, g, dl)
         assert bs.get("c") == 200, f"PUT(B) did not return 200 (got {bs.get('c')})"
         assert ds.get("c") == 204, f"DELETE(A) did not return 204 (got {ds.get('c')})"
-        assert h != 200 or g != 200, (
-            f"Expected object to be wiped by racing DELETE, but HEAD={h} GET={g} bytes={dl}"
-        )
+        assert (
+            h != 200 or g != 200
+        ), f"Expected object to be wiped by racing DELETE, but HEAD={h} GET={g} bytes={dl}"
     finally:
         for k, v in reversed(armed):
-            try: env.asok_set(k, v)
-            except Exception: pass
+            try:
+                env.asok_set(k, v)
+            except Exception:
+                pass
         env.reset_gc()
-        try: b.delete_object(Bucket=bkt, Key=key); b.delete_bucket(Bucket=bkt)
-        except Exception: pass
+        try:
+            b.delete_object(Bucket=bkt, Key=key)
+            b.delete_bucket(Bucket=bkt)
+        except Exception:
+            pass
 
 
 @pytest.mark.ibmceph_race
@@ -855,8 +1007,10 @@ def test_19412_delete_racing_overwrite_leaks_tail(rgw_env):
     collects the new object's tail. After GC: HEAD 404 GET 404.
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19412-{uuid.uuid4().hex[:8]}"; key = "race-obj"
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19412-{uuid.uuid4().hex[:8]}"
+    key = "race-obj"
     armed = []
     try:
         env.set_rgw("rgw_gc_obj_min_wait", "5")
@@ -866,28 +1020,43 @@ def test_19412_delete_racing_overwrite_leaks_tail(rgw_env):
         uid = a.create_multipart_upload(Bucket=bkt, Key=key)["UploadId"]
         parts = []
         for i in range(1, 3):
-            r = a.upload_part(Bucket=bkt, Key=key, UploadId=uid,
-                              PartNumber=i, Body=b"A" * env.part_size)
+            r = a.upload_part(
+                Bucket=bkt,
+                Key=key,
+                UploadId=uid,
+                PartNumber=i,
+                Body=b"A" * env.part_size,
+            )
             parts.append({"PartNumber": i, "ETag": r["ETag"]})
-        a.complete_multipart_upload(Bucket=bkt, Key=key, UploadId=uid,
-                                    MultipartUpload={"Parts": parts})
+        a.complete_multipart_upload(
+            Bucket=bkt, Key=key, UploadId=uid, MultipartUpload={"Parts": parts}
+        )
         log.info("uploaded 2-part MPU object")
-        env.asok_set("ms_inject_delay_max", 20);  armed.append(("ms_inject_delay_max", 0))
-        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-        ds = {}; bs = {}; ev = threading.Event()
+        env.asok_set("ms_inject_delay_max", 20)
+        armed.append(("ms_inject_delay_max", 0))
+        env.asok_set("ms_inject_delay_probability", 1)
+        armed.append(("ms_inject_delay_probability", 0))
+        ds = {}
+        bs = {}
+        ev = threading.Event()
 
         def do_del():
             ev.set()
             ds["c"] = env.http(lambda: a.delete_object(Bucket=bkt, Key=key))
 
         def do_put():
-            ev.wait(); time.sleep(0.05)
-            bs["c"] = env.http(lambda: b.put_object(
-                Bucket=bkt, Key=key, Body=b"NEW" * env.part_size))
+            ev.wait()
+            time.sleep(0.05)
+            bs["c"] = env.http(
+                lambda: b.put_object(Bucket=bkt, Key=key, Body=b"NEW" * env.part_size)
+            )
 
         td = threading.Thread(target=do_del, daemon=True)
         tp = threading.Thread(target=do_put, daemon=True)
-        td.start(); tp.start(); td.join(60); tp.join(60)
+        td.start()
+        tp.start()
+        td.join(60)
+        tp.join(60)
         log.info("DELETE(A)=%s PUT(B)=%s", ds.get("c"), bs.get("c"))
         env.asok_set("ms_inject_delay_probability", 0)
         env.asok_set("ms_inject_delay_max", 0)
@@ -896,16 +1065,21 @@ def test_19412_delete_racing_overwrite_leaks_tail(rgw_env):
         log.info("After GC: HEAD=%s GET=%s bytes=%s", h, g, dl)
         assert bs.get("c") == 200, f"PUT(B) did not return 200 (got {bs.get('c')})"
         assert ds.get("c") == 204, f"DELETE(A) did not return 204 (got {ds.get('c')})"
-        assert h != 200 or g != 200, (
-            f"Expected new object to be wiped/leaked, but HEAD={h} GET={g} bytes={dl}"
-        )
+        assert (
+            h != 200 or g != 200
+        ), f"Expected new object to be wiped/leaked, but HEAD={h} GET={g} bytes={dl}"
     finally:
         for k, v in reversed(armed):
-            try: env.asok_set(k, v)
-            except Exception: pass
+            try:
+                env.asok_set(k, v)
+            except Exception:
+                pass
         env.reset_gc()
-        try: b.delete_object(Bucket=bkt, Key=key); b.delete_bucket(Bucket=bkt)
-        except Exception: pass
+        try:
+            b.delete_object(Bucket=bkt, Key=key)
+            b.delete_bucket(Bucket=bkt)
+        except Exception:
+            pass
 
 
 @pytest.mark.ibmceph_race
@@ -920,8 +1094,10 @@ def test_19414_copy_to_itself_racing_overwrite_corrupts_data(rgw_env):
     and deletes PUT(B)'s tail. After GC: HEAD 200 GET 404 bytes=0.
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19414-{uuid.uuid4().hex[:8]}"; key = "copy-self"
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19414-{uuid.uuid4().hex[:8]}"
+    key = "copy-self"
     armed = []
     try:
         env.set_rgw("rgw_gc_obj_min_wait", "5")
@@ -930,34 +1106,52 @@ def test_19414_copy_to_itself_racing_overwrite_corrupts_data(rgw_env):
         uid = a.create_multipart_upload(Bucket=bkt, Key=key)["UploadId"]
         parts = []
         for i in range(1, 3):
-            r = a.upload_part(Bucket=bkt, Key=key, UploadId=uid,
-                              PartNumber=i, Body=b"O" * env.part_size)
+            r = a.upload_part(
+                Bucket=bkt,
+                Key=key,
+                UploadId=uid,
+                PartNumber=i,
+                Body=b"O" * env.part_size,
+            )
             parts.append({"PartNumber": i, "ETag": r["ETag"]})
-        a.complete_multipart_upload(Bucket=bkt, Key=key, UploadId=uid,
-                                    MultipartUpload={"Parts": parts})
+        a.complete_multipart_upload(
+            Bucket=bkt, Key=key, UploadId=uid, MultipartUpload={"Parts": parts}
+        )
         log.info("uploaded 2-part source object")
-        env.asok_set("ms_inject_delay_max", 20);  armed.append(("ms_inject_delay_max", 0))
-        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-        cs = {}; ps = {}; ev = threading.Event()
+        env.asok_set("ms_inject_delay_max", 20)
+        armed.append(("ms_inject_delay_max", 0))
+        env.asok_set("ms_inject_delay_probability", 1)
+        armed.append(("ms_inject_delay_probability", 0))
+        cs = {}
+        ps = {}
+        ev = threading.Event()
         put_size = env.part_size * 4
 
         def do_copy():
             ev.set()
-            cs["c"] = env.http(lambda: a.copy_object(
-                Bucket=bkt, Key=key,
-                CopySource={"Bucket": bkt, "Key": key},
-                MetadataDirective="REPLACE",
-                Metadata={"x-amz-meta-t": "v"},
-            ))
+            cs["c"] = env.http(
+                lambda: a.copy_object(
+                    Bucket=bkt,
+                    Key=key,
+                    CopySource={"Bucket": bkt, "Key": key},
+                    MetadataDirective="REPLACE",
+                    Metadata={"x-amz-meta-t": "v"},
+                )
+            )
 
         def do_put():
-            ev.wait(); time.sleep(0.1)
-            ps["c"] = env.http(lambda: b.put_object(
-                Bucket=bkt, Key=key, Body=b"N" * put_size))
+            ev.wait()
+            time.sleep(0.1)
+            ps["c"] = env.http(
+                lambda: b.put_object(Bucket=bkt, Key=key, Body=b"N" * put_size)
+            )
 
         tc = threading.Thread(target=do_copy, daemon=True)
         tp = threading.Thread(target=do_put, daemon=True)
-        tc.start(); tp.start(); tc.join(60); tp.join(60)
+        tc.start()
+        tp.start()
+        tc.join(60)
+        tp.join(60)
         log.info("COPY-SELF(A)=%s PUT(B)=%s", cs.get("c"), ps.get("c"))
         env.asok_set("ms_inject_delay_probability", 0)
         env.asok_set("ms_inject_delay_max", 0)
@@ -968,16 +1162,21 @@ def test_19414_copy_to_itself_racing_overwrite_corrupts_data(rgw_env):
         h, g, dl = env.check(b, bkt, key)
         log.info("After GC: HEAD=%s GET=%s bytes=%s expected=%s", h, g, dl, put_size)
         assert ps.get("c") == 200, f"PUT(B) did not return 200 (got {ps.get('c')})"
-        assert h == 200 and (g != 200 or dl < put_size), (
-            f"Expected HEAD 200 GET 404 (data loss) but got HEAD={h} GET={g} bytes={dl}"
-        )
+        assert h == 200 and (
+            g != 200 or dl < put_size
+        ), f"Expected HEAD 200 GET 404 (data loss) but got HEAD={h} GET={g} bytes={dl}"
     finally:
         for k, v in reversed(armed):
-            try: env.asok_set(k, v)
-            except Exception: pass
+            try:
+                env.asok_set(k, v)
+            except Exception:
+                pass
         env.reset_gc()
-        try: b.delete_object(Bucket=bkt, Key=key); b.delete_bucket(Bucket=bkt)
-        except Exception: pass
+        try:
+            b.delete_object(Bucket=bkt, Key=key)
+            b.delete_bucket(Bucket=bkt)
+        except Exception:
+            pass
 
 
 @pytest.mark.ibmceph_race
@@ -992,35 +1191,46 @@ def test_19416_stalled_write_lost_from_bucket_index(rgw_env):
     After PUT completes: HeadObject shows new ETag but ListObjectsV2 shows old ETag.
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19416-{uuid.uuid4().hex[:8]}"; key = "stalled-obj"
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19416-{uuid.uuid4().hex[:8]}"
+    key = "stalled-obj"
     armed = []
     try:
         env.set_rgw("rgw_gc_obj_min_wait", "5")
         env.set_rgw("rgw_gc_processor_period", "1")
-        env.ceph("config", "set", "osd",
-                 "rgw_pending_bucket_index_op_expiration", "5")
+        env.ceph("config", "set", "osd", "rgw_pending_bucket_index_op_expiration", "5")
         a.create_bucket(Bucket=bkt)
         a.put_object(Bucket=bkt, Key=key, Body=b"old-data")
         old_etag = a.head_object(Bucket=bkt, Key=key)["ETag"].strip('"')
         log.info("old ETag: %s", old_etag)
-        env.asok_set("ms_inject_delay_max", 30);  armed.append(("ms_inject_delay_max", 0))
-        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-        pa = {}; ev = threading.Event()
+        env.asok_set("ms_inject_delay_max", 30)
+        armed.append(("ms_inject_delay_max", 0))
+        env.asok_set("ms_inject_delay_probability", 1)
+        armed.append(("ms_inject_delay_probability", 0))
+        pa = {}
+        ev = threading.Event()
 
         def do_stalled_put():
             ev.set()
-            pa["c"] = env.http(lambda: a.put_object(
-                Bucket=bkt, Key=key, Body=b"new-stalled-data"))
+            pa["c"] = env.http(
+                lambda: a.put_object(Bucket=bkt, Key=key, Body=b"new-stalled-data")
+            )
 
         ta = threading.Thread(target=do_stalled_put, daemon=True)
-        ta.start(); ev.wait()
+        ta.start()
+        ev.wait()
         # wait 8 s then list — pending op is now older than 5 s expiry
         time.sleep(8)
         list_resp = b.list_objects_v2(Bucket=bkt)
         index_etag_during = next(
-            (o.get("ETag", "").strip('"') for o in list_resp.get("Contents", [])
-             if o["Key"] == key), None)
+            (
+                o.get("ETag", "").strip('"')
+                for o in list_resp.get("Contents", [])
+                if o["Key"] == key
+            ),
+            None,
+        )
         log.info("ListObjectsV2 ETag during stall: %s", index_etag_during)
         ta.join(90)
         env.asok_set("ms_inject_delay_probability", 0)
@@ -1028,29 +1238,39 @@ def test_19416_stalled_write_lost_from_bucket_index(rgw_env):
         log.info("PUT-A=%s", pa.get("c"))
         head_etag = a.head_object(Bucket=bkt, Key=key)["ETag"].strip('"')
         list_etag_after = next(
-            (o.get("ETag", "").strip('"')
-             for o in b.list_objects_v2(Bucket=bkt).get("Contents", [])
-             if o["Key"] == key), None)
+            (
+                o.get("ETag", "").strip('"')
+                for o in b.list_objects_v2(Bucket=bkt).get("Contents", [])
+                if o["Key"] == key
+            ),
+            None,
+        )
         log.info("HeadObject ETag after PUT: %s", head_etag)
         log.info("ListObjectsV2 ETag after PUT: %s", list_etag_after)
         assert pa.get("c") == 200, f"PUT-A did not return 200 (got {pa.get('c')})"
         assert head_etag != old_etag, "HeadObject still shows old ETag after PUT"
-        assert list_etag_after == old_etag, (
-            f"Expected index to show old ETag ({old_etag}) but got {list_etag_after}"
-        )
+        assert (
+            list_etag_after == old_etag
+        ), f"Expected index to show old ETag ({old_etag}) but got {list_etag_after}"
     finally:
         for k, v in reversed(armed):
-            try: env.asok_set(k, v)
-            except Exception: pass
+            try:
+                env.asok_set(k, v)
+            except Exception:
+                pass
         env.ceph("config", "rm", "osd", "rgw_pending_bucket_index_op_expiration")
         env.reset_gc()
-        try: b.delete_object(Bucket=bkt, Key=key); b.delete_bucket(Bucket=bkt)
-        except Exception: pass
+        try:
+            b.delete_object(Bucket=bkt, Key=key)
+            b.delete_bucket(Bucket=bkt)
+        except Exception:
+            pass
 
 
 # ===========================================================================
 # MULTIPART BLOCKLIST RACE TEST  (marker: ibmceph_mpu)
 # ===========================================================================
+
 
 @pytest.mark.ibmceph_mpu
 @pytest.mark.ibmceph_all
@@ -1079,9 +1299,12 @@ def test_19407bl_meta_delete_fail_blocklist_retry(rgw_env):
       oracle: HEAD=200 GET=404 bytes=0/41943040 dataloss=True
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19407bl-{uuid.uuid4().hex[:8]}"; key = "mpu-obj"
-    armed = []; blocklisted = []
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19407bl-{uuid.uuid4().hex[:8]}"
+    key = "mpu-obj"
+    armed = []
+    blocklisted = []
 
     try:
         env.set_rgw("rgw_mp_lock_max_time", str(env.bl_lock_ttl))
@@ -1105,14 +1328,16 @@ def test_19407bl_meta_delete_fail_blocklist_retry(rgw_env):
         env.asok_set("ms_inject_delay_probability", 1)
         armed.append(("ms_inject_delay_probability", 0))
 
-        ra = {}; ev = threading.Event()
+        ra = {}
+        ev = threading.Event()
 
         def do_a():
             ev.set()
             ra["s"] = env.do_complete(a, bkt, key, uid, parts)
 
         t = threading.Thread(target=do_a, daemon=True)
-        t.start(); ev.wait()
+        t.start()
+        ev.wait()
 
         # Poll: HEAD 200 on RGW-B + .meta still present in pool
         log.info("polling for HEAD 200 + .meta present…")
@@ -1172,17 +1397,28 @@ def test_19407bl_meta_delete_fail_blocklist_retry(rgw_env):
         h0, g0, _ = env.check(b, bkt, key)
         gc0 = env.gc_count(uid)
         oid2 = env.find_meta(uid)
-        lock_raw = env.rados("-p", env.meta_pool, "lock", "info",
-                             oid2, "RGWCompleteMultipart") if oid2 else ""
+        lock_raw = (
+            env.rados("-p", env.meta_pool, "lock", "info", oid2, "RGWCompleteMultipart")
+            if oid2
+            else ""
+        )
         try:
             lockers = json.loads(lock_raw).get("lockers", [])
         except Exception:
             lockers = []
-        log.info("post-bl: HEAD=%s GET=%s gc_tails=%s .meta=%s lockers=%s",
-                 h0, g0, gc0, bool(oid2), len(lockers))
+        log.info(
+            "post-bl: HEAD=%s GET=%s gc_tails=%s .meta=%s lockers=%s",
+            h0,
+            g0,
+            gc0,
+            bool(oid2),
+            len(lockers),
+        )
 
         if not oid2:
-            pytest.skip(".meta deleted despite blocklist — delete completed before blocklist took effect")
+            pytest.skip(
+                ".meta deleted despite blocklist — delete completed before blocklist took effect"
+            )
         if g0 != 200:
             pytest.skip(f"pre-retry GET={g0} (expected 200)")
 
@@ -1190,8 +1426,9 @@ def test_19407bl_meta_delete_fail_blocklist_retry(rgw_env):
         if lockers:
             log.info("lock still held — waiting %ss for TTL…", env.bl_lock_ttl)
             time.sleep(env.bl_lock_ttl + 5)
-            lock_raw2 = env.rados("-p", env.meta_pool, "lock", "info",
-                                  oid2, "RGWCompleteMultipart")
+            lock_raw2 = env.rados(
+                "-p", env.meta_pool, "lock", "info", oid2, "RGWCompleteMultipart"
+            )
             try:
                 lockers = json.loads(lock_raw2).get("lockers", [])
             except Exception:
@@ -1210,9 +1447,9 @@ def test_19407bl_meta_delete_fail_blocklist_retry(rgw_env):
         exp = env.num_parts * env.part_size
         log.info("oracle: HEAD=%s GET=%s bytes=%s/%s", h, g, dl, exp)
 
-        assert h == 200 and (g != 200 or dl != exp), (
-            f"Expected data loss (HEAD 200 / GET 404) but got HEAD={h} GET={g} bytes={dl}/{exp}"
-        )
+        assert h == 200 and (
+            g != 200 or dl != exp
+        ), f"Expected data loss (HEAD 200 / GET 404) but got HEAD={h} GET={g} bytes={dl}/{exp}"
 
     finally:
         for k, v in reversed(armed):
@@ -1238,6 +1475,7 @@ def test_19407bl_meta_delete_fail_blocklist_retry(rgw_env):
 # CONDITIONAL WRITE ATOMICITY TEST  (marker: ibmceph_cond)
 # ===========================================================================
 
+
 @pytest.mark.ibmceph_cond
 @pytest.mark.ibmceph_all
 def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
@@ -1257,8 +1495,10 @@ def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
       Total versions created: 9 (1 initial + 8 concurrent winners)
     """
     env = rgw_env
-    a = env.a(); b = env.b()
-    bkt = f"ibm19424-{uuid.uuid4().hex[:8]}"; key = "if-match-obj"
+    a = env.a()
+    b = env.b()
+    bkt = f"ibm19424-{uuid.uuid4().hex[:8]}"
+    key = "if-match-obj"
     CONCURRENT = 8
 
     try:
@@ -1271,11 +1511,14 @@ def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
 
         # Pre-check: verify If-Match on PUT is supported (skip if not)
         try:
-            env.http(lambda: a.put_object(
-                Bucket=bkt, Key=key,
-                Body=b"PRE-CHECK",
-                **{"IfMatch": "nonexistent-etag-000"},
-            ))
+            env.http(
+                lambda: a.put_object(
+                    Bucket=bkt,
+                    Key=key,
+                    Body=b"PRE-CHECK",
+                    **{"IfMatch": "nonexistent-etag-000"},
+                )
+            )
         except ClientError as e:
             if e.response["ResponseMetadata"]["HTTPStatusCode"] not in (412, 200):
                 pytest.skip("If-Match not supported on this build — skip")
@@ -1288,7 +1531,8 @@ def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
             client = a if idx % 2 == 0 else b
             try:
                 r2 = client.put_object(
-                    Bucket=bkt, Key=key,
+                    Bucket=bkt,
+                    Key=key,
                     Body=f"concurrent-body-{idx}".encode() * 1024,
                     **{"IfMatch": etag},
                 )
@@ -1298,16 +1542,18 @@ def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
             except Exception:
                 codes[idx] = -1
 
-        threads = [threading.Thread(target=do_put, args=(i,), daemon=True)
-                   for i in range(CONCURRENT)]
+        threads = [
+            threading.Thread(target=do_put, args=(i,), daemon=True)
+            for i in range(CONCURRENT)
+        ]
         for t in threads:
             t.start()
         for t in threads:
             t.join(timeout=60)
 
         successes = [c for c in codes if c == 200]
-        failures  = [c for c in codes if c == 412]
-        others    = [c for c in codes if c not in (200, 412)]
+        failures = [c for c in codes if c == 412]
+        others = [c for c in codes if c not in (200, 412)]
         log.info("results: %s", codes)
         log.info("200s=%d  412s=%d  other=%s", len(successes), len(failures), others)
 
@@ -1326,7 +1572,9 @@ def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
         log.info(
             "BUG CONFIRMED: %d/%d concurrent If-Match writes succeeded "
             "(at most 1 should succeed); versions=%s",
-            len(successes), CONCURRENT, version_count,
+            len(successes),
+            CONCURRENT,
+            version_count,
         )
 
     finally:

@@ -46,10 +46,13 @@ def main():
     parser = argparse.ArgumentParser(
         description="IBMCEPH-19403 RGW Race Condition Pytest Runner for cephci"
     )
-    parser.add_argument("-c", dest="config", required=True,
-                        help="RGW test YAML config")
-    parser.add_argument("--rgw-node", dest="rgw_node", default="",
-                        help="RGW-A node hostname (informational)")
+    parser.add_argument("-c", dest="config", required=True, help="RGW test YAML config")
+    parser.add_argument(
+        "--rgw-node",
+        dest="rgw_node",
+        default="",
+        help="RGW-A node hostname (informational)",
+    )
     parser.add_argument("-log_level", dest="log_level", default="info")
     args = parser.parse_args()
 
