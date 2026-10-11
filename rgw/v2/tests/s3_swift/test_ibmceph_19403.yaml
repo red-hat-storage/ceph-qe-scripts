@@ -1,0 +1,61 @@
+# test_ibmceph_19403.yaml
+# Config for IBMCEPH-19403 RGW race-condition reproducer suite (all 10 bugs).
+# All keys are optional — the test file falls back to env vars / hardcoded defaults.
+#
+# Bugs covered:
+#   19405  Lock renewal failure + concurrent complete → data loss
+#   19406  RGW crash between head-write and meta-delete → ghost object
+#   19406v Same as 19406 on versioning-SUSPENDED bucket
+#   19407  Failed meta-delete + retry from second RGW → data loss (SIGKILL)
+#   19407bl Failed meta-delete + retry → data loss (OSD blocklist method)
+#   19410  Lifecycle AbortMPU ignores completion lock → premature GC
+#   19412  DeleteObject racing overwrite deletes new data
+#   19414  CopyObject-self racing overwrite deletes data
+#   19416  Stalled write lost from bucket index
+#   19417  DeleteObject lost RADOS-level ID-tag guard
+#   19424  8 concurrent conditional PUTs (If-Match) all succeed (at most 1 should)
+#
+# ── Cluster: rio86c (ceph-20.2.1-405.el9cp) ─────────────────────────────────
+# S3 endpoints
+rgw_a_url: "http://10.0.65.65:80"      # RGW-A  (node5, plxcxh container)
+rgw_b_url: "http://10.0.67.70:80"      # RGW-B  (node1-installer)
+
+# S3 credentials (user with full bucket/object access)
+access_key: "QDGQ2R11JYCJF5X4MJIV"
+secret_key: "4BqntvhPxDCXphzVatqOboNooZDuCNTYIW6X6UV1"
+
+# RADOS pools
+data_pool: "primary.rgw.buckets.data"
+meta_pool: "primary.rgw.buckets.non-ec"
+
+# systemd unit name for RGW-A on node5 (used for SIGKILL tests)
+rgw_a_unit: >-
+  ceph-bc3b2f76-bef1-11f1-9938-fa163e9ef13f
+  @rgw.shared.pri.ceph-pri-vim-restore-91-rio86c-node5.plxcxh.service
+
+# podman container name substring for RGW-A
+rgw_a_ctr_pattern: "plxcxh"
+
+# MPU upload parameters
+part_size: 5242880   # 5 MiB
+num_parts: 8
+
+# Blocklist method parameters (for test_19407bl)
+# bl_secs must be > bl_lock_ttl to ensure the lock expires while blocked
+bl_lock_ttl: 30    # rgw_mp_lock_max_time during the blocklist test (seconds)
+bl_secs: 40        # how long to blocklist RGW-A RADOS addr (seconds)
+
+# ── Cluster: grim017 (ceph-20.2.2-338.el10cp) — alternate config ────────────
+# To run against grim017, override these values:
+#   rgw_a_url:        "http://10.64.66.22:80"
+#   rgw_b_url:        "http://10.64.66.24:80"
+#   access_key:       "IBMCEPH19407KEY"
+#   secret_key:       "IBMCEPH19407SECRET"
+#   data_pool:        "default.rgw.buckets.data"
+#   meta_pool:        "default.rgw.buckets.non-ec"
+#   rgw_a_unit:       "ceph-14fafad4-8a53-11f1-8f02-905a08a0cfed@rgw.80.grim017.ovwbup.service"
+#   rgw_a_ctr_pattern: "ovwbup"
+#   bl_lock_ttl:      30
+#   bl_secs:          40
+# Note: grim017 has OSDs on the same IP as RGW-A (10.64.66.22).
+#       The blocklist test uses specific addr:nonce (not /32 range) automatically.
