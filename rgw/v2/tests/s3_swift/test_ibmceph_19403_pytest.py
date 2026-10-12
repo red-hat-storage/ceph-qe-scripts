@@ -1333,6 +1333,129 @@ def test_19407bl_meta_delete_fail_blocklist_retry(rgw_env):
 
 
 # ===========================================================================
+# ETAG PREFIX MATCH BUG TEST  (marker: ibmceph_cond)
+# ===========================================================================
+
+@pytest.mark.ibmceph_cond
+@pytest.mark.ibmceph_all
+def test_19423_if_match_accepts_etag_prefix(rgw_env):
+    """
+    IBMCEPH-19423: RGW If-Match and If-None-Match match any value that
+    starts with the object's ETag (prefix comparison instead of equality).
+
+    Per RFC 7232, If-Match must compare entity tags using full equality
+    (or weak comparison for If-None-Match). A value of "<etag>suffix"
+    must NOT match — it should return 412 PreconditionFailed.
+
+    Bug: RGW uses a prefix check so "<etag>EXTRA" passes If-Match and
+    fails If-None-Match — both wrong.
+
+    Tests:
+      A) GET with full ETag           → 200  (correct)
+      B) GET with ETag + suffix       → must be 412 (was 200 on buggy build)
+      C) PUT with full ETag If-Match  → 200  (correct)
+      D) PUT with ETag + suffix       → must be 412 (was 200 on buggy build)
+      E) GET with If-None-Match full  → must be 304 (correct)
+      F) GET with If-None-Match + sfx → must be 200 (was 304 on buggy build)
+    """
+    env = rgw_env
+    a = env.a(); b = env.b()
+    bkt = f"ibm19423-{uuid.uuid4().hex[:8]}"; key = "etag-prefix-obj"
+
+    try:
+        a.create_bucket(Bucket=bkt)
+        r0 = a.put_object(Bucket=bkt, Key=key, Body=b"hello-etag-prefix")
+        etag = r0.get("ETag", "").strip('"')
+        log.info("object ETag: %s", etag)
+
+        suffix_etag = etag + "EXTRA"
+        bugs = []
+
+        # A) GET with exact ETag — must be 200
+        try:
+            r = a.get_object(Bucket=bkt, Key=key, IfMatch=etag)
+            code_a = r["ResponseMetadata"]["HTTPStatusCode"]
+        except ClientError as e:
+            code_a = e.response["ResponseMetadata"]["HTTPStatusCode"]
+        log.info("A) GET If-Match=exact → %s (expect 200)", code_a)
+        if code_a != 200:
+            bugs.append(f"A) GET exact etag returned {code_a} (want 200)")
+
+        # B) GET with ETag+suffix — must be 412
+        try:
+            r = a.get_object(Bucket=bkt, Key=key, IfMatch=suffix_etag)
+            code_b = r["ResponseMetadata"]["HTTPStatusCode"]
+            r["Body"].read()
+        except ClientError as e:
+            code_b = e.response["ResponseMetadata"]["HTTPStatusCode"]
+        log.info("B) GET If-Match=etag+suffix → %s (expect 412)", code_b)
+        if code_b != 412:
+            bugs.append(f"B) GET etag+suffix returned {code_b} (want 412) — prefix match bug")
+
+        # C) PUT with exact ETag If-Match — must be 200
+        try:
+            r = a.put_object(Bucket=bkt, Key=key, Body=b"put-exact",
+                             **{"IfMatch": etag})
+            code_c = r["ResponseMetadata"]["HTTPStatusCode"]
+            # restore original content
+            a.put_object(Bucket=bkt, Key=key, Body=b"hello-etag-prefix")
+            etag = a.head_object(Bucket=bkt, Key=key)["ETag"].strip('"')
+        except ClientError as e:
+            code_c = e.response["ResponseMetadata"]["HTTPStatusCode"]
+        log.info("C) PUT If-Match=exact → %s (expect 200)", code_c)
+        if code_c != 200:
+            pytest.skip(f"If-Match on PUT not supported (got {code_c}) — skip")
+
+        # D) PUT with ETag+suffix — must be 412
+        try:
+            r = a.put_object(Bucket=bkt, Key=key, Body=b"put-suffix",
+                             **{"IfMatch": suffix_etag})
+            code_d = r["ResponseMetadata"]["HTTPStatusCode"]
+        except ClientError as e:
+            code_d = e.response["ResponseMetadata"]["HTTPStatusCode"]
+        log.info("D) PUT If-Match=etag+suffix → %s (expect 412)", code_d)
+        if code_d != 412:
+            bugs.append(f"D) PUT etag+suffix returned {code_d} (want 412) — prefix match bug")
+
+        # E) GET with If-None-Match exact ETag — must be 304
+        try:
+            r = a.get_object(Bucket=bkt, Key=key, IfNoneMatch=etag)
+            code_e = r["ResponseMetadata"]["HTTPStatusCode"]
+            r["Body"].read()
+        except ClientError as e:
+            code_e = e.response["ResponseMetadata"]["HTTPStatusCode"]
+        log.info("E) GET If-None-Match=exact → %s (expect 304)", code_e)
+        if code_e != 304:
+            bugs.append(f"E) GET If-None-Match exact returned {code_e} (want 304)")
+
+        # F) GET with If-None-Match ETag+suffix — must be 200 (no match → return body)
+        try:
+            r = a.get_object(Bucket=bkt, Key=key, IfNoneMatch=suffix_etag)
+            code_f = r["ResponseMetadata"]["HTTPStatusCode"]
+            r["Body"].read()
+        except ClientError as e:
+            code_f = e.response["ResponseMetadata"]["HTTPStatusCode"]
+        log.info("F) GET If-None-Match=etag+suffix → %s (expect 200)", code_f)
+        if code_f != 200:
+            bugs.append(f"F) GET If-None-Match etag+suffix returned {code_f} (want 200) — prefix match bug")
+
+        log.info("results: A=%s B=%s C=%s D=%s E=%s F=%s", code_a, code_b, code_c, code_d, code_e, code_f)
+
+        if bugs:
+            pytest.fail(
+                f"IBMCEPH-19423 BUG CONFIRMED: If-Match/If-None-Match prefix comparison — "
+                + "; ".join(bugs)
+            )
+
+    finally:
+        try:
+            a.delete_object(Bucket=bkt, Key=key)
+            a.delete_bucket(Bucket=bkt)
+        except Exception:
+            pass
+
+
+# ===========================================================================
 # CONDITIONAL WRITE ATOMICITY TEST  (marker: ibmceph_cond)
 # ===========================================================================
 
@@ -1340,19 +1463,25 @@ def test_19407bl_meta_delete_fail_blocklist_retry(rgw_env):
 @pytest.mark.ibmceph_all
 def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
     """
-    IBMCEPH-19424: Concurrent conditional PUTs (If-Match) are not atomic.
+    IBMCEPH-19424: Concurrent conditional PUTs in a versioning-enabled bucket
+    are not atomic.
 
-    S3 conditional PUT (PUT with If-Match header) must behave like a
-    compare-and-swap: only ONE request matching the current ETag should
-    succeed (HTTP 200); all others should return HTTP 412 (PreconditionFailed).
+    In a versioning-enabled bucket, a PutObject with If-None-Match: * checks
+    the condition, writes a new version, and only then makes it current —
+    with no atomic guard. Two concurrent PUTs with If-None-Match: * on an
+    empty key, or If-Match on the same ETag, can both win.
 
-    This test fires 8 concurrent PUT requests — alternating between RGW-A and
-    RGW-B — each with If-Match set to the same initial ETag. Due to missing
-    atomicity in the RGW conditional-write path, all 8 return HTTP 200.
+    S3 semantics: only ONE should succeed (HTTP 200); all others → 412.
+
+    This test fires 8 concurrent PUT requests (4 on RGW-A, 4 on RGW-B)
+    each with If-Match set to the same initial ETag on a versioned bucket.
 
     Confirmed reproduced on grim017 (ceph-20.2.2-338.el10cp):
       200 OK: 8   412: 0   (all 8 won; only 1 should have)
-      Total versions created: 9 (1 initial + 8 concurrent winners)
+      Total versions: 9 (v0 + 8 concurrent winners)
+
+    Also tests If-None-Match: * on a new key (only 1 of N concurrent
+    creates should succeed).
     """
     env = rgw_env
     a = env.a(); b = env.b()
@@ -1360,23 +1489,27 @@ def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
     CONCURRENT = 8
 
     try:
+        # Versioning-ENABLED bucket (bug is specific to versioned path)
         a.create_bucket(Bucket=bkt)
+        a.put_bucket_versioning(
+            Bucket=bkt,
+            VersioningConfiguration={"Status": "Enabled"},
+        )
+        log.info("bucket versioning enabled")
 
-        # Write initial version and capture its ETag
+        # --- Part 1: If-Match on existing ETag ---
         r0 = a.put_object(Bucket=bkt, Key=key, Body=b"INITIAL")
         etag = r0.get("ETag", "").strip('"')
         log.info("initial ETag: %s", etag)
 
         # Pre-check: verify If-Match on PUT is supported (skip if not)
-        try:
-            env.http(lambda: a.put_object(
-                Bucket=bkt, Key=key,
-                Body=b"PRE-CHECK",
-                **{"IfMatch": "nonexistent-etag-000"},
-            ))
-        except ClientError as e:
-            if e.response["ResponseMetadata"]["HTTPStatusCode"] not in (412, 200):
-                pytest.skip("If-Match not supported on this build — skip")
+        code_precheck = env.http(lambda: a.put_object(
+            Bucket=bkt, Key=key,
+            Body=b"PRE-CHECK",
+            **{"IfMatch": "nonexistent-etag-000"},
+        ))
+        if code_precheck not in (412, 200):
+            pytest.skip(f"If-Match not supported on this build (got {code_precheck}) — skip")
 
         codes = [None] * CONCURRENT
         ready = threading.Barrier(CONCURRENT)
@@ -1406,31 +1539,74 @@ def test_19424_concurrent_conditional_puts_not_atomic(rgw_env):
         successes = [c for c in codes if c == 200]
         failures  = [c for c in codes if c == 412]
         others    = [c for c in codes if c not in (200, 412)]
-        log.info("results: %s", codes)
+        log.info("If-Match results: %s", codes)
         log.info("200s=%d  412s=%d  other=%s", len(successes), len(failures), others)
 
-        # List versions to confirm how many were created
-        try:
-            versions = a.list_object_versions(Bucket=bkt, Prefix=key)
-            version_count = len(versions.get("Versions", []))
-            log.info("total versions in bucket after test: %d", version_count)
-        except Exception:
-            version_count = None
+        versions = a.list_object_versions(Bucket=bkt, Prefix=key)
+        version_count = len(versions.get("Versions", []))
+        log.info("total versions after If-Match test: %d", version_count)
 
         if len(successes) > 1:
             pytest.fail(
-                f"IBMCEPH-19424 BUG CONFIRMED: {len(successes)}/{CONCURRENT}"
-                f" concurrent If-Match writes succeeded (at most 1 should succeed);"
-                f" versions created={version_count}"
+                f"IBMCEPH-19424 BUG CONFIRMED (If-Match, versioned bucket): "
+                f"{len(successes)}/{CONCURRENT} concurrent If-Match writes succeeded"
+                f" (at most 1 should); versions created={version_count}"
             )
+
+        # --- Part 2: If-None-Match: * on new key (create-once semantics) ---
+        key2 = "if-none-match-new-obj"
+        codes2 = [None] * CONCURRENT
+        ready2 = threading.Barrier(CONCURRENT)
+
+        def do_put2(idx):
+            ready2.wait()
+            client = a if idx % 2 == 0 else b
+            try:
+                r3 = client.put_object(
+                    Bucket=bkt, Key=key2,
+                    Body=f"create-once-{idx}".encode() * 1024,
+                    **{"IfNoneMatch": "*"},
+                )
+                codes2[idx] = r3["ResponseMetadata"]["HTTPStatusCode"]
+            except ClientError as e:
+                codes2[idx] = e.response["ResponseMetadata"]["HTTPStatusCode"]
+            except Exception:
+                codes2[idx] = -1
+
+        threads2 = [threading.Thread(target=do_put2, args=(i,), daemon=True)
+                    for i in range(CONCURRENT)]
+        for t in threads2:
+            t.start()
+        for t in threads2:
+            t.join(timeout=60)
+
+        successes2 = [c for c in codes2 if c == 200]
+        log.info("If-None-Match:* results: %s", codes2)
+        log.info("200s=%d  412s=%d", len(successes2), len([c for c in codes2 if c == 412]))
+
+        versions2 = a.list_object_versions(Bucket=bkt, Prefix=key2)
+        version_count2 = len(versions2.get("Versions", []))
+        log.info("total versions after If-None-Match test: %d", version_count2)
+
+        if len(successes2) > 1:
+            pytest.fail(
+                f"IBMCEPH-19424 BUG CONFIRMED (If-None-Match:*, versioned bucket): "
+                f"{len(successes2)}/{CONCURRENT} concurrent If-None-Match:* writes succeeded"
+                f" (at most 1 should); versions created={version_count2}"
+            )
+
         log.info(
-            "PASS: only %d/%d If-Match writes succeeded (correct behaviour); versions=%s",
-            len(successes), CONCURRENT, version_count,
+            "PASS: If-Match=%d/%d winners, If-None-Match:*=%d/%d winners (correct)",
+            len(successes), CONCURRENT, len(successes2), CONCURRENT,
         )
 
     finally:
         try:
-            b.delete_object(Bucket=bkt, Key=key)
-            b.delete_bucket(Bucket=bkt)
+            versions = a.list_object_versions(Bucket=bkt)
+            for v in versions.get("Versions", []):
+                a.delete_object(Bucket=bkt, Key=v["Key"], VersionId=v["VersionId"])
+            for dm in versions.get("DeleteMarkers", []):
+                a.delete_object(Bucket=bkt, Key=dm["Key"], VersionId=dm["VersionId"])
+            a.delete_bucket(Bucket=bkt)
         except Exception:
             pass
