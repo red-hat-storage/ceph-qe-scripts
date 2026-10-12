@@ -679,10 +679,6 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         parts = env.parts_upload(b, bkt, key, uid)
         log.info("bkt=%s uid=%s", bkt, uid)
 
-        # ms_inject_delay widens the window further (belt + suspenders)
-        env.asok_set("ms_inject_delay_max", 10);  armed.append(("ms_inject_delay_max", 0))
-        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
-
         ra = {}; ev = threading.Event()
 
         def do_a():
@@ -692,38 +688,55 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         t = threading.Thread(target=do_a, daemon=True)
         t.start(); ev.wait()
 
-        # Step 3: wait until head is written and GET 200 is readable on RGW-B
-        log.info("waiting for GET 200 full data on RGW-B (head written, lock released)…")
-        if not env.wait_get_ok(b, bkt, key, 180):
-            pytest.skip("GET never returned full data within 180s — window not available")
+        # Step 3: wait until head is written, lock released, GET 200 readable on RGW-B.
+        # rgw_mp_lock_inject_delay=30 holds RGW-A in the lock-held phase, so poll
+        # until lock is actually released (lockers=0) AND GET is readable.
+        log.info("waiting for GET 200 + lock released on RGW-B…")
+        oid = None
+        deadline = time.monotonic() + 240
+        while time.monotonic() < deadline:
+            # check GET readable
+            try:
+                o = b.get_object(Bucket=bkt, Key=key)
+                data = o["Body"].read()
+                if len(data) != env.num_parts * env.part_size:
+                    time.sleep(0.5); continue
+            except Exception:
+                time.sleep(0.5); continue
+            # GET ok — check lock state
+            oid = env.find_meta(uid)
+            if not oid:
+                break  # .meta already gone — complete finished
+            lock_raw = env.rados("-p", env.meta_pool, "lock", "info",
+                                  oid, "RGWCompleteMultipart")
+            try:
+                lockers = json.loads(lock_raw).get("lockers", [])
+            except Exception:
+                lockers = ["unknown"]
+            if not lockers:
+                log.info("sub-window 3b: GET ok + lock released + .meta present")
+                break
+            time.sleep(0.3)
 
-        # Step 4: verify .meta present and lock is cleared (sub-window 3b)
-        oid = env.find_meta(uid)
         if not oid:
-            pytest.skip(".meta already deleted — rgw_mp_lock_inject_delay may not be set")
-
-        lock_raw = env.rados("-p", env.meta_pool, "lock", "info", oid, "RGWCompleteMultipart")
-        try:
-            lockers = json.loads(lock_raw).get("lockers", [])
-        except Exception:
-            lockers = ["unknown"]
+            pytest.skip(".meta already deleted before kill — complete too fast")
 
         gc0 = env.gc_count(uid)
         log.info("pre-kill: .meta=%s lockers=%s gc_tails=%s", bool(oid), len(lockers), gc0)
 
         if lockers:
-            # Lock still held — we're in sub-window 3a, not 3b
-            # rgw_mp_lock_inject_delay should prevent this; skip if still happening
             pytest.skip(
-                f"lock still held ({len(lockers)} lockers) — in sub-window 3a not 3b;"
-                " ensure rgw_mp_lock_inject_delay=30 is set at RGW-A startup"
+                f"lock still held ({len(lockers)} lockers) after 240s — "
+                "sub-window 3b not reached; check rgw_mp_lock_inject_delay setting"
             )
 
-        # Step 5: SIGKILL RGW-A — lock released, .meta present = sub-window 3b confirmed
-        log.info("sub-window 3b confirmed (lock=0, .meta present) → SIGKILL RGW-A")
-        env.asok_set("ms_inject_delay_probability", 0)
-        env.asok_set("ms_inject_delay_max", 0)
-        armed.clear()
+        # Step 4: arm ms_inject_delay NOW to stall the upcoming .meta delete_object call
+        # (RGW-A is in the gap between lock release and .meta delete)
+        env.asok_set("ms_inject_delay_max", 30);  armed.append(("ms_inject_delay_max", 0))
+        env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
+        log.info("ms_inject_delay armed — SIGKILL RGW-A while stalled on .meta delete")
+
+        # Step 5: SIGKILL RGW-A — stalled mid delete_object(.meta) = sub-window 3b
         env.kill_rgw_a(); t.join(timeout=10)
 
         # Step 6: wait for RGW-A recovery
