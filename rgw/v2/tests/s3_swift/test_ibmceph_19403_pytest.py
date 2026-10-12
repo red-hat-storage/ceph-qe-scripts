@@ -648,26 +648,100 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
     """
     IBMCEPH-19407: Immediate retry after .meta deletion failure (no TTL wait).
 
-    SIGKILLs RGW-A after GET 200 + .meta present. If .meta survives restart
-    AND the lock was already released before the kill (i.e. retry returns 200,
-    not 500), data loss is expected. Returns pytest.skip if the narrow window
-    was not hit (retry returns 500 = lock still held at crash time).
+    Uses GDB to inject return -5 into RadosObject::delete_object() on RGW-A
+    so that meta_obj->delete_object() fails deterministically. This reproduces
+    the exact failure mode described in the JIRA steps without relying on
+    timing luck from SIGKILL:
+
+      1. rgw_mp_lock_max_time=120, upload 8 parts (40 MB total).
+      2. Fire CompleteMultipartUpload on RGW-A (ms_inject_delay widens window).
+      3. Wait for GET 200 on RGW-B (head written, lock released).
+      4. GDB attach to RGW-A host PID, set breakpoint on delete_object,
+         inject "return -5" so .meta deletion fails.
+      5. CompleteMultipartUpload returns HTTP 200, object readable, .meta present,
+         lock cleared, GC tails = 0.
+      6. Retry CompleteMultipartUpload on RGW-B immediately.
+      7. Run GC. Oracle: HEAD 200, GET 404 → data loss confirmed.
     """
     env = rgw_env
     a = env.a(); b = env.b()
     bkt = f"ibm19407-{uuid.uuid4().hex[:8]}"; key = "mpu-obj"
     armed = []
+
+    def _get_rgw_a_host_pid():
+        """Return the host-namespace PID of the radosgw process in RGW-A container."""
+        cname = env._find_container()
+        if not cname:
+            return None
+        try:
+            init_pid = subprocess.check_output(
+                ["podman", "inspect", "--format", "{{.State.Pid}}", cname],
+                text=True,
+            ).strip()
+        except Exception:
+            return None
+        # Walk /proc looking for radosgw whose NSpid == 2
+        for pid in os.listdir("/proc"):
+            if not pid.isdigit():
+                continue
+            try:
+                comm = open(f"/proc/{pid}/comm").read().strip()
+                if comm != "radosgw":
+                    continue
+                status = open(f"/proc/{pid}/status").read()
+                nspids = [x for x in status.split("\n") if x.startswith("NSpid:")]
+                if nspids and nspids[0].split()[-1] == "2":
+                    return int(pid)
+            except Exception:
+                continue
+        return None
+
+    def _gdb_inject_delete_fail(host_pid):
+        """
+        Attach GDB to radosgw host PID and inject return -5 on the first call
+        to rgw::sal::RadosObject::delete_object. Detaches immediately after.
+        Returns True on success.
+        """
+        gdb_cmds = (
+            "set pagination off\n"
+            "set confirm off\n"
+            "break rgw::sal::RadosObject::delete_object\n"
+            "continue\n"
+            "return (int)-5\n"
+            "continue\n"
+            "detach\n"
+            "quit\n"
+        )
+        script = f"/tmp/gdb_inject_{host_pid}.gdb"
+        with open(script, "w") as f:
+            f.write(gdb_cmds)
+        log.info("GDB inject: attaching to host PID %s", host_pid)
+        r = subprocess.run(
+            ["gdb", "-batch", "-x", script, "-p", str(host_pid)],
+            capture_output=True, text=True, timeout=60,
+        )
+        log.info("GDB stdout: %s", r.stdout[-500:] if r.stdout else "")
+        log.info("GDB stderr: %s", r.stderr[-300:] if r.stderr else "")
+        try:
+            os.unlink(script)
+        except Exception:
+            pass
+        return r.returncode == 0
+
     try:
         env.set_rgw("rgw_mp_lock_max_time", "120")
         env.set_rgw("rgw_gc_obj_min_wait", "5")
         env.set_rgw("rgw_gc_processor_period", "1")
         a.create_bucket(Bucket=bkt)
         uid = a.create_multipart_upload(Bucket=bkt, Key=key)["UploadId"]
-        # Upload parts via RGW-B so credentials remain valid across RGW-A SIGKILL/restart
+        # Upload parts via RGW-B so parts are accessible after any RGW-A disruption
         parts = env.parts_upload(b, bkt, key, uid)
         log.info("bkt=%s uid=%s", bkt, uid)
+
+        # Widen race window with ms_inject_delay on RGW-A
         env.asok_set("ms_inject_delay_max", 10);  armed.append(("ms_inject_delay_max", 0))
         env.asok_set("ms_inject_delay_probability", 1); armed.append(("ms_inject_delay_probability", 0))
+
         ra = {}; ev = threading.Event()
 
         def do_a():
@@ -676,43 +750,87 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
 
         t = threading.Thread(target=do_a, daemon=True)
         t.start(); ev.wait()
-        log.info("waiting for GET 200 full data (post-lock, pre-meta-delete)…")
+
+        # Step 3: wait until head is written and GET 200 is readable on RGW-B
+        log.info("waiting for GET 200 full data on RGW-B (head written, lock released)…")
         if not env.wait_get_ok(b, bkt, key, 180):
-            pytest.skip("GET never returned full data — window not available")
-        # Sleep 4s to let RGW-A release the MPU lock (sub-window 3b: lock released,
-        # .meta not yet deleted). Without this we kill in sub-window 3a (lock still
-        # held) and retry returns 500 → SKIPPED.
-        time.sleep(4)
+            pytest.skip("GET never returned full data within 180s — window not available")
+
+        # Step 4: verify .meta still present (lock released but .meta not yet deleted)
         oid = env.find_meta(uid)
         if not oid:
-            pytest.skip(".meta already deleted before kill")
-        log.info("struck (get-ok, lock released); .meta present → SIGKILL")
-        env.kill_rgw_a(); t.join(timeout=10)
-        env.wait_rgw_a_healthy()
-        h0, g0, _ = env.check(b, bkt, key)
+            pytest.skip(".meta already deleted — complete finished before injection point")
+
+        # Verify lock is cleared
+        lock_raw = env.rados("-p", env.meta_pool, "lock", "info", oid, "RGWCompleteMultipart")
+        try:
+            lockers = json.loads(lock_raw).get("lockers", [])
+        except Exception:
+            lockers = []
+        log.info("lockers at injection point: %s", len(lockers))
+
         gc0 = env.gc_count(uid)
+        log.info("pre-inject: .meta=%s lockers=%s gc_tails=%s", oid, len(lockers), gc0)
+
+        # Step 4: GDB inject return -5 into delete_object so .meta deletion fails
+        host_pid = _get_rgw_a_host_pid()
+        if not host_pid:
+            pytest.skip("could not find radosgw host PID — skip GDB injection")
+
+        # Disarm ms_inject_delay before GDB attach to let CompleteMultipartUpload
+        # reach the delete_object call (delay was just to widen the window)
+        env.asok_set("ms_inject_delay_probability", 0)
+        env.asok_set("ms_inject_delay_max", 0)
+        armed.clear()
+
+        injected = _gdb_inject_delete_fail(host_pid)
+        if not injected:
+            pytest.skip("GDB injection failed — check gdb availability / ptrace permissions")
+
+        # Wait for CompleteMultipartUpload on RGW-A to finish (it returns 200 despite -5)
+        t.join(timeout=30)
+        log.info("CompleteMultipartUpload(A) returned: %s", ra.get("s", "still-running"))
+
+        # Step 5: verify state — object readable, .meta still present, lock cleared, gc=0
+        h0, g0, _ = env.check(b, bkt, key)
+        gc0b = env.gc_count(uid)
         oid2 = env.find_meta(uid)
-        log.info("pre-retry: HEAD=%s GET=%s gc_tails=%s .meta=%s",
-                 h0, g0, gc0, bool(oid2))
+        lock_raw2 = env.rados("-p", env.meta_pool, "lock", "info", oid, "RGWCompleteMultipart") if oid2 else ""
+        try:
+            lockers2 = json.loads(lock_raw2).get("lockers", [])
+        except Exception:
+            lockers2 = []
+        log.info("post-inject: HEAD=%s GET=%s gc_tails=%s .meta=%s lockers=%s",
+                 h0, g0, gc0b, bool(oid2), len(lockers2))
+
         if g0 != 200:
-            pytest.skip(f"pre-retry GET={g0}")
+            pytest.skip(f"post-inject GET={g0} (expected 200 — injection may have missed)")
         if not oid2:
-            pytest.skip(".meta gone after restart (RGW cleaned it up)")
-        log.info("immediate retry on RGW-B (no TTL wait)…")
+            pytest.skip(".meta gone after injection — delete_object succeeded despite injection")
+        if lockers2:
+            pytest.skip(f"lock still held after injection ({len(lockers2)} lockers)")
+
+        # Step 6: retry CompleteMultipartUpload on RGW-B immediately (no TTL wait)
+        log.info("immediate retry CompleteMultipartUpload on RGW-B…")
         sb = env.do_complete(b, bkt, key, uid, parts)
         gc1 = env.gc_count(uid)
-        log.info("retry=%s post-retry gc_tails=%s (was %s)", sb, gc1, gc0)
+        log.info("retry=%s gc_tails=%s (was %s)", sb, gc1, gc0b)
+
         if sb == 500:
-            pytest.skip("retry returned 500 — lock still held at crash time (window missed)")
+            pytest.skip("retry returned 500 — unexpected lock state")
+
+        # Step 7: run GC and check for data loss
         env.run_gc()
         h, g, dl = env.check(b, bkt, key)
         exp = env.num_parts * env.part_size
-        log.info("oracle: HEAD=%s GET=%s bytes=%s", h, g, dl)
+        log.info("oracle: HEAD=%s GET=%s bytes=%s/%s", h, g, dl, exp)
+
         if h == 200 and (g != 200 or dl != exp):
             pytest.fail(
-                f"IBMCEPH-19407 BUG CONFIRMED: data loss after immediate retry from"
-                f" second RGW following meta-delete failure"
+                f"IBMCEPH-19407 BUG CONFIRMED: data loss after .meta deletion failure"
+                f" (GDB inject return -5) + immediate retry from second RGW"
                 f" — HEAD={h} GET={g} bytes={dl}/{exp}"
+                f" (gc_tails: {gc0}→{gc1})"
             )
     finally:
         for k, v in reversed(armed):
