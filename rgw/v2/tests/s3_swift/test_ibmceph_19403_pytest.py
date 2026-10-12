@@ -700,13 +700,20 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         """
         Attach GDB to radosgw host PID and inject return -5 on the first call
         to rgw::sal::RadosObject::delete_object. Detaches immediately after.
+
+        Strategy: GDB attaches while ms_inject_delay is STILL ARMED (RGW-A is
+        stalled). Once breakpoint is set, caller disarms the delay so RGW-A
+        resumes and hits delete_object. GDB timeout is 120s to cover the delay.
+
         Returns True on success.
         """
         gdb_cmds = (
             "set pagination off\n"
             "set confirm off\n"
+            # Attach stops the process — set breakpoint then continue
             "break rgw::sal::RadosObject::delete_object\n"
             "continue\n"
+            # Breakpoint hit — inject failure and let RGW-A continue
             "return (int)-5\n"
             "continue\n"
             "detach\n"
@@ -718,9 +725,9 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         log.info("GDB inject: attaching to host PID %s", host_pid)
         r = subprocess.run(
             ["gdb", "-batch", "-x", script, "-p", str(host_pid)],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, timeout=120,
         )
-        log.info("GDB stdout: %s", r.stdout[-500:] if r.stdout else "")
+        log.info("GDB stdout: %s", r.stdout[-800:] if r.stdout else "")
         log.info("GDB stderr: %s", r.stderr[-300:] if r.stderr else "")
         try:
             os.unlink(script)
@@ -772,23 +779,31 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         gc0 = env.gc_count(uid)
         log.info("pre-inject: .meta=%s lockers=%s gc_tails=%s", oid, len(lockers), gc0)
 
-        # Step 4: GDB inject return -5 into delete_object so .meta deletion fails
+        # Step 4: GDB inject return -5 into delete_object so .meta deletion fails.
+        # GDB must attach WHILE ms_inject_delay is still armed (RGW-A stalled).
+        # Once GDB has set the breakpoint and issued "continue", we disarm the delay
+        # in a background thread so RGW-A resumes and hits delete_object.
         host_pid = _get_rgw_a_host_pid()
         if not host_pid:
             pytest.skip("could not find radosgw host PID — skip GDB injection")
 
-        # Disarm ms_inject_delay before GDB attach to let CompleteMultipartUpload
-        # reach the delete_object call (delay was just to widen the window)
-        env.asok_set("ms_inject_delay_probability", 0)
-        env.asok_set("ms_inject_delay_max", 0)
-        armed.clear()
+        # Disarm delay 3s after GDB starts (gives GDB time to attach + set breakpoint)
+        def _disarm_delay_after(secs):
+            time.sleep(secs)
+            log.info("disarming ms_inject_delay so RGW-A resumes toward delete_object…")
+            env.asok_set("ms_inject_delay_probability", 0)
+            env.asok_set("ms_inject_delay_max", 0)
+
+        disarm_thread = threading.Thread(target=_disarm_delay_after, args=(3,), daemon=True)
+        disarm_thread.start()
 
         injected = _gdb_inject_delete_fail(host_pid)
+        armed.clear()  # delay was disarmed by thread
         if not injected:
             pytest.skip("GDB injection failed — check gdb availability / ptrace permissions")
 
         # Wait for CompleteMultipartUpload on RGW-A to finish (it returns 200 despite -5)
-        t.join(timeout=30)
+        t.join(timeout=60)
         log.info("CompleteMultipartUpload(A) returned: %s", ra.get("s", "still-running"))
 
         # Step 5: verify state — object readable, .meta still present, lock cleared, gc=0
