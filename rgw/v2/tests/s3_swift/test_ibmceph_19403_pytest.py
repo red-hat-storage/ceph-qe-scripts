@@ -679,10 +679,14 @@ def test_19407_immediate_retry_after_meta_delete_failure(rgw_env):
         log.info("waiting for GET 200 full data (post-lock, pre-meta-delete)…")
         if not env.wait_get_ok(b, bkt, key, 180):
             pytest.skip("GET never returned full data — window not available")
+        # Sleep 4s to let RGW-A release the MPU lock (sub-window 3b: lock released,
+        # .meta not yet deleted). Without this we kill in sub-window 3a (lock still
+        # held) and retry returns 500 → SKIPPED.
+        time.sleep(4)
         oid = env.find_meta(uid)
         if not oid:
             pytest.skip(".meta already deleted before kill")
-        log.info("struck (get-ok); .meta present → SIGKILL")
+        log.info("struck (get-ok, lock released); .meta present → SIGKILL")
         env.kill_rgw_a(); t.join(timeout=10)
         env.wait_rgw_a_healthy()
         h0, g0, _ = env.check(b, bkt, key)
