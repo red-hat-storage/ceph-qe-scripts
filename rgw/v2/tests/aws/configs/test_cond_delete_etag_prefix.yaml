@@ -1,0 +1,12 @@
+# script: ceph-qe-scripts/rgw/v2/tests/aws/test_conditional_delete.py
+# If-Match must be the full ETag. For an object whose ETag is <etag>, delete with
+# If-Match: <etag>EXTRA and If-Match: "<etag>EXTRA".
+# Unversioned, current-version (no versionId), and versionId deletes must all
+# return 412 and leave the object in place. A prefix compare on the first two
+# paths (etag.length() characters only) is a failure: those paths return 204
+# while versionId returns 412.
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    conditional_delete_etag_prefix: true

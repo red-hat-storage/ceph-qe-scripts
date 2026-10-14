@@ -1,0 +1,12 @@
+# script: ceph-qe-scripts/rgw/v2/tests/aws/test_conditional_delete.py
+# Read ETag, size, and mtime. Overwrite the object, then immediately conditional-delete
+# with the old values. 204 and loss of the new object is a failure.
+# ETag and size are checked in memory and are not tied to the RADOS delete. On a
+# versioned bucket that check is also not tied to the delete-marker write.
+# The mtime-only repeat uses the same overwrite: unversioned rechecks mtime in the
+# RADOS operation, the versioned path does not. Both must return 412.
+config:
+  user_count: 1
+  bucket_count: 1
+  test_ops:
+    conditional_delete_stale_attrs: true

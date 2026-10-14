@@ -679,7 +679,8 @@ def conditional_delete_object(
         object_name(str): Name of the object/file
         end_point(str): endpoint
         versionid(str): version id of object
-        etag(str): etag of an object
+        etag(str): If-Match value, sent as given. Surrounding quotes are kept,
+            so both abcEXTRA and "abcEXTRA" can be passed.
         last_modified_time(str): last modified time of an object
         size(int): size of an object
         return_err(boolean): if true returns error
@@ -689,10 +690,10 @@ def conditional_delete_object(
     params = [f"--bucket {bucket_name} --key {object_name} --endpoint-url {end_point}"]
 
     if versionid:
-        params = [params[0] + f" --version-id {versionid}"]
+        params = [params[0] + f" --version-id {shlex.quote(str(versionid))}"]
 
     if etag:
-        params = [params[0] + f" --if-match {etag}"]
+        params = [params[0] + f" --if-match {shlex.quote(str(etag))}"]
 
     if last_modified_time:
         params = [params[0] + f" --if-match-last-modified-time {last_modified_time}"]
