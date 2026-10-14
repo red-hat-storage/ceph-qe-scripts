@@ -45,7 +45,7 @@ def test_exec(config, ssh_con):
     Args:
         config(object): Test configuration
     """
-    s3cmd = "/home/cephuser/venv/bin/s3cmd"
+    s3cmd = s3cmd_reusable.get_s3cmd_path()
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
