@@ -1,0 +1,21 @@
+# script: test_copy_object_max_chunk_size.py
+# Tracker: https://tracker.ceph.com/issues/81314
+# Scenario 1 uses the cluster defaults and does not change either option.
+# Later scenarios change config, then both options are set back to 4194304.
+# Optional test_ops.bucket_name pins the bucket when there is one scenario.
+config:
+  user_count: 1
+  bucket_count: 1
+  user_remove: true
+  test_ops:
+    object_size: 5000000
+    src_key: src.bin
+    dst_key: dst.bin
+    scenarios:
+      - rgw_max_chunk_size: 4194304
+        rgw_get_obj_max_req_size: 4194304
+        modify_config: false
+      - rgw_max_chunk_size: 16777216
+        rgw_get_obj_max_req_size: 4194304
+      - rgw_max_chunk_size: 16777216
+        rgw_get_obj_max_req_size: 16777216
