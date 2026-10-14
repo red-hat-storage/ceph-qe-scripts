@@ -1,0 +1,25 @@
+# script-name: test_rgw_ssl_port.py
+# test-case: TC-9
+# covers: negative — rgw_frontend_ssl_port set with generate_cert: false and no cert
+# pass: daemon is NOT in running state OR TLS handshake fails (no cert served);
+#       a silent unauthenticated TLS listener is a FAIL
+config:
+  user_count: 0
+  objects_count: 0
+  test_ops:
+    scenario: no_cert_negative
+    service_id: ssl-port-nocert
+    rgw_frontend_ssl_port: 443
+    ssl: true
+    generate_cert: false          # no cert generated; none in config-key either
+    rgw_frontend_type: beast
+    rgw_realm: default
+    rgw_zonegroup: default
+    rgw_zone: default
+    placement_hosts:
+      - ceph-local-01
+    perform_s3_io: false          # no IO expected; deployment should fail
+    expect_deployment_error: true
+    settle_secs: 30               # wait for cephadm to attempt deploy before checking
+    cleanup_service: true
+    wait_timeout: 120
