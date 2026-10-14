@@ -1,0 +1,20 @@
+# Script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_bucket_ordered_indexing.py
+# Sanity 2: repeat hashed->ordered (3 buckets, 600 objs), then ordered->hashed;
+# verify no data loss, listing works, then upload 100 more per bucket.
+# polarion-id:
+config:
+  user_count: 1
+  bucket_count: 3
+  objects_count: 100
+  max_objects_per_shard: 5
+  shards: 48
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    hashed_to_ordered: true
+    objects_count_post_reshard: 500
+    bucket_index_type: ordered
+    ordered_to_hashed: true
+    objects_count_post_hashed: 100
+    delete_bucket_object: true
