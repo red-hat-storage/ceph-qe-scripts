@@ -4240,6 +4240,120 @@ def admin_daemon_config(
     return utils.exec_shell_cmd(cmd)
 
 
+def run_rgw_admin(args, scope_flags=""):
+    """
+    Run radosgw-admin and return (exit_code, combined stdout+stderr).
+    Args:
+        args(str): arguments after radosgw-admin
+        scope_flags(str): optional --rgw-zone/--rgw-zonegroup/--rgw-realm
+    """
+    scoped = f"{args} {scope_flags}".strip()
+    cmd = f"radosgw-admin {scoped}"
+    log.info(f"executing: {cmd}")
+    pr = subprocess.Popen(
+        cmd,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    out, err = pr.communicate()
+    combined = ((out or "") + (err or "")).strip()
+    log.info(f"exit={pr.returncode} output: {combined}")
+    return pr.returncode, combined
+
+
+def expect_rgw_admin_einval(
+    desc,
+    args,
+    must_contain,
+    scope_flags="",
+    bug_keywords=None,
+    require_all=False,
+    expect_exit=22,
+):
+    """Assert radosgw-admin fails with EINVAL (default exit 22) and clear text."""
+    rc, output = run_rgw_admin(args, scope_flags)
+    needles = (
+        list(must_contain)
+        if isinstance(must_contain, (list, tuple))
+        else [must_contain]
+    )
+    out_flat = " ".join((output or "").split())
+
+    def _has_any(text, keywords):
+        lower = text.lower()
+        return any(kw.lower() in lower for kw in keywords)
+
+    def _reason_for_exit_zero():
+        if '"status": "init"' in out_flat or '"status":"init"' in out_flat:
+            return (
+                f"[{desc}] metadata sync status returned success with empty/init markers "
+                f"on the meta master; expected failure telling the operator to use "
+                f"'mdlog status' instead. cmd='radosgw-admin {args}'"
+            )
+        if "--source-zone" in args:
+            return (
+                f"[{desc}] --source-zone was accepted/ignored and the command succeeded; "
+                f"expected failure that --source-zone is not supported for this command. "
+                f"cmd='radosgw-admin {args}'"
+            )
+        return (
+            f"[{desc}] command succeeded (exit 0); expected failure with a clear error "
+            f"(exit {expect_exit}). cmd='radosgw-admin {args}'"
+        )
+
+    if rc != expect_exit:
+        if rc == 0:
+            raise TestExecError(_reason_for_exit_zero())
+        if bug_keywords and _has_any(output, bug_keywords):
+            raise TestExecError(
+                f"[{desc}] data sync failed with an unclear sync.init/REST error; "
+                f"expected a clear message that the source zone must be a remote zone. "
+                f"cmd='radosgw-admin {args}'"
+            )
+        raise TestExecError(
+            f"[{desc}] unexpected exit {rc} (expected {expect_exit}); "
+            f"cmd='radosgw-admin {args}'; detail={out_flat[:160]}"
+        )
+    if (
+        bug_keywords
+        and _has_any(output, bug_keywords)
+        and not _has_any(output, needles)
+    ):
+        raise TestExecError(
+            f"[{desc}] exit {rc} still shows unclear sync.init/REST error; "
+            f"expected a clear message that the source zone must be a remote zone. "
+            f"cmd='radosgw-admin {args}'"
+        )
+    lower = output.lower()
+    if require_all:
+        missing = [n for n in needles if n.lower() not in lower]
+        if missing:
+            raise TestExecError(
+                f"[{desc}] exit {rc} as expected but missing required error text "
+                f"{missing!r}. cmd='radosgw-admin {args}'; detail={out_flat[:160]}"
+            )
+    elif not any(n.lower() in lower for n in needles):
+        raise TestExecError(
+            f"[{desc}] exit {rc} as expected but missing expected error text among "
+            f"{needles!r}. cmd='radosgw-admin {args}'; detail={out_flat[:160]}"
+        )
+    log.info(f"PASS [{desc}]: EINVAL with clear fixed-build message")
+
+
+def expect_rgw_admin_success(desc, args, scope_flags=""):
+    """Assert radosgw-admin exits 0."""
+    rc, output = run_rgw_admin(args, scope_flags)
+    if rc != 0:
+        out_flat = " ".join((output or "").split())
+        raise TestExecError(
+            f"[{desc}] expected success (exit 0), got {rc}; "
+            f"cmd='radosgw-admin {args}'; detail={out_flat[:160]}"
+        )
+    log.info(f"PASS [{desc}]: exit 0")
+
+
 def _run_admin_daemon_cmd(cmd_name, ssh_con=None, return_json=True):
     """
     Run an admin-daemon command against the RGW asok.
