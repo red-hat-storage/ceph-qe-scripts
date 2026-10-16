@@ -5,14 +5,17 @@ Usage: test_lua_postauth_cache.py -c <input_yaml>
     configs/test_aws_lua_postauth_cache.yaml
     configs/test_aws_lua_prerequest_stale_bytecode_cache.yaml
     configs/test_aws_lua_prerequest_cache_invalidation.yaml
+    configs/test_aws_lua_postrequest_access_log.yaml
 
 Operation:
-    Lua bytecode cache scenarios via test_ops:
+    Lua scenarios via test_ops:
     - lua_postauth_cache: postAuth vs prerequest bytecode cache behaviour
     - prerequest_stale_bytecode_cache: script A warm-up, rm+put script B, verify
       B runs (tracker #80532 / PR #71873)
     - prerequest_cache_invalidation: upload blocking script, put_object must be
       blocked immediately (tracker #80576 / PR #71857)
+    - lua_postrequest_access_log: postrequest access-log via unix socket
+      (tracker #81310 / test_lua.py::test_access_log)
 """
 
 import argparse
@@ -95,6 +98,169 @@ def test_exec(config, ssh_con):
     cli_aws = AWS(ssl=config.ssl)
     bucket_name = utils.gen_bucket_name_from_userid(user["user_id"], rand_no=0)
     aws_auth.do_auth_aws(user)
+
+    if config.test_ops.get("lua_postrequest_access_log", False):
+        object_count = int(
+            config.test_ops.get("access_log_object_count", config.objects_count or 5)
+        )
+        event_wait = int(config.test_ops.get("access_log_event_wait", 5))
+        object_size = int(config.test_ops.get("access_log_object_size", 1024))
+        socket_path = f"/tmp/{bucket_name}"
+        # Exact Lua shape from test_lua.py::test_access_log
+        lua_script = f"""\
+if Request.RGWOp == "get_obj" then
+    local json   = require("cjson")
+    local socket = require("socket")
+    local unix   = require("socket.unix")
+    local s = unix()
+    local E = {{}}
+
+    local msg = {{
+        bucket     = (Request.Bucket or (Request.CopyFrom or E).Bucket).Name,
+        object     = Request.Object.Name,
+        time       = Request.Time,
+        operation  = Request.RGWOp,
+        http_status = Request.Response.HTTPStatusCode,
+        error_code  = Request.Response.HTTPStatus,
+        object_size = Request.Object.Size,
+        trans_id    = Request.TransactionId
+    }}
+    assert(s:connect("{socket_path}"))
+    s:send(json.encode(msg).."\\n")
+    s:close()
+end
+"""
+        script_set = False
+        bucket_created = False
+        objects = []
+        collector = None
+        preferred_host = None
+        if ssh_con:
+            try:
+                _stdin, stdout, _stderr = ssh_con.exec_command("hostname")
+                preferred_host = stdout.read().decode().strip() or None
+            except Exception:
+                preferred_host = None
+        try:
+            log.info("Ensure luarocks/compiler, then add lua-cjson + luasocket")
+            aws_reusable.ensure_lua_script_package_prereqs(
+                preferred_host=preferred_host
+            )
+            aws_reusable.add_lua_script_package("lua-cjson", allow_compilation=True)
+            aws_reusable.add_lua_script_package("luasocket", allow_compilation=True)
+            aws_reusable.reload_lua_script_packages()
+
+            log.info(
+                f"Upload postrequest access-log Lua script "
+                f"(socket path {socket_path})"
+            )
+            try:
+                aws_reusable.remove_lua_script(context="postrequest")
+            except Exception as e:
+                log.info(f"No leftover postrequest script: {e}")
+            aws_reusable.set_lua_script(
+                context="postrequest", script_content=lua_script
+            )
+            script_set = True
+            stored = aws_reusable.get_lua_script(context="postrequest")
+            if "get_obj" not in stored or "cjson" not in stored:
+                raise TestExecError(
+                    "postrequest access-log script was not stored correctly"
+                )
+            if socket_path not in stored:
+                raise TestExecError(
+                    f"postrequest script does not contain socket path {socket_path}"
+                )
+
+            log.info(
+                f"Create bucket, upload {object_count} objects, "
+                "start Unix socket, GET each object"
+            )
+            aws_reusable.create_bucket(cli_aws, bucket_name, endpoint)
+            bucket_created = True
+
+            keys = [str(i) for i in range(object_count)]
+            for key in keys:
+                body_path = os.path.join(TEST_DATA_PATH, f"access_log_{key}.bin")
+                with open(body_path, "wb") as fh:
+                    fh.write(os.urandom(object_size))
+                aws_reusable.put_object(
+                    cli_aws, bucket_name, key, endpoint, body=body_path
+                )
+                objects.append(key)
+                if config.local_file_delete:
+                    utils.exec_shell_cmd(f"rm -f {body_path}")
+
+            log.info(f"UnixSocket '{socket_path}' starting before GETs...")
+            collector = aws_reusable.start_unix_socket_event_collector(
+                socket_path, preferred_host=preferred_host
+            )
+
+            for key in keys:
+                download_path = os.path.join(
+                    TEST_DATA_PATH, f"access_log_get_{key}.bin"
+                )
+                aws_reusable.get_object(
+                    cli_aws,
+                    bucket_name,
+                    key,
+                    endpoint,
+                    download_path=download_path,
+                )
+                if config.local_file_delete:
+                    utils.exec_shell_cmd(f"rm -f {download_path}")
+
+            log.info(f"Wait {event_wait}s and collect Unix socket events")
+            events = aws_reusable.collect_unix_socket_events(
+                collector, wait_seconds=event_wait
+            )
+            event_keys = [ev.get("object", "") for ev in events]
+            log.info(f"expected keys : {keys}")
+            log.info(f"event keys    : {event_keys}")
+            if keys != event_keys:
+                detail = f"AssertionError: assert {keys} == {event_keys}"
+                if event_keys == []:
+                    detail += (
+                        f"\nLeft contains {len(keys)} more items, "
+                        f"first extra item: '{keys[0]}'"
+                    )
+                raise TestExecError(
+                    f"{detail} (tracker #81310: postrequest Lua access-log "
+                    "sent no / wrong events to Unix socket)"
+                )
+            log.info(f"keys == event_keys ({object_count} events) — postrequest OK")
+        finally:
+            if collector is not None:
+                try:
+                    aws_reusable.stop_unix_socket_event_collector(collector)
+                except Exception as e:
+                    log.warning(f"Failed to stop unix socket collector: {e}")
+            if script_set:
+                try:
+                    aws_reusable.remove_lua_script(context="postrequest")
+                except Exception as e:
+                    log.warning(f"Failed to remove postrequest script: {e}")
+            for key in objects:
+                try:
+                    aws_reusable.delete_object(cli_aws, bucket_name, key, endpoint)
+                except Exception as e:
+                    log.warning(f"delete_object {key}: {e}")
+            if bucket_created and delete_bucket:
+                try:
+                    aws_reusable.delete_bucket(cli_aws, bucket_name, endpoint)
+                except Exception as e:
+                    log.warning(f"Failed to delete bucket {bucket_name}: {e}")
+            if config.user_remove is True:
+                for u in user_info:
+                    try:
+                        s3_reusable.remove_user(u)
+                    except Exception as e:
+                        log.warning(f"Failed to remove user {u.get('user_id')}: {e}")
+
+        crash_info = s3_reusable.check_for_crash()
+        if crash_info:
+            raise TestExecError("ceph daemon crash found!")
+        return
 
     if config.test_ops.get("prerequest_cache_invalidation", False):
         script_set = False
@@ -312,8 +478,9 @@ def test_exec(config, ssh_con):
 
     if not config.test_ops.get("lua_postauth_cache", False):
         raise TestExecError(
-            "Enable lua_postauth_cache, prerequest_stale_bytecode_cache, or "
-            "prerequest_cache_invalidation in test_ops"
+            "Enable lua_postauth_cache, prerequest_stale_bytecode_cache, "
+            "prerequest_cache_invalidation, or lua_postrequest_access_log "
+            "in test_ops"
         )
 
     measure_latency = config.test_ops.get("measure_latency", True)

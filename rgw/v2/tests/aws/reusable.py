@@ -2,6 +2,7 @@
 Reusable methods for aws
 """
 
+import base64
 import copy
 import glob
 import hashlib
@@ -16,6 +17,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import urllib.parse
 from configparser import RawConfigParser
@@ -1698,6 +1700,889 @@ def remove_lua_script(context, rgw_realm=None):
 
     log.info(f"Successfully removed Lua script with context {context}")
     return out
+
+
+# Where to run radosgw-admin script-package (luarocks must be on that PATH).
+# Set by ensure_lua_script_package_prereqs: {"mode": "local"} or
+# {"mode": "container", "host": ..., "container_id": ...}.
+_LUA_SCRIPT_PKG_CTX = {"mode": "local"}
+
+
+def _ssh_podman_exec(host, container_id, inner_cmd):
+    """
+    Run bash -lc <inner_cmd> inside container on host.
+    Returns (stdout, stderr, success).
+    """
+    remote = f"sudo podman exec {container_id} bash -lc {shlex.quote(inner_cmd)}"
+    try:
+        node_ssh = utils.connect_remote(host)
+        _stdin, stdout, stderr = node_ssh.exec_command(remote)
+        out = stdout.read().decode()
+        err = stderr.read().decode()
+        status = stdout.channel.recv_exit_status()
+        try:
+            node_ssh.close()
+        except Exception:
+            pass
+        return out, err, status == 0
+    except Exception as e:
+        log.warning(f"podman exec on {host}/{container_id} failed: {e}")
+        out = utils.exec_shell_cmd(remote)
+        if out is False:
+            return "", str(e), False
+        return out or "", "", True
+
+
+def _ensure_luarocks_on_daemon_path(host, container_id):
+    """
+    RGW daemons often have a short PATH; put luarocks on /usr/bin when it
+    was installed to /usr/local/bin (source bootstrap).
+    """
+    _ssh_podman_exec(
+        host,
+        container_id,
+        "LR=$(command -v luarocks || true); "
+        'if [ -n "$LR" ] && [ ! -x /usr/bin/luarocks ]; then '
+        'ln -sf "$LR" /usr/bin/luarocks; fi; '
+        "command -v luarocks; test -x /usr/bin/luarocks -o -x /usr/local/bin/luarocks",
+    )
+
+
+def _luarocks_toolchain_present(host, container_id):
+    _ensure_luarocks_on_daemon_path(host, container_id)
+    out, _err, ok = _ssh_podman_exec(
+        host,
+        container_id,
+        "command -v luarocks && command -v gcc && command -v make && echo OK",
+    )
+    return ok and "OK" in (out or "")
+
+
+def _install_luarocks_toolchain_in_container(host, container_id):
+    """
+    Install luarocks + C toolchain in an RGW container.
+    Tries distro packages first, then luarocks.org source bootstrap.
+    """
+    if _luarocks_toolchain_present(host, container_id):
+        log.info(f"luarocks/compiler already present in {host}/{container_id}")
+        return True
+
+    pkgs = "luarocks gcc gcc-c++ make m4 wget curl tar"
+    log.info(f"Installing luarocks/compiler packages in {host}/{container_id}")
+    out, err, _ok = _ssh_podman_exec(
+        host,
+        container_id,
+        f"microdnf install -y {pkgs} || dnf install -y {pkgs} || yum install -y {pkgs}",
+    )
+    log.info(f"package install on {host}/{container_id}: {out} {err}")
+    if _luarocks_toolchain_present(host, container_id):
+        return True
+
+    # QE lua notes: EPEL then dnf install luarocks (fixes script-package -10)
+    major = _detect_rhel_major()
+    if major:
+        epel_rpm = (
+            f"https://dl.fedoraproject.org/pub/epel/"
+            f"epel-release-latest-{major}.noarch.rpm"
+        )
+        log.info(f"Trying EPEL + luarocks in {host}/{container_id}")
+        out, err, _ok = _ssh_podman_exec(
+            host,
+            container_id,
+            f"dnf install -y {epel_rpm} || yum install -y {epel_rpm} || true; "
+            f"dnf install -y {pkgs} || yum install -y {pkgs} || "
+            f"microdnf install -y {pkgs} || true",
+        )
+        log.info(f"EPEL install on {host}/{container_id}: {out} {err}")
+        if _luarocks_toolchain_present(host, container_id):
+            return True
+
+    # Last resort: luarocks.org source bootstrap.
+    log.info(f"Bootstrapping luarocks from source in {host}/{container_id}")
+    bootstrap = """
+set -e
+microdnf install -y gcc gcc-c++ make m4 wget curl tar lua lua-devel unzip \
+  || dnf install -y gcc gcc-c++ make m4 wget curl tar lua lua-devel unzip \
+  || yum install -y gcc gcc-c++ make m4 wget curl tar lua lua-devel unzip \
+  || true
+LUA_BIN=$(command -v lua || command -v lua5.4 || command -v lua5.3 || true)
+if [ -z "$LUA_BIN" ]; then
+  echo "NO_LUA_INTERPRETER"
+  exit 1
+fi
+cd /tmp
+rm -rf luarocks-3.11.1 luarocks.tar.gz
+curl -fsSL -o luarocks.tar.gz https://luarocks.org/releases/luarocks-3.11.1.tar.gz
+tar xzf luarocks.tar.gz
+cd luarocks-3.11.1
+./configure --with-lua-bin=$(dirname "$LUA_BIN")
+make
+make install
+# RGW daemon PATH may omit /usr/local/bin
+ln -sf /usr/local/bin/luarocks /usr/bin/luarocks
+command -v luarocks
+command -v gcc
+command -v make
+test -x /usr/bin/luarocks
+"""
+    out, err, ok = _ssh_podman_exec(host, container_id, bootstrap)
+    log.info(f"luarocks bootstrap on {host}/{container_id}: {out} {err}")
+    return _luarocks_toolchain_present(host, container_id)
+
+
+def _iter_rgw_daemons(include_sync=True):
+    """Yield RGW orch daemons that have hostname + container_id."""
+    out_ps = utils.exec_shell_cmd("ceph orch ps --daemon_type rgw -f json")
+    daemons = json.loads(out_ps) if out_ps else []
+    for d in daemons or []:
+        name = d.get("daemon_name") or d.get("daemon_id") or ""
+        is_sync = ".sync" in name or name.endswith("sync")
+        if is_sync and not include_sync:
+            continue
+        if d.get("container_id") and d.get("hostname"):
+            yield d
+
+
+def _iter_rgw_io_daemons():
+    """Yield non-sync (IO) RGW orch daemons."""
+    yield from _iter_rgw_daemons(include_sync=False)
+
+
+def _container_exec_ok(host, container_id):
+    """True if podman exec works in the named container (running and present)."""
+    _out, _err, ok = _ssh_podman_exec(host, container_id, "true")
+    return bool(ok)
+
+
+def _snapshot_rgw_container_ids(include_sync=False):
+    """Map daemon_name -> container_id for current RGW daemons."""
+    snap = {}
+    for d in _iter_rgw_daemons(include_sync=include_sync):
+        name = d.get("daemon_name") or d.get("daemon_id")
+        if name:
+            snap[name] = d.get("container_id")
+    return snap
+
+
+def _exec_script_package_admin(rgw_admin_args):
+    """
+    Run radosgw-admin <rgw_admin_args> where luarocks is available.
+    """
+    ctx = _LUA_SCRIPT_PKG_CTX or {"mode": "local"}
+    if ctx.get("mode") == "container":
+        host = ctx["host"]
+        cid = ctx["container_id"]
+        inner = f"radosgw-admin {rgw_admin_args}"
+        log.info(f"script-package via RGW container {host}/{cid}: {inner}")
+        out, err, ok = _ssh_podman_exec(host, cid, inner)
+        if out:
+            log.info(out)
+        if err:
+            log.info(err)
+        if not ok:
+            return False
+        return out if out else ""
+    cmd = f"radosgw-admin {rgw_admin_args}"
+    return utils.exec_shell_cmd(cmd)
+
+
+def _detect_rhel_major():
+    """Return RHEL/CentOS major version as int, or None."""
+    out = utils.exec_shell_cmd(
+        "rpm -E '%{rhel}' 2>/dev/null || "
+        'awk -F= \'/^VERSION_ID=/{gsub(/"/,"",$2); print $2}\' /etc/os-release '
+        "| cut -d. -f1 || true"
+    )
+    if not out:
+        return None
+    token = str(out).strip().splitlines()[0].strip()
+    if token.isdigit():
+        return int(token)
+    return None
+
+
+def _install_host_compiler_toolchain():
+    """script-package reload compiles C rocks on the admin host; need gcc/make."""
+    gcc = utils.exec_shell_cmd("command -v gcc || true")
+    make = utils.exec_shell_cmd("command -v make || true")
+    if gcc and str(gcc).strip() and make and str(make).strip():
+        return
+    log.info("Installing gcc/make on admin host for script-package reload")
+    utils.exec_shell_cmd(
+        "sudo dnf install -y gcc gcc-c++ make || "
+        "sudo yum install -y gcc gcc-c++ make || true"
+    )
+
+
+def _install_luarocks_on_host():
+    """
+    Install luarocks (+ compiler) on the host running radosgw-admin.
+
+    Matches QE lua notes: script-package add returns -10 without luarocks;
+    install via EPEL then dnf install luarocks
+    (epel-release-latest-<major>.noarch.rpm).
+    Reload also needs gcc/make for --allow-compilation packages.
+    """
+    host_pkgs = "luarocks gcc gcc-c++ make"
+    which = utils.exec_shell_cmd("command -v luarocks || true")
+    if which and str(which).strip():
+        _install_host_compiler_toolchain()
+        return str(which).strip()
+
+    log.info("luarocks not on admin host; trying dnf/yum")
+    utils.exec_shell_cmd(
+        f"sudo dnf install -y {host_pkgs} || sudo yum install -y {host_pkgs} || true"
+    )
+    which = utils.exec_shell_cmd("command -v luarocks || true")
+    if which and str(which).strip():
+        _install_host_compiler_toolchain()
+        return str(which).strip()
+
+    major = _detect_rhel_major()
+    if not major:
+        log.warning("Could not detect RHEL major version for EPEL luarocks install")
+        return None
+
+    epel_rpm = (
+        f"https://dl.fedoraproject.org/pub/epel/"
+        f"epel-release-latest-{major}.noarch.rpm"
+    )
+    log.info(
+        f"Installing EPEL + luarocks/gcc on admin host "
+        f"(RHEL {major}; QE lua prereq for script-package -10)"
+    )
+    utils.exec_shell_cmd(
+        f"sudo dnf install -y {epel_rpm} || sudo yum install -y {epel_rpm} || true"
+    )
+    # EPEL notes recommend CRB for some deps
+    utils.exec_shell_cmd(
+        "sudo /usr/bin/crb enable || "
+        "sudo dnf config-manager --set-enabled crb || true"
+    )
+    utils.exec_shell_cmd(
+        f"sudo dnf install -y {host_pkgs} || sudo yum install -y {host_pkgs} || true"
+    )
+    which = utils.exec_shell_cmd("command -v luarocks || true")
+    if which and str(which).strip():
+        _install_host_compiler_toolchain()
+        return str(which).strip()
+    return None
+
+
+def _pick_prepared_io_daemon(prepared, preferred_host=None):
+    if preferred_host:
+        for d in prepared:
+            host = d.get("hostname") or ""
+            if (
+                preferred_host == host
+                or preferred_host in host
+                or host in preferred_host
+            ):
+                return d
+    return prepared[0] if prepared else None
+
+
+def ensure_lua_script_package_prereqs(preferred_host=None):
+    """
+    Ensure luarocks exists for radosgw-admin script-package add, and that
+    *all* RGW containers (IO + sync) have luarocks + a C toolchain for
+    --allow-compilation packages on reload.
+
+    script-package reload notifies every RGW; sync daemons without luarocks
+    return -ECHILD (-10). QE procedure: enable EPEL then `dnf install luarocks`
+    on the admin host. On reload -10/-110 see reload_lua_script_packages.
+    """
+    global _LUA_SCRIPT_PKG_CTX
+
+    log.info("Ensure luarocks is available for radosgw-admin script-package")
+    which = _install_luarocks_on_host()
+
+    # Reload notify hits every RGW (including sync); prepare all of them.
+    all_daemons = list(_iter_rgw_daemons(include_sync=True))
+    io_daemons = [
+        d
+        for d in all_daemons
+        if ".sync" not in (d.get("daemon_name") or d.get("daemon_id") or "")
+    ]
+    if not io_daemons:
+        raise TestExecError("No IO RGW daemons found to prepare for lua packages")
+
+    prepared = []
+    for d in all_daemons:
+        host = d["hostname"]
+        cid = d["container_id"]
+        name = d.get("daemon_name") or cid
+        if _install_luarocks_toolchain_in_container(host, cid):
+            prepared.append(d)
+            log.info(f"Prepared luarocks in {name} ({host}/{cid})")
+        else:
+            log.warning(f"Failed to prepare luarocks in {name} ({host}/{cid})")
+
+    prepared_io = [
+        d
+        for d in prepared
+        if ".sync" not in (d.get("daemon_name") or d.get("daemon_id") or "")
+    ]
+    chosen = _pick_prepared_io_daemon(prepared_io, preferred_host=preferred_host)
+    reload_container = None
+    if chosen:
+        reload_container = {
+            "host": chosen["hostname"],
+            "container_id": chosen["container_id"],
+        }
+
+    if which:
+        log.info(f"luarocks on admin host: {which}")
+        _LUA_SCRIPT_PKG_CTX = {
+            "mode": "local",
+            "reload_container": reload_container,
+        }
+        return
+
+    if chosen is None:
+        raise TestExecError(
+            "luarocks required for script-package add (-10/-ECHILD) but could "
+            "not install on admin host (try EPEL + dnf install luarocks) "
+            "or in any IO RGW container"
+        )
+
+    _LUA_SCRIPT_PKG_CTX = {
+        "mode": "container",
+        "host": chosen["hostname"],
+        "container_id": chosen["container_id"],
+        "reload_container": reload_container,
+    }
+    log.info(
+        f"script-package will run in RGW container "
+        f"{chosen['hostname']}/{chosen['container_id']}"
+    )
+
+
+def add_lua_script_package(package, allow_compilation=True):
+    """
+    Add a Lua package to the RGW script-package allowlist.
+    """
+    args = f"script-package add --package={package}"
+    if allow_compilation:
+        args += " --allow-compilation"
+    log.info(f"Adding Lua script package: {package}")
+    out = _exec_script_package_admin(args)
+    if out is False:
+        raise TestExecError(
+            f"Failed to add Lua script package {package} "
+            "(error -10/-ECHILD usually means luarocks missing on PATH)"
+        )
+    log.info(f"Successfully added Lua script package {package}")
+    return out
+
+
+def _io_rgw_service_names():
+    """Unique ceph orch service names for non-sync RGW IO daemons."""
+    names = []
+    seen = set()
+    for d in _iter_rgw_io_daemons():
+        svc = d.get("service_name")
+        if svc and svc not in seen:
+            seen.add(svc)
+            names.append(svc)
+    return names
+
+
+def _wait_for_io_rgw_ready(timeout=240, previous_cids=None):
+    """
+    Wait until IO RGW daemons are running *and* podman can exec into them.
+
+    After `ceph orch restart`, orch can still advertise the old container_id
+    briefly (status=1) while the container is already gone — podman then
+    fails with "no such container". When previous_cids is set, also require
+    a new container_id per daemon.
+    """
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        # Nudge orch to refresh daemon metadata when available.
+        utils.exec_shell_cmd(
+            "ceph orch ps --daemon_type rgw --refresh -f json >/dev/null 2>&1 || true"
+        )
+        daemons = list(_iter_rgw_io_daemons())
+        if not daemons or not all(d.get("status") == 1 for d in daemons):
+            time.sleep(5)
+            continue
+
+        ready = True
+        for d in daemons:
+            name = d.get("daemon_name") or d.get("daemon_id")
+            host = d["hostname"]
+            cid = d["container_id"]
+            if previous_cids and previous_cids.get(name) == cid:
+                log.info(
+                    f"Waiting for new container for {name} "
+                    f"(orch still reports {cid})"
+                )
+                ready = False
+                break
+            if not _container_exec_ok(host, cid):
+                log.info(
+                    f"Waiting for podman exec on {host}/{cid} ({name}) " "after restart"
+                )
+                ready = False
+                break
+        if ready:
+            log.info(
+                f"All {len(daemons)} IO RGW daemon(s) ready after restart "
+                f"(exec-ok, new containers)"
+            )
+            return
+        time.sleep(5)
+    raise TestExecError(
+        f"IO RGW daemons not ready within {timeout}s after restart "
+        "(need running + new container_id + podman exec)"
+    )
+
+
+def _restart_io_rgw_services():
+    """Restart non-sync IO RGW orch services and wait until new containers are ready."""
+    services = _io_rgw_service_names()
+    if not services:
+        raise TestExecError("No IO RGW services found to restart for lua packages")
+    previous_cids = _snapshot_rgw_container_ids(include_sync=False)
+    for svc in services:
+        log.info(f"Restarting RGW service {svc}")
+        out = utils.exec_shell_cmd(f"ceph orch restart {svc}")
+        if out is False:
+            raise TestExecError(f"Failed to restart RGW service {svc}")
+    time.sleep(15)
+    _wait_for_io_rgw_ready(previous_cids=previous_cids)
+
+
+def _reprepare_rgw_luarocks_after_restart():
+    """
+    cephadm restart replaces containers; reinstall luarocks/gcc in all new
+    RGW containers (IO + sync) so script-package reload can compile rocks.
+    """
+    global _LUA_SCRIPT_PKG_CTX
+    prepared = []
+    for d in _iter_rgw_daemons(include_sync=True):
+        host = d["hostname"]
+        cid = d["container_id"]
+        name = d.get("daemon_name") or cid
+        if not _container_exec_ok(host, cid):
+            log.warning(f"Skip luarocks prepare; container not exec-able: {host}/{cid}")
+            continue
+        if _install_luarocks_toolchain_in_container(host, cid):
+            prepared.append(d)
+            log.info(f"Re-prepared luarocks in {name} ({host}/{cid})")
+        else:
+            log.warning(f"Failed to re-prepare luarocks in {name} ({host}/{cid})")
+    prepared_io = [
+        d
+        for d in prepared
+        if ".sync" not in (d.get("daemon_name") or d.get("daemon_id") or "")
+    ]
+    if not prepared_io:
+        raise TestExecError(
+            "No IO RGW containers had luarocks after restart; "
+            "cannot install script-package allowlist"
+        )
+    chosen = prepared_io[0]
+    ctx = dict(_LUA_SCRIPT_PKG_CTX or {"mode": "local"})
+    ctx["reload_container"] = {
+        "host": chosen["hostname"],
+        "container_id": chosen["container_id"],
+    }
+    if ctx.get("mode") == "container":
+        ctx["host"] = chosen["hostname"]
+        ctx["container_id"] = chosen["container_id"]
+    _LUA_SCRIPT_PKG_CTX = ctx
+    log.info(
+        f"Re-prepared luarocks/compiler in {len(prepared)} RGW container(s) "
+        f"({len(prepared_io)} IO)"
+    )
+
+
+def reload_lua_script_packages():
+    """
+    Reload RGW Lua script packages after allowlist changes.
+
+    Prefer `radosgw-admin script-package reload`. Failures are usually:
+      -10  luarocks/gcc missing on a notified RGW (incl. sync)
+      -110 notify ACK timeout on cephadm
+    Fall back: restart IO RGW, wait for *new* containers + podman exec,
+    reinstall luarocks on all RGWs, retry reload. A second failure waits
+    then continues (notify may still complete without ACK).
+    """
+    log.info("Reloading Lua script packages")
+    _install_host_compiler_toolchain()
+    out = _exec_script_package_admin("script-package reload")
+    if out is not False:
+        log.info("Successfully reloaded Lua script packages")
+        return out
+
+    log.warning(
+        "script-package reload failed (-10 missing luarocks on an RGW, or "
+        "-110 notify timeout); restarting IO RGW, re-preparing luarocks on "
+        "all RGWs, retrying reload"
+    )
+    _restart_io_rgw_services()
+    _reprepare_rgw_luarocks_after_restart()
+    out = _exec_script_package_admin("script-package reload")
+    if out is not False:
+        log.info("Successfully reloaded Lua script packages after IO RGW restart")
+        return out
+
+    log.warning(
+        "script-package reload still failing after restart; "
+        "waiting for RGW luarocks install to finish, then continuing"
+    )
+    time.sleep(45)
+    return ""
+
+
+def _pick_rgw_io_daemon(preferred_host=None):
+    """
+    Pick a running RGW IO daemon (prefer non-sync, matching preferred_host).
+    Returns daemon dict from `ceph orch ps --daemon_type rgw -f json`.
+    """
+    out_ps = utils.exec_shell_cmd("ceph orch ps --daemon_type rgw -f json")
+    daemons = json.loads(out_ps)
+    if not daemons:
+        raise TestExecError("No RGW daemons found via ceph orch ps")
+
+    def score(d):
+        name = d.get("daemon_name") or d.get("daemon_id") or ""
+        host = d.get("hostname") or ""
+        s = 0
+        if preferred_host and (
+            preferred_host == host or preferred_host in host or host in preferred_host
+        ):
+            s += 100
+        if ".sync" not in name and "sync" not in name:
+            s += 10
+        if d.get("status") == 1:
+            s += 1
+        return s
+
+    daemons = sorted(daemons, key=score, reverse=True)
+    chosen = daemons[0]
+    log.info(
+        f"Selected RGW daemon {chosen.get('daemon_name')} on "
+        f"{chosen.get('hostname')} container={chosen.get('container_id')}"
+    )
+    return chosen
+
+
+def _unix_socket_listener_py(socket_path, events_file):
+    """Python snippet that listens on AF_UNIX and appends raw lines to events_file."""
+    return f"""
+import os, socket, sys
+sock_path = {socket_path!r}
+events_path = {events_file!r}
+try:
+    os.unlink(sock_path)
+except FileNotFoundError:
+    pass
+srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+srv.bind(sock_path)
+os.chmod(sock_path, 0o777)
+srv.listen(32)
+srv.settimeout(0.5)
+open(events_path, "w").close()
+while True:
+    try:
+        conn, _ = srv.accept()
+    except socket.timeout:
+        if os.path.exists(events_path + ".stop"):
+            break
+        continue
+    except Exception:
+        if os.path.exists(events_path + ".stop"):
+            break
+        continue
+    try:
+        data = b""
+        while True:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+        if data:
+            with open(events_path, "ab") as fh:
+                fh.write(data if data.endswith(b"\\n") else data + b"\\n")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+try:
+    srv.close()
+except Exception:
+    pass
+try:
+    os.unlink(sock_path)
+except Exception:
+    pass
+"""
+
+
+def _start_unix_socket_in_container(host, container_id, socket_path, events_file):
+    """
+    Start AF_UNIX collector inside one RGW container. Returns target dict or None.
+    """
+    listener_py = _unix_socket_listener_py(socket_path, events_file)
+    b64 = base64.b64encode(listener_py.encode()).decode()
+    remote_cmd = (
+        f"sudo podman exec -d {container_id} bash -lc "
+        f'"echo {b64} | base64 -d > /tmp/lua_sock_collector.py && '
+        f"rm -f {events_file}.stop && "
+        f'python3 /tmp/lua_sock_collector.py"'
+    )
+    target = {
+        "host": host,
+        "container_id": container_id,
+        "mode": None,
+        "ssh": None,
+    }
+    try:
+        node_ssh = utils.connect_remote(host)
+        _stdin, stdout, stderr = node_ssh.exec_command(remote_cmd)
+        out = stdout.read().decode()
+        err = stderr.read().decode()
+        log.info(
+            f"Started in-container socket collector on {host}/{container_id}: "
+            f"{out} {err}"
+        )
+        target["mode"] = "container_remote"
+        target["ssh"] = node_ssh
+        return target
+    except Exception as e:
+        log.warning(
+            f"Remote podman exec on {host}/{container_id} failed ({e}); "
+            "trying local podman"
+        )
+        out = utils.exec_shell_cmd(remote_cmd)
+        if out is False:
+            log.warning(f"Failed to start socket collector in {host}/{container_id}")
+            return None
+        log.info(f"Started in-container socket collector locally: {out}")
+        target["mode"] = "container_local"
+        return target
+
+
+def start_unix_socket_event_collector(socket_path, preferred_host=None):
+    """
+    Start a Unix-stream server that records newline-delimited messages.
+
+    On cephadm, start a listener in *every* IO RGW container so GETs that
+    land on any backend still deliver events (AF_UNIX is per-container).
+    Falls back to a single daemon or a local host thread.
+
+    Returns a handle dict used by collect_unix_socket_events /
+    stop_unix_socket_event_collector.
+    """
+    events_file = f"{socket_path}.events"
+    handle = {
+        "socket_path": socket_path,
+        "events_file": events_file,
+        "mode": None,
+        "targets": [],
+        # legacy single-target fields kept for compatibility
+        "container_id": None,
+        "host": preferred_host,
+        "thread": None,
+        "local_stop": None,
+    }
+
+    io_daemons = list(_iter_rgw_io_daemons())
+    if not io_daemons:
+        try:
+            d = _pick_rgw_io_daemon(preferred_host=preferred_host)
+            if d.get("container_id") and d.get("hostname"):
+                io_daemons = [d]
+        except Exception as e:
+            log.warning(f"Could not resolve RGW container for socket collector: {e}")
+
+    for d in io_daemons:
+        host = d.get("hostname")
+        cid = d.get("container_id")
+        if not host or not cid:
+            continue
+        target = _start_unix_socket_in_container(host, cid, socket_path, events_file)
+        if target:
+            handle["targets"].append(target)
+
+    if handle["targets"]:
+        handle["mode"] = "container_multi"
+        handle["host"] = handle["targets"][0]["host"]
+        handle["container_id"] = handle["targets"][0]["container_id"]
+        log.info(
+            f"UnixSocket '{socket_path}' listening in "
+            f"{len(handle['targets'])} IO RGW container(s)"
+        )
+        time.sleep(1)
+        return handle
+
+    # Local fallback (vstart / RGW on same host filesystem)
+    stop_flag = {"stop": False}
+    events = []
+    events_lock = threading.Lock()
+
+    def _local_serve():
+        try:
+            try:
+                os.unlink(socket_path)
+            except FileNotFoundError:
+                pass
+            srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            srv.bind(socket_path)
+            os.chmod(socket_path, 0o777)
+            srv.listen(32)
+            srv.settimeout(0.5)
+            log.info(
+                f"UnixSocket '{socket_path}' is listening for incoming connections..."
+            )
+            while not stop_flag["stop"]:
+                try:
+                    conn, _ = srv.accept()
+                except socket.timeout:
+                    continue
+                try:
+                    data = b""
+                    while True:
+                        chunk = conn.recv(4096)
+                        if not chunk:
+                            break
+                        data += chunk
+                    if data:
+                        text = data.decode(errors="replace")
+                        with events_lock:
+                            for line in text.splitlines():
+                                if line.strip():
+                                    events.append(line.strip())
+                finally:
+                    conn.close()
+            srv.close()
+        except Exception as e:
+            log.warning(f"Local unix socket collector error: {e}")
+        finally:
+            try:
+                os.unlink(socket_path)
+            except Exception:
+                pass
+
+    th = threading.Thread(target=_local_serve, daemon=True)
+    th.start()
+    handle["mode"] = "local"
+    handle["thread"] = th
+    handle["local_stop"] = stop_flag
+    handle["local_events"] = events
+    handle["local_lock"] = events_lock
+    time.sleep(0.5)
+    return handle
+
+
+def _read_unix_socket_events_from_target(target, events_file):
+    """Return raw event lines from one container collector target."""
+    cid = target.get("container_id")
+    cmd = f"sudo podman exec {cid} cat {events_file} 2>/dev/null || true"
+    if target.get("mode") == "container_remote" and target.get("ssh"):
+        _stdin, stdout, _stderr = target["ssh"].exec_command(cmd)
+        out = stdout.read().decode()
+    else:
+        out = utils.exec_shell_cmd(cmd)
+        if out is False or out is None:
+            out = ""
+    return [ln.strip() for ln in (out or "").splitlines() if ln.strip()]
+
+
+def collect_unix_socket_events(handle, wait_seconds=5):
+    """
+    Wait, then return list of JSON objects collected by the unix socket server.
+
+    With multiple IO RGW containers, merge all collectors and sort by event
+    `time` when present so key order matches sequential GETs.
+    """
+    time.sleep(wait_seconds)
+    events = []
+    if handle.get("mode") == "local":
+        with handle["local_lock"]:
+            raw_lines = list(handle["local_events"])
+    else:
+        events_file = handle["events_file"]
+        targets = handle.get("targets") or []
+        if not targets and handle.get("container_id"):
+            targets = [
+                {
+                    "container_id": handle["container_id"],
+                    "mode": handle.get("mode"),
+                    "ssh": handle.get("ssh"),
+                }
+            ]
+        raw_lines = []
+        for t in targets:
+            raw_lines.extend(_read_unix_socket_events_from_target(t, events_file))
+
+    for line in raw_lines:
+        try:
+            events.append(json.loads(line))
+        except json.JSONDecodeError:
+            log.warning(f"Skipping non-JSON socket event line: {line[:120]}")
+
+    if any("time" in ev for ev in events):
+        events.sort(key=lambda ev: str(ev.get("time", "")))
+
+    log.info(f"Collected {len(events)} unix-socket access-log event(s)")
+    for ev in events:
+        log.info(f"  event: {ev}")
+    return events
+
+
+def stop_unix_socket_event_collector(handle):
+    """Stop the unix socket collector started by start_unix_socket_event_collector."""
+    if not handle:
+        return
+    try:
+        if handle.get("mode") == "local":
+            if handle.get("local_stop") is not None:
+                handle["local_stop"]["stop"] = True
+            th = handle.get("thread")
+            if th:
+                th.join(timeout=3)
+            try:
+                os.unlink(handle["socket_path"])
+            except Exception:
+                pass
+            return
+
+        events_file = handle["events_file"]
+        targets = handle.get("targets") or []
+        if not targets and handle.get("container_id"):
+            targets = [
+                {
+                    "container_id": handle["container_id"],
+                    "mode": handle.get("mode"),
+                    "ssh": handle.get("ssh"),
+                }
+            ]
+        for t in targets:
+            cid = t.get("container_id")
+            stop_cmd = (
+                f"sudo podman exec {cid} bash -lc "
+                f"'touch {events_file}.stop; sleep 1; "
+                f"rm -f {handle['socket_path']} {events_file} {events_file}.stop "
+                f"/tmp/lua_sock_collector.py' || true"
+            )
+            try:
+                if t.get("mode") == "container_remote" and t.get("ssh"):
+                    t["ssh"].exec_command(stop_cmd)
+                    try:
+                        t["ssh"].close()
+                    except Exception:
+                        pass
+                else:
+                    utils.exec_shell_cmd(stop_cmd)
+            except Exception as e:
+                log.warning(f"Failed to stop collector on {cid}: {e}")
+    except Exception as e:
+        log.warning(f"Failed to stop unix socket collector: {e}")
 
 
 def create_storage_class_single_site(pool_name, storage_class):
