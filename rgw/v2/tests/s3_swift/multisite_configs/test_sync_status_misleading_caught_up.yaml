@@ -1,0 +1,11 @@
+# Script: test_sync_status_misleading_caught_up.py
+# polarion-id: CEPH-83633030
+# Tracker: https://tracker.ceph.com/issues/81763
+config:
+  user_count: 0
+  test_ops:
+    promote_zone: secondary
+    system_access_key: "3way123"
+    system_secret_key: "3way123"
+    master_endpoint_port: 80
+    expect_fixed: true
