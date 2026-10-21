@@ -1,0 +1,16 @@
+# script: test_user_reset_stats_paged.py
+# Tracker: https://tracker.ceph.com/issues/81896
+# Fix: https://github.com/ceph/ceph/pull/72828
+# Create 2500 buckets with one object each.
+# sync-stats must report num_objects 2500.
+# reset-stats must report num_objects 2500.
+# An unfixed build reports 500, the last 1000-entry page only.
+config:
+  user_count: 1
+  bucket_count: 2500
+  objects_count: 1
+  user_remove: true
+  test_ops:
+    object_size: 1
+    sync_attempts: 6
+    sync_delay: 5
