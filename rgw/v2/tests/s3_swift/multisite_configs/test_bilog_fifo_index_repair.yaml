@@ -1,0 +1,13 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 7.1 missing index -> FIFO ADD, 7.2 orphaned index -> FIFO DEL
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 2
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: index_repair
+    bilog_type: fifo
