@@ -1,0 +1,259 @@
+================================================================================
+IBMCEPH-19403 - Scale, Parallel, Versioned/LC and Negative Scenarios (PLAN ONLY)
+================================================================================
+Status : proposed scenarios. None of these have been run or coded yet.
+Scope  : same bug families as the 12 JIRAs (MPU lock/complete races, delete and
+         overwrite races, CopyObject-self, bucket-index/stalled write,
+         conditional PUTs) plus the versioned/LC/delete-marker areas from the
+         QE_UPDATE.md model-checker findings and apple-new-ms/test_versioned_*.
+
+Format : each scenario is two lines.
+         Line 1 = what we do.   Line 2 = what must be true at the end.
+Oracle : unless stated, "intact" means HEAD=200, GET=200 and full byte count
+         after GC has run, and "clean" means radosgw-admin bucket check shows no
+         inconsistency and no orphan RADOS objects remain after GC.
+
+--------------------------------------------------------------------------------
+LIMITS THAT SHAPE THESE SCENARIOS (from the source, ceph-9.2-rhel-patches)
+--------------------------------------------------------------------------------
+ - rgw_multipart_part_upload_limit = 10000 parts per upload.
+ - rgw_multipart_min_part_size = 5 MiB: every part except the last must be at
+   least this, checked in RadosMultipartUpload::complete (rgw_sal_rados.cc:4284).
+   => 10,000 parts x 5 MiB is about 49 GiB, not 1 GiB.
+   => For "10,000 parts, ~1 GiB" set rgw_multipart_min_part_size low on the
+      test RGWs (about 100 KiB parts), and revert it afterwards.
+ - Complete lists parts 1000 at a time (max_parts = 1000), so 10,000 parts is
+   10 list calls while the completion lock is held.
+ - Complete lock = rgw_mp_lock_max_time (600 s), renewed every half period. A
+   very long complete is a direct test of the 19405 renewal path.
+ - Meta-object delete in complete and in abort retries at most 15 times
+   (MAX_DELETE_RETRIES) when part uploads race with it.
+ - DeleteMultiObjects accepts at most 1000 keys per request
+   (rgw_delete_multi_obj_max_num).
+ - Dynamic resharding triggers at rgw_max_objs_per_shard (default 100000).
+ - Pending index ops expire after rgw_pending_bucket_index_op_expiration
+   (default 120 s) - this is the 19416 window.
+ - rgw_lc_debug_interval makes one LC "day" N seconds, so LC can be tested fast.
+
+--------------------------------------------------------------------------------
+TARGET CLUSTERS AND SAFETY
+--------------------------------------------------------------------------------
+ - apple (10.0.66.143): 12 OSDs, 180 GiB raw. Fine for ~1 GiB objects and up to
+   about 1M objects of 1-4 KiB. NOT enough for 49 GiB objects (replicated x3).
+ - grim017: 29 TiB, EC 2+2, but already holds 183M objects, 1161 buckets, 614
+   large-omap warnings and recent RGW crashes. Run nothing there without
+   explicit approval, and use dedicated new buckets only.
+ - Every scenario uses its own new buckets and deletes them at the end.
+ - Scenarios marked [INJECT] need ms_inject_delay_* on RGW-A like the existing
+   suite. Scenarios marked [KILL] SIGKILL RGW-A and must not run alongside
+   other load.
+
+================================================================================
+GROUP S - MULTIPART SCALE (many parts, big parts)
+================================================================================
+
+S1  [19405,19406] 10,000-part MPU (~1 GiB, min part size lowered): complete on RGW-A, retry on RGW-B after the lock lapses.
+    Expect: exactly one completion wins, object intact after GC, no part tails queued for GC.
+
+S2  [19405] 10,000-part complete with rgw_mp_lock_inject_renewal_error=-5, so the lock renewal fails mid-complete.
+    Expect: the in-flight complete returns an error (HTTP 500), never silently succeeds, and the object is intact.
+
+S3  [19405] Same 10,000-part complete with rgw_mp_lock_inject_delay=30 added after the lock is taken, to force renewal cycles.
+    Expect: lock is renewed at least once, only one completion commits, object intact after GC.
+
+S4  [19406,19407bl] 10,000-part complete, then OSD-blocklist RGW-A during the .meta delete, retry from RGW-B after the TTL.
+    Expect: HEAD=200 and GET=200 with full size after GC; a failed .meta delete must not queue live tails to GC.
+
+S5  [19410] 1,000 uploads each with 8 parts, all expired by LC at once (rgw_lc_debug_interval) while 100 of them are being completed.
+    Expect: every completed object is intact; every expired-and-not-completed upload is gone; no completed object loses tails.
+
+S6  [19405,19406] 100 parts of 500 MiB each (about 49 GiB, on a large cluster only): complete on A and retry on B after the lock lapses.
+    Expect: same outcome as S1; complete time stays below rgw_mp_lock_max_time or the lock is renewed.
+
+S7  [19407] While one complete is deleting .meta, keep calling UploadPart on the same uploadId (up to 20 times) to exceed the 15 delete retries.
+    Expect: complete returns cleanly, the object is intact, and late-arriving parts are cleaned up (no orphan RADOS parts).
+
+S8  [19410] While one AbortMultipartUpload runs, keep calling UploadPart on the same uploadId to exceed the 15 abort retries.
+    Expect: abort returns success or NoSuchUpload, never leaves a half-aborted upload; all parts end up in GC or deleted.
+
+S9  [19405] Parallel uploads of the same 8 parts via 64 client threads (500 MiB total), then complete from RGW-A and RGW-B at the same moment.
+    Expect: exactly one HTTP 200 and the other gets an in-progress error or the idempotent 200; object intact.
+
+S10 [19406v] 1,000 versioned (Enabled) and 1,000 suspended uploads of 8 parts, each completed with a crash-and-retry pattern.
+    Expect: versioned buckets have one version per successful complete; suspended buckets keep one null version; none lost.
+
+================================================================================
+GROUP P - MANY BUCKETS IN PARALLEL
+================================================================================
+
+P1  [19405] 200 buckets in parallel, each running one 8-part MPU with a concurrent second Complete from the other RGW.
+    Expect: all 200 objects intact after GC; zero HEAD=200/GET=404 across the whole set.
+
+P2  [19412,19417] 200 buckets in parallel, each with a delayed DeleteObject on RGW-A racing a PutObject on RGW-B.
+    Expect: no bucket ends with HEAD=404 after a PUT returned 200, and none ends with HEAD=200/GET=404.
+
+P3  [19414] 100 buckets in parallel, each with a self-CopyObject racing an overwrite PUT, 20 MiB 2-part objects.
+    Expect: every object ends intact with the PUT's data; no HEAD=200/GET=404 (19414 is still open on grim017).
+
+P4  [19416] 100 buckets in parallel, each with one stalled PUT and a ListObjectsV2 from the other RGW after 8 s (pending-op expiry set low).
+    Expect: for every key, ListObjectsV2 ETag equals HeadObject ETag after the PUT completes (19416 is open on grim017).
+
+P5  [19424] 100 versioned buckets x 8 concurrent If-Match PUTs on the same key, split across both RGWs.
+    Expect: at most 1 HTTP 200 and the rest 412 per bucket, and version count is v0 plus 1 (19424 is open on grim017).
+
+P6  [19423] 500 buckets in parallel, each checking If-Match with exact ETag, ETag plus suffix, and ETag prefix on GET and PUT.
+    Expect: exact gives 200; any prefix or suffix mismatch gives 412; no 5xx anywhere.
+
+P7  [all] Create and delete 2,000 buckets in a loop from 32 threads while 10 other buckets run the S1/P1 scenarios.
+    Expect: the 10 steady buckets stay intact; no bucket-instance or index errors in the RGW log.
+
+================================================================================
+GROUP M - MILLIONS OF SMALL OBJECTS
+================================================================================
+
+M1  [19416] Load 1,000,000 objects of 1-4 KiB into one bucket, then run the 19416 stalled-write test on 1,000 of the keys.
+    Expect: listing ETag matches HEAD ETag for those 1,000 keys; the index is not rewritten from stale heads.
+
+M2  [19412,19417] 1,000,000 small objects; 64 threads overwrite and delete random keys at once for 30 minutes across both RGWs.
+    Expect: radosgw-admin bucket check --check-objects finds no HEAD-without-index or index-without-head; object count matches the expected count.
+
+M3  [19424] 1,000,000 versioned keys, each with 4 concurrent If-Match PUTs on both RGWs for 10,000 sampled keys.
+    Expect: per key at most 1 winner; total versions equals keys plus winners, no key with more than one new version per round.
+
+M4  [19412] DeleteMultiObjects with 1000 keys per request, 1000 requests in parallel from 16 threads, while the same keys are rewritten.
+    Expect: every key ends either absent or fully intact; no key with HEAD=200/GET=404; no 5xx.
+
+M5  [19416] Dynamic reshard triggered by writing past rgw_max_objs_per_shard while 32 threads overwrite and delete existing keys.
+    Expect: after the reshard, the bucket stats, listing count and GET of each sampled key all agree; no lost writes.
+
+M6  [19416] 5,000,000 small objects into one bucket with reshard disabled, then list the whole bucket from both RGWs.
+    Expect: listing returns exactly the written keys, no duplicates, no ghost keys, and large-omap warnings are noted.
+
+M7  [19412] Delete 1,000,000 small objects with 64 threads while the same prefix is being rewritten from the other RGW.
+    Expect: GC queue drains to zero and the rewritten objects are all intact after GC.
+
+M8  [19413] CopyObject of 1,000,000 small objects into a second bucket with 64 threads while the sources are overwritten.
+    Expect: every destination object matches either the old or the new source content; no source tail is deleted early.
+
+================================================================================
+GROUP L - LARGE PARTS / LARGE OBJECTS
+================================================================================
+
+L1  [19405] 8 parts x 1 GiB, completed twice at once from different RGWs with the lock renewal error injected.
+    Expect: one completion wins and the object is intact; the loser never queues the winner's tails to GC.
+
+L2  [19414] Self-CopyObject of a 20 GiB 4-part object with metadata REPLACE racing an overwrite PUT of a new 20 GiB object.
+    Expect: the object is intact and equals the PUT's data after GC; the copy does not restore the old manifest.
+
+L3  [19412] DeleteObject on a 10 GiB multipart object racing an overwrite PUT, using rgw_inject_delay_pattern=delete_obj_before_head_delete.
+    Expect: either the new object is intact or the object is absent; never HEAD=200/GET=404 and no leaked tail.
+
+L4  [19406] Complete a 5 GiB multipart object, SIGKILL RGW-A just after the head write, retry after the lock TTL.
+    Expect: intact after GC; a crash between head write and .meta delete does not cause data loss.
+
+================================================================================
+GROUP K - VERSIONED BUCKETS, DELETE MARKERS, LC, TAGS (model-checker areas)
+================================================================================
+
+K1  [19424] Versioned bucket, 10,000 keys, 8 concurrent PUTs per key with If-None-Match: * on a new key.
+    Expect: exactly one 200 per key and 7x 412; one version per key; no duplicate version ids.
+
+K2  [19412] Versioned bucket, 100 threads doing DeleteObject (delete marker) and PutObject on the same 1,000 keys for 10 minutes.
+    Expect: each key's version list is ordered and consistent; the current version is the latest committed op; no GET=404 on a current non-marker version.
+
+K3  [19412,19417] Versioned bucket, delayed DeleteObject on A racing PutObject on B for 1,000 keys.
+    Expect: either a delete marker sits on top of the new version or the new version is current; the new version is always readable.
+
+K4  [19407] Versioned MPU complete retry racing a DeleteObject (delete marker), lock lapse forced, 500 keys in parallel.
+    Expect: retry is refused (HTTP 500 or 404); one version plus one delete marker per key; no duplicated OLH entry.
+
+K5  [19406v] Versioned bucket, SIGKILL RGW-A in the middle of set_olh() for 200 in-flight MPU completes.
+    Expect: after restart each key has exactly one current version; bucket check clean; no stuck pending OLH log entries.
+
+K6  [19410] LC rule expiring noncurrent versions plus delete-marker cleanup on a 1,000,000-version bucket, while 32 threads write new versions.
+    Expect: LC removes only noncurrent versions older than the rule; the newest version of every key survives and is readable.
+
+K7  [19410] LC AbortIncompleteMultipartUpload (days=1, rgw_lc_debug_interval low) on 10,000 uploads while 1,000 of them are completed.
+    Expect: completed objects are intact; only incomplete uploads are aborted; no HEAD=200/GET=404 (LC abort path at rgw_lc.cc:978).
+
+K8  [19412] LC tag-filtered expiration (tag status=old) while PutObjectTagging flips tags from old to keep on the same 100,000 objects.
+    Expect: no object tagged keep at LC commit time is deleted (the TOCTOU case in repro_f13_lc_tag_toctou.py).
+
+K9  [19412] DeleteObjectTagging and PutObjectTagging at 64 threads while the same objects are overwritten and deleted.
+    Expect: no tag write resurrects a deleted object; no overwrite loses its data; no 5xx.
+
+K10 [19424] Versioned bucket, suspended-then-enabled toggling every 30 s while 32 threads PUT, DELETE and If-Match PUT the same keys.
+    Expect: null-version handling stays consistent; no duplicate null versions; no lost current version.
+
+K11 [19412] Delete a specific VersionId from 100,000 versions while the same keys receive new PUTs, 32 threads.
+    Expect: only the targeted version disappears; the current version stays readable; bucket stats equal the version count.
+
+================================================================================
+GROUP N - NEGATIVE / ABUSE SCENARIOS
+================================================================================
+
+N1  [MPU] CompleteMultipartUpload listing 10,001 parts, then part number 0 and 10,001 on UploadPart.
+    Expect: clean S3 errors (InvalidArgument / InvalidPart / EntityTooLarge), no 5xx, no partial object.
+
+N2  [MPU] Complete with parts out of order, a missing part, a duplicated part number, and a wrong part ETag, 1,000 times in parallel.
+    Expect: InvalidPartOrder or InvalidPart every time; the upload stays usable; no object created.
+
+N3  [MPU] Complete with a non-last part smaller than the minimum part size, at 10,000 parts.
+    Expect: EntityTooSmall; no object created; the upload can still be completed after the part is re-uploaded.
+
+N4  [19405] Complete twice in the same millisecond from 32 threads on both RGWs for the same uploadId.
+    Expect: at most one real completion; the others get 200 (idempotent) or an in-progress error; never two different ETags.
+
+N5  [19410] Complete after Abort, Abort after Complete, and UploadPart after Complete, all on the same uploadId, under 64 threads.
+    Expect: NoSuchUpload for each late call; the completed object is never damaged by a late abort.
+
+N6  [19407bl] Blocklist RGW-A, then stop one OSD during the 10,000-part complete.
+    Expect: complete fails or retries cleanly; the object is either complete and intact or absent; no half object.
+
+N7  [19417] DeleteObject with wrong If-Match, missing If-Match key, and If-Match: * on a missing key, 100,000 mixed calls.
+    Expect: 412 for wrong ETag, the documented code for a missing key; the existing object is never deleted by a wrong-ETag call.
+
+N8  [19423] If-Match with an empty value, a quoted value, a weak ETag (W/"...") and a 4 KiB value on GET, PUT and DELETE.
+    Expect: no prefix-match acceptance and no 5xx; unsupported forms give a defined 4xx.
+
+N9  [19424] If-None-Match: * PUT on a key that already exists, 1,000 keys, 8 threads each.
+    Expect: all 412 and no new versions; the original object is unchanged.
+
+N10 [19414] Self-copy with identical metadata and no MetadataDirective REPLACE, 10,000 objects.
+    Expect: S3 error for a copy with no change, or an unchanged object; no object loses data either way.
+
+N11 [19412] DeleteMultiObjects with 1001 keys, with duplicate keys, and with a key that does not exist.
+    Expect: 1001 keys rejected (MalformedXML); duplicates and missing keys reported per key; existing keys deleted exactly once.
+
+N12 [19416] Stalled writes with rgw_pending_bucket_index_op_expiration=1 s for 10,000 writes under 50 ms to 5 s injected delay.
+    Expect: no write returns 200 and then disappears from listing; ListObjectsV2 ETag matches HeadObject for every key.
+
+N13 [all] SIGKILL RGW-A repeatedly (every 60 s, 20 times) during P1+P2 running on 100 buckets.
+    Expect: all committed writes survive; no object ends HEAD=200/GET=404; RGW-A restarts each time without manual action.
+
+N14 [all] Fill the data pool to 95% with large parts, then run complete, delete and copy operations.
+    Expect: clean ENOSPC-style errors; deletes still succeed (set_pool_full_try); no object left with a head but no tail.
+
+N15 [all] Key names at the S3 limits: 1024-byte keys, keys with unicode, '/' and '?' characters, and empty-body objects, across S1/P2/M2.
+    Expect: all operations succeed or return a defined 4xx; no 5xx and no index corruption.
+
+================================================================================
+SUGGESTED ORDER (low risk to high risk)
+================================================================================
+ 1. N1-N5, N7-N11   - cheap, no injection, no restarts. Run first on apple.
+ 2. S1-S3, S7-S9    - need lowered min part size; no restarts.
+ 3. P1-P6           - parallel buckets, uses the existing [INJECT] knobs.
+ 4. K1-K5, K8-K11   - versioned, tagging and delete-marker coverage.
+ 5. M1-M8           - millions of objects; apple only up to about 1M objects.
+ 6. K6-K7           - LC scenarios; need rgw_lc_debug_interval.
+ 7. S4-S6, L1-L4    - large data and [KILL]; run alone, grim017 only with approval.
+ 8. N6, N13, N14    - destructive; run last and alone.
+
+Notes
+ - Known open on grim017's hotfix build: 19414, 19416, 19424. Scenarios P3, P4,
+   P5, M1, M3, L2, K1, K10, N9 and N12 are expected to fail there until those
+   are fixed; a failure is a finding, not a harness bug.
+ - Scenarios were designed from the source and the existing QE notes. None has
+   been run, so thresholds, thread counts and object counts are starting
+   points to adjust after a first dry run at 1% scale.
+================================================================================
