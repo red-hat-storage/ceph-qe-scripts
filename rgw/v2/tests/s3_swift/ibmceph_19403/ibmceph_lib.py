@@ -267,6 +267,10 @@ class Env:
                 self.cfg_rm(who, key)
             for side in restart:
                 self.sh(f"ceph orch daemon restart {self.orch_name(side)} --force")
+            if restart:
+                # the old daemon still answers until the orchestrator stops it;
+                # without this pause the next test arms gdb on a dying daemon
+                time.sleep(30)
             for side in restart:
                 self.wait_rgw(side, timeout)
 

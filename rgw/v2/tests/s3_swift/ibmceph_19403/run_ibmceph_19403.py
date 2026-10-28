@@ -23,6 +23,9 @@ Suite YAML entry:
 The suite is sequential by design (no pytest-xdist, no random order, one run per
 host at a time via a lock file).
 
+Settings left unset in the config (RGW daemons, hosts, cephadm shell arguments,
+S3 keys) are discovered from the orchestrator by ibmceph_discover.py.
+
 Environment variable overrides (optional):
   IBMCEPH_PYTEST_MARKER   -m expression (ibmceph_mpu | ibmceph_race | ibmceph_cond |
                           ibmceph_cls | ibmceph_control | ibmceph_all)
@@ -59,6 +62,7 @@ def main():
         "-c",
         os.path.join(test_dir, "pytest.ini"),
         f"--ibmceph-config={os.path.abspath(args.config)}",
+        f"--rgw-node={args.rgw_node}",
         "--tb=short",
         f"--log-cli-level={args.log_level.upper()}",
     ]

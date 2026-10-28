@@ -46,6 +46,8 @@ num_parts: 8
 obj_size: 8388608 # 8 MiB: a 4 MiB head chunk plus a tail
 lock_max_time: 120
 gc_min_wait: 30
-gap_iterations: 3
+gap_iterations: 10
+# iterations in which both completions must answer 200, else the test is inconclusive
+gap_min_valid: 3
 gap_offset: 33
 outdir: "/tmp/ibmceph_19403"

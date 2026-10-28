@@ -351,7 +351,8 @@ CUSTOMER_DELAYS = [10, 16, 12, 14, 12, 10, 14, 16, 12, 10]
 def test_gap_two_completions_lock_lapses_while_committing(lab):
     """Customer scenario: two completions 33 s apart with failing lock renewals."""
     env = lab
-    iterations = int(env.cfg.get("gap_iterations", 3))
+    iterations = int(env.cfg.get("gap_iterations", 10))
+    min_valid = int(env.cfg.get("gap_min_valid", 3))
     offset = int(env.cfg.get("gap_offset", 33))
     ttl, gc_wait = 30, 5
     bucket = "ibmceph-mp-race"
@@ -442,3 +443,10 @@ def test_gap_two_completions_lock_lapses_while_committing(lab):
         f"BUG IBMCEPH-19403 (check-then-commit gap): {len(losses)} of {iterations} "
         f"iterations ended HEAD 200 / GET not 200 with no object left: {losses}"
     )
+    # only iterations where both completions answered 200 exercised the race
+    valid = [r for r in results if r[0] == 200 and r[1] == 200]
+    if len(valid) < min_valid:
+        inconclusive(
+            f"only {len(valid)} of {iterations} iterations had both completions "
+            f"answer 200 (need {min_valid}); no loss seen, race not exercised enough"
+        )

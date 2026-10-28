@@ -15,11 +15,15 @@ import logging
 import os
 import tempfile
 
+import ibmceph_discover
 import ibmceph_lib
 import pytest
 
 log = logging.getLogger()
 
+
+# the distro rados module must be importable before test_cls_bucket_index.py is
+ibmceph_discover.add_system_rados()
 
 LOCK_PATH = os.path.join(tempfile.gettempdir(), "ibmceph_19403.lock")
 
@@ -58,6 +62,12 @@ def sequential_lock(request):
 
 def pytest_addoption(parser):
     parser.addoption(
+        "--rgw-node",
+        dest="rgw_node",
+        default="",
+        help="RGW node cephci selected (used as RGW-B when the config names none)",
+    )
+    parser.addoption(
         "--ibmceph-config",
         dest="ibmceph_config",
         default="",
@@ -67,9 +77,18 @@ def pytest_addoption(parser):
 
 @pytest.fixture(scope="session")
 def env(request):
-    """Connection details and helpers; no cluster access happens here."""
+    """Connection details and helpers.
+
+    Settings the config leaves unset (RGW daemons, ssh hosts, cephadm shell
+    arguments, S3 keys) are discovered from the orchestrator; an S3 user created
+    for the run is removed again at the end.
+    """
     cfg = ibmceph_lib.Cfg(request.config.getoption("ibmceph_config"))
-    return ibmceph_lib.Env(cfg)
+    e = ibmceph_lib.Env(cfg)
+    created = ibmceph_discover.autofill(e, request.config.getoption("rgw_node"))
+    yield e
+    if created:
+        ibmceph_discover.remove_user(e)
 
 
 @pytest.fixture(scope="session")
