@@ -877,7 +877,10 @@ def wait_till_bucket_synced(name, timeout=120, interval=5):
     while end_time > datetime.datetime.now():
         time.sleep(interval)
         result = exec_shell_cmd(cmd)
-        if not "behind shards" in result:
+        # exec_shell_cmd returns False on failure (e.g. bucket not found yet)
+        if not result or not isinstance(result, str):
+            continue
+        if "behind shards" not in result:
             return True
     return False
 

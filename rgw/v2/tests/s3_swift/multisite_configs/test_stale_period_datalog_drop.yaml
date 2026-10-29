@@ -1,0 +1,23 @@
+# Script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_stale_period_datalog_drop.py
+# polarion-id: CEPH-83633031
+# Tracker: https://tracker.ceph.com/issues/81761
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 2
+  objects_size_range:
+    min: 5
+    max: 15
+  user_remove: true
+  test_ops:
+    zone_a: primary
+    zone_b: secondary
+    push_interval_secs: 120
+    race_window_secs: 15
+    sync_wait_secs: 180
+    sync_poll_secs: 10
+    system_access_key: "3way123"
+    system_secret_key: "3way123"
+    master_endpoint_port: 80
+    delete_bucket_object: true
+    expect_fixed: true

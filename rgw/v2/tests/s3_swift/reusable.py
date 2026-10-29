@@ -4666,3 +4666,140 @@ def wait_for_head_obj_prometheus_metrics(
             )
 
     return result
+
+
+def get_rgw_service_names(ssh_con=None):
+    """
+    Return RGW orch service names from ``ceph orch ls --service-type rgw``.
+
+    Works for any naming (e.g. rgw.shared.pri.io / .sync, or a single rgw.*).
+    With ssh_con, query the remote cluster.
+    """
+    cmd = "sudo ceph orch ls --service-type rgw -f json"
+    if ssh_con:
+        log.info(f"[remote] $ {cmd}")
+        _, stdout, stderr = ssh_con.exec_command(cmd)
+        out = stdout.read().decode(errors="replace")
+        err = stderr.read().decode(errors="replace")
+        if err.strip():
+            for line in err.strip().splitlines():
+                log.warning(f"    {line}")
+    else:
+        out = utils.exec_shell_cmd(cmd)
+    if not out or out is False:
+        return []
+    try:
+        text = out.strip()
+        try:
+            services = json.loads(text)
+        except json.JSONDecodeError:
+            start, end = text.find("["), text.rfind("]")
+            services = json.loads(text[start : end + 1])
+    except (TypeError, json.JSONDecodeError, ValueError):
+        return []
+    names = []
+    for svc in services or []:
+        name = svc.get("service_name")
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def radosgw_admin(cmd, ssh_con=None):
+    """
+    Run radosgw-admin. Returns (output, rc).
+
+    Output includes stderr when present so failures keep the real RGW message.
+    With ssh_con, prefer ``sudo radosgw-admin``; on non-zero rc fall back to
+    ``cephadm shell`` (remote hosts may lack a usable keyring). If both fail,
+    return the first attempt's output/rc (cephadm auth noise is less useful).
+    """
+    if ssh_con:
+
+        def _remote(remote_cmd):
+            log.info(f"[remote] $ {remote_cmd}")
+            _, stdout, stderr = ssh_con.exec_command(remote_cmd)
+            out = stdout.read().decode(errors="replace")
+            err = stderr.read().decode(errors="replace")
+            rc = stdout.channel.recv_exit_status()
+            if out.strip():
+                for line in out.strip().splitlines():
+                    log.info(f"    {line}")
+            if err.strip():
+                for line in err.strip().splitlines():
+                    log.warning(f"    {line}")
+            # Keep stdout clean on success (JSON parsers). Append stderr only
+            # on failure so TestExecError messages stay useful.
+            if rc != 0:
+                if out.strip() and err.strip():
+                    return out.rstrip() + "\n" + err, rc
+                if err.strip():
+                    return err, rc
+            return out, rc
+
+        out, rc = _remote(f"sudo radosgw-admin {cmd}")
+        if rc == 0:
+            return out, rc
+        log.warning(
+            "remote sudo radosgw-admin failed (rc=%s); trying cephadm shell", rc
+        )
+        out2, rc2 = _remote(f"sudo cephadm shell -- radosgw-admin {cmd}")
+        if rc2 == 0:
+            return out2, rc2
+        return out, rc
+    out = utils.exec_shell_cmd(f"sudo radosgw-admin {cmd}")
+    if out is False or out is None:
+        return "", 1
+    return out, 0
+
+
+def promote_zone_master(ssh_con, zone_name, zonegroup):
+    """
+    Promote zone_name to metadata master and commit period.
+
+    Uses ``period update --commit --yes-i-really-mean-it`` because the zone
+    being promoted is often behind on metadata sync when the old master is
+    unreachable (failover / outage scenarios).
+
+    ssh_con should target a site that can update the period (typically the
+    zone being promoted, or the current master).
+    """
+    out, rc = radosgw_admin(f"zone modify --rgw-zone={zone_name} --master", ssh_con)
+    if rc != 0:
+        raise TestExecError(f"zone modify --master {zone_name} failed: {out}")
+    out, rc = radosgw_admin(
+        f"zonegroup modify --rgw-zonegroup={zonegroup} --master "
+        f"--rgw-zone={zone_name}",
+        ssh_con,
+    )
+    if rc != 0:
+        raise TestExecError(f"zonegroup modify --master {zone_name} failed: {out}")
+    out, rc = radosgw_admin("period update --commit --yes-i-really-mean-it", ssh_con)
+    if rc != 0:
+        raise TestExecError(f"period update --commit after promote failed: {out}")
+
+
+def parse_realm_epoch(period_out):
+    """Extract realm_epoch from period get JSON text. Returns None on failure."""
+    if not period_out:
+        return None
+    try:
+        text = period_out.strip()
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            start, end = text.find("{"), text.rfind("}")
+            data = json.loads(text[start : end + 1])
+        return data.get("realm_epoch")
+    except (TypeError, json.JSONDecodeError, ValueError):
+        return None
+
+
+def objects_present_in_bucket(s3_client, bucket_name, keys):
+    """Return True if all keys are listed in the bucket via get_object_list."""
+    try:
+        listed = get_object_list(bucket_name, s3_client)
+    except Exception as e:
+        log.warning(f"list objects on {bucket_name} failed: {e}")
+        return False
+    return all(k in listed for k in keys)
