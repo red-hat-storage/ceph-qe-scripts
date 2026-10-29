@@ -1,0 +1,10 @@
+# Squid and Tentacle: a non-owner allowed only s3:DeleteObjectVersion is refused
+# with AccessDenied, forbidden by object lock. After s3:BypassGovernanceRetention
+# is allowed, the same version is deleted with the bypass flag.
+# script: test_bypass_governance_retention.py
+config:
+  user_count: 2
+  bucket_count: 1
+  test_ops:
+    create_bucket: true
+    non_owner_bypass_without_permission: false
