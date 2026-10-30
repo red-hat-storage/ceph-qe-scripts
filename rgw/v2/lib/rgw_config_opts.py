@@ -60,6 +60,7 @@ class ConfigOpts(object):
     rgw_relaxed_topic_names = "rgw_relaxed_topic_names"
     rgw_user_counters_cache = "rgw_user_counters_cache"
     rgw_bucket_counters_cache = "rgw_bucket_counters_cache"
+    rgw_default_bucket_bilog_type = "rgw_default_bucket_bilog_type"
 
 
 class CephConfFileOP(FileOps, ConfigParse):
