@@ -1,0 +1,8 @@
+---
+endpoint: http://127.0.0.1:7480
+user_types: [normal]
+bucket_states: [normal]
+objects: 20
+object_size: 4096
+optional_tools: [awscli, elbencho]
+features: []

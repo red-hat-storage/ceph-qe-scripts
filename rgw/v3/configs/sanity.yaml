@@ -1,0 +1,15 @@
+---
+endpoint: http://127.0.0.1:7480
+region: us-east-1
+verify_tls: true
+admin_command: [radosgw-admin]
+user_types: [normal, tenanted, account-root, account-user]
+bucket_states: [normal, versioned, suspended]
+objects: 20
+object_size: 4096
+multipart_part_size: 5242880
+workers: 4
+timeout: 300
+poll_interval: 2
+request_timeout: 30
+features: []

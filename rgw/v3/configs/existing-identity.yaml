@@ -1,0 +1,11 @@
+---
+endpoint: http://127.0.0.1:7480
+user_types: [normal]
+bucket_states: [normal, versioned, suspended]
+identities:
+  normal: RGW_TEST
+# Set RGW_TEST_ACCESS_KEY_ID and RGW_TEST_SECRET_ACCESS_KEY in the environment.
+# Optional RGW_TEST_SESSION_TOKEN supports temporary credentials.
+objects: 20
+workers: 4
+features: []
