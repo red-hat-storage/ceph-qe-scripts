@@ -1,5 +1,5 @@
 # Script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_stale_period_datalog_drop.py
-# polarion-id: CEPH-83633031
+# polarion-id: CEPH-83633183
 # Tracker: https://tracker.ceph.com/issues/81761
 config:
   user_count: 1
