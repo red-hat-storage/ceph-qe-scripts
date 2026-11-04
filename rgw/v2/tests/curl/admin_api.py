@@ -37,7 +37,15 @@ def parse_json_response(response, context="API"):
 
 
 def admin_api_call(
-    method, endpoint, admin_key, admin_secret, params="", data="", content_type=""
+    method,
+    endpoint,
+    admin_key,
+    admin_secret,
+    params="",
+    data="",
+    content_type="",
+    resource="/admin/user",
+    return_status=False,
 ):
     """
     Execute admin API call with AWS signature authentication
@@ -50,6 +58,8 @@ def admin_api_call(
         params: URL query parameters
         data: Request body data
         content_type: Content-Type header value
+        resource: Admin resource path, also used in the signature
+        return_status: Append HTTP status on a separate line for validation
 
     Returns:
         Response string from curl command
@@ -58,13 +68,61 @@ def admin_api_call(
     ct_header = f'-H "Content-Type: {content_type}"' if content_type else ""
     data_param = f"-d '{data}'" if data else ""
 
+    status_option = "-w '\n%{http_code}'" if return_status else ""
     cmd = f"""
 DATE=$(date -R -u)
-STRING_TO_SIGN="{method}\\n\\n{content_type}\\n$DATE\\n/admin/user"
+STRING_TO_SIGN="{method}\\n\\n{content_type}\\n$DATE\\n{resource}"
 SIGNATURE=$(echo -en "$STRING_TO_SIGN" | openssl sha1 -hmac {admin_secret} -binary | base64)
-curl -s -X {method} {ct_header} -H "Date: $DATE" -H "Authorization: AWS {admin_key}:$SIGNATURE" -H "Host: {host}" {data_param} "{endpoint}/admin/user{params}"
+curl -sS {status_option} -X {method} {ct_header} -H "Date: $DATE" -H "Authorization: AWS {admin_key}:$SIGNATURE" -H "Host: {host}" {data_param} "{endpoint}{resource}{params}"
 """
     return utils.exec_shell_cmd(cmd)
+
+
+def account_api_call(method, endpoint, admin_key, admin_secret, account_id):
+    """Call the account resource and validate the transport and HTTP response."""
+    response = admin_api_call(
+        method,
+        endpoint,
+        admin_key,
+        admin_secret,
+        params=f"?id={quote(account_id, safe='')}&format=json",
+        resource="/admin/account",
+        return_status=True,
+    )
+    if not isinstance(response, str):
+        raise TestExecError(f"Account {method} request failed: {response}")
+    body, separator, status = response.rpartition("\n")
+    if not separator or not status.strip().isdigit():
+        raise TestExecError(f"Missing HTTP status in account {method}: {response}")
+    return body, int(status.strip())
+
+
+def get_account(endpoint, admin_key, admin_secret, account_id, allow_missing=False):
+    """Fetch account info; optionally accept HTTP 404 after deletion."""
+    body, status = account_api_call(
+        "GET", endpoint, admin_key, admin_secret, account_id
+    )
+    if allow_missing and status == 404:
+        return None
+    if status != 200:
+        raise TestExecError(f"GetAccount failed: HTTP {status}: {body}")
+    account = parse_json_response(body, "GetAccount")
+    if not isinstance(account, dict) or account.get("id") != account_id:
+        raise TestExecError(f"Unexpected GetAccount response: {account}")
+    return account
+
+
+def delete_account(endpoint, admin_key, admin_secret, account_id):
+    """Delete an empty account, rejecting EPERM and other HTTP errors."""
+    body, status = account_api_call(
+        "DELETE", endpoint, admin_key, admin_secret, account_id
+    )
+    if status not in (200, 204):
+        raise TestExecError(f"DeleteAccount failed: HTTP {status}: {body}")
+    if body.strip():
+        result = parse_json_response(body, "DeleteAccount")
+        if isinstance(result, dict) and "Code" in result:
+            raise TestExecError(f"DeleteAccount returned an error: {result}")
 
 
 def create_user(endpoint, admin_key, admin_secret, uid, display_name, site_name=""):
