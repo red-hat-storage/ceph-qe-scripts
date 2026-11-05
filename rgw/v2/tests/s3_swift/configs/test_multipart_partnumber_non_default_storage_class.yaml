@@ -1,0 +1,24 @@
+# script: rgw/v2/tests/s3_swift/test_multipart_partnumber_non_default_storage_class.py
+# Tracker: https://tracker.ceph.com/issues/81780
+#
+# Single-site cluster with no realm. Placement is written on the local zone
+# and zonegroup, then RGW is restarted.
+#
+# 1. Add STANDARD_IA, with its own data pool, to default-placement.
+# 2. CreateMultipartUpload with StorageClass=STANDARD_IA, upload parts, complete.
+# 3. Fetch the entire object.
+# 4. GET/HEAD ?partNumber=1. Unfixed RGW returns 400 InvalidPart.
+#
+# Non-final parts must be at least 5MiB.
+config:
+  user_count: 1
+  user_remove: true
+  storage_class: STANDARD_IA
+  pool_name: standard.ia
+  test_ops:
+    placement_id: default-placement
+    part_number: 1
+    part_sizes_mb:
+      - 5
+      - 5
+      - 1

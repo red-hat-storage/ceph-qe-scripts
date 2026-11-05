@@ -1,0 +1,17 @@
+# Script: test_lua_postauth_cache.py
+# polrion-id: CEPH-83633031
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 5
+  local_file_delete: true
+  objects_size_range:
+    min: 5K
+    max: 5K
+  user_remove: true
+  test_ops:
+    lua_postrequest_access_log: true
+    access_log_object_count: 5
+    access_log_object_size: 1024
+    access_log_event_wait: 5
+    delete_bucket: true
