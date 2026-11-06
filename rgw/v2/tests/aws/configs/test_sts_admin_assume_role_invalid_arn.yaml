@@ -1,0 +1,9 @@
+# script: test_sts_admin_assume_role_invalid_arn.py
+# Tracker: https://tracker.ceph.com/issues/75569
+# PR: https://github.com/ceph/ceph/pull/67863
+config:
+  user_count: 2
+  test_ops:
+    invalid_role_arn_path: bogus
+    role_name_prefix: crashtest
+    role_session_name: test
