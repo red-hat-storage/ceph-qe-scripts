@@ -1,0 +1,38 @@
+# script-name: test_rgw_ssl_port.py
+# test-case: TC-10
+# covers: rgw_frontend_extra_args coexist with rgw_frontend_ssl_port in
+#         the constructed beast rgw_frontends string without overriding each other
+# pass: ceph config get rgw_frontends shows ssl_port=443 AND tcp_nodelay=1
+#       AND max_header_size=65536; HTTPS S3 IO succeeds
+config:
+  user_count: 1
+  objects_count: 3
+  objects_size_range:
+    min: 5
+    max: 50
+  test_ops:
+    scenario: extra_args_coexist
+    service_id: ssl-port-extra-args
+    rgw_frontend_port: 8080
+    rgw_frontend_ssl_port: 443
+    ssl: true
+    generate_cert: true
+    rgw_frontend_type: beast
+    rgw_frontend_extra_args:
+      - tcp_nodelay=1
+      - max_header_size=65536
+    rgw_realm: default
+    rgw_zonegroup: default
+    rgw_zone: default
+    rgw_exit_timeout_secs: 120
+    placement_hosts:
+      - ceph-local-01
+    perform_s3_io: true
+    use_ssl_endpoint: true
+    download_object: true
+    delete_bucket_object: true
+    verify_orch_export: true
+    verify_listeners: true
+    cleanup_service: true
+    wait_timeout: 300
+    port_wait_timeout: 120
