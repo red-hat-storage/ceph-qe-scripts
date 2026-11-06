@@ -126,7 +126,7 @@ def test_exec(config, ssh_con):
                 )
                 s3cmd_reusable.create_bucket(bucket_name, ip_and_port)
                 log.info(f"Bucket {bucket_name} created")
-                s3cmd_path = "/home/cephuser/venv/bin/s3cmd"
+                s3cmd_path = s3cmd_reusable.get_s3cmd_path()
                 object_count = config.objects_count // 2
 
                 log.info(f"uploading some large objects to bucket {bucket_name}")
