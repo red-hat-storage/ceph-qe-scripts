@@ -1,0 +1,22 @@
+# script: test_bilog_fifo_scale.py
+# polarion_id: TBD
+# cases: S4.1 reshard under write, S4.2 fifo shards for 64/256/512/1999
+config:
+  user_count: 1
+  bucket_count: 5
+  objects_count: 500000
+  shards: 128
+  objects_size_range:
+    min: 4
+    max: 4
+  test_ops:
+    scenario: reshard_at_scale
+    bilog_type: fifo
+    reshard_objects: 500000
+    reshard_shards: 128
+    reshard_write_seconds: 120
+    index_shard_counts:
+      - 64
+      - 256
+      - 512
+      - 1999

@@ -1,0 +1,14 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 3.5 versioned_epoch on secondary matches primary
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: versioned_sync
+    bilog_type: fifo
+    enable_version: true
