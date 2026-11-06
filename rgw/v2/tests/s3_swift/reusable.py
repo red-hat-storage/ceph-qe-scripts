@@ -1707,6 +1707,123 @@ def list_objects(bucket):
         log.info("object_name: %s" % obj.key)
 
 
+def list_all_object_keys(s3_client, bucket_name):
+    """
+    Paginated ListObjectsV2; returns keys in the order returned by RGW.
+    """
+    keys = []
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket_name):
+        for obj in page.get("Contents") or []:
+            keys.append(obj["Key"])
+    log.info(f"listed {len(keys)} keys from bucket {bucket_name}")
+    return keys
+
+
+def verify_bucket_list_integrity(listed_keys, expected_keys, bucket_name=None):
+    """
+    Verify list count, strict alphabetical order, no duplicates, no missing/extra.
+    """
+    label = bucket_name or "bucket"
+    listed = list(listed_keys)
+    expected = set(expected_keys)
+    if len(listed) != len(expected):
+        raise TestExecError(
+            f"{label}: expected {len(expected)} objects, listed {len(listed)}"
+        )
+    if len(listed) != len(set(listed)):
+        dups = [k for k in set(listed) if listed.count(k) > 1]
+        raise TestExecError(f"{label}: duplicate keys in listing: {dups[:10]}")
+    listed_set = set(listed)
+    if listed_set != expected:
+        missing = sorted(expected - listed_set)
+        extra = sorted(listed_set - expected)
+        raise TestExecError(
+            f"{label}: missing={missing[:10]} (n={len(missing)}); "
+            f"extra={extra[:10]} (n={len(extra)})"
+        )
+    if listed != sorted(listed):
+        raise TestExecError(f"{label}: listing is not strict alphabetical order")
+    log.info(
+        f"{label}: list integrity OK (count={len(listed)}, ordered, no dups/missing)"
+    )
+
+
+def get_bucket_index_type(bucket_name):
+    """Return index_type from radosgw-admin bucket stats."""
+    op = utils.exec_shell_cmd(f"radosgw-admin bucket stats --bucket={bucket_name}")
+    if not op:
+        raise TestExecError(f"bucket stats failed for {bucket_name}")
+    return json.loads(op).get("index_type")
+
+
+def assert_bucket_index_type(bucket_name, expected):
+    """Fail if bucket stats index_type does not match expected (case-insensitive)."""
+    actual = get_bucket_index_type(bucket_name)
+    log.info(f"bucket {bucket_name} index_type={actual} (expected {expected})")
+    if str(actual).lower() != str(expected).lower():
+        raise TestExecError(
+            f"{bucket_name}: index_type expected {expected}, got {actual}"
+        )
+    return actual
+
+
+def verify_buckets_list_and_index(
+    s3_client, buckets, expected_by_bucket, expected_total, index_type
+):
+    """
+    For each bucket: paginated list integrity + object count + index_type.
+    """
+    for bucket in buckets:
+        listed = list_all_object_keys(s3_client, bucket.name)
+        verify_bucket_list_integrity(
+            listed,
+            expected_by_bucket[bucket.name],
+            bucket_name=bucket.name,
+        )
+        if len(listed) != expected_total:
+            raise TestExecError(
+                f"{bucket.name}: expected total {expected_total}, got {len(listed)}"
+            )
+        assert_bucket_index_type(bucket.name, index_type)
+
+
+def upload_zero_padded_object_wave(
+    buckets,
+    expected_by_bucket,
+    start_index,
+    count,
+    config,
+    user_info,
+    test_data_path,
+    wave_label="upload",
+):
+    """
+    Upload `count` objects per bucket with zero-padded keys starting at start_index.
+    Updates expected_by_bucket sets in place.
+    """
+    log.info(f"{wave_label}: uploading {count} objects per bucket")
+    config.objects_count = count
+    config.mapped_sizes = utils.make_mapped_sizes(config)
+    for bucket in buckets:
+        for oc, size in list(config.mapped_sizes.items()):
+            config.obj_size = size
+            key_index = start_index + oc
+            s3_object_name = f"obj_{bucket.name}_{key_index:06d}"
+            upload_object(
+                s3_object_name,
+                bucket,
+                test_data_path,
+                config,
+                user_info,
+            )
+            expected_by_bucket[bucket.name].add(s3_object_name)
+        log.info(
+            f"{wave_label}: bucket {bucket.name} expected="
+            f"{len(expected_by_bucket[bucket.name])}"
+        )
+
+
 def list_versioned_objects(bucket, s3_object_name, s3_object_path=None, rgw_conn=None):
     """
     list all versions of the objects in a given bucket
@@ -2548,6 +2665,74 @@ def bucket_reshard_manual(bucket, config):
     else:
         raise TestExecError(f"Bucket {bucket.name} not resharded to {config.shards}")
     verify_attrs_after_resharding(bucket)
+
+
+def bucket_reshard_with_index_type(bucket, config, index_type="ordered"):
+    """
+    Manual reshard with --bucket-index-type (e.g. ordered). New BOI feature path;
+    does not change bucket_reshard_manual used by existing tests.
+    """
+    cmd = (
+        f"radosgw-admin bucket reshard --bucket {bucket.name} "
+        f"--num-shards {config.shards} --bucket-index-type={index_type} "
+        f"--yes-i-really-mean-it"
+    )
+    log.info(f"manual reshard with index_type cmd: {cmd}")
+    cmd_out = utils.exec_shell_cmd(cmd)
+    if cmd_out is False:
+        raise TestExecError(f"manual reshard failed for bucket {bucket.name}")
+    op = utils.exec_shell_cmd("radosgw-admin bucket stats --bucket=%s" % bucket.name)
+    json_doc = json.loads(op)
+    shards = json_doc["num_shards"]
+    if shards != config.shards:
+        raise TestExecError(f"Bucket {bucket.name} not resharded to {config.shards}")
+    log.info(f"num_shards for bucket {bucket.name} after reshard are {shards}")
+    actual = str(json_doc.get("index_type", ""))
+    if actual.lower() != str(index_type).lower():
+        raise TestExecError(
+            f"Bucket {bucket.name} index_type expected {index_type}, got {actual}"
+        )
+    log.info(f"bucket {bucket.name} index_type after reshard: {actual}")
+    verify_attrs_after_resharding(bucket)
+
+
+def expect_bucket_reshard_with_index_type_failure(
+    bucket, num_shards, index_type="ordered"
+):
+    """
+    Expect ordered/hashed reshard to fail with a non-empty error (negative path).
+    Returns the command error/output string.
+    """
+    cmd = (
+        f"radosgw-admin bucket reshard --bucket {bucket.name} "
+        f"--num-shards {num_shards} --bucket-index-type={index_type} "
+        f"--yes-i-really-mean-it"
+    )
+    log.info(f"expecting reshard failure: {cmd}")
+    ec, output = subprocess.getstatusoutput(cmd)
+    log.info(f"reshard rc={ec} output={output}")
+    if ec == 0:
+        raise TestExecError(
+            f"reshard to {index_type} with {num_shards} shards succeeded for "
+            f"{bucket.name}, expected failure"
+        )
+    if not str(output).strip():
+        raise TestExecError(
+            f"reshard failed for {bucket.name} but error message was empty"
+        )
+    log.info(f"got clear reshard error for {bucket.name}: {output}")
+    return output
+
+
+def verify_object_gets(s3_client, bucket_name, keys, sample_size=5):
+    """GET a sample of object keys; fail if any GET errors."""
+    sample = list(keys)[:sample_size] if sample_size else list(keys)
+    for key in sample:
+        resp = s3_client.get_object(Bucket=bucket_name, Key=key)
+        code = resp["ResponseMetadata"]["HTTPStatusCode"]
+        if code != 200:
+            raise TestExecError(f"GET {bucket_name}/{key}: expected 200, got {code}")
+    log.info(f"GET OK for {len(sample)} keys in {bucket_name}")
 
 
 def test_log_trimming(bucket, config):

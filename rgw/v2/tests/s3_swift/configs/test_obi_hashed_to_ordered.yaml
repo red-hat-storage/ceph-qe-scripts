@@ -1,0 +1,17 @@
+# Script: ceph-qe-scripts/rgw/v2/tests/s3_swift/test_bucket_ordered_indexing.py
+# Sanity: hashed index -> ordered; 600 objects; list count/order/completeness
+# polarion-id:
+config:
+  user_count: 1
+  bucket_count: 3
+  objects_count: 100
+  max_objects_per_shard: 5
+  shards: 48
+  objects_size_range:
+    min: 5
+    max: 15
+  test_ops:
+    hashed_to_ordered: true
+    objects_count_post_reshard: 500
+    bucket_index_type: ordered
+    delete_bucket_object: true
