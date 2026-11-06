@@ -1,0 +1,11 @@
+---
+endpoint: http://127.0.0.1:7480
+user_types: [normal]
+bucket_states: [normal]
+features: [notifications]
+notification:
+  bind_host: 0.0.0.0
+  # Replace with the test runner's IP or DNS name reachable from every RGW.
+  advertise_host: 127.0.0.1
+timeout: 300
+poll_interval: 2
