@@ -1,0 +1,30 @@
+# Script: test_cors_options_preflight.py
+# Tracker: https://ibm-ceph.atlassian.net/browse/IBMCEPH-20773
+# Fix/verify: https://ibm-ceph.atlassian.net/browse/IBMCEPH-20785
+# Upstream: https://github.com/ceph/ceph/pull/72756
+# 3A-3D: anonymous OPTIONS with no CORS (expect 403 AccessDenied, no SIGSEGV)
+# 3E: enable rgw_gcors_*, OPTIONS on missing bucket (expect Allow-Origin)
+# polarion_id: CEPH-83633185
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  # This scenario writes a 1-byte object and does not use mapped sizes.
+  # 1K-1K makes get_file_size recurse (1024 is not divisible by 5).
+  mapped_sizes:
+    0: 5
+  user_remove: true
+  test_ops:
+    options_no_cors_segfault: true
+    delete_bucket: true
+    origin: "http://example.com"
+    request_method: "GET"
+    options_repeat: 3
+    expected_status: 403
+    gcors_expected_status: 200
+    strict: true
+    curl_timeout: 30
+    object_name: "obj"
+    gcors_allow_origins: '"*"'
+    gcors_allow_headers: '"*"'
+    gcors_allow_methods: "GET,PUT,POST,DELETE,HEAD,OPTIONS"
