@@ -1,0 +1,53 @@
+# Config of the IBMCEPH-19403 RGW race / data-loss suite (ibmceph_19403/).
+# Every key is optional; each also falls back to the upper-case environment
+# variable of the same name (e.g. ACCESS_KEY).  No credentials are kept here.
+#
+# Layout the lab tests need:
+#   - two RGWs on a cephadm cluster: RGW-A (the one the races are forced on, gdb
+#     and podman are used on its host) and RGW-B (the competing request)
+#   - `cephadm shell` on the node that runs the suite (ceph_cli: cephadm), or
+#     ceph / rados / radosgw-admin in PATH (ceph_cli: local)
+#   - gdb on the RGW-A host
+#   - an S3 user with full access (ACCESS_KEY / SECRET_KEY)
+# Tests without that layout SKIP.  test_conditional_etag.py needs only the S3
+# endpoint of RGW-B; test_cls_bucket_index.py needs python3-rados + ceph_conf.
+
+rgw_a_url: "http://RGW_A_IP:80"
+rgw_b_url: "http://RGW_B_IP:80"
+# access_key / secret_key: from ACCESS_KEY / SECRET_KEY
+
+data_pool: "default.rgw.buckets.data"
+meta_pool: "default.rgw.buckets.non-ec"
+index_pool: "default.rgw.buckets.index"
+
+ceph_cli: "cephadm"
+# extra `cephadm shell` arguments, needed on a non-admin node, e.g.
+#   "--fsid <fsid> -c /etc/ceph/ceph.conf -k /etc/ceph/ceph.keyring"
+cephadm_args: ""
+ceph_conf: "/etc/ceph/ceph.conf"
+
+# host of RGW-A (ssh); leave empty when the suite runs on that host
+rgw_a_host: "RGW_A_IP"
+ssh_user: "root"
+ssh_key: ""
+# run the remote commands with sudo (when ssh_user is not root)
+ssh_sudo: false
+
+# `ceph orch ps --daemon-type rgw` names: client.<daemon_name>
+rgw_a_daemon: "client.rgw.<service>.<host>.<id>"
+rgw_b_daemon: "client.rgw.<service>.<host>.<id>"
+# podman container and systemd unit of RGW-A (and the unit of RGW-B for the gap test)
+rgw_a_container: "ceph-<fsid>-rgw-<service>-<host>-<id>"
+rgw_a_unit: "ceph-<fsid>@rgw.<service>.<host>.<id>"
+rgw_b_unit: "ceph-<fsid>@rgw.<service>.<host>.<id>"
+
+part_size: 5242880 # 5 MiB
+num_parts: 8
+obj_size: 8388608 # 8 MiB: a 4 MiB head chunk plus a tail
+lock_max_time: 120
+gc_min_wait: 30
+gap_iterations: 10
+# iterations in which both completions must answer 200, else the test is inconclusive
+gap_min_valid: 3
+gap_offset: 33
+outdir: "/tmp/ibmceph_19403"

@@ -1,0 +1,24 @@
+# test_ibmceph_19403_apple.yaml
+# Config for IBMCEPH-19403 RGW race-condition suite on apple cluster (10.0.66.143)
+# Cluster: ceph-vim-apple-gpiuba  (HEALTH_OK, 2 RGW daemons)
+#
+# RGW-A: node5 (10.0.66.143) — container qcfqry  — the one we SIGKILL
+# RGW-B: node4 (10.0.65.6)   — stays alive throughout
+
+rgw_a_url: "http://10.0.66.143:80"
+rgw_b_url: "http://10.0.65.6:80"
+
+access_key: "IBMTESTKEY123"
+secret_key: "IBMTESTsecret456"
+
+data_pool: "default.rgw.buckets.data"
+meta_pool: "default.rgw.buckets.non-ec"
+
+rgw_a_unit: "ceph-31d9d812-c5b5-11f1-87b7-fa163e00799e@rgw.rgw.1.ceph-vim-apple-gpiuba-node5.qcfqry.service"
+rgw_a_ctr_pattern: "qcfqry"
+
+part_size: 5242880   # 5 MiB
+num_parts: 8
+
+bl_lock_ttl: 30
+bl_secs: 40
