@@ -50,6 +50,7 @@ from v2.tests.s3_swift.reusables import server_side_encryption_s3 as sse_s3
 from v2.tests.s3_swift.reusables import (
     upload_object_via_s3client as put_object_s3client,
 )
+from v2.tests.s3_swift.reusables.gklm import GKLM
 from v2.tests.s3cmd import reusable as s3cmd_reusable
 from v2.utils.log import configure_logging
 from v2.utils.test_desc import AddTestInfo
@@ -68,18 +69,15 @@ def test_exec(config, ssh_con):
     rgw_service = RGWService()
     ip_and_port = s3cmd_reusable.get_rgw_ip_and_port(ssh_con, config.ssl)
 
-    out = utils.exec_shell_cmd("ceph config get client.rgw rgw_crypt_s3_kms_backend")
-    rgw_crypt_s3_kms_backend = out.strip()
-    if rgw_crypt_s3_kms_backend == "kmip":
-        out = utils.exec_shell_cmd("ceph config get client.rgw rgw_crypt_kmip_addr")
-        rgw_crypt_kmip_addr = out.strip()
-        config.test_ops[
-            "encrypt_decrypt_key"
-        ] = "ibm005686891000000006"  # default to using gklm key from IBMC env
-        if rgw_crypt_kmip_addr == "10.0.215.90:5696":
-            config.test_ops[
-                "encrypt_decrypt_key"
-            ] = "rhd00dbd7832000000006"  # use corresponding gklm key id for rhosd env
+    # GKLM SSE-KMS: always use the key alias returned by the GKLM server
+    # (created/discovered in reusables.gklm.GKLM). No hardcoded lab key IDs.
+    if config.test_ops.get("key_management_tool") == "gklm":
+        log.info("Setting up GKLM for SSE-KMS KMIP and resolving key alias")
+        gklm = GKLM()
+        if not gklm.key_alias:
+            raise TestExecError("GKLM did not return a usable KMIP key alias")
+        config.test_ops["encrypt_decrypt_key"] = gklm.key_alias
+        log.info(f"Using GKLM key alias from server: {gklm.key_alias}")
     # create user
     all_users_info = s3lib.create_users(config.user_count)
     for each_user in all_users_info:
