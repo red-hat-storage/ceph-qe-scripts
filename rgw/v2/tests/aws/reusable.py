@@ -1128,6 +1128,216 @@ def put_bucket_cors_config(aws_auth, bucket_name, cors_configuration, endpoint):
             os.remove(cors_path)
 
 
+CURL_EMPTY_REPLY = 52
+
+
+def run_cmd_capture(cmd, timeout=90):
+    """Run cmd list; return (rc, stdout, stderr). Does not raise on non-zero rc."""
+    log.info(f"$ {' '.join(cmd)}")
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        rc, so, se = p.returncode, p.stdout or "", p.stderr or ""
+    except (OSError, subprocess.TimeoutExpired) as e:
+        rc, so, se = None, "", str(e)
+    for stream in (so, se):
+        for line in stream.rstrip("\n").splitlines():
+            log.info(f"  {line}")
+    log.info(f"  [exit code: {rc}]")
+    return rc, so, se
+
+
+def snapshot_rgw_pids():
+    """RGW process identity via pgrep, or orch ps; None if unavailable."""
+    which = utils.exec_shell_cmd("command -v pgrep 2>/dev/null || true")
+    if which and which is not False and str(which).strip():
+        rc, so, _ = run_cmd_capture(["pgrep", "-a", "-x", "radosgw"], timeout=15)
+        if rc == 0 and so.strip():
+            return sorted(ln.split()[0] for ln in so.splitlines() if ln.strip())
+        rc, so, _ = run_cmd_capture(["pgrep", "-a", "-f", "radosgw"], timeout=15)
+        if so.strip():
+            return sorted(ln.split()[0] for ln in so.splitlines() if ln.strip())
+    out = utils.exec_shell_cmd(
+        "ceph orch ps --daemon_type rgw -f json 2>/dev/null || true"
+    )
+    if out and out is not False:
+        try:
+            daemons = json.loads(out)
+            parts = []
+            for d in daemons:
+                name = d.get("daemon_name") or d.get("daemon_id") or "?"
+                parts.append(f"{name}:pid={d.get('pid')}:cid={d.get('container_id')}")
+            if parts:
+                return tuple(sorted(parts))
+        except (json.JSONDecodeError, TypeError, KeyError):
+            pass
+    return None
+
+
+def snapshot_crash_ids():
+    """Return set of crash ids from `ceph crash ls`, or None if ceph missing."""
+    which = utils.exec_shell_cmd("command -v ceph 2>/dev/null || true")
+    if which is False or not str(which or "").strip():
+        return None
+    rc, so, _ = run_cmd_capture(["ceph", "crash", "ls"], timeout=30)
+    if rc != 0:
+        return None
+    ids = set()
+    for ln in so.splitlines():
+        m = re.match(r"^([0-9a-f]{8}-[0-9a-f-]+)\b", ln.strip())
+        if m:
+            ids.add(m.group(1))
+    return ids
+
+
+def curl_anonymous_options(endpoint, path, origin, method, timeout=30):
+    """
+    Anonymous CORS OPTIONS preflight via curl -sv.
+    Returns (rc, status or None, combined stdout+stderr).
+    """
+    url = endpoint.rstrip("/") + (path if path.startswith("/") else f"/{path}")
+    insecure = ["-k"] if endpoint.startswith("https://") else []
+    cmd = [
+        "curl",
+        "-sv",
+        "-X",
+        "OPTIONS",
+        *insecure,
+        "--max-time",
+        str(timeout),
+        "-H",
+        f"Origin: {origin}",
+        "-H",
+        f"Access-Control-Request-Method: {method}",
+        url,
+    ]
+    rc, so, se = run_cmd_capture(cmd, timeout=timeout + 60)
+    m = re.search(r"^< HTTP/\S+ (\d{3})", se, re.M)
+    if not m:
+        m = re.search(r"^HTTP/\S+ (\d{3})", so, re.M)
+    return rc, int(m.group(1)) if m else None, so + se
+
+
+def curl_health_head(endpoint, timeout=30):
+    """True if HEAD / returns an HTTP status < 500."""
+    insecure = ["-k"] if endpoint.startswith("https://") else []
+    cmd = [
+        "curl",
+        "-sS",
+        "-I",
+        *insecure,
+        "--max-time",
+        str(timeout),
+        f"{endpoint.rstrip('/')}/",
+    ]
+    rc, so, se = run_cmd_capture(cmd, timeout=timeout + 60)
+    m = re.search(r"^HTTP/\S+ (\d{3})", so, re.M) or re.search(
+        r"^HTTP/\S+ (\d{3})", se, re.M
+    )
+    return rc == 0 and m is not None and int(m.group(1)) < 500
+
+
+def verify_anonymous_options_no_cors(
+    endpoint,
+    path,
+    origin,
+    method,
+    label,
+    desc,
+    repeat=3,
+    expected_status=403,
+    strict=True,
+    timeout=30,
+    expect_access_denied=True,
+    expect_allow_origin=False,
+):
+    """
+    IBMCEPH-20773/20785: REPEAT anonymous OPTIONS; expect no SIGSEGV.
+
+    Default (no CORS anywhere): HTTP 403 + AccessDenied.
+    With global CORS (expect_allow_origin=True): expect Allow-Origin header
+    and no crash (missing-bucket + GCORS path).
+    Also: HEAD / healthy; PID/crash unchanged when checkable.
+    """
+    log.info(f"{'-' * 72}\n[{label}] {desc}\n{'-' * 72}")
+    log.info("  before: radosgw PID and crash list")
+    pids_before = snapshot_rgw_pids()
+    crashes_before = snapshot_crash_ids()
+
+    for i in range(1, repeat + 1):
+        log.info(f"  request #{i}")
+        rc, status, body = curl_anonymous_options(
+            endpoint, path, origin, method, timeout=timeout
+        )
+        oneline = " ".join(body.split())[:400]
+        if rc == CURL_EMPTY_REPLY or status is None:
+            raise TestExecError(
+                f"[{label}] request #{i}: no HTTP response "
+                f"(curl exit {rc}: empty reply / connection dropped = SIGSEGV). "
+                f"path={path} origin={origin}"
+            )
+        if status >= 500:
+            raise TestExecError(
+                f"[{label}] request #{i}: FAIL HTTP {status}: {oneline}"
+            )
+        if status != expected_status:
+            msg = f"HTTP {status} (expected {expected_status}): {oneline}"
+            if strict:
+                raise TestExecError(f"[{label}] request #{i}: FAIL {msg}")
+            log.warning(f"  -> WARN {msg}")
+            continue
+        if expect_access_denied and "AccessDenied" not in body:
+            msg = f"HTTP {status} but AccessDenied missing in body: {oneline}"
+            if strict:
+                raise TestExecError(f"[{label}] request #{i}: FAIL {msg}")
+            log.warning(f"  -> WARN {msg}")
+            continue
+        if expect_allow_origin:
+            if "Access-Control-Allow-Origin" not in body:
+                msg = (
+                    f"HTTP {status} but missing Access-Control-Allow-Origin: "
+                    f"{oneline}"
+                )
+                if strict:
+                    raise TestExecError(f"[{label}] request #{i}: FAIL {msg}")
+                log.warning(f"  -> WARN {msg}")
+                continue
+            if origin not in body and "Access-Control-Allow-Origin: *" not in body:
+                msg = f"HTTP {status} Allow-Origin mismatch for {origin}: " f"{oneline}"
+                if strict:
+                    raise TestExecError(f"[{label}] request #{i}: FAIL {msg}")
+                log.warning(f"  -> WARN {msg}")
+                continue
+        log.info(f"  -> ok HTTP {status} (expected on fixed build)")
+
+    log.info("  after: health check")
+    if not curl_health_head(endpoint, timeout=timeout):
+        raise TestExecError(
+            f"[{label}]: HEAD / failed after OPTIONS (radosgw likely crashed)"
+        )
+
+    log.info("  after: radosgw PID and crash list")
+    pids_after = snapshot_rgw_pids()
+    crashes_after = snapshot_crash_ids()
+    if pids_before is None or pids_after is None:
+        log.info("  -> SKIP pid check (pgrep/orch not available)")
+    elif pids_before != pids_after:
+        raise TestExecError(
+            f"[{label}]: RGW PID/identity changed {pids_before} -> {pids_after}"
+        )
+    else:
+        log.info(f"  -> ok RGW identity unchanged {pids_after}")
+
+    if crashes_before is None or crashes_after is None:
+        log.info("  -> SKIP ceph crash check (ceph CLI not available)")
+    else:
+        new = crashes_after - crashes_before
+        if new:
+            raise TestExecError(f"[{label}]: new ceph crash entries: {sorted(new)}")
+        log.info("  -> ok no new ceph crash entries")
+
+    log.info(f"  [{label}] => PASS")
+
+
 def aws_s3_cli_prefix(ssl=False, region=None):
     """Build prefix for aws s3 subcommands (not s3api)."""
     prefix = "/usr/local/bin/aws"
