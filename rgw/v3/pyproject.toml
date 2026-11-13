@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ceph-rgw-qe-v3"
+version = "0.1.0"
+description = "Standalone pytest integration suite for Ceph RGW"
+requires-python = ">=3.10"
+dependencies = ["boto3>=1.36,<2", "PyYAML>=6,<7", "pytest>=7,<10"]
+
+[project.optional-dependencies]
+dev = ["black==21.9b0", "click==8.0.4", "isort", "yamllint"]
+
+[project.scripts]
+rgw-v3 = "rgw_tests.runner:main"
+
+[tool.setuptools.packages.find]
+include = ["rgw_tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["rgw_tests/suites", "unit"]
+pythonpath = ["."]
+addopts = "--strict-markers"
+markers = [
+  "awscli: optional AWS CLI CRUD",
+  "elbencho: optional Elbencho CRUD",
+  "sanity: P0 CRUD coverage",
+  "integration: requires a running RGW endpoint",
+  "lifecycle: lifecycle policies and expiration",
+  "gc: garbage collection queue verification",
+  "notifications: delivery to a owned HTTP receiver",
+  "resharding: explicit bucket resharding",
+  "slow: asynchronous cluster processing",
+]
+
+[tool.setuptools.package-data]
+rgw_tests = ["suites/pytest.ini"]

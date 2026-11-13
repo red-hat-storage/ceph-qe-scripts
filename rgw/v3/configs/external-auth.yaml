@@ -1,0 +1,10 @@
+---
+endpoint: http://127.0.0.1:7480
+user_types: [ldap, sts]
+bucket_states: [normal, versioned, suspended]
+identities:
+  ldap: RGW_LDAP
+  sts: RGW_STS
+# Export each prefix's ACCESS_KEY_ID, SECRET_ACCESS_KEY, and optional SESSION_TOKEN.
+# LDAP authentication and STS role/session issuance are provisioned externally.
+features: []
