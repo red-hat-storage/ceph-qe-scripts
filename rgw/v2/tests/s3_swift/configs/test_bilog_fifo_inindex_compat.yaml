@@ -1,0 +1,14 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 11.1-11.2 InIndex PUT/DELETE/versioned/trim/status
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 3
+  objects_size_range:
+    min: 5
+    max: 6
+  test_ops:
+    scenario: inindex_compat
+    bilog_type: inindex
+    enable_version: true

@@ -1,0 +1,15 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 8.5 trim while secondary is lagging
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 35
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: trim_lagging
+    bilog_type: fifo
+    synced_objects: 20
+    lag_objects: 15

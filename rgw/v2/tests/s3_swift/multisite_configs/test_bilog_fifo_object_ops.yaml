@@ -1,0 +1,16 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 2.1 PUT, 2.2 DELETE, 2.3 multipart, 2.4 mix
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 4
+  objects_size_range:
+    min: 5
+    max: 16
+  split_size: 5
+  test_ops:
+    scenario: object_ops
+    bilog_type: fifo
+    multipart_size: 16
+    split_size: 5

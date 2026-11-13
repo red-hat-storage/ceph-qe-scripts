@@ -1,0 +1,15 @@
+# script: test_bilog_fifo_scale.py
+# polarion_id: TBD
+# cases: S1 FIFO vs InIndex write throughput
+config:
+  user_count: 1
+  bucket_count: 2
+  objects_count: 200
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: throughput
+    bilog_type: fifo
+    duration_seconds: 600
+    threads: 16
