@@ -1,0 +1,63 @@
+# script: test_rgw_smb_basic_ops.py
+# Description: SMB share create must fail for an unassociated RGW user and
+#              for credentials of a user that does not exist. The test
+#              passes only when both scenarios pass.
+#
+# Workflow:
+#   1. Create an RGW user with create_users and bucket test1 owned by
+#      that user
+#   2. Create SMB cluster rgw-smb with --placement="label:smb" when it
+#      is not already present
+#   3. Scenario unassociated_user
+#      Create RGW user user2 with secret_key "12345". user2 does not own
+#      test1. Apply a share spec for test1 using user2. Share creation
+#      must fail and the share must not be listed.
+#   4. Scenario nonexistent_user
+#      Apply a share spec for test1 using access credentials for
+#      nosuch-smb-user. That user is not created.
+#      Expected result: Creating an RGW-backed SMB share using a spec
+#      file should fail if the provided RGW access credentials are
+#      non-existent. The share must not be listed.
+#
+# Both scenarios run. A failure in one does not skip the other. The
+# final result is PASS only when both scenarios pass. This config does
+# not mount a share with smbclient.
+#
+# Prerequisite: SMB mgr module enabled. Host(s) labeled with 'smb' via:
+#   ceph orch host label add <host> smb
+# The test creates cluster rgw-smb when it is not already listed. The
+# cluster is left in place.
+# user_remove deletes the bucket owner and user2. nonexistent_user_name
+# must not already exist on the cluster.
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 0
+  user_remove: true
+  test_ops:
+    user_name: user1
+    bucket_name: test1
+    create_bucket: true
+    create_object: false
+    cluster_id: rgw-smb
+    create_smb_cluster: true
+    smb_auth_mode: user
+    define_user_pass: smbuser%smbpass
+    placement: "label:smb"
+    create_smb_share: false
+    mount_smb_share: false
+    delete_smb_cluster: false
+    scenarios:
+      - name: unassociated_user
+        unassociated_user_name: user2
+        unassociated_secret_key: "12345"
+        share_id: rgw-share-unassoc
+        share_name: rshareunassoc
+        credential_id: unassoc-rgw-creds
+      - name: nonexistent_user
+        nonexistent_user_name: nosuch-smb-user
+        nonexistent_access_key: NOSUCHACCESSKEY1234
+        nonexistent_secret_key: nosuchsecret
+        share_id: rgw-share-nosuch
+        share_name: rsharenosuch
+        credential_id: nosuch-rgw-creds
