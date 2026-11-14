@@ -1,0 +1,67 @@
+#test_cloud_transition_restore_notifications.py
+#AWS Cloud Transition, Permanent Restore with ObjectRestore Notifications - Non-Versioned
+#Tests permanent restore of a small (4KB) non-versioned object transitioned to CLOUDAWS
+#Verifies ObjectRestore:Post, ObjectRestore:Completed notifications via podman Kafka container
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  parallel_lc: False
+  test_lc_transition: True
+  enable_resharding: False
+  pool_name: data.cold
+  storage_class: cold
+  ec_pool_transition: False
+  multiple_transitions: True
+  two_pool_transition: False
+  second_pool_name: data.glacier
+  second_storage_class: glacier
+  remote_zone: secondary
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    create_bucket: true
+    create_object: true
+    enable_versioning: false
+    version_count: 0
+    delete_marker: false
+    test_cloud_transition: true
+    test_pool_transition: false
+    skip_tier_setup: true
+    test_ibm_cloud_transition: false
+    test_aws_cloud_transition: true
+    test_retain_head: true
+    test_cloud_transition_at_remote: false
+    test_s3_restore_from_cloud: true
+    upload_type: normal
+    permanent_restore: true
+    delete_lc_after_transition: true
+    # AWS specific configuration for eu-north-1 region
+    aws_endpoint: "https://s3.eu-north-1.amazonaws.com"
+    aws_region: "eu-north-1"
+    aws_location_constraint: "eu-north-1"
+    verify_cloud_bugs: false
+    # Restore notification settings (podman Kafka container with ZooKeeper)
+    install_kafka_container: true
+    send_restore_notifications: true
+    endpoint: kafka
+    restore_ack_type: broker
+    restore_persistent_flag: true
+  lifecycle_conf:
+    - ID: LC_Rule_1
+      Filter:
+        Prefix: key1
+      Status: Enabled
+      Transitions:
+        - Days: 2
+          StorageClass: CLOUDAWS
+  restore_wait_time: 600
+  restore_poll_interval: 30
+  restore_parallel_workers: 1
+  # Lifecycle debug settings
+  rgw_lc_debug_interval: 30
+  rgw_enable_lc_threads: True
+  rgw_lifecycle_work_time: "00:00-23:59"
+  rgw_lc_max_worker: 3
+  rgw_lc_max_wp_worker: 3
