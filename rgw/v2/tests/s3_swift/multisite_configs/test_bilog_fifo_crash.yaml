@@ -1,0 +1,16 @@
+# script: test_bilog_fifo_crash.py
+# polarion_id: TBD
+# cases: 9.1 orphaned FIFO ADD, 9.2 OLH without FIFO, 9.3 OSD pause
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 3
+  objects_size_range:
+    min: 5
+    max: 7
+  test_ops:
+    bilog_type: fifo
+    cases:
+      - "9.1"
+      - "9.2"
+      - "9.3"

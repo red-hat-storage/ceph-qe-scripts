@@ -1,0 +1,15 @@
+# script: test_bilog_fifo_scale.py
+# polarion_id: TBD
+# cases: S2.1 500k full sync, S2.2 incremental under write
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 500000
+  objects_size_range:
+    min: 4
+    max: 4
+  test_ops:
+    scenario: large_sync
+    bilog_type: fifo
+    full_sync_objects: 500000
+    incremental_seconds: 120

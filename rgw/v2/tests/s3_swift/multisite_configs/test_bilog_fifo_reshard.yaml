@@ -1,0 +1,16 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 6.1 FIFO reshard -> new FIFO generation
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 5
+  shards: 64
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: reshard
+    bilog_type: fifo
+    put_count: 5
+    reshard_shards: 64
