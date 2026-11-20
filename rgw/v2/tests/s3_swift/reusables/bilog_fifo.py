@@ -3,6 +3,7 @@
 import json
 import logging
 import re
+import shlex
 import time
 
 import v2.utils.utils as utils
@@ -15,8 +16,11 @@ log = logging.getLogger()
 
 FIFO_TYPE = "fifo"
 ININDEX_TYPE = "inindex"
-MARKER_RE = re.compile(r"^\d+#")
-BILOG_OID_RE = re.compile(r"\.bilog$")
+# cls fifo marker::to_string() is "{:0>20}:{:0>20}" (part number, byte offset).
+# radosgw-admin bilog list returns that string as op_id.
+FIFO_MARKER_RE = re.compile(r"^[0-9]{20}:[0-9]{20}$")
+# Head is "{bucket_id}.{gen}.{shard}.bilog". Parts are "{head}.{prefix}.{n}".
+BILOG_OID_RE = re.compile(r"\.bilog(?:\.|$)")
 MIN_FIFO_SHARDS = 7
 MAX_FIFO_SHARDS = 21
 
@@ -42,6 +46,45 @@ def run_json(cmd, allow_empty=True):
         if allow_empty:
             return []
         raise
+
+
+def _json_bool(value):
+    if isinstance(value, str):
+        return value.lower() in ("true", "1", "yes")
+    return bool(value)
+
+
+def enable_zonegroup_log_data(ssh_con=None):
+    """Set log_data true on every zone in the zonegroup, then restart RGW."""
+    doc = run_json("radosgw-admin zonegroup get", allow_empty=False)
+    zones = doc.get("zones") or []
+    if not zones:
+        raise TestExecError("zonegroup get returned no zones")
+    for zone in zones:
+        zone["log_data"] = True
+        log.info(f"enabling log_data on zone {zone.get('name')}")
+    if "log_data" in doc:
+        doc["log_data"] = True
+    path = "/tmp/bilog_fifo_zonegroup.json"
+    with open(path, "w") as handle:
+        json.dump(doc, handle)
+    out = utils.exec_shell_cmd(f"radosgw-admin zonegroup set --infile {path}")
+    if out is False:
+        raise TestExecError("zonegroup set failed while enabling log_data")
+    period = utils.exec_shell_cmd("radosgw-admin period update --commit")
+    if period is False:
+        log.info("period update --commit did not apply")
+    updated = run_json("radosgw-admin zonegroup get", allow_empty=False)
+    for zone in updated.get("zones") or []:
+        if not _json_bool(zone.get("log_data")):
+            raise TestExecError(
+                f"log_data is not true on zone {zone.get('name')} after zonegroup set"
+            )
+    rgw_service = RGWService()
+    if not rgw_service.restart(ssh_con):
+        raise TestExecError("RGW restart failed after enabling zonegroup log_data")
+    time.sleep(20)
+    log.info("zonegroup log_data is true and RGW was restarted")
 
 
 def set_bilog_type(bilog_type, ssh_con=None, restart=True):
@@ -353,8 +396,8 @@ def assert_marker_format(entry, fifo=True):
     if eid is None:
         raise TestExecError(f"bilog entry missing id: {entry}")
     eid = str(eid)
-    if fifo and not MARKER_RE.match(eid):
-        raise TestExecError(f"FIFO marker expected shard#raw, got {eid}")
+    if fifo and not FIFO_MARKER_RE.match(eid):
+        raise TestExecError(f"FIFO marker expected 20-digit part:offset, got {eid}")
     return eid
 
 
@@ -384,6 +427,33 @@ def assert_entries_contain(entries, substrings, msg=None):
     return found
 
 
+def assert_new_object_op(before, after, object_key, ops):
+    """Require a new bilog entry for object_key whose op matches ops.
+
+    Match the op field only. A previous PUT's state=complete must not count.
+    """
+    if isinstance(ops, str):
+        ops = [ops]
+    needles = [op.lower() for op in ops]
+    before_ids = {entry_id(entry) for entry in before}
+    found = []
+    for entry in after:
+        if entry_object(entry) != object_key:
+            continue
+        if entry_id(entry) in before_ids:
+            continue
+        op = entry_op(entry)
+        if any(op == needle or needle in op for needle in needles):
+            found.append(entry)
+    if not found:
+        seen = [(entry_object(e), entry_op(e), entry_id(e)) for e in after]
+        raise TestExecError(
+            f"no new bilog op in {needles} for {object_key}; entries={seen}"
+        )
+    log.info(f"new bilog entries for {object_key}: {found}")
+    return found
+
+
 def bucket_list_admin(bucket, versions=False):
     name = _bucket_name(bucket)
     cmd = f"radosgw-admin bucket list --bucket {name}"
@@ -391,6 +461,17 @@ def bucket_list_admin(bucket, versions=False):
     if versions:
         return entries
     return entries
+
+
+def _meta_value(entry, key):
+    if not isinstance(entry, dict):
+        return None
+    if entry.get(key) not in (None, ""):
+        return entry.get(key)
+    meta = entry.get("meta")
+    if isinstance(meta, dict):
+        return meta.get(key)
+    return None
 
 
 def get_versioned_epoch(bucket, key, instance=None):
@@ -415,14 +496,75 @@ def get_versioned_epoch(bucket, key, instance=None):
     raise TestExecError(f"object {key} not in bucket list of {_bucket_name(bucket)}")
 
 
-def wait_sync(bucket=None, retry=30, delay=20):
-    reusable.check_sync_status(retry=retry, delay=delay)
-    if bucket is not None:
-        name = _bucket_name(bucket)
-        status = utils.exec_shell_cmd(
-            f"radosgw-admin bucket sync status --bucket {name}"
+def _secondary_caught_up(text):
+    """True when a secondary status shows it has applied the primary."""
+    low = text.lower()
+    if "behind" in low or "recovering" in low:
+        return False
+    if (
+        "failed to retrieve sync info" in low
+        or "failed to fetch" in low
+        or "no valid endpoint" in low
+    ):
+        return False
+    return "caught up" in low
+
+
+def _run_on_secondary(cmd):
+    rc, out, err = reusable.exec_on_secondary(cmd)
+    log.info(f"secondary rc={rc} cmd={cmd}\nout={out}\nerr={err}")
+    return rc, out or "", err or ""
+
+
+def bucket_full_sync(bucket, source_zone="primary"):
+    """Init and run a full bucket sync on the secondary, pulling source_zone."""
+    name = _bucket_name(bucket)
+    for action in ("init", "run"):
+        cmd = (
+            f"radosgw-admin bucket sync {action} --bucket {shlex.quote(name)} "
+            f"--source-zone {shlex.quote(source_zone)}"
         )
-        log.info(f"bucket sync status: {status}")
+        rc, out, err = _run_on_secondary(cmd)
+        if rc != 0:
+            raise TestExecError(
+                f"bucket sync {action} on secondary failed: {err or out}"
+            )
+
+
+def wait_sync(bucket=None, retry=30, delay=20, source_zone="primary"):
+    """Wait until the secondary has applied primary bucket data.
+
+    On the primary, "caught up with source" means the primary has applied
+    the secondary. Poll the secondary instead.
+    """
+    if not utils.is_cluster_multisite():
+        reusable.check_sync_status(retry=retry, delay=delay)
+        if bucket is not None:
+            name = _bucket_name(bucket)
+            status = utils.exec_shell_cmd(
+                f"radosgw-admin bucket sync status --bucket {name}"
+            )
+            log.info(f"bucket sync status: {status}")
+        return
+    name = _bucket_name(bucket) if bucket is not None else None
+    last = ""
+    for attempt in range(1, retry + 1):
+        if name:
+            cmd = (
+                "radosgw-admin bucket sync status "
+                f"--bucket {shlex.quote(name)} "
+                f"--source-zone {shlex.quote(source_zone)}"
+            )
+        else:
+            cmd = "radosgw-admin sync status"
+        rc, out, err = _run_on_secondary(cmd)
+        last = out + err
+        if rc == 0 and _secondary_caught_up(last):
+            log.info(f"secondary caught up for {name or 'zone'}")
+            return last
+        log.info(f"secondary sync not caught up ({attempt}/{retry})")
+        time.sleep(delay)
+    raise TestExecError(f"secondary sync not caught up after {retry} tries: {last}")
 
 
 def compare_primary_secondary(bucket, versioned=False, keys=None):
@@ -468,21 +610,18 @@ def compare_primary_secondary(bucket, versioned=False, keys=None):
         )
     if versioned:
         for key in keys or p_names:
-            try:
-                p_epoch, p_tag, _ = get_versioned_epoch(name, key)
-            except TestExecError:
-                continue
-            s_match = None
-            for entry in secondary:
-                if (entry.get("name") or entry.get("key")) == key:
-                    s_match = entry
-                    break
-            if s_match is None:
-                raise TestExecError(f"versioned key {key} missing on secondary")
-            s_epoch = s_match.get("versioned_epoch")
-            if s_epoch is None and isinstance(s_match.get("meta"), dict):
-                s_epoch = s_match["meta"].get("versioned_epoch")
-            s_tag = s_match.get("tag") or (s_match.get("meta") or {}).get("tag")
+            p_match = next(
+                (e for e in primary if (e.get("name") or e.get("key")) == key),
+                None,
+            )
+            s_match = next(
+                (e for e in secondary if (e.get("name") or e.get("key")) == key),
+                None,
+            )
+            if p_match is None or s_match is None:
+                raise TestExecError(f"versioned key {key} missing on one zone")
+            p_epoch = _meta_value(p_match, "versioned_epoch")
+            s_epoch = _meta_value(s_match, "versioned_epoch")
             if (
                 p_epoch is not None
                 and s_epoch is not None
@@ -491,8 +630,16 @@ def compare_primary_secondary(bucket, versioned=False, keys=None):
                 raise TestExecError(
                     f"versioned_epoch mismatch for {key}: {p_epoch} vs {s_epoch}"
                 )
-            if p_tag and s_tag and p_tag != s_tag:
-                raise TestExecError(f"OLH tag mismatch for {key}: {p_tag} vs {s_tag}")
+            p_instance = str(p_match.get("instance") or "")
+            s_instance = str(s_match.get("instance") or "")
+            if p_instance != s_instance:
+                raise TestExecError(
+                    f"version id mismatch for {key}: {p_instance} vs {s_instance}"
+                )
+            p_etag = _meta_value(p_match, "etag")
+            s_etag = _meta_value(s_match, "etag")
+            if (p_etag or s_etag) and p_etag != s_etag:
+                raise TestExecError(f"etag mismatch for {key}: {p_etag} vs {s_etag}")
     log.info(f"primary and secondary listings match for {name}")
     return primary, secondary
 
@@ -590,8 +737,80 @@ def remove_index_omap_key(bucket, object_key):
         )
 
 
+def _rule_val(manifest):
+    rules = manifest.get("rules") or []
+    if not rules or not isinstance(rules[0], dict):
+        return {}
+    rule = rules[0]
+    val = rule.get("val", rule)
+    return val if isinstance(val, dict) else {}
+
+
+def _part_target(part, default_pool):
+    """Return (pool, oid, namespace) for one manifest part, or None."""
+    if isinstance(part, str) and part:
+        return default_pool, part, None
+    if not isinstance(part, dict):
+        return None
+    oid = part.get("oid")
+    ns = part.get("ns") or part.get("namespace") or None
+    pool = part.get("pool") or default_pool
+    loc = part.get("loc") if isinstance(part.get("loc"), dict) else {}
+    key = loc.get("key") if isinstance(loc.get("key"), dict) else {}
+    raw = loc.get("raw_obj") if isinstance(loc.get("raw_obj"), dict) else {}
+    oid = oid or key.get("name") or raw.get("oid")
+    ns = ns or key.get("ns") or raw.get("loc") or None
+    pool = raw.get("pool") or pool
+    if isinstance(pool, dict):
+        pool = pool.get("name") or pool.get("pool") or default_pool
+    if not oid:
+        return None
+    return str(pool), str(oid), ns or None
+
+
+def _tail_targets(manifest, default_pool):
+    """RADOS tails for an object. An inline object has none.
+
+    Implicit tails are "{prefix}{stripe}" in the shadow namespace. The
+    manifest prefix itself is not an object name. Stripe 0 is the index head.
+    """
+    if manifest.get("explicit_objs"):
+        targets = []
+        for part in manifest.get("objs") or []:
+            target = _part_target(part, default_pool)
+            if target:
+                targets.append(target)
+        return targets
+    try:
+        obj_size = int(manifest.get("obj_size") or 0)
+        max_head = int(manifest.get("max_head_size") or 0)
+        head_size = int(manifest.get("head_size") or 0)
+        stripe = int(_rule_val(manifest).get("stripe_max_size") or 0)
+    except (TypeError, ValueError):
+        return []
+    if obj_size <= max_head or (head_size and head_size >= obj_size):
+        return []
+    if stripe <= 0:
+        stripe = max_head
+    prefix = manifest.get("prefix")
+    if stripe <= 0 or not prefix:
+        return []
+    targets = []
+    stripe_id = 0
+    ofs = max_head
+    while ofs < obj_size:
+        stripe_id += 1
+        targets.append((default_pool, f"{prefix}{stripe_id}", "shadow"))
+        ofs += stripe
+    return targets
+
+
 def remove_head_object(bucket, object_key):
-    """Remove the head rados object while leaving the index entry."""
+    """Remove data-pool tail objects and leave the bucket index entry.
+
+    Objects that fit in the index head have no RADOS object. Callers that
+    need those bytes gone remove the index key themselves.
+    """
     name = _bucket_name(bucket)
     out = utils.exec_shell_cmd(
         f"radosgw-admin object stat --bucket {name} --object {object_key}"
@@ -599,27 +818,44 @@ def remove_head_object(bucket, object_key):
     if out is False:
         raise TestExecError(f"object stat failed for {name}/{object_key}")
     stat = json.loads(str(out))
-    oid = stat.get("oid") or stat.get("manifest", {}).get("prefix")
+    manifest = stat.get("manifest") or {}
     pool = stat.get("pool") or get_data_pool()
-    if not oid:
-        # fall back to listing data pool for the key
-        data_pool = get_data_pool()
-        oids = [o for o in list_pool_objects(data_pool) if object_key in o]
-        if not oids:
-            raise TestExecError(f"could not locate head oid for {object_key}")
-        oid = oids[0]
-        pool = data_pool
-    log.info(f"removing head object {oid} from pool {pool}")
-    rm = utils.exec_shell_cmd(f"rados -p {pool} rm {oid}")
-    if rm is False:
-        raise TestExecError(f"rados rm failed for {pool}/{oid}")
+    targets = _tail_targets(manifest, pool)
+    if not targets:
+        log.info(
+            f"{object_key} is inline in the bucket index "
+            f"(head_size={manifest.get('head_size')}, size={stat.get('size')}); "
+            "no data-pool object to remove"
+        )
+        return []
+    for data_pool, oid, ns in targets:
+        ns_arg = f" --namespace {shlex.quote(ns)}" if ns else ""
+        log.info(f"removing tail object {data_pool}/{ns or '-'}:{oid}")
+        rm = utils.exec_shell_cmd(
+            f"rados -p {shlex.quote(data_pool)}{ns_arg} rm {shlex.quote(oid)}"
+        )
+        if rm is False:
+            raise TestExecError(f"rados rm failed for {data_pool}/{oid}")
+    return targets
+
+
+def object_reindex(bucket, object_key):
+    """Link an existing head object back into the bucket index."""
+    name = _bucket_name(bucket)
+    cmd = f"radosgw-admin object reindex --bucket {name} --object {object_key}"
+    out = utils.exec_shell_cmd(cmd)
+    if out is False:
+        raise TestExecError(f"object reindex failed for {name}/{object_key}")
+    return out
 
 
 def bucket_check_fix(bucket):
+    """Run bucket check on the check_disk_state path."""
     name = _bucket_name(bucket)
-    out = utils.exec_shell_cmd(f"radosgw-admin bucket check --fix --bucket={name}")
+    cmd = f"radosgw-admin bucket check --check-objects --fix --bucket={name}"
+    out = utils.exec_shell_cmd(cmd)
     if out is False:
-        raise TestExecError(f"bucket check --fix failed for {name}")
+        raise TestExecError(f"bucket check --check-objects --fix failed for {name}")
     return out
 
 

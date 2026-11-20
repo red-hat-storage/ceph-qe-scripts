@@ -1,6 +1,7 @@
 # script: test_bilog_fifo.py
 # polarion_id: TBD
 # cases: 11.1-11.2 InIndex PUT/DELETE/versioned/trim/status
+# single-site: enables zonegroup log_data and restarts RGW before writes
 config:
   user_count: 1
   bucket_count: 1
@@ -11,4 +12,5 @@ config:
   test_ops:
     scenario: inindex_compat
     bilog_type: inindex
+    enable_log_data: true
     enable_version: true

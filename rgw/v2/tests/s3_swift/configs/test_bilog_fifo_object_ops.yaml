@@ -1,6 +1,7 @@
 # script: test_bilog_fifo.py
 # polarion_id: TBD
 # cases: 2.1 PUT, 2.2 DELETE, 2.3 multipart, 2.4 mix
+# enables zonegroup log_data and restarts RGW before writes
 config:
   user_count: 1
   bucket_count: 1
@@ -12,5 +13,6 @@ config:
   test_ops:
     scenario: object_ops
     bilog_type: fifo
+    enable_log_data: true
     multipart_size: 16
     split_size: 5

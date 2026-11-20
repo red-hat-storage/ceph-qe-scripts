@@ -120,6 +120,8 @@ def scenario_creation(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
 
 def scenario_inindex_default(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
     """1.2 New bucket stays InIndex when config is inindex."""
+    if config.test_ops.get("enable_log_data", False):
+        fifo.enable_zonegroup_log_data(ssh_con)
     fifo.set_bilog_type("inindex", ssh_con=ssh_con)
     bucket = _create_named_bucket(config, user, rgw_conn, ip_and_port, 0)
     _upload(config, user, bucket, "obj-inindex", size=5)
@@ -131,6 +133,8 @@ def scenario_inindex_default(config, ssh_con, user, rgw_conn, rgw_client, ip_and
 
 def scenario_object_ops(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
     """2.1 PUT, 2.2 DELETE, 2.3 multipart, 2.4 mix."""
+    if config.test_ops.get("enable_log_data", True):
+        fifo.enable_zonegroup_log_data(ssh_con)
     fifo.set_bilog_type("fifo", ssh_con=ssh_con)
     bucket = _create_named_bucket(config, user, rgw_conn, ip_and_port, 0)
 
@@ -174,6 +178,8 @@ def scenario_object_ops(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port
 
 def scenario_versioned(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
     """3.1-3.4 OLH link / increment / delete-marker / unlink_instance."""
+    if config.test_ops.get("enable_log_data", False):
+        fifo.enable_zonegroup_log_data(ssh_con)
     fifo.set_bilog_type("fifo", ssh_con=ssh_con)
     write_bucket_io_info = BucketIoInfo()
     bucket = _create_named_bucket(config, user, rgw_conn, ip_and_port, 0)
@@ -247,6 +253,8 @@ def scenario_versioned_sync(config, ssh_con, user, rgw_conn, rgw_client, ip_and_
 
 def scenario_cli(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
     """4.1-4.3 bilog list / shard filter / trim."""
+    if config.test_ops.get("enable_log_data", True):
+        fifo.enable_zonegroup_log_data(ssh_con)
     fifo.set_bilog_type("fifo", ssh_con=ssh_con)
     fifo.set_index_shard_count(config.test_ops.get("index_shards", 11), ssh_con=ssh_con)
     bucket = _create_named_bucket(config, user, rgw_conn, ip_and_port, 0)
@@ -258,7 +266,7 @@ def scenario_cli(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
         raise TestExecError(f"bilog list returned {len(entries)}, expected >= {count}")
     for entry in entries:
         fifo.assert_marker_format(entry, fifo=True)
-    log.info("4.1 passed: list across FIFO shards with shard#raw markers")
+    log.info("4.1 passed: list across FIFO shards with part:offset markers")
 
     shard0 = fifo.bilog_list(bucket, shard_id=0)
     full_ids = {fifo.entry_id(e) for e in entries}
@@ -266,8 +274,7 @@ def scenario_cli(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
         eid = fifo.entry_id(entry)
         if eid not in full_ids:
             raise TestExecError(f"shard-0 entry {eid} not in full list")
-        if not str(eid).startswith("0#"):
-            log.info(f"shard-0 entry id {eid} (may use raw marker)")
+        fifo.assert_marker_format(entry, fifo=True)
     log.info("4.2 passed: --shard-id 0 subset of full list")
 
     last = fifo.entry_id(entries[-1])
@@ -318,6 +325,8 @@ def scenario_sync_disable(config, ssh_con, user, rgw_conn, rgw_client, ip_and_po
 
 def scenario_reshard(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
     """6.1 FIFO reshard creates a new FIFO generation."""
+    if config.test_ops.get("enable_log_data", False):
+        fifo.enable_zonegroup_log_data(ssh_con)
     fifo.set_bilog_type("fifo", ssh_con=ssh_con)
     bucket = _create_named_bucket(config, user, rgw_conn, ip_and_port, 0)
     for i in range(config.test_ops.get("put_count", 5)):
@@ -381,27 +390,30 @@ def scenario_reshard_trim(config, ssh_con, user, rgw_conn, rgw_client, ip_and_po
 
 
 def scenario_index_repair(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
-    """7.1 missing index -> FIFO ADD; 7.2 orphaned index -> FIFO DEL."""
+    """7.1 object reindex restores a missing index; 7.2 check-objects deletes an orphan."""
     fifo.set_bilog_type("fifo", ssh_con=ssh_con)
     bucket = _create_named_bucket(config, user, rgw_conn, ip_and_port, 0)
     missing_key = "repair-missing"
     _upload(config, user, bucket, missing_key, size=5)
     fifo.remove_index_omap_key(bucket, missing_key)
-    fifo.bucket_check_fix(bucket)
+    before = fifo.bilog_list(bucket)
+    fifo.object_reindex(bucket, missing_key)
     entries = fifo.bilog_list(bucket)
-    fifo.assert_entries_contain(entries, ["add", "write", "complete"])
+    fifo.assert_new_object_op(before, entries, missing_key, ["write", "add"])
     if utils.is_cluster_multisite():
         fifo.wait_sync(bucket)
         fifo.compare_primary_secondary(bucket, keys=[missing_key])
-    log.info("7.1 passed: bucket check created FIFO ADD for missing index")
+    log.info("7.1 passed: object reindex created FIFO ADD for missing index")
 
     orphan_key = "repair-orphan"
-    _upload(config, user, bucket, orphan_key, size=5)
+    # Past the 4MiB index head so the object has a shadow tail to remove.
+    _upload(config, user, bucket, orphan_key, size=5 * 1024 * 1024)
     fifo.remove_head_object(bucket, orphan_key)
+    before = fifo.bilog_list(bucket)
     fifo.bucket_check_fix(bucket)
     entries = fifo.bilog_list(bucket)
-    fifo.assert_entries_contain(entries, ["del", "delete", "remove"])
-    log.info("7.2 passed: bucket check created FIFO DEL for orphaned index")
+    fifo.assert_new_object_op(before, entries, orphan_key, ["del", "delete", "remove"])
+    log.info("7.2 passed: bucket check --check-objects created FIFO DEL")
 
 
 def scenario_multisite_sync(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
@@ -422,8 +434,7 @@ def scenario_multisite_sync(config, ssh_con, user, rgw_conn, rgw_client, ip_and_
         key = f"full-{i}"
         _upload(config, user, bucket, key, size=5 if i % 2 == 0 else 12)
         mixed_keys.append(key)
-    utils.exec_shell_cmd(f"radosgw-admin bucket sync init --bucket {bucket.name}")
-    utils.exec_shell_cmd(f"radosgw-admin bucket sync run --bucket {bucket.name}")
+    fifo.bucket_full_sync(bucket)
     fifo.wait_sync(bucket, retry=40, delay=15)
     fifo.compare_primary_secondary(bucket, keys=mixed_keys)
     log.info("8.2 passed: full sync from scratch")
@@ -480,6 +491,8 @@ def scenario_trim_lagging(config, ssh_con, user, rgw_conn, rgw_client, ip_and_po
 
 def scenario_inindex_compat(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
     """11.1-11.2 InIndex PUT/DELETE/versioned/trim/status still work."""
+    if config.test_ops.get("enable_log_data", False):
+        fifo.enable_zonegroup_log_data(ssh_con)
     fifo.set_bilog_type("inindex", ssh_con=ssh_con)
     write_bucket_io_info = BucketIoInfo()
     bucket = _create_named_bucket(config, user, rgw_conn, ip_and_port, 0)
