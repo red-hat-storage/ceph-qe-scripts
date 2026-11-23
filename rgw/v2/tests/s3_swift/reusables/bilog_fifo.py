@@ -333,13 +333,30 @@ def bilog_status(bucket):
     raise TestExecError(f"could not get bilog/sync status for {name}")
 
 
+def _marker_map(markers):
+    """Normalize bilog-status markers to {shard: raw marker}.
+
+    The JSON formatter emits a map<int,string> as a list of {"key", "val"}.
+    """
+    if isinstance(markers, dict):
+        return markers
+    if not isinstance(markers, list):
+        return None
+    mapped = {}
+    for item in markers:
+        if not isinstance(item, dict) or "key" not in item:
+            continue
+        mapped[item["key"]] = item.get("val", "")
+    return mapped or None
+
+
 def _status_markers(status):
     if not isinstance(status, dict):
         return None
     markers = status.get("markers")
     if markers is None and isinstance(status.get("entries"), dict):
         markers = status["entries"].get("markers")
-    return markers if isinstance(markers, dict) else None
+    return _marker_map(markers)
 
 
 def bilog_trim_end_marker(bucket):
@@ -845,6 +862,25 @@ def _manifest_bucket_marker(manifest):
     return ""
 
 
+def _rgw_key_oid(name, ns="", instance=""):
+    """Match rgw_obj_key::get_oid(). The namespace is part of the RADOS name.
+
+    A shadow tail is stored in the default namespace as
+    "{bucket_marker}__shadow_{logical_name}", not under --namespace shadow.
+    """
+    name = "" if name is None else str(name)
+    ns = "" if not ns else str(ns)
+    instance = "" if not instance or instance == "null" else str(instance)
+    if not ns and not instance:
+        if not name or name[0] != "_":
+            return name
+        return f"_{name}"
+    oid = f"_{ns}"
+    if instance:
+        oid += f":{instance}"
+    return f"{oid}_{name}"
+
+
 def _rados_data_oid(marker, logical_oid):
     """Match prepend_bucket_marker(): "{marker}_{oid}" when a marker is set."""
     if not marker or not logical_oid:
@@ -855,9 +891,9 @@ def _rados_data_oid(marker, logical_oid):
 def _tail_targets(manifest, default_pool):
     """RADOS tails for an object. An inline object has none.
 
-    Implicit tails are "{bucket_marker}_{prefix}{stripe}" in the shadow
-    namespace. The manifest prefix itself is not an object name. Stripe 0
-    is the index head.
+    Implicit tails are "{bucket_marker}__shadow_{prefix}{stripe}" in the
+    default namespace. The manifest prefix itself is not an object name.
+    Stripe 0 is the index head.
     """
     if manifest.get("explicit_objs"):
         targets = []
@@ -886,8 +922,8 @@ def _tail_targets(manifest, default_pool):
     ofs = max_head
     while ofs < obj_size:
         stripe_id += 1
-        logical = f"{prefix}{stripe_id}"
-        targets.append((default_pool, _rados_data_oid(marker, logical), "shadow"))
+        logical = _rgw_key_oid(f"{prefix}{stripe_id}", ns="shadow")
+        targets.append((default_pool, _rados_data_oid(marker, logical), None))
         ofs += stripe
     return targets
 
