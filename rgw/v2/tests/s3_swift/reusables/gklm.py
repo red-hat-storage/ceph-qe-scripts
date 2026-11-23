@@ -692,7 +692,7 @@ class GKLM:
             → /var/run/ceph/<fsid>/rgw_certificate.crt|key
 
         /var/run/ceph/<fsid>/ already exists (cephadm); no mkdir/scp needed.
-        Commands run as root via connect_remote + remote_exec_shell_cmd.
+        Commands run as cephuser over a key-based SSH session and use sudo.
         """
         hosts = self._get_rgw_host_addrs()
         log.info(
@@ -701,15 +701,15 @@ class GKLM:
         )
         # Source paths exist on every RGW node after git_clone_configs_repo
         copy_cmd = (
-            f"cp {CONFIG_CERT_PATH} {self.host_cert_path} && "
-            f"cp {CONFIG_KEY_PATH} {self.host_key_path} && "
-            f"chown 167:167 {self.host_cert_path} {self.host_key_path} && "
-            f"chmod 640 {self.host_cert_path} {self.host_key_path} && "
-            f"ls -la {self.host_cert_path} {self.host_key_path}"
+            f"sudo cp {CONFIG_CERT_PATH} {self.host_cert_path} && "
+            f"sudo cp {CONFIG_KEY_PATH} {self.host_key_path} && "
+            f"sudo chown 167:167 {self.host_cert_path} {self.host_key_path} && "
+            f"sudo chmod 640 {self.host_cert_path} {self.host_key_path} && "
+            f"sudo ls -la {self.host_cert_path} {self.host_key_path}"
         )
         for host in hosts:
             log.info(f"Copying KMIP certs on {host}")
-            ssh = utils.connect_remote(host, user_nm="root", passw="passwd")
+            ssh = utils.connect_remote(host)
             ok = utils.remote_exec_shell_cmd(ssh, copy_cmd)
             try:
                 ssh.close()
