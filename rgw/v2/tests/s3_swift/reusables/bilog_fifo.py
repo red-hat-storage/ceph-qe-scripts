@@ -17,8 +17,10 @@ log = logging.getLogger()
 FIFO_TYPE = "fifo"
 ININDEX_TYPE = "inindex"
 # cls fifo marker::to_string() is "{:0>20}:{:0>20}" (part number, byte offset).
-# radosgw-admin bilog list returns that string as op_id.
+# An unfiltered bilog list returns that string as op_id. --shard-id prefixes
+# it with "{shard}#".
 FIFO_MARKER_RE = re.compile(r"^[0-9]{20}:[0-9]{20}$")
+SHARD_FIFO_MARKER_RE = re.compile(r"^(\d+)#([0-9]{20}:[0-9]{20})$")
 # Head is "{bucket_id}.{gen}.{shard}.bilog". Parts are "{head}.{prefix}.{n}".
 BILOG_OID_RE = re.compile(r"\.bilog(?:\.|$)")
 MIN_FIFO_SHARDS = 7
@@ -391,14 +393,29 @@ def entry_object(entry):
     )
 
 
-def assert_marker_format(entry, fifo=True):
+def bare_fifo_marker(entry, shard_id=None):
+    """Return the part:offset marker, dropping a --shard-id prefix."""
     eid = entry_id(entry)
     if eid is None:
         raise TestExecError(f"bilog entry missing id: {entry}")
     eid = str(eid)
-    if fifo and not FIFO_MARKER_RE.match(eid):
-        raise TestExecError(f"FIFO marker expected 20-digit part:offset, got {eid}")
-    return eid
+    if shard_id is None:
+        if not FIFO_MARKER_RE.match(eid):
+            raise TestExecError(f"FIFO marker expected 20-digit part:offset, got {eid}")
+        return eid
+    match = SHARD_FIFO_MARKER_RE.match(eid)
+    if not match or int(match.group(1)) != int(shard_id):
+        raise TestExecError(f"FIFO marker expected {shard_id}#part:offset, got {eid}")
+    return match.group(2)
+
+
+def assert_marker_format(entry, fifo=True, shard_id=None):
+    eid = entry_id(entry)
+    if eid is None:
+        raise TestExecError(f"bilog entry missing id: {entry}")
+    if not fifo:
+        return str(eid)
+    return bare_fifo_marker(entry, shard_id=shard_id)
 
 
 def parse_bilog_ops(entries):

@@ -269,12 +269,13 @@ def scenario_cli(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
     log.info("4.1 passed: list across FIFO shards with part:offset markers")
 
     shard0 = fifo.bilog_list(bucket, shard_id=0)
-    full_ids = {fifo.entry_id(e) for e in entries}
+    # The same part:offset is reused on every shard, so match object and marker.
+    full_keys = {(fifo.entry_object(e), str(fifo.entry_id(e))) for e in entries}
     for entry in shard0:
-        eid = fifo.entry_id(entry)
-        if eid not in full_ids:
-            raise TestExecError(f"shard-0 entry {eid} not in full list")
-        fifo.assert_marker_format(entry, fifo=True)
+        marker = fifo.assert_marker_format(entry, fifo=True, shard_id=0)
+        key = (fifo.entry_object(entry), marker)
+        if key not in full_keys:
+            raise TestExecError(f"shard-0 entry {key[0]} {marker} not in full list")
     log.info("4.2 passed: --shard-id 0 subset of full list")
 
     last = fifo.entry_id(entries[-1])
