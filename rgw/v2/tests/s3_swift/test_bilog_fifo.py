@@ -278,17 +278,17 @@ def scenario_cli(config, ssh_con, user, rgw_conn, rgw_client, ip_and_port):
             raise TestExecError(f"shard-0 entry {key[0]} {marker} not in full list")
     log.info("4.2 passed: --shard-id 0 subset of full list")
 
-    last = fifo.entry_id(entries[-1])
-    fifo.bilog_trim(bucket, end_marker=last)
+    end_marker = fifo.bilog_trim_end_marker(bucket)
+    fifo.bilog_trim(bucket, end_marker=end_marker)
     after = fifo.bilog_list(bucket)
     if after:
-        log.info(f"entries remaining after trim (peer-protected?): {len(after)}")
-        if not utils.is_cluster_multisite() and len(after) >= len(entries):
-            raise TestExecError("bilog trim did not advance marker")
+        raise TestExecError(
+            f"bilog trim left {len(after)} entries; end-marker {end_marker}"
+        )
     _upload(config, user, bucket, "cli-after-trim", size=5)
     new_entries = fifo.bilog_list(bucket)
     names = [fifo.entry_object(e) for e in new_entries]
-    if new_entries and "cli-after-trim" not in "".join(names) and len(new_entries) < 1:
+    if "cli-after-trim" not in names:
         raise TestExecError("new write after trim not listed")
     log.info("4.3 passed: trim + subsequent write")
 

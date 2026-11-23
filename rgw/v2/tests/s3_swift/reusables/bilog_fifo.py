@@ -304,11 +304,13 @@ def bilog_list(bucket, shard_id=None):
 
 def bilog_trim(bucket, end_marker=None, start_marker=None):
     name = _bucket_name(bucket)
-    cmd = f"radosgw-admin bilog trim --bucket {name}"
+    cmd = f"radosgw-admin bilog trim --bucket {shlex.quote(name)}"
+    # Quote markers. A FIFO end marker is "0#part:offset,1#part:offset", and
+    # an unquoted '#' is a shell comment.
     if start_marker:
-        cmd += f" --start-marker {start_marker}"
+        cmd += f" --start-marker {shlex.quote(str(start_marker))}"
     if end_marker:
-        cmd += f" --end-marker {end_marker}"
+        cmd += f" --end-marker {shlex.quote(str(end_marker))}"
     out = utils.exec_shell_cmd(cmd)
     if out is False:
         raise TestExecError(f"bilog trim failed: {cmd}")
@@ -329,6 +331,46 @@ def bilog_status(bucket):
         except (json.JSONDecodeError, TypeError):
             return {"raw": str(out)}
     raise TestExecError(f"could not get bilog/sync status for {name}")
+
+
+def _status_markers(status):
+    if not isinstance(status, dict):
+        return None
+    markers = status.get("markers")
+    if markers is None and isinstance(status.get("entries"), dict):
+        markers = status["entries"].get("markers")
+    return markers if isinstance(markers, dict) else None
+
+
+def bilog_trim_end_marker(bucket):
+    """Per-shard end marker covering each shard's latest FIFO entry.
+
+    ``bilog status`` returns raw part:offset markers. Trim applies a bare
+    marker to shard 0 only, and a marker that is not an entry boundary on
+    that shard removes nothing.
+    """
+    name = _bucket_name(bucket)
+    markers = _status_markers(bilog_status(bucket))
+    if not markers:
+        raise TestExecError(f"bilog status has no per-shard markers for {name}")
+    parts = []
+    for shard, raw in sorted(markers.items(), key=lambda item: int(item[0])):
+        raw = "" if raw is None else str(raw).strip()
+        if not raw:
+            continue
+        prefix = f"{int(shard)}#"
+        if raw.startswith(prefix):
+            raw = raw[len(prefix) :]
+        if not FIFO_MARKER_RE.match(raw):
+            raise TestExecError(
+                f"bilog status shard {shard} marker is not part:offset: {raw}"
+            )
+        parts.append(prefix + raw)
+    if not parts:
+        raise TestExecError(f"bilog status markers are empty for {name}")
+    marker = ",".join(parts)
+    log.info(f"FIFO trim end-marker: {marker}")
+    return marker
 
 
 def bilog_autotrim(bucket=None, times=3, delay=5):
@@ -785,11 +827,37 @@ def _part_target(part, default_pool):
     return str(pool), str(oid), ns or None
 
 
+def _manifest_bucket_marker(manifest):
+    """Bucket marker RGW prepends to a data-pool object name."""
+    placement = manifest.get("tail_placement") or {}
+    bucket = placement.get("bucket") if isinstance(placement, dict) else {}
+    if not isinstance(bucket, dict):
+        bucket = {}
+    marker = bucket.get("marker") or bucket.get("bucket_id") or ""
+    if marker:
+        return str(marker)
+    begin = manifest.get("begin_iter") or {}
+    location = begin.get("location") if isinstance(begin, dict) else {}
+    obj = location.get("obj") if isinstance(location, dict) else {}
+    bucket = obj.get("bucket") if isinstance(obj, dict) else {}
+    if isinstance(bucket, dict):
+        return str(bucket.get("marker") or bucket.get("bucket_id") or "")
+    return ""
+
+
+def _rados_data_oid(marker, logical_oid):
+    """Match prepend_bucket_marker(): "{marker}_{oid}" when a marker is set."""
+    if not marker or not logical_oid:
+        return logical_oid
+    return f"{marker}_{logical_oid}"
+
+
 def _tail_targets(manifest, default_pool):
     """RADOS tails for an object. An inline object has none.
 
-    Implicit tails are "{prefix}{stripe}" in the shadow namespace. The
-    manifest prefix itself is not an object name. Stripe 0 is the index head.
+    Implicit tails are "{bucket_marker}_{prefix}{stripe}" in the shadow
+    namespace. The manifest prefix itself is not an object name. Stripe 0
+    is the index head.
     """
     if manifest.get("explicit_objs"):
         targets = []
@@ -812,12 +880,14 @@ def _tail_targets(manifest, default_pool):
     prefix = manifest.get("prefix")
     if stripe <= 0 or not prefix:
         return []
+    marker = _manifest_bucket_marker(manifest)
     targets = []
     stripe_id = 0
     ofs = max_head
     while ofs < obj_size:
         stripe_id += 1
-        targets.append((default_pool, f"{prefix}{stripe_id}", "shadow"))
+        logical = f"{prefix}{stripe_id}"
+        targets.append((default_pool, _rados_data_oid(marker, logical), "shadow"))
         ofs += stripe
     return targets
 

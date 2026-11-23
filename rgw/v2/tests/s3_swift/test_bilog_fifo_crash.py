@@ -97,10 +97,14 @@ def test_9_2_olh_without_fifo(config, ssh_con, user, rgw_conn, rgw_client, ip_an
     entries = fifo.bilog_list(bucket)
     if not entries:
         raise TestExecError("no bilog after V2 PUT")
-    marker = fifo.entry_id(entries[-1])
-    fifo.bilog_trim(bucket, end_marker=marker)
+    try:
+        # The merged list's last op_id has no shard prefix. FIFO trim applies
+        # that bare marker to shard 0 and returns ENODATA when shard 0 is empty.
+        fifo.bilog_trim(bucket, end_marker=fifo.bilog_trim_end_marker(bucket))
+    finally:
+        if remote:
+            fifo.start_secondary_rgw(remote)
     if remote:
-        fifo.start_secondary_rgw(remote)
         time.sleep(20)
         fifo.wait_sync(bucket, retry=20, delay=10)
     _upload(config, user, bucket, key, size=7)
