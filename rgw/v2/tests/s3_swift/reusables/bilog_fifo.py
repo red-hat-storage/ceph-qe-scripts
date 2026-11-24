@@ -928,8 +928,20 @@ def _tail_targets(manifest, default_pool):
     return targets
 
 
+def _head_target(manifest, object_key, default_pool):
+    """Data-pool head that check_disk_state stats.
+
+    The object is "{bucket_marker}_{key}" in the default namespace. A
+    missing shadow tail leaves this head in place, and bucket check then
+    rewrites the index entry instead of deleting it.
+    """
+    marker = _manifest_bucket_marker(manifest)
+    logical = _rgw_key_oid(object_key)
+    return default_pool, _rados_data_oid(marker, logical), None
+
+
 def remove_head_object(bucket, object_key):
-    """Remove data-pool tail objects and leave the bucket index entry.
+    """Remove the data-pool head and any shadow tails. Leave the index entry.
 
     Objects that fit in the index head have no RADOS object. Callers that
     need those bytes gone remove the index key themselves.
@@ -951,6 +963,7 @@ def remove_head_object(bucket, object_key):
             "no data-pool object to remove"
         )
         return []
+    targets.insert(0, _head_target(manifest, object_key, pool))
     for data_pool, oid, ns in targets:
         ns_arg = f" --namespace {shlex.quote(ns)}" if ns else ""
         log.info(f"removing tail object {data_pool}/{ns or '-'}:{oid}")

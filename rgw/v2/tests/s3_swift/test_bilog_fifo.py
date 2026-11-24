@@ -407,7 +407,8 @@ def scenario_index_repair(config, ssh_con, user, rgw_conn, rgw_client, ip_and_po
     log.info("7.1 passed: object reindex created FIFO ADD for missing index")
 
     orphan_key = "repair-orphan"
-    # Past the 4MiB index head so the object has a shadow tail to remove.
+    # Larger than the 4MiB inline head so RGW writes a data-pool head object.
+    # check_disk_state stats that object, not the shadow tail.
     _upload(config, user, bucket, orphan_key, size=5 * 1024 * 1024)
     fifo.remove_head_object(bucket, orphan_key)
     before = fifo.bilog_list(bucket)
