@@ -1,0 +1,40 @@
+# script: test_admin_api_user_types.py
+# Declares AdminOps REST ops; handlers call v2.tests.rest.reusable
+config:
+  user_remove: true
+  test_ops:
+    list_users: true
+    list_users_pagination: true
+    create_user_with_attrs: true
+    create_user_no_key: true
+    create_user_exclusive: true
+    create_user_explicit_keys: true
+    get_user_by_access_key: true
+    create_tenant_user: true
+    create_tenant_subuser: true
+    create_tenant_s3_subuser: true
+    tenanted_user_caps: true
+    create_admin_ops_user: true
+    create_system_user: true
+    create_swift_user: true
+    create_swift_subuser: true
+    create_swift_key: true
+    remove_swift_key: true
+    gen_subuser: true
+    suspend_enable_user: true
+    create_key_variants: true
+    create_key_active_false: true
+    remove_key: true
+    purge_data_user_delete: true
+    purge_keys_subuser_delete: true
+    set_user_quota: true
+    set_bucket_quota_scope: true
+    set_individual_bucket_quota: true
+    create_account: true
+    create_tenant_account: true
+    create_account_user: true
+    create_account_user_non_root: true
+    modify_account: true
+    get_account_info: true
+    set_account_quota: true
+    delete_account: true
