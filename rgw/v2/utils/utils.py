@@ -132,17 +132,41 @@ def exec_shell_cmd(cmd, debug_info=False, return_err=False):
         return False
 
 
-def connect_remote(rgw_host, user_nm="cephuser", passw="cephuser"):
+# cephadm bootstrap generates this key for cephuser and authorizes it on every
+# node. Suites run under sudo, so ~/.ssh would be /root/.ssh and miss the key.
+CEPHUSER_SSH_KEY = "/home/cephuser/.ssh/id_rsa"
+
+
+def connect_remote(rgw_host, user_nm="cephuser", key_filename=None):
+    """Open a key-based SSH session to a cluster node.
+
+    Password authentication is not supported. The default key is the cephuser
+    keypair written by cephadm bootstrap.
+    """
+    key_path = key_filename or CEPHUSER_SSH_KEY
+    if not os.path.isfile(key_path):
+        raise Exception(
+            f"SSH private key not found at {key_path}. "
+            "Password authentication is not supported."
+        )
+    log.info("SSH connect to %s as %s with key %s", rgw_host, user_nm, key_path)
     ssh = paramiko.SSHClient()
     if _FIPS_ENABLED:
         ssh.set_missing_host_key_policy(FipsAutoAddPolicy())
     else:
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(rgw_host, port=22, username=user_nm, password=passw, timeout=3)
+    ssh.connect(
+        rgw_host,
+        port=22,
+        username=user_nm,
+        key_filename=key_path,
+        look_for_keys=False,
+        allow_agent=False,
+        timeout=3,
+    )
     if ssh is None:
         raise Exception("Connection with remote machine failed")
-    else:
-        return ssh
+    return ssh
 
 
 def remote_exec_shell_cmd(ssh, cmd, return_output=False):
