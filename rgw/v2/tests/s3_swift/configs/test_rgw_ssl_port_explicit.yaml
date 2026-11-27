@@ -1,0 +1,34 @@
+# script-name: test_rgw_ssl_port.py
+# test-case: TC-1
+# covers: explicit rgw_frontend_ssl_port + ssl: true — dual HTTP + HTTPS listeners
+# pass: daemon binds :8080 (HTTP) and :443 (HTTPS); S3 IO succeeds on both
+config:
+  user_count: 1
+  objects_count: 3
+  objects_size_range:
+    min: 5
+    max: 50
+  test_ops:
+    scenario: explicit_ssl_port
+    service_id: ssl-port-explicit
+    rgw_frontend_port: 8080
+    rgw_frontend_ssl_port: 443
+    ssl: true
+    generate_cert: true
+    rgw_frontend_type: beast
+    rgw_realm: default
+    rgw_zonegroup: default
+    rgw_zone: default
+    rgw_exit_timeout_secs: 120
+    placement_hosts:
+      - ceph-local-01
+    perform_s3_io: true
+    use_ssl_endpoint: true
+    use_http_endpoint: true
+    download_object: true
+    delete_bucket_object: true
+    verify_orch_export: true
+    verify_listeners: true
+    cleanup_service: true
+    wait_timeout: 300
+    port_wait_timeout: 120
