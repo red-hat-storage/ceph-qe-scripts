@@ -5,6 +5,7 @@ Reusable helpers for RGW-backed SMB share operations.
 import json
 import logging
 import os
+import subprocess
 import tempfile
 import time
 
@@ -86,19 +87,107 @@ def create_smb_cluster(
     return out
 
 
-def remove_smb_cluster(cluster_id):
+def _share_ids_from_list(share_list):
+    """
+    Return share ids from ceph smb share ls output.
+    """
+    if isinstance(share_list, list):
+        share_ids = []
+        for item in share_list:
+            if isinstance(item, str):
+                share_ids.append(item)
+            elif isinstance(item, dict):
+                share_id = item.get("share_id") or item.get("id")
+                if share_id:
+                    share_ids.append(str(share_id))
+        return share_ids
+    if isinstance(share_list, dict):
+        nested = share_list.get("shares") or share_list.get("results")
+        if isinstance(nested, list):
+            return _share_ids_from_list(nested)
+        return [str(key) for key in share_list.keys()]
+    if isinstance(share_list, str):
+        return [line.strip() for line in share_list.splitlines() if line.strip()]
+    return []
+
+
+def remove_shares_on_cluster(cluster_id):
+    """
+    Remove every share on cluster_id.
+
+    Ceph rejects cluster removal with EAGAIN and "cluster in use by shares"
+    while any share still references the cluster.
+    """
+    try:
+        share_list = list_smb_shares(cluster_id)
+    except TestExecError as exc:
+        log.info(f"Could not list shares for cluster {cluster_id}: {exc}")
+        return []
+
+    share_ids = _share_ids_from_list(share_list)
+    if not share_ids:
+        log.info(f"No shares remain on SMB cluster {cluster_id}")
+        return []
+
+    log.info(
+        f"SMB cluster {cluster_id} is still used by shares {share_ids}. "
+        "Removing those shares before the cluster is deleted."
+    )
+    removed = []
+    for share_id in share_ids:
+        returncode, out, err = _run_shell_cmd(
+            f"ceph smb share rm {cluster_id} {share_id}"
+        )
+        combined = "\n".join(part for part in (out, err) if part).strip()
+        if returncode != 0:
+            log.warning(
+                f"Failed to remove share {share_id} from cluster "
+                f"{cluster_id}: {combined}"
+            )
+            continue
+        log.info(f"Removed share {share_id} from cluster {cluster_id}")
+        removed.append(share_id)
+    return removed
+
+
+def remove_smb_cluster(cluster_id, retry_count=6, retry_interval=5):
     """
     Remove an SMB cluster.
+
+    Shares that still reference the cluster are removed first. Cluster
+    removal is retried when Ceph returns EAGAIN / "cluster in use by shares".
     Args:
         cluster_id(str): SMB cluster id
+        retry_count(int): Attempts to remove the cluster
+        retry_interval(int): Seconds to wait between attempts
     """
     log.info(f"Removing SMB cluster: {cluster_id}")
-    cmd = f"ceph smb cluster rm {cluster_id}"
-    out = utils.exec_shell_cmd(cmd)
-    if out is False:
-        raise TestExecError(f"Failed to remove SMB cluster {cluster_id}")
-    log.info(f"SMB cluster remove output: {out}")
-    return out
+    last_output = ""
+    for attempt in range(1, retry_count + 1):
+        remove_shares_on_cluster(cluster_id)
+        returncode, out, err = _run_shell_cmd(f"ceph smb cluster rm {cluster_id}")
+        combined = "\n".join(part for part in (out, err) if part).strip()
+        last_output = combined
+        if returncode == 0:
+            log.info(f"SMB cluster remove output: {combined}")
+            return combined
+
+        in_use = "cluster in use by shares" in combined.lower()
+        if not in_use and "eagain" not in combined.lower():
+            raise TestExecError(
+                f"Failed to remove SMB cluster {cluster_id}: {combined}"
+            )
+        log.warning(
+            f"SMB cluster {cluster_id} is still in use by shares "
+            f"(attempt {attempt}/{retry_count}): {combined}"
+        )
+        if attempt < retry_count:
+            time.sleep(retry_interval)
+
+    raise TestExecError(
+        f"Failed to remove SMB cluster {cluster_id}: cluster in use by "
+        f"shares. Last output: {last_output}"
+    )
 
 
 def list_smb_clusters(fmt="json"):
@@ -346,6 +435,230 @@ def verify_smb_service_available(
     )
 
 
+def _radosgw_admin_json(cmd, action):
+    """
+    Run a radosgw-admin command and return parsed JSON.
+    """
+    out = utils.exec_shell_cmd(cmd)
+    if out is False or not str(out).strip():
+        raise TestExecError(f"{action} failed")
+    try:
+        return json.loads(out)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise TestExecError(f"{action} output is not JSON: {exc}") from exc
+
+
+def rgw_user_exists(user_id):
+    """
+    Return True when user_id is present in radosgw-admin user list.
+    """
+    log.info(f"Checking whether RGW user {user_id} exists")
+    existing = _radosgw_admin_json("radosgw-admin user list", "radosgw-admin user list")
+    exists = isinstance(existing, list) and user_id in existing
+    log.info(f"RGW user {user_id} exists: {exists}")
+    return exists
+
+
+def qualified_rgw_user_id(user_id, tenant=None):
+    """
+    Return the RGW user id used by SMB credentials.
+
+    A tenanted user is tenant$uid. The short uid is unchanged when tenant
+    is not set.
+    """
+    if not tenant:
+        return user_id
+    short_id = str(user_id).split("$", 1)[-1]
+    return f"{tenant}${short_id}"
+
+
+def create_rgw_user(
+    user_id, secret_key=None, access_key=None, display_name=None, tenant=None
+):
+    """
+    Create an RGW user, optionally with a fixed access key and secret key.
+
+    When the uid already exists, an S3 key is added instead of replacing
+    the user. The returned key is the one that matches secret_key when
+    secret_key is set.
+
+    tenant creates the user in that RGW tenant. The returned user_id is
+    tenant$uid, which is the id SMB stores on the RGW credential.
+    """
+    short_id = str(user_id).split("$", 1)[-1] if tenant else user_id
+    full_id = qualified_rgw_user_id(short_id, tenant)
+    display_name = display_name or short_id
+    log.info(f"Creating RGW user: {full_id}")
+    prefix = "radosgw-admin"
+    if tenant:
+        prefix += f" --tenant='{tenant}'"
+    if rgw_user_exists(full_id):
+        log.info(f"RGW user {full_id} already exists, adding an S3 key")
+        cmd = f"{prefix} key create --uid='{short_id}' --key-type=s3"
+    else:
+        cmd = (
+            f"{prefix} user create --uid='{short_id}' "
+            f"--display-name='{display_name}'"
+        )
+    if access_key:
+        cmd += f" --access-key='{access_key}'"
+    else:
+        cmd += " --gen-access-key"
+    if secret_key is not None:
+        cmd += f" --secret-key='{secret_key}'"
+    else:
+        cmd += " --gen-secret"
+
+    user_json = _radosgw_admin_json(cmd, f"create RGW user {full_id}")
+    if user_json.get("keys"):
+        keys = user_json["keys"]
+    elif user_json.get("access_key"):
+        keys = [user_json]
+        user_json = {
+            "user_id": user_json.get("user") or full_id,
+            "display_name": display_name,
+        }
+    else:
+        keys = []
+    if not keys:
+        raise TestExecError(f"RGW user {full_id} was created without S3 keys")
+
+    chosen = None
+    if secret_key is not None:
+        for key in keys:
+            if key.get("secret_key") == str(secret_key):
+                chosen = key
+                break
+        if chosen is None:
+            raise TestExecError(
+                f"RGW user {user_id} has no key with secret_key {secret_key!r}"
+            )
+    elif access_key:
+        for key in keys:
+            if key.get("access_key") == access_key:
+                chosen = key
+                break
+        if chosen is None:
+            raise TestExecError(
+                f"RGW user {user_id} has no key with access_key {access_key!r}"
+            )
+    else:
+        chosen = keys[-1]
+
+    resolved_id = user_json.get("user_id") or full_id
+    if tenant and "$" not in str(resolved_id):
+        resolved_id = full_id
+    user_details = {
+        "user_id": resolved_id,
+        "display_name": user_json.get("display_name"),
+        "access_key": chosen["access_key"],
+        "secret_key": chosen["secret_key"],
+    }
+    if tenant:
+        user_details["tenant"] = tenant
+    log.info(
+        f"RGW user created: user_id={user_details['user_id']}, "
+        f"access_key={user_details['access_key']}"
+    )
+    return user_details
+
+
+def remove_rgw_user(user_id, tenant=None):
+    """
+    Remove an RGW user and purge that user's keys and data.
+
+    tenant is added to user_id when the id is not already tenant$uid.
+    The uid is quoted so the shell does not expand '$'.
+    """
+    uid = qualified_rgw_user_id(user_id, tenant)
+    log.info(f"Removing RGW user: {uid}")
+    out = utils.exec_shell_cmd(
+        f"radosgw-admin user rm --uid='{uid}' --purge-keys --purge-data"
+    )
+    if out is False:
+        raise TestExecError(f"Failed to remove RGW user {uid}")
+    log.info(f"RGW user remove output: {out}")
+    return out
+
+
+def get_bucket_owner(bucket_name, tenant=None):
+    """
+    Return the owning user id for a bucket.
+
+    tenant looks up tenant/bucket. A tenanted bucket is not visible as
+    the bare bucket name.
+    """
+    bucket_ref = bucket_name
+    if tenant and "/" not in str(bucket_name):
+        bucket_ref = f"{tenant}/{bucket_name}"
+    log.info(f"Fetching owner of bucket {bucket_ref}")
+    stats = _radosgw_admin_json(
+        f"radosgw-admin bucket stats --bucket '{bucket_ref}'",
+        f"bucket stats for {bucket_ref}",
+    )
+    owner = stats.get("owner")
+    if isinstance(owner, dict):
+        owner = owner.get("id") or owner.get("user_id")
+    if not owner:
+        raise TestExecError(f"bucket {bucket_name} stats did not include an owner")
+    log.info(f"Bucket {bucket_name} owner: {owner}")
+    return owner
+
+
+def list_buckets_for_user(user_id):
+    """
+    Return the bucket names owned by user_id.
+    """
+    log.info(f"Listing buckets owned by user {user_id}")
+    out = utils.exec_shell_cmd(f"radosgw-admin bucket list --uid='{user_id}'")
+    if out is False:
+        raise TestExecError(f"Failed to list buckets for user {user_id}")
+    if not str(out).strip():
+        return []
+    try:
+        buckets = json.loads(out)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise TestExecError(f"bucket list output is not JSON: {exc}") from exc
+    if not isinstance(buckets, list):
+        raise TestExecError(f"bucket list for user {user_id} was not a list: {buckets}")
+    log.info(f"Buckets for user {user_id}: {buckets}")
+    return buckets
+
+
+def user_associated_with_bucket(user_id, bucket_name):
+    """
+    Return True when user_id is associated with bucket_name.
+
+    Association means the user owns the bucket: the bucket owner is user_id,
+    or the bucket is listed for that user. A user id of tenant$uid is
+    compared against that tenant's bucket.
+    """
+    tenant = None
+    short_id = user_id
+    if "$" in str(user_id):
+        tenant, short_id = str(user_id).split("$", 1)
+    owner = None
+    try:
+        owner = get_bucket_owner(bucket_name, tenant=tenant)
+    except TestExecError as exc:
+        if tenant:
+            raise
+        log.info(f"Bucket stats for {bucket_name} did not return an owner: {exc}")
+    buckets = list_buckets_for_user(user_id)
+    bucket_names = {bucket_name}
+    if tenant:
+        bucket_names.add(f"{tenant}/{bucket_name}")
+        owner_matches = owner in (user_id, short_id, f"{tenant}${short_id}")
+    else:
+        owner_matches = owner == user_id
+    associated = bool(owner_matches or any(name in buckets for name in bucket_names))
+    log.info(
+        f"User {user_id} associated with bucket {bucket_name}: {associated} "
+        f"(owner={owner}, tenant={tenant})"
+    )
+    return associated
+
+
 def build_rgw_share_resources(
     cluster_id,
     share_id,
@@ -426,23 +739,62 @@ def write_smb_resources_file(resources, file_path=None):
     return file_path
 
 
-def apply_smb_resources(resources, file_path=None, cleanup_file=True):
+def _run_shell_cmd(cmd):
+    """
+    Run a shell command and return (returncode, stdout, stderr).
+
+    A non-zero exit is returned to the caller. It is not treated as a crash.
+    """
+    log.info("executing cmd: %s" % cmd)
+    pr = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=False,
+        shell=True,
+    )
+    out, err = pr.communicate()
+    out = out.decode("utf-8", errors="ignore") if out else ""
+    err = err.decode("utf-8", errors="ignore") if err else ""
+    log.info(f"cmd returncode: {pr.returncode}")
+    if out:
+        log.info(out)
+    if err:
+        log.info(err)
+    return pr.returncode, out, err
+
+
+def apply_smb_resources(
+    resources, file_path=None, cleanup_file=True, expect_failure=False
+):
     """
     Apply SMB resources using declarative ceph smb apply.
     Args:
         resources(list): List of SMB resource dicts
         file_path(str): Optional YAML path to write/use
         cleanup_file(bool): Delete temp YAML after apply
+        expect_failure(bool): When True, a non-zero exit is the expected
+            result and a successful apply is a test failure. Use this for
+            validation that must reject the spec before a share is created.
     """
     resource_file = write_smb_resources_file(resources, file_path=file_path)
     try:
         log.info(f"Applying SMB resources from {resource_file}")
         cmd = f"ceph smb apply -i {resource_file}"
-        out = utils.exec_shell_cmd(cmd)
-        if out is False:
-            raise TestExecError("ceph smb apply failed")
-        log.info(f"ceph smb apply output: {out}")
-        return out
+        returncode, out, err = _run_shell_cmd(cmd)
+        combined = "\n".join(part for part in (out, err) if part).strip()
+        if expect_failure:
+            if returncode == 0:
+                raise TestExecError(
+                    "ceph smb apply succeeded, but failure was required "
+                    f"before the share is created. output: {combined}"
+                )
+            log.info(f"ceph smb apply failed as expected: {combined}")
+            return combined
+        if returncode != 0:
+            raise TestExecError(f"ceph smb apply failed: {combined}")
+        log.info(f"ceph smb apply output: {combined}")
+        return combined
     finally:
         if cleanup_file and os.path.exists(resource_file):
             os.remove(resource_file)
@@ -505,9 +857,9 @@ def remove_smb_share(cluster_id, share_id):
     return out
 
 
-def verify_share_in_list(share_list, share_id, expect_present=True):
+def share_in_list(share_list, share_id):
     """
-    Verify whether share_id is present in share list output.
+    Return True if share_id is present in share list output.
     """
     share_ids = []
     if isinstance(share_list, list):
@@ -523,6 +875,14 @@ def verify_share_in_list(share_list, share_id, expect_present=True):
 
     present = share_id in share_ids or any(share_id in str(s) for s in share_ids)
     log.info(f"Share ids found: {share_ids}; looking for {share_id}; present={present}")
+    return present
+
+
+def verify_share_in_list(share_list, share_id, expect_present=True):
+    """
+    Verify whether share_id is present in share list output.
+    """
+    present = share_in_list(share_list, share_id)
     if expect_present and not present:
         raise TestExecError(f"Expected share {share_id} in list, but it was not found")
     if not expect_present and present:

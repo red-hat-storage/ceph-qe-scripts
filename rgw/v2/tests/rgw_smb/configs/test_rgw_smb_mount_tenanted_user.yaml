@@ -1,0 +1,54 @@
+# script: test_rgw_smb_basic_ops.py
+# Description: Create an RGW-backed SMB share for a tenanted user and
+#              access it with smbclient.
+#
+# Workflow:
+#   1. Create tenanted RGW user: tenant1$user1
+#   2. Create bucket test1 for that user
+#   3. Upload objects to bucket test1
+#   4. Deploy SMB cluster rgw-smb with --placement="label:smb" and create
+#      share rsharetenant. The credential user_id is tenant1$user1. The
+#      share bucket name is test1, without a tenant prefix.
+#   5. Perform smbclient mount ops:
+#        smbclient //<smb-endpoint>/<sharename> -U <smbuser>%<smbpasswd>
+#      Verify uploaded objects are listed, delete one file, and put a
+#      test file.
+#   6. Delete the share, credential, and SMB cluster
+#   7. Delete tenanted user tenant1$user1
+#
+# SMB login stays smbuser%smbpass. The tenant applies to the RGW user
+# that owns the bucket, not to the Samba login.
+#
+# Prerequisite: Host(s) labeled with 'smb' via:
+#   ceph orch host label add <host> smb
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 2
+  objects_size_range:
+    min: 1
+    max: 5
+  user_remove: true
+  user_type: tenanted
+  test_ops:
+    tenant_name: tenant1
+    user_name: user1
+    bucket_name: test1
+    create_bucket: true
+    create_object: true
+    cluster_id: rgw-smb
+    share_id: rgw-share-tenant
+    share_name: rsharetenant
+    credential_id: tenant-rgw-creds
+    create_smb_cluster: true
+    smb_auth_mode: user
+    define_user_pass: smbuser%smbpass
+    placement: "label:smb"
+    create_smb_share: true
+    list_smb_share: true
+    mount_smb_share: true
+    smbclient_io: true
+    smbclient_delete: true
+    delete_smb_share: true
+    delete_via_apply: true
+    delete_smb_cluster: true
