@@ -1,0 +1,13 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 5.1-5.3 SYNCSTOP, local-only writes, RESYNC catch-up
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 5
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: sync_disable
+    bilog_type: fifo

@@ -1,0 +1,16 @@
+# script: test_bilog_fifo.py
+# polarion_id: TBD
+# cases: 6.3-6.4 old FIFO generations removed after autotrim
+config:
+  user_count: 1
+  bucket_count: 1
+  objects_count: 1
+  objects_size_range:
+    min: 5
+    max: 5
+  test_ops:
+    scenario: reshard_trim
+    bilog_type: fifo
+    reshard_shards: 16
+    second_reshard_shards: 32
+    autotrim_passes: 5
