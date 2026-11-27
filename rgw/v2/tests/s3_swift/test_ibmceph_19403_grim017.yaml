@@ -1,0 +1,24 @@
+# test_ibmceph_19403_grim017.yaml
+# Config for IBMCEPH-19403 RGW race-condition suite on grim017 (FIX BUILD)
+# Build: ceph version 20.2.2-349.1.hotfix.IBMCEPH19403.el10cp
+#
+# RGW-A: grim017 (10.64.66.22) — container ovwbup  — the one we SIGKILL
+# RGW-B: grim019 (10.64.66.24) — stays alive throughout
+
+rgw_a_url: "http://10.64.66.22:80"
+rgw_b_url: "http://10.64.66.24:80"
+
+access_key: "IBMCEPH19407KEY"
+secret_key: "IBMCEPH19407SECRET"
+
+data_pool: "default.rgw.buckets.data"
+meta_pool: "default.rgw.buckets.non-ec"
+
+rgw_a_unit: "ceph-14fafad4-8a53-11f1-8f02-905a08a0cfed@rgw.80.grim017.ovwbup.service"
+rgw_a_ctr_pattern: "ovwbup"
+
+part_size: 5242880   # 5 MiB
+num_parts: 8
+
+bl_lock_ttl: 30
+bl_secs: 40
