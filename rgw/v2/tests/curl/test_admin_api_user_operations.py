@@ -9,6 +9,8 @@ Usage: test_admin_api_user_operations.py -c <input_yaml>
 Operation:
     This test validates user modifications, deletions, and subuser operations
     are properly synced between primary and secondary sites in a multisite RGW setup.
+    An optional account_admin_ops scenario validates GetAccount and DeleteAccount
+    with a non-system caller granted accounts capabilities.
 """
 
 import os
@@ -39,13 +41,94 @@ log = logging.getLogger()
 TEST_DATA_PATH = None
 
 
+def test_account_operations(endpoint):
+    """Regression coverage for GetAccount/DeleteAccount returning EPERM.
+
+    Use a fresh empty account and a non-system admin user so the accounts
+    capability checks are exercised. CLI setup/cleanup remains independent of
+    the AdminOps APIs under test.
+    """
+    suffix = admin_api.generate_random_string(16)
+    uid = f"account-admin-{suffix}"
+    account_name = f"adminops-{suffix}"
+    account_id = "RGW" + "".join(random.choice(string.digits) for _ in range(17))
+    email = f"{account_name}@example.com"
+    cleanup = []
+    try:
+        # Register cleanup before setup so partial setup failures are covered.
+        cleanup.append(f"radosgw-admin user rm --uid={uid}")
+        caller = admin_api.parse_json_response(
+            utils.exec_shell_cmd(
+                f"radosgw-admin user create --uid={uid} --display-name={uid} "
+                '--caps="accounts=*"'
+            ),
+            "account admin user creation",
+        )
+        access_key = caller["keys"][0]["access_key"]
+        secret_key = caller["keys"][0]["secret_key"]
+        cleanup.append(f"radosgw-admin account rm --account-id={account_id}")
+        created = admin_api.parse_json_response(
+            utils.exec_shell_cmd(
+                f"radosgw-admin account create --account-id={account_id} "
+                f"--account-name={account_name} --email={email}"
+            ),
+            "account creation",
+        )
+        if created.get("id") != account_id:
+            raise TestExecError(f"Unexpected account creation response: {created}")
+
+        account = admin_api.get_account(endpoint, access_key, secret_key, account_id)
+        if account.get("name") != account_name or account.get("email") != email:
+            raise TestExecError(
+                f"GetAccount returned incorrect account fields: {account}"
+            )
+        admin_api.delete_account(endpoint, access_key, secret_key, account_id)
+        if (
+            admin_api.get_account(
+                endpoint, access_key, secret_key, account_id, allow_missing=True
+            )
+            is not None
+        ):
+            raise TestExecError(
+                f"Account {account_id} still exists after DeleteAccount"
+            )
+        cleanup.pop()  # Account deletion was verified; only the caller remains.
+        log.info("GetAccount and DeleteAccount regression checks passed")
+    finally:
+        failed = sys.exc_info()[0] is not None
+        cleanup_errors = []
+        for command in reversed(cleanup):
+            if utils.exec_shell_cmd(command) is False:
+                cleanup_errors.append(command)
+                log.error(f"Account AdminOps cleanup failed: {command}")
+        if cleanup_errors and not failed:
+            raise TestExecError(f"Account AdminOps cleanup failed: {cleanup_errors}")
+
+
 def test_exec(config, ssh_con):
     """Main test execution function"""
     io_info_initialize = IOInfoInitialize()
     basic_io_structure = BasicIOInfoStructure()
     io_info_initialize.initialize(basic_io_structure.initial())
 
-    # Get endpoints
+    user_count = config.user_count if hasattr(config, "user_count") else 1
+    account_admin_ops = config.test_ops.get("account_admin_ops", False)
+    if account_admin_ops and user_count == 0:
+        # Account APIs also work on single-site clusters with a default zone.
+        # Follow the standard --rgw-node/local-host selection used by S3 tests.
+        host_info = utils.get_hostname_ip(ssh_con)
+        port = utils.get_radosgw_port_no(ssh_con)
+        if not host_info or not host_info[1] or not port:
+            raise TestExecError("Unable to resolve the RGW host and port")
+        scheme = "https" if getattr(config, "ssl", False) else "http"
+        endpoint = f"{scheme}://{host_info[1]}:{port}"
+        log.info(f"Account AdminOps endpoint: {endpoint}")
+        test_account_operations(endpoint)
+        if reusable.check_for_crash():
+            raise TestExecError("ceph daemon crash found!")
+        return
+
+    # Get endpoints for the multisite user and bucket scenarios.
     primary_ip = utils.get_rgw_ip_zone("primary")
     primary_port = utils.get_radosgw_port_no(ssh_con)
     primary_endpoint = f"http://{primary_ip}:{primary_port}"
@@ -56,14 +139,17 @@ def test_exec(config, ssh_con):
 
     log.info(f"Primary: {primary_endpoint}, Secondary: {secondary_endpoint}")
 
-    # Get admin credentials
-    repuser_info = admin_api.parse_json_response(
-        utils.exec_shell_cmd("radosgw-admin user info --uid=repuser"), "repuser"
-    )
-    admin_access_key = repuser_info["keys"][0]["access_key"]
-    admin_secret_key = repuser_info["keys"][0]["secret_key"]
+    if account_admin_ops:
+        test_account_operations(primary_endpoint)
 
-    user_count = config.user_count if hasattr(config, "user_count") else 1
+    if user_count:
+        # Existing user/bucket scenarios use the multisite system user.
+        repuser_info = admin_api.parse_json_response(
+            utils.exec_shell_cmd("radosgw-admin user info --uid=repuser"), "repuser"
+        )
+        admin_access_key = repuser_info["keys"][0]["access_key"]
+        admin_secret_key = repuser_info["keys"][0]["secret_key"]
+
     sync_wait_time = config.sync_wait_time if hasattr(config, "sync_wait_time") else 10
 
     all_users = []

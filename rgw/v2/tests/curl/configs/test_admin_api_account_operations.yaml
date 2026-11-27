@@ -1,0 +1,7 @@
+# script: test_admin_api_user_operations.py
+# Regression: GetAccount() and DeleteAccount() must not return EPERM.
+config:
+  # Run account operations without creating unrelated users or buckets.
+  user_count: 0
+  test_ops:
+    account_admin_ops: true
